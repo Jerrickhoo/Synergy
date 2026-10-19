@@ -1,5 +1,5 @@
+import FormErrors from "./FormErrors.jsx";
 import { useApp } from "../state/AppContext.jsx";
-import Icon from "../components/Icon.jsx";
 export default function TermsPanel({ room, agreement, partner, milestones }) {
   const { model, onAction, onSubmit } = useApp();
   const { roomStatusLabel } = model;
@@ -31,6 +31,7 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
           onSubmit={(event) => onSubmit(event)}
         >
           {"\n            "}
+          <FormErrors scope="terms-form" />
           <div className="field">
             <label htmlFor="term-goal">Shared goal</label>
             <input
@@ -150,26 +151,11 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
           A shared understanding makes it easier to move forward.
         </p>
         <ul>
-          <li>
-            <Icon name="check" />
-            Agree on one clear outcome
-          </li>
-          <li>
-            <Icon name="check" />
-            Define scope and deliverables
-          </li>
-          <li>
-            <Icon name="check" />
-            Set a realistic timeline
-          </li>
-          <li>
-            <Icon name="check" />
-            Confirm each person’s commitment
-          </li>
-          <li>
-            <Icon name="check" />
-            Make the exchange explicit
-          </li>
+          <li>Agree on one clear outcome</li>
+          <li>Define scope and deliverables</li>
+          <li>Set a realistic timeline</li>
+          <li>Confirm each person’s commitment</li>
+          <li>Make the exchange explicit</li>
         </ul>
       </aside>
     </div>

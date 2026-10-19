@@ -1,101 +1,75 @@
 import { useApp } from "../state/AppContext.jsx";
-import { pageLabel } from "../data/filters.js";
+import Icon from "./Icon.jsx";
+import Brand from "./Brand.jsx";
+
 export default function Topbar() {
   const { state, model, onAction } = useApp();
-  const { roleInitials } = model;
+  const activity = state.activity
+    .filter((item) => item.role === state.role)
+    .slice(0, 4);
   return (
-    <header className="topbar">
-      {"\n        "}
-      <div className="crumb">
-        {"Workspace "}
-        <span
-          style={{
-            padding: "0 6px",
-            color: "#adb6b0",
-          }}
-        >
-          /
-        </span>{" "}
-        <strong id="crumb-page">{pageLabel(state.page)}</strong>
-      </div>
-      {"\n        "}
-      <div className="mobile-brand">
-        <span className="brand-mark">sy</span>
-        {" synergy"}
-      </div>
-      {"\n        "}
-      <div className="top-actions">
-        {"\n          "}
-        <button
-          className="icon-btn"
-          id="notification-toggle"
-          aria-label="Notifications"
-          aria-expanded={state.notificationOpen}
-          onClick={(event) =>
-            onAction(
-              {
-                action: "toggle-notifications",
-              },
-              event,
-            )
-          }
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
-            <path d="M10 21h4" />
-          </svg>
-          <span className="notification-dot" />
-        </button>
-        {"\n          "}
-        <div
-          className="avatar"
-          style={{
-            width: "32px",
-            height: "32px",
-          }}
-        >
-          {roleInitials()}
-        </div>
-        {"\n          "}
-        <button
-          className="mobile-sign-out"
-          data-action="sign-out"
-          onClick={(event) =>
-            onAction(
-              {
-                action: "sign-out",
-              },
-              event,
-            )
-          }
-        >
-          Sign out
-        </button>
-        {"\n        "}
-      </div>
-      {"\n        "}
-      <div
-        id="notification-panel"
-        className="notification-panel"
-        hidden={!state.notificationOpen}
+    <header className="topbar simple-topbar">
+      <button
+        id="navigation-toggle"
+        className="icon-btn mobile-menu-toggle"
+        aria-label="Open navigation"
+        aria-expanded={state.moreOpen}
+        aria-controls="mobile-more-sheet"
+        onClick={() => onAction({ action: "more-menu" })}
       >
-        <h3>Notifications</h3>
-        <p>
-          <strong>
-            {state.role === "founder" ? "Campus Grocer" : "BudgetBuddy"}
-          </strong>
-          {state.role === "founder"
-            ? " confirmed a milestone in Beta Testing Exchange."
-            : " confirmed 'Goals defined'."}
-        </p>
-        <p>
-          <strong>New match:</strong>{" "}
-          {state.role === "founder"
-            ? "David Park is open to a mentorship conversation."
-            : "BudgetBuddy is looking for product guidance."}
-        </p>
+        <Icon name="menu" />
+      </button>
+      <div className="mobile-brand">
+        <Brand compact />
       </div>
-      {"\n      "}
+      <span className="workspace-heading">Your workspace</span>
+      <div className="top-actions">
+        <button
+          className="icon-btn tablet-signout"
+          aria-label="Sign out"
+          title="Sign out"
+          onClick={() => onAction({ action: "sign-out" })}
+        >
+          <Icon name="logout" />
+        </button>
+        <div className="notification-anchor">
+          <button
+            className="icon-btn"
+            id="notification-toggle"
+            aria-label="Notifications"
+            aria-expanded={state.notificationOpen}
+            aria-controls="notification-panel"
+            onClick={() => onAction({ action: "toggle-notifications" })}
+          >
+            <Icon name="bell" />
+          </button>
+          {state.notificationOpen && (
+            <section
+              id="notification-panel"
+              className="notification-panel"
+              aria-label="Notifications"
+            >
+              <h2>Updates</h2>
+              {activity.length ? (
+                activity.map((item) => <p key={item.id}>{item.text}</p>)
+              ) : (
+                <p>No updates yet. You're all caught up.</p>
+              )}
+            </section>
+          )}
+        </div>
+        <button
+          className="account-button"
+          aria-label={`Open profile for ${model.roleName()}`}
+          onClick={() => onAction({ page: "profile" })}
+        >
+          <span className="avatar">{model.roleInitials()}</span>
+          <span className="account-copy">
+            <strong>{model.roleName()}</strong>
+            <span>{model.roleLabel()}</span>
+          </span>
+        </button>
+      </div>
     </header>
   );
 }

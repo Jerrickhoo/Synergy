@@ -1,3 +1,4 @@
+import FormErrors from "../components/FormErrors.jsx";
 import { useApp } from "../state/AppContext.jsx";
 import AuthStory from "../components/AuthStory.jsx";
 export default function SignupPage() {
@@ -10,14 +11,15 @@ export default function SignupPage() {
           <div className="eyebrow">JOIN THE COMMUNITY</div>
           <h1 tabIndex="-1">Create your account</h1>
           <p className="panel-subtitle">
-            Start with the basics. You can choose your role and complete your
-            profile next.
+            Choose your role and start with an empty workspace. This local
+            prototype does not create an online account or store credentials.
           </p>
           <form
             id="signup-form"
             className="grid section-gap"
             onSubmit={(event) => onSubmit(event)}
           >
+            <FormErrors scope="signup-form" />
             <div className="form-grid">
               <div className="field">
                 <label htmlFor="signup-first">First name</label>
@@ -58,6 +60,13 @@ export default function SignupPage() {
                 required
                 autoComplete="new-password"
               />
+            </div>
+            <div className="field">
+              <label htmlFor="signup-role">I'm here as a</label>
+              <select id="signup-role" name="role" defaultValue="founder">
+                <option value="founder">Startup founder</option>
+                <option value="mentor">Mentor</option>
+              </select>
             </div>
             <button className="btn primary" type="submit">
               Create account

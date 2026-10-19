@@ -3,36 +3,53 @@ import { Fragment } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import Icon from "../components/Icon.jsx";
+import { EmptyState } from "../components/DashboardUI.jsx";
 export default function ReviewPage() {
-  const { state, model, onSubmit, onRating } = useApp();
+  const { state, model, onSubmit, onRating, onAction } = useApp();
   const { activeRoom } = model;
   const room = activeRoom();
+  if (!["launched", "reviewed"].includes(room.status))
+    return (
+      <div className="page">
+        <PageHeader
+          eyebrow="YOUR SHARED WORK"
+          title="Complete your collaboration first"
+          intro="Reviews become available after the room meets its launch requirements."
+        />
+        <EmptyState
+          title="This collaboration is still in progress"
+          action={() => onAction({ action: "open-room", id: room.id })}
+          actionLabel="Return to room"
+        >
+          Confirm every milestone, add required evidence, and resolve disputes
+          before launching.
+        </EmptyState>
+      </div>
+    );
   return (
     <div className="page page-enter">
       <PageHeader
         eyebrow="CLOSE THE LOOP"
         title="How did it go?"
-        intro="A private reflection helps future partners make informed connections."
+        intro="Try the local review workflow. This demo does not send reviews or update reputation."
       />
       <section className="card panel review-page">
         {"\n          "}
-        <div className="onboard-illustration">
-          <Icon name="spark" />
-        </div>
         {"\n          "}
         <h2>Share an honest reflection</h2>
         {"\n          "}
         <p className="panel-subtitle">
-          Your rating stays hidden until your partner submits theirs too.
+          Partner submission is simulated. There is no server-backed privacy or
+          reputation service in this prototype.
         </p>
         {"\n          "}
         {room.review.me ? (
           <div className="confirmation-card">
             <Icon name="check" />
-            {" Your review has been sent privately. "}
+            {" Your review has been saved in this demo. "}
             {room.review.partner
               ? "Both reviews are in."
-              : "It will stay hidden until your partner submits theirs too."}
+              : "Use Demo controls to simulate the partner’s submission."}
           </div>
         ) : (
           <form
@@ -78,7 +95,7 @@ export default function ReviewPage() {
               />
             </div>
             <button className="btn primary" type="submit">
-              Send private review
+              Save demo review
             </button>
           </form>
         )}

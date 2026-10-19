@@ -1,6 +1,6 @@
 # Synergy
 
-The original Synergy prototype, converted to React and Vite. The design, content, responsive breakpoints, animations, inline SVG assets, and founder/mentor demo workflows are preserved.
+Synergy is a React/Vite prototype for connecting startups and mentors and organizing collaborations in shared rooms.
 
 ## Run locally
 
@@ -11,35 +11,40 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite (normally http://localhost:5173).
+Open the local URL printed by Vite, normally http://localhost:5173. On Windows PowerShell, use `npm.cmd` and `npx.cmd` if the execution policy blocks the PowerShell scripts.
 
-On Windows PowerShell, use `npm.cmd` and `npx.cmd` if the execution policy blocks the npm PowerShell scripts.
+## Fresh workspace
 
-## Build and preview
+Accounts start with a blank profile and no matches, saved profiles, introductions, rooms, messages, reviews, ratings, or activity. The application ships with an empty directory; fictional records are confined to unit-test fixtures in `tests/fixtures.js`.
 
-```sh
-npm run build
-npm run preview
-```
+The main navigation has four destinations: Home, Matches, Rooms, and Profile. Home offers one next step: set up your profile. Matches and Rooms show helpful empty states. Profile combines the editable details and a collapsed collaboration history. Pending introductions are accessible from Rooms when present.
 
-Production files are generated in `dist/`. Deploy that directory to a static host. The relative asset base supports hosting under a subdirectory.
+Signup asks for a name, email, password, and founder or mentor role in one form. It opens the workspace immediately; there is no simulated email verification or generated profile information. You can also enter any valid email and a password of at least four characters on the sign-in screen. Different emails start separate empty local sessions. Creating an account always clears the previous workspace state.
 
-## Browser checks
+This is a local, memory-only prototype. Authentication is not connected to a service; passwords are not retained or sent. Refreshing resets the workspace and requires signing in again. No backend, live directory, or persistent online accounts have been added.
+
+## Checks and build
 
 ```sh
 npx playwright install chromium
+npm run check:format
+npm run test:unit
 npm run test:e2e
+npm run build
 ```
 
-The tests cover sign-in and sign-out, password visibility, notifications, search and filters, bookmarks and keyboard tabs, introductions, terms locking, chat, milestone evidence and disputes, private reviews, profile editing, mentor rooms and scheduling, both onboarding roles, and mobile navigation.
+Unit tests verify empty initial state, account isolation, signup, room safety, validation, milestones, evidence, scheduling, and review rules. Browser tests cover the fresh workspace, profile editing and validation, both signup roles, account isolation, history navigation, and mobile/tablet/desktop layouts.
+
+Production files are generated in `dist/`. Use `npm run preview` to preview the build. The relative asset base supports hosting under a subdirectory.
 
 ## Source layout
 
-- `src/App.jsx`: application shell, page selection, loading transitions, and focus management.
-- `src/components/`: shared navigation, headers, match cards, avatars, tags, SVG icons, notifications, and room panels.
-- `src/pages/`: dashboard, authentication, onboarding, matches, waiting, rooms, reviews, and profiles.
-- `src/state/`: React context and immutable reducer transitions, form fields, and timer effects.
-- `src/data/`: the original demo records, model helpers, and match filtering.
-- `src/styles.css`: the original page styles, including mobile layouts and reduced-motion support.
+- `src/App.jsx`: application shell, page selection, and focus management.
+- `src/components/`: shared navigation, headers, forms, and room panels.
+- `src/pages/`: Home, Matches, Rooms, Profile, authentication, and collaboration screens.
+- `src/state/`: context, state transitions, routing, validation, and form helpers.
+- `src/data/`: empty initial state, model helpers, filters, and selectors.
+- `src/styles.css`: design tokens, component styles, and responsive layouts.
+- `tests/fixtures.js`: explicit fictional data used only in unit tests.
 
-This remains a browser-only prototype. Sign-in accepts any valid email and a password of at least four characters; Google sign-in is simulated. Demo controls switch roles and simulate partner actions. Email verification, story analysis, messaging, reviews, and profile updates use in-memory demo state, which resets on refresh. No backend or real authentication has been added. The original supporting Markdown, PDF, and PNG files remain untouched.
+See [AUDIT.md](AUDIT.md) for earlier prototype findings and the production roadmap. Its descriptions of seeded dashboards and simulated onboarding precede the fresh-account update described here. Original supporting documents and images remain untouched.

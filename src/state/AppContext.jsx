@@ -4,16 +4,19 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
 } from "react";
 import { enableMapSet, produce } from "immer";
 import { createInitialState, createModel } from "../data/model.js";
 import { fieldKey, readField } from "./fields.js";
 import { transition } from "./transitions.js";
+import { applyRoute, parseRoute, routeHash } from "./routes.js";
 enableMapSet();
 const AppContext = createContext(null);
 const reducer = (state, payload) =>
   produce(state, (draft) => {
-    transition(draft, payload);
+    if (payload.action === "route-change") applyRoute(draft, payload.route);
+    else transition(draft, payload);
     if (!draft.authenticated) {
       draft.notificationOpen = false;
       draft.demoOpen = false;
@@ -21,7 +24,12 @@ const reducer = (state, payload) =>
     }
   });
 export function AppProvider({ children }) {
-  const [state, dispatch] = useReducer(reducer, undefined, createInitialState);
+  const [state, dispatch] = useReducer(reducer, undefined, () => {
+    const initial = createInitialState();
+    applyRoute(initial, parseRoute(window.location.hash));
+    return initial;
+  });
+  const lastRouteTick = useRef(null);
   const model = useMemo(() => createModel(state), [state]);
   useEffect(() => {
     if (!state.toast) return;
@@ -68,23 +76,32 @@ export function AppProvider({ children }) {
     return () => clearTimeout(timer);
   }, [state.onboarding.analyzing]);
   useEffect(() => {
-    const onHashChange = () => {
-      if (window.location.hash === "#/login")
-        dispatch({
-          action: "route-login",
-        });
-      else
-        dispatch({
-          action: "route-home",
-        });
-    };
+    const onHashChange = () =>
+      dispatch({
+        action: "route-change",
+        route: parseRoute(window.location.hash),
+      });
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
   useEffect(() => {
-    const hash = state.authenticated ? "#/" : "#/login";
-    if (window.location.hash !== hash) window.location.hash = hash;
-  }, [state.authenticated]);
+    const hash = routeHash(state);
+    if (window.location.hash !== hash) {
+      const method =
+        lastRouteTick.current !== state.routeTick
+          ? "replaceState"
+          : "pushState";
+      window.history[method](null, "", hash);
+    }
+    lastRouteTick.current = state.routeTick;
+  }, [
+    state.authenticated,
+    state.page,
+    state.activeMatch,
+    state.activeRoomId,
+    state.routeTick,
+    state.routePath,
+  ]);
   function onAction(payload, event) {
     event?.preventDefault();
     if (payload.action === "skip-to-content") {
@@ -112,6 +129,7 @@ export function AppProvider({ children }) {
     dispatch({
       ...payload,
       roomId: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
     });
   }
   function onSubmit(event) {
@@ -121,6 +139,8 @@ export function AppProvider({ children }) {
       form: form.dataset.form || form.id,
       id: form.dataset.id,
       values: Object.fromEntries(new FormData(form)),
+      timestamp: new Date().toISOString(),
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       time: new Date().toLocaleTimeString([], {
         hour: "numeric",
         minute: "2-digit",

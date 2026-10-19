@@ -1,3 +1,5 @@
+import Brand from "./Brand.jsx";
+import FormErrors from "./FormErrors.jsx";
 import { useApp } from "../state/AppContext.jsx";
 export default function Login() {
   const { state, onAction, onSubmit } = useApp();
@@ -12,11 +14,7 @@ export default function Login() {
       <div className="login-story">
         {"\n      "}
         <div className="login-brand">
-          <div className="brand-mark">sy</div>
-          <div>
-            <div className="brand-name">synergy</div>
-            <div className="brand-note">GOOD THINGS, TOGETHER</div>
-          </div>
+          <Brand />
         </div>
         {"\n      "}
         <div className="login-story-copy">
@@ -31,22 +29,11 @@ export default function Login() {
             progress.
           </p>
           {"\n        "}
-          <div className="login-quote">
-            <p>
-              “We went from ‘we should work together’ to a clear plan, 50 beta
-              testers, and product feedback we could act on.”
-            </p>
-            <span>Maria Santos · Founder at BudgetBuddy</span>
-          </div>
+
           {"\n      "}
         </div>
         {"\n      "}
         <div className="login-proof">
-          <span className="login-proof-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m12 3 2.2 6.8L21 12l-6.8 2.2L12 21l-2.2-6.8L3 12l6.8-2.2L12 3Z" />
-            </svg>
-          </span>
           <span>
             <strong>Thoughtful matches.</strong>
             {" Clear commitments. Work that moves forward."}
@@ -60,8 +47,7 @@ export default function Login() {
         <div className="login-form-wrap">
           {"\n        "}
           <div className="login-mobile-brand">
-            <span className="brand-mark">sy</span>
-            {" synergy"}
+            <Brand compact />
           </div>
           {"\n        "}
           <div className="eyebrow">WELCOME BACK</div>
@@ -69,7 +55,7 @@ export default function Login() {
           <h2 className="login-heading">Sign in to Synergy</h2>
           {"\n        "}
           <p className="login-subheading">
-            Your next good collaboration is waiting.
+            Start with a clean workspace and make it yours.
           </p>
           {"\n        "}
           <form
@@ -77,6 +63,7 @@ export default function Login() {
             id="login-form"
             onSubmit={(event) => onSubmit(event)}
           >
+            <FormErrors scope="login-form" />
             {"\n          "}
             <div className="field">
               <label htmlFor="login-email">Email address</label>
@@ -101,6 +88,7 @@ export default function Login() {
                   placeholder="Enter your password"
                   required
                   minLength="4"
+                  aria-describedby="demo-password-help"
                 />
                 <button
                   className="password-toggle"
@@ -118,28 +106,9 @@ export default function Login() {
                   {state.passwordVisible ? "Hide" : "Show"}
                 </button>
               </div>
-            </div>
-            {"\n          "}
-            <div className="login-options">
-              <label className="remember-option">
-                <input type="checkbox" name="remember" />
-                {" Remember me"}
-              </label>
-              <button
-                className="link-btn"
-                type="button"
-                data-action="forgot-password"
-                onClick={(event) =>
-                  onAction(
-                    {
-                      action: "forgot-password",
-                    },
-                    event,
-                  )
-                }
-              >
-                Forgot password?
-              </button>
+              <span className="field-help" id="demo-password-help">
+                For this demo, enter any password with 4 or more characters.
+              </span>
             </div>
             {"\n          "}
             <button className="btn primary login-submit" type="submit">
@@ -147,32 +116,6 @@ export default function Login() {
             </button>
             {"\n        "}
           </form>
-          {"\n        "}
-          <div className="login-divider">OR CONTINUE WITH</div>
-          {"\n        "}
-          <button
-            className="btn login-google"
-            type="button"
-            data-action="google-sign-in"
-            onClick={(event) =>
-              onAction(
-                {
-                  action: "google-sign-in",
-                },
-                event,
-              )
-            }
-          >
-            <strong
-              style={{
-                fontSize: "14px",
-                marginRight: "7px",
-              }}
-            >
-              G
-            </strong>
-            {" Continue with Google"}
-          </button>
           {"\n        "}
           <p className="login-join">
             {"New to Synergy? "}

@@ -1,6 +1,8 @@
 import { Fragment } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Icon from "../components/Icon.jsx";
+import FormErrors from "./FormErrors.jsx";
+import { launchBlockers, scheduleLabel } from "../data/selectors.js";
 export default function MilestonesPanel({
   room,
   agreement,
@@ -9,6 +11,8 @@ export default function MilestonesPanel({
 }) {
   const { state, model, onAction, onSubmit } = useApp();
   const { currentAgreement, statusText } = model;
+  const blockers = launchBlockers(room);
+  const launched = ["launched", "reviewed"].includes(room.status);
   return (
     <section className="card panel room-content">
       <div className="panel-head">
@@ -18,7 +22,9 @@ export default function MilestonesPanel({
             Progress is shared: both partners confirm each step.
           </p>
         </div>
-        <span className="status">
+        <span
+          className={`status ${milestones.every(([, item]) => item.me && item.partner) ? "green" : "gray"}`}
+        >
           {
             Object.values(room.milestones).filter(
               (item) => item.me && item.partner,
@@ -53,15 +59,18 @@ export default function MilestonesPanel({
                   ""
                 )}
               </div>
-              {state.role === "mentor" && id === "session" ? (
+              {room.type === "mentorship" && id === "session" ? (
                 item.schedule ? (
-                  <span className="evidence-chip">{item.schedule}</span>
+                  <span className="evidence-chip">
+                    {scheduleLabel(item.schedule)}
+                  </span>
                 ) : (
                   <form
                     className="schedule-form"
                     data-form="schedule"
                     onSubmit={(event) => onSubmit(event)}
                   >
+                    <FormErrors scope="schedule" />
                     <label htmlFor="session-date">Schedule session</label>
                     <input id="session-date" type="date" name="date" required />
                     <input
@@ -90,7 +99,12 @@ export default function MilestonesPanel({
                   data-id={id}
                   onSubmit={(event) => onSubmit(event)}
                 >
+                  <FormErrors scope={`evidence-${id}`} />
+                  <label htmlFor={`evidence-${id}`}>
+                    Evidence description or link (no file upload)
+                  </label>
                   <input
+                    id={`evidence-${id}`}
                     name="attachment"
                     placeholder="File name or link"
                     required
@@ -169,7 +183,9 @@ export default function MilestonesPanel({
                   Confirm yours
                 </button>
               ) : (
-                <span className="status">
+                <span
+                  className={`status ${item.disputed ? "dispute-chip" : item.partner ? "green" : ""}`}
+                >
                   {item.partner ? "Confirmed" : "Waiting"}
                 </span>
               )}
@@ -182,17 +198,31 @@ export default function MilestonesPanel({
         <div>
           <h3>Ready to launch?</h3>
           <p className="panel-subtitle">
-            Mark your collaboration as launched and share a private review.
+            Complete every milestone together before launching.
           </p>
+          {!launched && blockers.length > 0 && (
+            <ul className="launch-blockers" id="launch-blockers">
+              {blockers.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          )}
+          {launched && (
+            <button
+              className="link-btn"
+              onClick={() => onAction({ page: "review" })}
+            >
+              View your review
+            </button>
+          )}
         </div>
         <button
           className="btn primary"
           data-action="launch-room"
-          {...(currentAgreement().locked && currentAgreement().partnerLocked
-            ? {}
-            : {
-                disabled: true,
-              })}
+          disabled={launched || blockers.length > 0}
+          aria-describedby={
+            !launched && blockers.length ? "launch-blockers" : undefined
+          }
           onClick={(event) =>
             onAction(
               {
@@ -202,7 +232,7 @@ export default function MilestonesPanel({
             )
           }
         >
-          Mark as launched
+          {launched ? "Collaboration launched" : "Mark as launched"}
         </button>
       </div>
     </section>

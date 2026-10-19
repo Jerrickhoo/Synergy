@@ -1,13 +1,11 @@
 import { useApp } from "../state/AppContext.jsx";
+import Brand from "./Brand.jsx";
 export default function AuthHeader() {
   const { onAction } = useApp();
   return (
     <header className="auth-header">
       {"\n        "}
-      <div className="brand">
-        <span className="brand-mark">sy</span>
-        <span className="brand-name">synergy</span>
-      </div>
+      <Brand compact />
       {"\n        "}
       <a
         className="auth-signin"

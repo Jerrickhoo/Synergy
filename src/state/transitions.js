@@ -1,5 +1,18 @@
-import { createModel } from "../data/model.js";
+import { createInitialState, createModel } from "../data/model.js";
 import { readField } from "./fields.js";
+import {
+  launchBlockers,
+  profileKeys,
+  roomProgress,
+} from "../data/selectors.js";
+import {
+  cleanValues,
+  requiredFields,
+  validateCredentials,
+  validateProfile,
+  validateSchedule,
+  validateTerms,
+} from "./validation.js";
 export function transition(state, payload) {
   const {
     allPeople,
@@ -21,6 +34,52 @@ export function transition(state, payload) {
   const toast = (message) => {
     state.toast = message;
   };
+  const invalid = (scope, fields) => {
+    if (!Object.keys(fields).length) {
+      state.formErrors = null;
+      return false;
+    }
+    state.formErrors = { scope, fields };
+    return true;
+  };
+  const record = (text, roomId) => {
+    state.activity.unshift({
+      id: `${payload.timestamp || Date.now()}-${state.activity.length}`,
+      role: state.role,
+      text,
+      roomId,
+      timestamp: payload.timestamp || new Date().toISOString(),
+      sample: false,
+    });
+  };
+  // Resource mutations must never use an absent or another role's room.
+  const roomActions = new Set([
+    "demo-partner-confirm",
+    "demo-partner-review",
+    "room-tab",
+    "confirm-milestone",
+    "partner-confirm",
+    "evidence-toggle",
+    "dispute",
+    "lock-terms",
+    "partner-lock-terms",
+    "launch-room",
+    "partner-review",
+  ]);
+  const roomForms = new Set([
+    "review-form",
+    "terms-form",
+    "evidence",
+    "schedule",
+    "chat-form",
+  ]);
+  if (
+    (roomActions.has(payload.action) || roomForms.has(payload.form)) &&
+    !activeRoom()
+  ) {
+    toast("This room is unavailable for the current role.");
+    return;
+  }
   if (payload.action === "set-toast") {
     state.toast = payload.message;
     return;
@@ -31,6 +90,7 @@ export function transition(state, payload) {
     state.profiles[state.role].bio = field("story").trim();
   }
   function createMutualRoom(person) {
+    if (!person) return;
     let room = existingRoomFor(state.role, person.id);
     if (!room) {
       const id = nextRoomId(person.id);
@@ -53,6 +113,8 @@ export function transition(state, payload) {
   }
   if (payload.action === "set-field") {
     state.fields[payload.key] = payload.value;
+    if (payload.key.endsWith(":verify-email"))
+      state.onboarding.verified = false;
     return;
   }
   if (payload.action === "set-filter") {
@@ -76,7 +138,7 @@ export function transition(state, payload) {
     return;
   }
   if (payload.action === "route-home") {
-    state.authenticated = true;
+    if (state.authenticated) state.page = "home";
     return;
   }
   if (payload.action === "back-to-sign-in") {
@@ -92,6 +154,25 @@ export function transition(state, payload) {
     state.notificationOpen = false;
     return;
   }
+  if (payload.action === "close-overlays") {
+    state.notificationOpen = false;
+    state.moreOpen = false;
+    state.demoOpen = false;
+    return;
+  }
+  if (payload.action === "header-search") {
+    state.matchFilters = {
+      search: String(payload.query || "").trim(),
+      type: "all",
+      industry: "all",
+      score: "0",
+      engagement: "all",
+    };
+    state.matchTab = "browse";
+    state.page = "discover";
+    state.moreOpen = false;
+    return;
+  }
   if (payload.action === "verification-done") {
     state.onboarding.verifying = false;
     state.onboarding.verified = true;
@@ -100,41 +181,48 @@ export function transition(state, payload) {
   if (payload.action === "analysis-done") {
     state.onboarding.analyzing = false;
     state.onboarding.analyzed = true;
-    state.onboarding.tags =
-      state.role === "founder"
-        ? ["FinTech", "Student tools", "Beta testers"]
-        : ["Product strategy", "Onboarding", "Growth"];
-    state.onboarding.pendingTags = ["Impact Tech"];
+    state.onboarding.tags = state.profiles[state.role].offer
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    state.onboarding.pendingTags = [];
     return;
   }
   if (payload.form) {
+    payload.values = cleanValues(payload.values || {});
     if (payload.form === "signup-form") {
+      if (invalid("signup-form", validateCredentials(payload.values, true)))
+        return;
       const values = new Map(Object.entries(payload.values));
       const firstName = values.get("firstName").trim();
       const lastName = values.get("lastName").trim();
+      Object.assign(state, createInitialState());
       state.accountName = `${firstName} ${lastName}`;
-      state.onboarding.signup = {
-        firstName,
-        lastName,
-        email: values.get("email").trim(),
-      };
-      state.onboarding.verified = false;
-      state.onboardingStep = 1;
-      state.role = "founder";
+      state.accountEmail = values.get("email").toLowerCase();
+      state.role = values.get("role") === "mentor" ? "mentor" : "founder";
       state.authenticated = true;
-      state.page = "onboarding";
+      state.page = "home";
       return;
     }
     if (payload.form === "login-form") {
+      if (invalid("login-form", validateCredentials(payload.values))) return;
+      const email = payload.values.email.toLowerCase();
+      if (state.accountEmail && state.accountEmail !== email)
+        Object.assign(state, createInitialState());
+      state.accountEmail = email;
       state.authenticated = true;
       state.page = "home";
-      toast("Demo sign-in successful. Credentials were not stored.");
+      toast("Welcome to your workspace.");
       return;
     }
     if (payload.form === "review-form") {
+      if (!["launched", "reviewed"].includes(activeRoom().status)) {
+        toast("Launch the completed collaboration before reviewing it.");
+        return;
+      }
       const values = new Map(Object.entries(payload.values));
       const rating = values.get("rating");
-      if (!rating) {
+      if (![1, 2, 3, 4, 5].includes(Number(rating))) {
         toast("Choose a rating before submitting.");
         return;
       }
@@ -143,39 +231,77 @@ export function transition(state, payload) {
       activeRoom().review.note = String(values.get("note") || "").trim();
       if (activeRoom().review.partner) activeRoom().status = "reviewed";
       state.confirmation = "";
+      record("You submitted a local demo review.", activeRoom().id);
       return;
     }
     if (payload.form === "profile-form") {
+      if (
+        invalid("profile-form", {
+          ...validateProfile(payload.values, state.role),
+          ...("name" in payload.values
+            ? requiredFields(payload.values, ["name"])
+            : {}),
+        })
+      )
+        return;
+      if ("name" in payload.values) state.accountName = payload.values.name;
       const values = new Map(Object.entries(payload.values));
-      state.profiles[state.role] = Object.fromEntries(
-        [...values.entries()].map(([key, value]) => [
-          key,
-          String(value).trim(),
-        ]),
-      );
+      state.profiles[state.role] = {
+        ...state.profiles[state.role],
+        ...Object.fromEntries(
+          [...values.entries()]
+            .filter(([key]) => profileKeys(state.role).includes(key))
+            .map(([key, value]) => [key, String(value).trim()]),
+        ),
+      };
       state.profileEditing = false;
       toast("Your profile has been updated.");
+      record("You updated your profile.");
       return;
     }
     if (payload.form === "terms-form") {
+      if (currentAgreement().locked) {
+        toast("Locked terms cannot be edited.");
+        return;
+      }
+      if (invalid("terms-form", validateTerms(payload.values))) return;
       const values = new Map(Object.entries(payload.values));
       currentAgreement().draft = Object.fromEntries(values.entries());
       toast("Terms draft saved. Lock them when you’re ready to confirm.");
       return;
     }
     if (payload.form === "evidence") {
+      if (
+        invalid(
+          `evidence-${payload.id}`,
+          requiredFields(payload.values, ["attachment"]),
+        )
+      )
+        return;
       const item = activeRoom().milestones[payload.id];
+      if (!item) return;
       item.attachment = new Map(Object.entries(payload.values))
         .get("attachment")
         .trim();
       item.evidenceOpen = false;
       toast("Evidence attached to this milestone.");
+      record(
+        `You added an evidence description to “${item.title}”.`,
+        activeRoom().id,
+      );
       return;
     }
     if (payload.form === "schedule") {
-      const values = new Map(Object.entries(payload.values));
-      activeRoom().milestones.session.schedule = `${values.get("date")} · ${values.get("time")}`;
+      if (activeRoom().type !== "mentorship") return;
+      if (invalid("schedule", validateSchedule(payload.values))) return;
+      activeRoom().milestones.session.schedule = {
+        date: payload.values.date,
+        time: payload.values.time,
+        timeZone:
+          payload.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+      };
       toast("Session scheduled.");
+      record("You scheduled a mentorship session.", activeRoom().id);
       return;
     }
     if (payload.form !== "chat-form") return;
@@ -194,12 +320,16 @@ export function transition(state, payload) {
       text: message,
       time: payload.time,
     });
+    record("You added a message to your demo room.", activeRoom().id);
     toast("Message added to this prototype room.");
     return;
   }
   if (payload.action === "sign-out") {
     state.confirmation = "";
     state.authenticated = false;
+    state.page = "home";
+    state.formErrors = null;
+    state.passwordVisible = false;
     return;
   }
   if (payload.action === "toggle-password") {
@@ -218,7 +348,7 @@ export function transition(state, payload) {
   }
   if (payload.action === "create-account") {
     state.confirmation = "";
-    state.authenticated = true;
+    state.authenticated = false;
     state.page = "signup";
     return;
   }
@@ -238,22 +368,28 @@ export function transition(state, payload) {
     return;
   }
   if (payload.page) {
+    state.formErrors = null;
     state.confirmation = "";
     if (payload.page !== "profile") state.profileEditing = false;
     state.page = payload.page;
     state.moreOpen = false;
     if (state.page === "rooms")
       state.activeRoomId =
-        state.role === "founder" ? "founder-campus" : "mentor-budgetbuddy";
+        Object.values(state.rooms).find((room) => room.role === state.role)
+          ?.id || null;
     if (payload.matchTab) state.matchTab = payload.matchTab;
     return;
   }
   if (payload.role) {
     state.role = payload.role;
     state.activeRoomId =
-      state.role === "founder" ? "founder-campus" : "mentor-budgetbuddy";
+      Object.values(state.rooms).find((room) => room.role === state.role)?.id ||
+      null;
     state.page = "home";
     state.profileEditing = false;
+    state.moreOpen = false;
+    state.demoOpen = false;
+    state.formErrors = null;
     return;
   }
   const action = payload.action;
@@ -269,20 +405,33 @@ export function transition(state, payload) {
     state.demoOpen = false;
   } else if (action === "demo-partner-confirm") {
     const room = activeRoom();
+    if (!room.terms.locked) {
+      toast("Lock your terms before simulating the partner’s confirmation.");
+      return;
+    }
     if (!room.terms.partnerLocked) {
-      room.terms.locked = true;
       room.terms.partnerLocked = true;
       room.status = "in-progress";
     } else {
       Object.values(room.milestones).forEach((item) => {
-        item.me = true;
-        item.partner = true;
+        if (
+          (!item.evidence || item.attachment) &&
+          !item.disputed &&
+          (item.title !== "Session scheduled" || item.schedule)
+        ) {
+          item.partner = true;
+        }
       });
-      room.progress = 100;
+      room.progress = roomProgress(room);
     }
     state.confirmation = "Partner confirmation simulated for this deal room.";
     state.demoOpen = false;
+    record("Partner confirmation was simulated.", room.id);
   } else if (action === "demo-partner-review") {
+    if (!["launched", "reviewed"].includes(activeRoom().status)) {
+      toast("Launch the collaboration before simulating a review.");
+      return;
+    }
     activeRoom().review.partner = true;
     if (activeRoom().review.me) activeRoom().status = "reviewed";
     state.confirmation =
@@ -296,7 +445,10 @@ export function transition(state, payload) {
     state.profileEditing = false;
     state.moreOpen = false;
   } else if (action === "edit-profile") {
+    state.formErrors = null;
+    state.page = "profile";
     state.profileEditing = true;
+    state.moreOpen = false;
   } else if (action === "cancel-profile-edit") {
     state.profileEditing = false;
   } else if (action === "clear-filters") {
@@ -308,12 +460,19 @@ export function transition(state, payload) {
       engagement: "all",
     };
   } else if (action === "match-tab") {
-    state.matchTab = payload.tab;
+    state.matchTab = payload.tab || "suggested";
   } else if (action === "select-waiting") {
     state.activeWaitingMatch = payload.id;
   } else if (action === "verify-email") {
     state.onboarding.verifying = true;
   } else if (action === "analyze-story") {
+    if (
+      invalid(
+        "onboarding",
+        requiredFields({ story: field("story") }, ["story"]),
+      )
+    )
+      return;
     saveOnboardingStory();
     state.onboarding.analyzing = true;
   } else if (action === "remove-tag" || action === "remove-pending-tag") {
@@ -392,7 +551,8 @@ export function transition(state, payload) {
     waitingMatches().add(payload.id);
     state.activeWaitingMatch = payload.id;
     state.page = "waiting";
-    state.confirmation = `Your introduction to ${person.name} is on its way.`;
+    state.confirmation = `Demo introduction to ${person.name} recorded. No message was sent.`;
+    record(`You expressed interest in ${person.name}.`);
   } else if (action === "mutual-interest") {
     const person = allPeople().find((item) => item.id === payload.id);
     createMutualRoom(person);
@@ -400,56 +560,98 @@ export function transition(state, payload) {
     const id = payload.id;
     state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id);
   } else if (action === "onboarding-next") {
+    if (state.onboardingStep === 1 && !state.onboarding.verified) return;
     if (state.onboardingStep === 3) {
+      if (
+        invalid(
+          "onboarding",
+          requiredFields({ story: field("story") }, ["story"]),
+        )
+      )
+        return;
       saveOnboardingStory();
       if (!state.onboarding.tags.length)
         state.onboarding.tags = state.profiles[state.role].offer
           .split(",")
           .map((tag) => tag.trim())
           .filter(Boolean);
-      if (!state.onboarding.pendingTags.length)
-        state.onboarding.pendingTags = ["Impact Tech"];
     }
     if (state.onboardingStep === 4) {
+      const candidate = {
+        bio: state.profiles[state.role].bio,
+        offer: field("confirm-offer"),
+        need: field("confirm-need"),
+        industry: field("confirm-industry"),
+        stage: field("confirm-stage"),
+        teamSize: field("confirm-team"),
+        expertise: field("confirm-expertise"),
+        availability: field("confirm-availability"),
+        startups: field("confirm-startups"),
+      };
+      if (
+        invalid(
+          "onboarding",
+          validateProfile(cleanValues(candidate), state.role),
+        )
+      )
+        return;
       const profile = state.profiles[state.role];
-      profile.offer = field("confirm-offer");
-      profile.need = field("confirm-need");
-      if (state.role === "founder") {
-        profile.industry = field("confirm-industry");
-        profile.stage = field("confirm-stage");
-        profile.teamSize = field("confirm-team");
-      } else {
-        profile.expertise = field("confirm-expertise");
-        profile.availability = field("confirm-availability");
-        profile.startups = field("confirm-startups");
-      }
-      profile.goals = field("confirm-goals");
+      Object.assign(
+        profile,
+        Object.fromEntries(
+          profileKeys(state.role).map((key) => [
+            key,
+            String(candidate[key]).trim(),
+          ]),
+        ),
+      );
+      profile.goals = field("confirm-goals").trim();
     }
     state.onboardingStep = Math.min(5, state.onboardingStep + 1);
   } else if (action === "onboarding-back") {
     state.onboardingStep = Math.max(1, state.onboardingStep - 1);
   } else if (action === "choose-role") {
-    state.role = payload.roleChoice;
+    if (["founder", "mentor"].includes(payload.roleChoice)) {
+      state.role = payload.roleChoice;
+      state.formErrors = null;
+    }
   } else if (action === "toggle-both") {
-    state.bothRoles = !state.bothRoles;
     toast(
-      state.bothRoles
-        ? "Founder and mentor roles are both enabled."
-        : "Removed the additional role.",
+      "Dual-role accounts are unavailable in this demo. Preview either role with Demo controls.",
     );
   } else if (action === "finish-onboarding") {
+    if (
+      state.onboardingStep !== 5 ||
+      invalid(
+        "onboarding",
+        validateProfile(state.profiles[state.role], state.role),
+      )
+    )
+      return;
+    state.authenticated = true;
     state.profileDone = true;
     state.page = "home";
     state.confirmation =
-      "Your profile is live. Better-fit people can find you now.";
+      "Your demo profile is ready. Changes last for this browser session.";
   } else if (action === "confirm-milestone" || action === "partner-confirm") {
     const id = payload.id;
     const milestone = activeRoom().milestones[id];
-    if (
-      action === "confirm-milestone" &&
-      milestone.evidence &&
-      !milestone.attachment
-    ) {
+    if (!milestone) return;
+    if (milestone.disputed) {
+      toast(
+        "This milestone is disputed. Resolution is unavailable in this demo.",
+      );
+      return;
+    }
+    if (!currentAgreement().locked || !currentAgreement().partnerLocked) {
+      toast("Both partners must agree to terms first.");
+      return;
+    }
+    if (id === "session" && !milestone.schedule) {
+      toast("Schedule the session before confirming it.");
+      return;
+    }
+    if (milestone.evidence && !milestone.attachment) {
       toast("Attach evidence before confirming this milestone.");
       return;
     }
@@ -466,35 +668,63 @@ export function transition(state, payload) {
         ? "Your confirmation is recorded."
         : "Partner confirmation simulated for this prototype.",
     );
+    record(
+      `${action === "confirm-milestone" ? "You confirmed" : "Simulated partner confirmation for"} “${milestone.title}”.`,
+      activeRoom().id,
+    );
   } else if (action === "evidence-toggle") {
     const item = activeRoom().milestones[payload.id];
+    if (!item) return;
     item.evidenceOpen = !item.evidenceOpen;
   } else if (action === "dispute") {
-    activeRoom().milestones[payload.id].disputed = true;
+    const item = activeRoom().milestones[payload.id];
+    if (!item) return;
+    item.disputed = true;
+    record(`You flagged a dispute on “${item.title}”.`, activeRoom().id);
     toast("Dispute flagged. It’s noted on this milestone for both sides.");
   } else if (action === "lock-terms") {
+    if (currentAgreement().locked) return;
+    const terms = cleanValues(payload.values || {});
+    if (invalid("terms-form", validateTerms(terms))) return;
     const agreement = currentAgreement();
-    agreement.draft = payload.values;
+    agreement.draft = terms;
     agreement.locked = true;
     activeRoom().status = "terms";
     state.confirmation =
       "Terms are locked. Your partner can now review and confirm them.";
   } else if (action === "partner-lock-terms") {
     const agreement = currentAgreement();
+    if (!agreement.locked) {
+      toast("Lock your terms first.");
+      return;
+    }
     agreement.partnerLocked = true;
     activeRoom().status = "in-progress";
     state.confirmation = "Your partner confirmed the shared terms.";
   } else if (action === "launch-room") {
+    const reasons = launchBlockers(activeRoom());
+    if (reasons.length) {
+      toast(reasons[0]);
+      return;
+    }
     activeRoom().status = "launched";
+    state.rating = 0;
     state.page = "review";
     state.confirmation =
       "Your collaboration is marked as launched. Share a private review when you’re ready.";
+    record(
+      "You marked the completed collaboration as launched.",
+      activeRoom().id,
+    );
   } else if (action === "partner-review") {
+    if (!["launched", "reviewed"].includes(activeRoom().status)) return;
     activeRoom().review.partner = true;
     if (activeRoom().review.me) activeRoom().status = "reviewed";
     state.confirmation = "Partner review simulated.";
   } else if (action === "digest") {
-    toast("Weekly match digest selected.");
+    toast(
+      "Email digests are unavailable in this demo. No subscription was created.",
+    );
   } else if (action === "milestone-help") {
     toast("A milestone is complete when both people confirm it.");
   } else if (action === "room-history") {

@@ -2,7 +2,6 @@ import { Fragment } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Avatar from "../components/Avatar.jsx";
 import Tags from "../components/Tags.jsx";
-import Icon from "../components/Icon.jsx";
 export default function MatchCard({ person, large = false }) {
   const { state, model, onAction } = useApp();
   const { scoreFactors } = model;
@@ -14,7 +13,7 @@ export default function MatchCard({ person, large = false }) {
       {"\n          "}
       <Avatar initials={person.initials} color={person.color} />
       {"\n          "}
-      <div>
+      <div className="match-identity">
         {"\n            "}
         <div className="match-title">
           {person.name}{" "}
@@ -38,14 +37,11 @@ export default function MatchCard({ person, large = false }) {
           >
             ·
           </span>{" "}
-          <span className="verified">
-            <span className="verify-icon">
-              <Icon name="check" />
-            </span>
-            Verified
-          </span>
+          <span className="verified">Demo profile</span>
         </div>
         {"\n            "}
+      </div>
+      <div className="match-body">
         <p className="match-copy">{person.summary}</p>
         {"\n            "}
         <div
@@ -72,6 +68,8 @@ export default function MatchCard({ person, large = false }) {
           className="link-btn why"
           data-action="why"
           data-id={person.id}
+          aria-expanded={expanded}
+          aria-controls={`match-why-${person.id}`}
           onClick={(event) =>
             onAction(
               {
@@ -85,7 +83,10 @@ export default function MatchCard({ person, large = false }) {
           {expanded ? "Hide" : "Why this match?"}
         </button>
         {"\n              "}
-        <div className={"why-content " + (expanded ? "open" : "")}>
+        <div
+          id={`match-why-${person.id}`}
+          className={"why-content " + (expanded ? "open" : "")}
+        >
           {"\n                "}
           {expanded ? (
             <>
@@ -154,6 +155,37 @@ export default function MatchCard({ person, large = false }) {
           >
             {interested ? "Interest sent" : "Express interest"}
           </button>
+          <button
+            className="bookmark-btn"
+            type="button"
+            data-action="save"
+            data-id={person.id}
+            aria-label={saved ? "Remove from saved matches" : "Save match"}
+            aria-pressed={saved}
+            onClick={(event) =>
+              onAction(
+                {
+                  action: "save",
+                  id: person.id,
+                },
+                event,
+              )
+            }
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="19"
+              height="19"
+              aria-hidden="true"
+              fill={saved ? "currentColor" : "none"}
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M6 4.75A1.75 1.75 0 0 1 7.75 3h8.5A1.75 1.75 0 0 1 18 4.75V21l-6-3.5L6 21z" />
+            </svg>
+          </button>
           {"\n            "}
         </div>
         {"\n          "}
@@ -161,39 +193,8 @@ export default function MatchCard({ person, large = false }) {
       {"\n          "}
       <div className="match-side">
         <div className="score">
-          {person.score}%<span>match</span>
+          {person.score}%<span>demo fit</span>
         </div>
-        <button
-          className="bookmark-btn"
-          type="button"
-          data-action="save"
-          data-id={person.id}
-          aria-label={saved ? "Remove from saved matches" : "Save match"}
-          aria-pressed={saved}
-          onClick={(event) =>
-            onAction(
-              {
-                action: "save",
-                id: person.id,
-              },
-              event,
-            )
-          }
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="19"
-            height="19"
-            aria-hidden="true"
-            fill={saved ? "currentColor" : "none"}
-            stroke="currentColor"
-            strokeWidth="1.75"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M6 4.75A1.75 1.75 0 0 1 7.75 3h8.5A1.75 1.75 0 0 1 18 4.75V21l-6-3.5L6 21z" />
-          </svg>
-        </button>
       </div>
       {"\n        "}
     </article>

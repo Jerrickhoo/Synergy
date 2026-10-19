@@ -8,7 +8,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:e2e": "playwright test",
-    "format": "prettier --write src tests *.js index.html README.md"
+    "test:unit": "node --test tests/state.test.js",
+    "test": "npm run test:unit && npm run test:e2e",
+    "check:format": "prettier --check src tests *.js index.html README.md AUDIT.md .github/workflows/checks.yml",
+    "format": "prettier --write src tests *.js index.html README.md AUDIT.md .github/workflows/checks.yml"
   },
   "dependencies": {
     "immer": "^11.1.21",

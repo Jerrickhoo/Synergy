@@ -6,7 +6,9 @@ import PageHeader from "../components/PageHeader.jsx";
 export default function MatchDetailPage() {
   const { state, model, onAction } = useApp();
   const { allPeople, savedMatches, interestedMatches, scoreFactors } = model;
-  const person = allPeople().find((item) => item.id === state.activeMatch);
+  const person = model
+    .rolePeople()
+    .find((item) => item.id === state.activeMatch);
   if (!person)
     return (
       <div className="page page-enter">
@@ -68,7 +70,7 @@ export default function MatchDetailPage() {
             <div>
               <div className="eyebrow">
                 {person.kind}
-                {" · VERIFIED"}
+                {" · DEMO PROFILE"}
               </div>
               <h2>{person.name}</h2>
               <p>{person.sector}</p>
@@ -79,7 +81,7 @@ export default function MatchDetailPage() {
                 marginLeft: "auto",
               }}
             >
-              {person.score}%<span>match</span>
+              {person.score}%<span>demo fit</span>
             </div>
           </div>
           {"\n            "}

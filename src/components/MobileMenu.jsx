@@ -1,74 +1,86 @@
+import { useEffect, useRef } from "react";
 import { useApp } from "../state/AppContext.jsx";
+import Brand from "./Brand.jsx";
+import Icon from "./Icon.jsx";
+import NavButton from "./NavButton.jsx";
+import { navigation } from "./Sidebar.jsx";
 export default function MobileMenu() {
   const { state, onAction } = useApp();
+  const ref = useRef(null);
+  const currentPage = useRef(state.page);
+  currentPage.current = state.page;
+  useEffect(() => {
+    if (!state.moreOpen) return;
+    const opener = document.getElementById("navigation-toggle");
+    const openedPage = state.page;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    ref.current?.querySelector("button")?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      if (currentPage.current === openedPage)
+        queueMicrotask(() => opener?.focus());
+    };
+  }, [state.moreOpen]);
+  if (!state.moreOpen) return null;
   return (
     <div
-      className="mobile-more-sheet"
-      id="mobile-more-sheet"
-      hidden={!state.moreOpen || !state.authenticated}
-      aria-label="More pages"
+      className="drawer-backdrop"
+      onClick={(event) => {
+        if (event.target === event.currentTarget)
+          onAction({ action: "close-overlays" });
+      }}
     >
-      {"\n    "}
-      <button
-        data-page="waiting"
-        onClick={(event) =>
-          onAction(
-            {
-              page: "waiting",
-            },
-            event,
-          )
-        }
+      <section
+        ref={ref}
+        className="mobile-more-sheet"
+        id="mobile-more-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Workspace navigation"
+        onKeyDown={(event) => {
+          if (event.key !== "Tab") return;
+          const controls = [
+            ...ref.current.querySelectorAll(
+              "button:not([disabled]), a[href], input:not([disabled])",
+            ),
+          ];
+          const first = controls[0],
+            last = controls.at(-1);
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last?.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
+          }
+        }}
       >
-        Waiting for response
-      </button>
-      {"\n    "}
-      <button
-        data-page="discover"
-        data-match-tab="saved"
-        onClick={(event) =>
-          onAction(
-            {
-              page: "discover",
-              matchTab: "saved",
-            },
-            event,
-          )
-        }
-      >
-        Saved matches
-      </button>
-      {"\n    "}
-      <button
-        data-action="profile-tab"
-        data-tab="trust"
-        onClick={(event) =>
-          onAction(
-            {
-              action: "profile-tab",
-              tab: "trust",
-            },
-            event,
-          )
-        }
-      >
-        Trust history
-      </button>
-      {"\n    "}
-      <button
-        data-action="sign-out"
-        onClick={(event) =>
-          onAction(
-            {
-              action: "sign-out",
-            },
-            event,
-          )
-        }
-      >
-        Sign out
-      </button>
-      {"\n  "}
+        <div className="drawer-head">
+          <Brand compact />
+          <button
+            className="icon-btn"
+            aria-label="Close navigation"
+            onClick={() => onAction({ action: "close-overlays" })}
+          >
+            <Icon name="close" />
+          </button>
+        </div>
+        <nav className="drawer-nav" aria-label="Mobile navigation">
+          {navigation.map(([page, label, icon]) => (
+            <NavButton key={page} page={page}>
+              <Icon name={icon} />
+              {label}
+            </NavButton>
+          ))}
+        </nav>
+        <button
+          className="btn full"
+          onClick={() => onAction({ action: "sign-out" })}
+        >
+          Sign out
+        </button>
+      </section>
     </div>
   );
 }

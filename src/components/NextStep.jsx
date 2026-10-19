@@ -18,7 +18,7 @@ export default function NextStep() {
         action: "room-tab",
         tab: "milestones",
       },
-      disabled: !agreement.locked || !agreement.partnerLocked,
+      disabled: !agreement?.locked || !agreement?.partnerLocked,
     },
     review: {
       title: "Your next chapter",

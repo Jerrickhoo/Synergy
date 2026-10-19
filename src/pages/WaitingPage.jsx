@@ -18,10 +18,9 @@ export default function WaitingPage() {
         <PageHeader
           eyebrow="YOUR INTRODUCTIONS"
           title="Waiting for response"
-          intro="Your interest is on its way. We’ll let you know when someone responds."
+          intro="Your pending introductions appear here."
         />
         <section className="empty-state">
-          <Icon name="inbox" />
           <p>
             No introductions are waiting right now. Find someone who fits your
             next move.
@@ -110,7 +109,7 @@ export default function WaitingPage() {
           <p>
             {person.name}
             {
-              " will be able to review your introduction and proposed collaboration terms."
+              " has a pending introduction in this local workspace. You can review the proposed terms here. No external message has been sent."
             }
           </p>
           {"\n          "}
@@ -143,7 +142,7 @@ export default function WaitingPage() {
             </li>
             <li>
               <strong>You hear back</strong>
-              <span>We’ll update this space when they respond.</span>
+              <span>Continue here when a response is available.</span>
             </li>
             <li>
               <strong>Plan together</strong>

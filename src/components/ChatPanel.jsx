@@ -7,7 +7,12 @@ export default function ChatPanel({ room }) {
   const previousCount = useRef(room.messages.length);
   useEffect(() => {
     if (room.messages.length > previousCount.current) {
-      messagesRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+      messagesRef.current?.scrollIntoView({
+        block: "end",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "instant"
+          : "smooth",
+      });
     }
     previousCount.current = room.messages.length;
   }, [room.messages.length]);
@@ -17,7 +22,7 @@ export default function ChatPanel({ room }) {
         <div>
           <h2>Room chat</h2>
           <p className="panel-subtitle">
-            A private conversation between partners.
+            Local demo conversation. Messages are not sent to another person.
           </p>
         </div>
       </div>

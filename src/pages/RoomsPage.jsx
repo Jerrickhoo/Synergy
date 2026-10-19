@@ -1,8 +1,8 @@
 import { Fragment } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Avatar from "../components/Avatar.jsx";
-import PageHeader from "../components/PageHeader.jsx";
 import Icon from "../components/Icon.jsx";
+import PageHeader from "../components/PageHeader.jsx";
 export default function RoomsPage() {
   const { state, model, onAction } = useApp();
   const { allPeople, roomStatusLabel } = model;
@@ -13,40 +13,50 @@ export default function RoomsPage() {
     return (
       <div className="page page-enter">
         <PageHeader
-          eyebrow="YOUR SHARED WORKSPACES"
-          title="Deal rooms"
-          intro="Agreements and progress live here once you and a partner match."
+          title="Rooms"
+          intro="Your conversations, plans, and progress in one place."
         />
-        <section className="empty-state">
-          <Icon name="handshake" />
+        <section className="card clean-empty-state">
+          <div className="empty-icon">
+            <Icon name="rooms" />
+          </div>
+          <h2>No rooms yet</h2>
           <p>
-            Your deal rooms will appear here when an introduction becomes a
-            mutual match.
+            A shared room starts when you and a collaborator both agree to
+            connect.
           </p>
           <button
-            className="btn primary"
-            data-page="discover"
-            onClick={(event) =>
-              onAction(
-                {
-                  page: "discover",
-                },
-                event,
-              )
-            }
+            className="btn"
+            onClick={() => onAction({ page: "discover" })}
           >
             Explore matches
           </button>
         </section>
+        {model.waitingMatches().size > 0 && (
+          <button
+            className="link-btn section-gap"
+            onClick={() => onAction({ page: "waiting" })}
+          >
+            View pending introductions ({model.waitingMatches().size})
+          </button>
+        )}
       </div>
     );
   return (
     <div className="page page-enter">
       <PageHeader
         eyebrow="YOUR SHARED WORKSPACES"
-        title="Deal rooms"
+        title="Rooms"
         intro="Keep agreements, milestones, and conversations in one shared space."
       />
+      {model.waitingMatches().size > 0 && (
+        <button
+          className="link-btn"
+          onClick={() => onAction({ page: "waiting" })}
+        >
+          View pending introductions ({model.waitingMatches().size})
+        </button>
+      )}
       <div className="grid room-list">
         {rooms.map((room, itemIndex) => {
           const partner = allPeople().find(
@@ -71,7 +81,9 @@ export default function RoomsPage() {
                       {partner?.name || room.partnerId}
                     </p>
                   </div>
-                  <span className="status">
+                  <span
+                    className={`status ${["launched", "reviewed"].includes(room.status) ? "green" : ""}`}
+                  >
                     {roomStatusLabel(
                       room.status,
                       partner?.name || room.partnerId,

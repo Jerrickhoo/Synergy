@@ -89,8 +89,8 @@ export default function RoomDetailPage() {
             >
               ← All deal rooms
             </button>
-            <span className="status target-date">
-              {"Target: "}
+            <span className="status gray target-date">
+              {"Sample target: "}
               {room.targetDate}
             </span>
           </>
@@ -114,7 +114,10 @@ export default function RoomDetailPage() {
           <strong>{partner?.name || room.partnerId}</strong>
         </div>
         <span
-          className={"status " + (room.status === "reviewed" ? "green" : "")}
+          className={
+            "status " +
+            (["launched", "reviewed"].includes(room.status) ? "green" : "")
+          }
         >
           {roomStatusLabel(room.status, partner?.name || room.partnerId)}
         </span>
@@ -124,6 +127,7 @@ export default function RoomDetailPage() {
         {labels.map((label, index) => (
           <Fragment key={index}>
             <div
+              aria-current={index === stage ? "step" : undefined}
               className={
                 "stage " +
                 (index < stage ? "done" : "") +
@@ -154,6 +158,8 @@ export default function RoomDetailPage() {
             <button
               className={"tab " + (tab === key ? "active" : "")}
               role="tab"
+              id={`room-tab-${key}`}
+              aria-controls="room-tab-panel"
               aria-selected={tab === key}
               data-action="room-tab"
               data-tab={key}
@@ -175,7 +181,13 @@ export default function RoomDetailPage() {
         ))}
       </div>
       {"\n          "}
-      {panel}
+      <div
+        id="room-tab-panel"
+        role="tabpanel"
+        aria-labelledby={`room-tab-${tab}`}
+      >
+        {panel}
+      </div>
       {"\n        "}
       <NextStep />
     </div>
