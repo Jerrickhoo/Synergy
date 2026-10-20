@@ -1,5 +1,11 @@
 # Synergy prototype review and delivery
 
+## Functional prototype completion — October 20, 2026
+
+The current version replaces the memory-only workspace with a local Node API and an atomic JSON database. It supports authenticated accounts, persistent profiles, recalculated matching scores, invitations, shared rooms, actual partner acceptance, shared chat, scheduling, evidence descriptions/links, mutual milestone confirmations, mutual dispute resolution, saved concern reports, blind reviews, and collaboration history. Accounts begin empty; no sample records are added.
+
+The earlier limitations below remain as historical notes. Current operation and remaining external integrations are documented in README.md. The application now requires the Node server; static hosting of dist alone is insufficient. The JSON database is intended for one local server process. Email, external AI, binary file uploads, a moderator dashboard, and public deployment remain outside this local prototype.
+
 Reviewed on October 19, 2026. This is a local React/Vite prototype, not a production service.
 
 ## Usability review — October 19, 2026

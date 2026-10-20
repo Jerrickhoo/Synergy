@@ -27,6 +27,7 @@ export default function Topbar() {
         <button
           className="icon-btn tablet-signout"
           aria-label="Sign out"
+          disabled={state.busy}
           title="Sign out"
           onClick={() => onAction({ action: "sign-out" })}
         >
@@ -50,8 +51,31 @@ export default function Topbar() {
               aria-label="Notifications"
             >
               <h2>Updates</h2>
+              {state.incomingByRole[state.role].size > 0 && (
+                <button
+                  className="btn small"
+                  onClick={() => onAction({ page: "waiting" })}
+                >
+                  Respond to introductions (
+                  {state.incomingByRole[state.role].size})
+                </button>
+              )}
               {activity.length ? (
-                activity.map((item) => <p key={item.id}>{item.text}</p>)
+                activity.map((item) => (
+                  <p key={item.id}>
+                    {item.text}
+                    {item.roomId && (
+                      <button
+                        className="link-btn"
+                        onClick={() =>
+                          onAction({ action: "open-room", id: item.roomId })
+                        }
+                      >
+                        Open room
+                      </button>
+                    )}
+                  </p>
+                ))
               ) : (
                 <p>No updates yet. You're all caught up.</p>
               )}

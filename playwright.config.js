@@ -1,19 +1,22 @@
 import { defineConfig } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
 
 export default defineConfig({
   testDir: "./tests",
   testMatch: "**/*.spec.js",
-  fullyParallel: true,
+  fullyParallel: false,
+  workers: 1,
   use: {
-    baseURL: "http://127.0.0.1:5173",
+    baseURL: "http://127.0.0.1:5181",
     browserName: "chromium",
     headless: true,
     viewport: { width: 1440, height: 1000 },
   },
   webServer: {
-    command:
-      "node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort",
-    url: "http://127.0.0.1:5173",
-    reuseExistingServer: !process.env.CI,
+    command: "node tests/browser-server.js",
+    url: "http://127.0.0.1:5181",
+    reuseExistingServer: false,
+    env: { SYNERGY_DATA_FILE: resolve(".data", `e2e-${randomUUID()}.json`) },
   },
 });

@@ -40,6 +40,8 @@ export default function MatchDetailPage() {
     "Stage and team size align",
     "Shared outcomes",
   ];
+  const existingRoom = model.existingRoomFor(state.role, person.id);
+  const incoming = state.incomingByRole[state.role].has(person.id);
   return (
     <div className="page page-enter">
       <button
@@ -70,7 +72,7 @@ export default function MatchDetailPage() {
             <div>
               <div className="eyebrow">
                 {person.kind}
-                {" · DEMO PROFILE"}
+                {" · COMMUNITY PROFILE"}
               </div>
               <h2>{person.name}</h2>
               <p>{person.sector}</p>
@@ -81,7 +83,7 @@ export default function MatchDetailPage() {
                 marginLeft: "auto",
               }}
             >
-              {person.score}%<span>demo fit</span>
+              {person.score}%<span>profile fit</span>
             </div>
           </div>
           {"\n            "}
@@ -110,11 +112,12 @@ export default function MatchDetailPage() {
               {scoreFactors(person).map(([label, index], itemIndex) => {
                 const strength = person.why[index] || "Good";
                 const width =
-                  strength === "Strong" || strength === "High"
+                  person.factorScores?.[index] ??
+                  (strength === "Strong" || strength === "High"
                     ? 90
                     : strength === "Good"
                       ? 72
-                      : 55;
+                      : 55);
                 return (
                   <Fragment key={itemIndex}>
                     <div className="score-row">
@@ -160,7 +163,7 @@ export default function MatchDetailPage() {
             className="btn primary full"
             data-action="interest"
             data-id={person.id}
-            {...(interestedMatches().has(person.id)
+            {...(interestedMatches().has(person.id) && !existingRoom
               ? {
                   disabled: true,
                 }
@@ -168,16 +171,24 @@ export default function MatchDetailPage() {
             onClick={(event) =>
               onAction(
                 {
-                  action: "interest",
-                  id: person.id,
+                  action: existingRoom
+                    ? "open-room"
+                    : incoming
+                      ? "accept-interest"
+                      : "interest",
+                  id: existingRoom?.id || person.id,
                 },
                 event,
               )
             }
           >
-            {interestedMatches().has(person.id)
-              ? "Interest sent"
-              : "Express interest"}
+            {existingRoom
+              ? "Open room"
+              : incoming
+                ? "Accept introduction"
+                : interestedMatches().has(person.id)
+                  ? "Interest sent"
+                  : "Express interest"}
           </button>
           {"\n            "}
           <button

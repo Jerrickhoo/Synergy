@@ -43,7 +43,7 @@ export function launchBlockers(room) {
     reasons.push("Add evidence for each required milestone.");
   if (items.some((item) => item.disputed))
     reasons.push(
-      "Disputes must be resolved before launch. Dispute resolution is unavailable in this demo.",
+      "Both collaborators must resolve open disputes before launch.",
     );
   if (room.type === "mentorship" && !room.milestones.session?.schedule)
     reasons.push("Schedule the mentorship session.");
@@ -60,12 +60,38 @@ export function upcomingSessions(state, now = new Date()) {
   return activeRooms(state)
     .filter((room) => room.milestones.session?.schedule)
     .map((room) => ({ room, schedule: room.milestones.session.schedule }))
-    .filter(
-      ({ schedule }) => new Date(`${schedule.date}T${schedule.time}`) > now,
-    )
-    .sort((a, b) =>
-      `${a.schedule.date}T${a.schedule.time}`.localeCompare(
-        `${b.schedule.date}T${b.schedule.time}`,
-      ),
-    );
+    .filter(({ schedule }) => scheduleInstant(schedule) > now)
+    .sort((a, b) => scheduleInstant(a.schedule) - scheduleInstant(b.schedule));
+}
+
+export function scheduleInstant(schedule) {
+  if (!schedule.timeZone) return new Date(`${schedule.date}T${schedule.time}`);
+  try {
+    const target = Date.parse(`${schedule.date}T${schedule.time}:00Z`);
+    let instant = target;
+    const format = new Intl.DateTimeFormat("en-CA", {
+      timeZone: schedule.timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    });
+    for (let n = 0; n < 3; n++) {
+      const p = Object.fromEntries(
+        format
+          .formatToParts(new Date(instant))
+          .map(({ type, value }) => [type, value]),
+      );
+      const represented = Date.parse(
+        `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}Z`,
+      );
+      instant += target - represented;
+    }
+    return new Date(instant);
+  } catch {
+    return new Date(NaN);
+  }
 }

@@ -9,7 +9,7 @@ export default function MilestonesPanel({
   partner,
   milestones,
 }) {
-  const { state, model, onAction, onSubmit } = useApp();
+  const { state, model, onAction, onSubmit, onUpload, downloadFile } = useApp();
   const { currentAgreement, statusText } = model;
   const blockers = launchBlockers(room);
   const launched = ["launched", "reviewed"].includes(room.status);
@@ -88,61 +88,118 @@ export default function MilestonesPanel({
                 ""
               )}
               {item.attachment ? (
-                <span className="evidence-chip">{item.attachment}</span>
+                item.file ? (
+                  <button
+                    className="evidence-chip file-download"
+                    onClick={() => downloadFile(item.file)}
+                  >
+                    Download {item.file.name} (
+                    {Math.ceil(item.file.size / 1024)} KB)
+                  </button>
+                ) : (
+                  <span className="evidence-chip">{item.attachment}</span>
+                )
               ) : (
                 ""
               )}
               {item.evidenceOpen ? (
-                <form
-                  className="inline-evidence"
-                  data-form="evidence"
-                  data-id={id}
-                  onSubmit={(event) => onSubmit(event)}
-                >
-                  <FormErrors scope={`evidence-${id}`} />
-                  <label htmlFor={`evidence-${id}`}>
-                    Evidence description or link (no file upload)
-                  </label>
-                  <input
-                    id={`evidence-${id}`}
-                    name="attachment"
-                    placeholder="File name or link"
-                    required
-                  />
-                  <button className="btn small primary" type="submit">
-                    Attach
-                  </button>
-                </form>
+                <div className="evidence-options">
+                  <form
+                    className="inline-evidence"
+                    data-id={id}
+                    onSubmit={onUpload}
+                  >
+                    <label htmlFor={`file-${id}`}>
+                      Evidence file (up to 5 MB)
+                    </label>
+                    <input
+                      id={`file-${id}`}
+                      name="file"
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg,.webp,.txt"
+                      required
+                    />
+                    <p className="muted">
+                      PDF, images or text. Only you and your collaborator can
+                      download it.
+                    </p>
+                    <button
+                      className="btn small primary"
+                      type="submit"
+                      disabled={state.busy || launched}
+                    >
+                      Upload file
+                    </button>
+                  </form>
+                  <form
+                    className="inline-evidence"
+                    data-form="evidence"
+                    data-id={id}
+                    onSubmit={(event) => onSubmit(event)}
+                  >
+                    <FormErrors scope={`evidence-${id}`} />
+                    <label htmlFor={`evidence-${id}`}>
+                      Or add an evidence description or link
+                    </label>
+                    <input
+                      id={`evidence-${id}`}
+                      name="attachment"
+                      placeholder="Description or link"
+                      required
+                    />
+                    <button
+                      className="btn small primary"
+                      type="submit"
+                      disabled={state.busy || launched}
+                    >
+                      Attach
+                    </button>
+                  </form>
+                </div>
               ) : (
                 ""
               )}
-              <button
-                className="link-btn dispute-link"
-                data-action="dispute"
-                data-id={id}
-                {...(item.disputed
-                  ? {
-                      disabled: true,
-                    }
-                  : {})}
-                onClick={(event) =>
-                  onAction(
-                    {
-                      action: "dispute",
-                      id: id,
-                    },
-                    event,
-                  )
-                }
-              >
-                Flag a dispute
-              </button>
+              {item.disputed ? (
+                <button
+                  className="link-btn dispute-link"
+                  disabled={state.busy || launched || item.resolvedByMe}
+                  onClick={() => onAction({ action: "resolve-dispute", id })}
+                >
+                  {item.resolvedByMe
+                    ? "Waiting for partner to resolve"
+                    : "Agree to resolve dispute"}
+                </button>
+              ) : (
+                <button
+                  className="link-btn dispute-link"
+                  disabled={state.busy || launched}
+                  data-action="dispute"
+                  data-id={id}
+                  {...(item.disputed
+                    ? {
+                        disabled: true,
+                      }
+                    : {})}
+                  onClick={(event) =>
+                    onAction(
+                      {
+                        action: "dispute",
+                        id: id,
+                      },
+                      event,
+                    )
+                  }
+                >
+                  Flag a dispute
+                </button>
+              )}
             </div>
             <div className="milestone-actions">
               {item.evidence ? (
                 <button
                   className="btn small"
                   data-action="evidence-toggle"
+                  disabled={launched}
                   data-id={id}
                   onClick={(event) =>
                     onAction(
@@ -163,6 +220,12 @@ export default function MilestonesPanel({
                 <button
                   className="btn small"
                   data-action="confirm-milestone"
+                  disabled={
+                    state.busy ||
+                    launched ||
+                    item.disputed ||
+                    !agreement.partnerLocked
+                  }
                   data-id={id}
                   {...(item.evidence && !item.attachment
                     ? {

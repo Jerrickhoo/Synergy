@@ -1,21 +1,133 @@
-import {
+﻿import {
   createContext,
   useContext,
   useEffect,
   useMemo,
   useReducer,
   useRef,
+  useState,
 } from "react";
 import { enableMapSet, produce } from "immer";
 import { createInitialState, createModel } from "../data/model.js";
 import { fieldKey, readField } from "./fields.js";
 import { transition } from "./transitions.js";
 import { applyRoute, parseRoute, routeHash } from "./routes.js";
+import { decode } from "./serialization.js";
+
 enableMapSet();
 const AppContext = createContext(null);
+function savedLoginChallenge() {
+  try {
+    const challenge = JSON.parse(
+      sessionStorage.getItem("synergy-login-challenge"),
+    );
+    if (
+      challenge?.expiresAt > Date.now() &&
+      /^[a-f0-9]{64}$/.test(challenge.challengeId)
+    )
+      return challenge;
+  } catch {
+    /* An expired or malformed pending sign-in can be started again. */
+  }
+  return null;
+}
+const dataKeys = [
+  "accountId",
+  "accountName",
+  "accountEmail",
+  "emailVerified",
+  "integrations",
+  "profiles",
+  "directory",
+  "rooms",
+  "activity",
+  "savedByRole",
+  "waitingByRole",
+  "interestByRole",
+  "incomingByRole",
+  "trustHistoryByRole",
+];
+const remoteActions = new Set([
+  "choose-role",
+  "save",
+  "interest",
+  "cancel-interest",
+  "accept-interest",
+  "decline-interest",
+  "lock-terms",
+  "accept-terms",
+  "confirm-milestone",
+  "dispute",
+  "resolve-dispute",
+  "launch-room",
+]);
 const reducer = (state, payload) =>
   produce(state, (draft) => {
-    if (payload.action === "route-change") applyRoute(draft, payload.route);
+    if (payload.action === "restore") {
+      Object.assign(draft, payload.state, {
+        restoring: false,
+        busy: false,
+        toast: "",
+        confirmation: "",
+        formErrors: null,
+        profileEditing: false,
+      });
+      applyRoute(draft, parseRoute(window.location.hash));
+    } else if (payload.action === "remote") {
+      const previousRooms = draft.rooms;
+      for (const key of dataKeys) draft[key] = payload.state[key];
+      for (const room of Object.values(draft.rooms))
+        for (const [id, item] of Object.entries(room.milestones)) {
+          item.evidenceOpen =
+            previousRooms[room.id]?.milestones[id]?.evidenceOpen || false;
+          if (
+            payload.command?.form === "evidence" &&
+            payload.command.id === id &&
+            payload.command.activeRoomId === room.id &&
+            !payload.state.formErrors
+          )
+            item.evidenceOpen = false;
+        }
+      draft.connectionError = "";
+      if (payload.command) {
+        draft.formErrors = payload.state.formErrors;
+        draft.toast = payload.state.toast;
+        draft.confirmation = payload.state.confirmation;
+        if (!payload.state.formErrors) {
+          if (payload.command.form === "profile-form")
+            draft.profileEditing = false;
+          if (payload.command.form === "report-form") draft.reportOpen = false;
+          if (payload.command.action === "choose-role")
+            draft.role = payload.state.role;
+          if (
+            ["interest", "accept-interest", "launch-room"].includes(
+              payload.command.action,
+            )
+          ) {
+            draft.page = payload.state.page;
+            draft.activeRoomId = payload.state.activeRoomId;
+            draft.activeWaitingMatch = payload.state.activeWaitingMatch;
+            draft.roomTab = "terms";
+            draft.rating = 0;
+          }
+        }
+      }
+    } else if (payload.action === "request-status") draft.busy = payload.busy;
+    else if (payload.action === "request-error") {
+      draft.toast = payload.message;
+      draft.formErrors = payload.fields
+        ? { scope: payload.scope, fields: payload.fields }
+        : null;
+    } else if (payload.action === "connection-error")
+      draft.connectionError = payload.message;
+    else if (payload.action === "signed-out")
+      Object.assign(draft, createInitialState(), {
+        restoring: false,
+        toast: payload.message || "",
+      });
+    else if (payload.action === "report") draft.reportOpen = !draft.reportOpen;
+    else if (payload.action === "route-change")
+      applyRoute(draft, payload.route);
     else transition(draft, payload);
     if (!draft.authenticated) {
       draft.notificationOpen = false;
@@ -23,58 +135,138 @@ const reducer = (state, payload) =>
       draft.moreOpen = false;
     }
   });
+
 export function AppProvider({ children }) {
+  const [authChallenge, setAuthChallenge] = useState(savedLoginChallenge);
+  const token = useRef(sessionStorage.getItem("synergy-session"));
+  const revision = useRef(-1);
+  const pending = useRef(false);
   const [state, dispatch] = useReducer(reducer, undefined, () => {
     const initial = createInitialState();
-    applyRoute(initial, parseRoute(window.location.hash));
+    initial.restoring = Boolean(token.current);
+    if (!initial.restoring)
+      applyRoute(initial, parseRoute(window.location.hash));
     return initial;
   });
-  const lastRouteTick = useRef(null);
   const model = useMemo(() => createModel(state), [state]);
+  const lastRouteTick = useRef(null);
+  async function request(path, body) {
+    const response = await fetch(`/api/${path}`, {
+      method: body ? "POST" : "GET",
+      headers: {
+        ...(body ? { "Content-Type": "application/json" } : {}),
+        ...(token.current ? { Authorization: `Bearer ${token.current}` } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const result = decode(await response.text());
+    if (!response.ok)
+      throw Object.assign(new Error(result.error), {
+        status: response.status,
+        fields: result.fields,
+        challenge: result.challenge,
+      });
+    return result;
+  }
+  function rememberLoginChallenge(challenge) {
+    setAuthChallenge(challenge);
+    if (challenge) {
+      token.current = null;
+      sessionStorage.removeItem("synergy-session");
+      sessionStorage.setItem(
+        "synergy-login-challenge",
+        JSON.stringify(challenge),
+      );
+    } else sessionStorage.removeItem("synergy-login-challenge");
+  }
+  function acceptSession(result) {
+    token.current = result.token;
+    sessionStorage.setItem("synergy-session", result.token);
+    revision.current = result.revision;
+    rememberLoginChallenge(null);
+    window.history.replaceState(null, "", "#/");
+    dispatch({ action: "restore", state: result.state });
+  }
+  useEffect(() => {
+    if (!token.current) return;
+    let stopped = false;
+    request("state")
+      .then((result) => {
+        if (stopped) return;
+        revision.current = result.revision;
+        dispatch({ action: "restore", state: result.state });
+      })
+      .catch((error) => {
+        if (stopped) return;
+        token.current = null;
+        sessionStorage.removeItem("synergy-session");
+        dispatch({
+          action: "signed-out",
+          message:
+            error.status === 401
+              ? "Your session ended. Sign in to recover your saved workspace."
+              : "Could not reach the workspace server. Please sign in again when it is available.",
+        });
+      });
+    return () => {
+      stopped = true;
+    };
+  }, []);
+  useEffect(() => {
+    if (!state.authenticated || state.restoring) return;
+    let stopped = false;
+    async function refresh() {
+      if (pending.current) return;
+      try {
+        const result = await request(`state?role=${state.role}`);
+        if (
+          !stopped &&
+          !pending.current &&
+          result.revision >= revision.current
+        ) {
+          revision.current = result.revision;
+          dispatch({ action: "remote", state: result.state });
+        }
+      } catch (error) {
+        if (stopped) return;
+        if (error.status === 401) {
+          token.current = null;
+          sessionStorage.removeItem("synergy-session");
+          dispatch({
+            action: "signed-out",
+            message:
+              "Your session ended. Sign in to recover your saved workspace.",
+          });
+        } else
+          dispatch({
+            action: "connection-error",
+            message:
+              "Connection interrupted. Your saved work is safe; updates will resume when the server is available.",
+          });
+      }
+    }
+    refresh();
+    const timer = setInterval(refresh, 1500);
+    window.addEventListener("focus", refresh);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [state.authenticated, state.restoring, state.role]);
   useEffect(() => {
     if (!state.toast) return;
-    const timer = setTimeout(
-      () =>
-        dispatch({
-          action: "clear-toast",
-        }),
-      2600,
-    );
+    const timer = setTimeout(() => dispatch({ action: "clear-toast" }), 4000);
     return () => clearTimeout(timer);
   }, [state.toast]);
   useEffect(() => {
     if (!state.confirmation) return;
     const timer = setTimeout(
-      () =>
-        dispatch({
-          action: "dismiss-confirmation",
-        }),
+      () => dispatch({ action: "dismiss-confirmation" }),
       5000,
     );
     return () => clearTimeout(timer);
   }, [state.confirmation]);
-  useEffect(() => {
-    if (!state.onboarding.verifying) return;
-    const timer = setTimeout(
-      () =>
-        dispatch({
-          action: "verification-done",
-        }),
-      1000,
-    );
-    return () => clearTimeout(timer);
-  }, [state.onboarding.verifying]);
-  useEffect(() => {
-    if (!state.onboarding.analyzing) return;
-    const timer = setTimeout(
-      () =>
-        dispatch({
-          action: "analysis-done",
-        }),
-      900,
-    );
-    return () => clearTimeout(timer);
-  }, [state.onboarding.analyzing]);
   useEffect(() => {
     const onHashChange = () =>
       dispatch({
@@ -85,68 +277,220 @@ export function AppProvider({ children }) {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
   useEffect(() => {
+    if (state.restoring) return;
     const hash = routeHash(state);
-    if (window.location.hash !== hash) {
-      const method =
-        lastRouteTick.current !== state.routeTick
-          ? "replaceState"
-          : "pushState";
-      window.history[method](null, "", hash);
-    }
+    if (window.location.hash !== hash)
+      window.history[
+        lastRouteTick.current !== state.routeTick ? "replaceState" : "pushState"
+      ](null, "", hash);
     lastRouteTick.current = state.routeTick;
   }, [
     state.authenticated,
+    state.restoring,
     state.page,
     state.activeMatch,
     state.activeRoomId,
     state.routeTick,
     state.routePath,
   ]);
-  function onAction(payload, event) {
-    event?.preventDefault();
-    if (payload.action === "skip-to-content") {
-      event.currentTarget.parentElement.querySelector("main")?.focus();
-      return;
-    }
-    if (payload.action === "verify-email") {
-      const email = readField(state, "verify-email");
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        dispatch({
-          action: "set-toast",
-          message: "Enter a valid email address.",
+
+  async function send(command) {
+    if (pending.current) return false;
+    pending.current = true;
+    dispatch({ action: "request-status", busy: true });
+    const payload = {
+      ...command,
+      role: state.role,
+      activeRoomId: state.activeRoomId,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    };
+    try {
+      if (["login-form", "signup-form"].includes(command.form)) {
+        const result = await request(
+          command.form === "signup-form" ? "signup" : "login",
+          command.values,
+        );
+        if (result.verificationRequired) rememberLoginChallenge(result);
+        else acceptSession(result);
+      } else if (command.form === "login-code-form") {
+        const result = await request("auth/verify", {
+          challengeId: authChallenge?.challengeId,
+          code: command.values.code,
         });
-        return;
+        acceptSession(result);
+      } else {
+        const result = await request("action", payload);
+        revision.current = result.revision;
+        dispatch({ action: "remote", state: result.state, command: payload });
+        return !result.state.formErrors;
       }
+      return true;
+    } catch (error) {
+      if (error.challenge)
+        rememberLoginChallenge({
+          ...error.challenge,
+          deliveryError: error.message,
+        });
+      dispatch({
+        action: "request-error",
+        message: error.message || "Could not save. Please try again.",
+        fields: error.fields,
+        scope: command.form,
+      });
+      return false;
+    } finally {
+      pending.current = false;
+      dispatch({ action: "request-status", busy: false });
+    }
+  }
+  async function onAction(payload, event) {
+    event?.preventDefault();
+    if (payload.action === "sign-out") {
+      if (pending.current) return;
+      try {
+        await request("logout", {});
+      } catch {
+        /* Local sign-out remains possible offline. */
+      }
+      token.current = null;
+      sessionStorage.removeItem("synergy-session");
+      revision.current = -1;
+      dispatch({ action: "signed-out" });
+      return;
     }
     if (payload.action === "lock-terms") {
       const form = event.currentTarget.form;
       if (!form.reportValidity()) return;
-      payload = {
-        ...payload,
-        values: Object.fromEntries(new FormData(form)),
-      };
+      payload = { ...payload, values: Object.fromEntries(new FormData(form)) };
     }
-    dispatch({
-      ...payload,
-      roomId: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
-    });
+    if (remoteActions.has(payload.action)) return send(payload);
+    dispatch(payload);
   }
-  function onSubmit(event) {
+  async function onSubmit(event) {
     event.preventDefault();
     const form = event.currentTarget;
-    dispatch({
+    const success = await send({
       form: form.dataset.form || form.id,
       id: form.dataset.id,
       values: Object.fromEntries(new FormData(form)),
-      timestamp: new Date().toISOString(),
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      time: new Date().toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit",
-      }),
     });
-    if (form.id === "chat-form") form.reset();
+    if (
+      success &&
+      ["login-form", "signup-form", "login-code-form"].includes(form.id)
+    )
+      form.reset();
+    if (success && form.id === "chat-form") form.reset();
+  }
+  async function integrationRequest(path, body) {
+    if (pending.current)
+      throw new Error("Please wait for your current request to finish.");
+    pending.current = true;
+    dispatch({ action: "request-status", busy: true });
+    try {
+      const result = await request(path, body);
+      if (result.state) {
+        revision.current = result.revision;
+        dispatch({ action: "remote", state: result.state });
+      }
+      return result;
+    } finally {
+      pending.current = false;
+      dispatch({ action: "request-status", busy: false });
+    }
+  }
+  async function resendLoginCode() {
+    try {
+      const result = await integrationRequest("auth/resend", {
+        challengeId: authChallenge?.challengeId,
+      });
+      rememberLoginChallenge(result);
+      dispatch({ action: "request-error", message: "" });
+    } catch (error) {
+      if (error.challenge)
+        rememberLoginChallenge({
+          ...error.challenge,
+          deliveryError: error.message,
+        });
+      throw error;
+    }
+  }
+  function cancelLogin() {
+    if (pending.current) return;
+    rememberLoginChallenge(null);
+    dispatch({ action: "signed-out" });
+  }
+  async function onUpload(event) {
+    event.preventDefault();
+    if (pending.current) return;
+    const form = event.currentTarget;
+    const file = form.elements.file.files[0];
+    if (!file) return;
+    if (file.size > state.integrations.maxFileBytes) {
+      dispatch({
+        action: "request-error",
+        message: "Choose a file smaller than 5 MB.",
+      });
+      return;
+    }
+    pending.current = true;
+    dispatch({ action: "request-status", busy: true });
+    try {
+      const query = new URLSearchParams({
+        role: state.role,
+        room: state.activeRoomId,
+        milestone: form.dataset.id,
+      });
+      const response = await fetch(`/api/upload?${query}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token.current}`,
+          "Content-Type": "application/octet-stream",
+          "X-File-Name": encodeURIComponent(file.name),
+        },
+        body: file,
+      });
+      const result = decode(await response.text());
+      if (!response.ok) throw new Error(result.error);
+      revision.current = result.revision;
+      dispatch({
+        action: "remote",
+        state: result.state,
+        command: {
+          form: "evidence",
+          id: form.dataset.id,
+          activeRoomId: state.activeRoomId,
+        },
+      });
+      form.reset();
+    } catch (error) {
+      dispatch({
+        action: "request-error",
+        message:
+          error.message || "Could not upload the file. Please try again.",
+      });
+    } finally {
+      pending.current = false;
+      dispatch({ action: "request-status", busy: false });
+    }
+  }
+  async function downloadFile(file) {
+    try {
+      const response = await fetch(`/api/files/${file.id}`, {
+        headers: { Authorization: `Bearer ${token.current}` },
+      });
+      if (!response.ok) throw new Error((await response.json()).error);
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = file.name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      dispatch({
+        action: "request-error",
+        message: error.message || "Could not download the file.",
+      });
+    }
   }
   function onTabKeyDown(event) {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
@@ -163,36 +507,33 @@ export function AppProvider({ children }) {
             tabs.length;
     event.preventDefault();
     tabs[nextIndex].click();
-    tabs[nextIndex].focus({
-      preventScroll: true,
-    });
+    tabs[nextIndex].focus({ preventScroll: true });
   }
-  const value = {
-    state,
-    model,
-    onAction,
-    onSubmit,
-    onTabKeyDown,
-    onFilter: (key, value) =>
-      dispatch({
-        action: "set-filter",
-        key,
-        value,
-      }),
-    onField: (id, value) =>
-      dispatch({
-        action: "set-field",
-        key: fieldKey(state, id),
-        value,
-      }),
-    fieldValue: (id, fallback) => readField(state, id, fallback),
-    onRating: (value) =>
-      dispatch({
-        action: "set-rating",
-        value,
-      }),
-  };
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  return (
+    <AppContext.Provider
+      value={{
+        authChallenge,
+        resendLoginCode,
+        cancelLogin,
+        state,
+        model,
+        onAction,
+        onSubmit,
+        integrationRequest,
+        onUpload,
+        downloadFile,
+        onTabKeyDown,
+        onFilter: (key, value) =>
+          dispatch({ action: "set-filter", key, value }),
+        onField: (id, value) =>
+          dispatch({ action: "set-field", key: fieldKey(state, id), value }),
+        fieldValue: (id, fallback) => readField(state, id, fallback),
+        onRating: (value) => dispatch({ action: "set-rating", value }),
+      }}
+    >
+      {children}
+    </AppContext.Provider>
+  );
 }
 export function useApp() {
   return useContext(AppContext);

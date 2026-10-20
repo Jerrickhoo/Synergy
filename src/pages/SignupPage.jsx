@@ -2,7 +2,7 @@ import FormErrors from "../components/FormErrors.jsx";
 import { useApp } from "../state/AppContext.jsx";
 import AuthStory from "../components/AuthStory.jsx";
 export default function SignupPage() {
-  const { onSubmit } = useApp();
+  const { state, onSubmit } = useApp();
   return (
     <div className="page auth-page page-enter">
       <AuthStory />
@@ -11,8 +11,8 @@ export default function SignupPage() {
           <div className="eyebrow">JOIN THE COMMUNITY</div>
           <h1 tabIndex="-1">Create your account</h1>
           <p className="panel-subtitle">
-            Choose your role and start with an empty workspace. This local
-            prototype does not create an online account or store credentials.
+            Choose your role. We'll email you a code to confirm your account,
+            then you can complete your profile and connect with collaborators.
           </p>
           <form
             id="signup-form"
@@ -68,8 +68,8 @@ export default function SignupPage() {
                 <option value="mentor">Mentor</option>
               </select>
             </div>
-            <button className="btn primary" type="submit">
-              Create account
+            <button className="btn primary" type="submit" disabled={state.busy}>
+              {state.busy ? "Creating account…" : "Create account"}
             </button>
           </form>
         </div>

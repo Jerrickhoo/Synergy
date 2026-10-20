@@ -217,9 +217,11 @@ export function createModel(state) {
     const room = state.rooms[state.activeRoomId];
     return room?.role === state.role ? room : null;
   };
-  const roomStatusLabel = (status, partnerName) =>
+  const roomStatusLabel = (status, partnerName, confirmedByMe = true) =>
     status === "terms"
-      ? `Waiting for ${partnerName || "your partner"} to confirm`
+      ? confirmedByMe
+        ? `Waiting for ${partnerName || "your partner"} to confirm`
+        : "Your confirmation needed"
       : {
           matched: "Matched",
           "in-progress": "In progress",
@@ -360,6 +362,7 @@ export function createInitialState() {
     waitingByRole: { founder: new Set(), mentor: new Set() },
     savedByRole: { founder: new Set(), mentor: new Set() },
     interestByRole: { founder: new Set(), mentor: new Set() },
+    incomingByRole: { founder: new Set(), mentor: new Set() },
     trustHistoryByRole: { founder: [], mentor: [] },
     fields: {},
     notificationOpen: false,

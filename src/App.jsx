@@ -52,7 +52,7 @@ function Unavailable({ room = false }) {
   );
 }
 export default function App() {
-  const { state, model, onAction } = useApp();
+  const { state, model, onAction, authChallenge } = useApp();
   const mainRef = useRef(null);
   const authPage = ["signup", "onboarding"].includes(state.page);
   const Page = pages[state.page];
@@ -62,6 +62,12 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "instant" });
     mainRef.current?.querySelector("h1")?.focus({ preventScroll: true });
   }, [state.page, state.role, state.activeRoomId, state.activeMatch]);
+  if (state.restoring)
+    return (
+      <div className="session-loading" role="status">
+        Opening your saved workspace…
+      </div>
+    );
   return (
     <div
       onKeyDown={(event) => {
@@ -82,7 +88,7 @@ export default function App() {
       >
         Skip to content
       </button>
-      {!state.authenticated && !authPage ? (
+      {!state.authenticated && (!authPage || authChallenge) ? (
         <Login />
       ) : (
         <>
@@ -94,6 +100,25 @@ export default function App() {
             {!authPage && <Sidebar />}
             <main id="main-content" tabIndex={-1} ref={mainRef}>
               {authPage ? <AuthHeader /> : <Topbar />}
+              {state.authenticated &&
+                state.integrations?.requireVerification &&
+                !state.emailVerified &&
+                state.page !== "profile" && (
+                  <div className="connection-banner" role="status">
+                    Verify your email to connect with collaborators.{" "}
+                    <button
+                      className="link-btn"
+                      onClick={() => onAction({ page: "profile" })}
+                    >
+                      Open profile
+                    </button>
+                  </div>
+                )}
+              {state.connectionError && (
+                <div className="connection-banner" role="status">
+                  {state.connectionError}
+                </div>
+              )}
               <div
                 id="content"
                 key={`${state.page}:${state.role}:${state.activeRoomId}`}
@@ -114,6 +139,11 @@ export default function App() {
       <div id="toast-root" aria-live="polite" aria-atomic="true">
         {state.toast && <div className="toast">{state.toast}</div>}
       </div>
+      {state.busy && (
+        <div className="saving-indicator" role="status">
+          Working…
+        </div>
+      )}
     </div>
   );
 }

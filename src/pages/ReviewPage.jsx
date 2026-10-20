@@ -1,29 +1,23 @@
-import NextStep from "../components/NextStep.jsx";
-import { Fragment } from "react";
-import { useApp } from "../state/AppContext.jsx";
+﻿import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import Icon from "../components/Icon.jsx";
-import { EmptyState } from "../components/DashboardUI.jsx";
+
 export default function ReviewPage() {
   const { state, model, onSubmit, onRating, onAction } = useApp();
-  const { activeRoom } = model;
-  const room = activeRoom();
+  const room = model.activeRoom();
   if (!["launched", "reviewed"].includes(room.status))
     return (
       <div className="page">
         <PageHeader
-          eyebrow="YOUR SHARED WORK"
           title="Complete your collaboration first"
-          intro="Reviews become available after the room meets its launch requirements."
+          intro="Reviews become available after every milestone is confirmed by both collaborators."
         />
-        <EmptyState
-          title="This collaboration is still in progress"
-          action={() => onAction({ action: "open-room", id: room.id })}
-          actionLabel="Return to room"
+        <button
+          className="btn"
+          onClick={() => onAction({ action: "open-room", id: room.id })}
         >
-          Confirm every milestone, add required evidence, and resolve disputes
-          before launching.
-        </EmptyState>
+          Return to room
+        </button>
       </div>
     );
   return (
@@ -31,31 +25,23 @@ export default function ReviewPage() {
       <PageHeader
         eyebrow="CLOSE THE LOOP"
         title="How did it go?"
-        intro="Try the local review workflow. This demo does not send reviews or update reputation."
+        intro="Your feedback stays private until both collaborators submit their reviews."
       />
       <section className="card panel review-page">
-        {"\n          "}
-        {"\n          "}
         <h2>Share an honest reflection</h2>
-        {"\n          "}
-        <p className="panel-subtitle">
-          Partner submission is simulated. There is no server-backed privacy or
-          reputation service in this prototype.
-        </p>
-        {"\n          "}
         {room.review.me ? (
           <div className="confirmation-card">
             <Icon name="check" />
-            {" Your review has been saved in this demo. "}
+            Your review is saved.{" "}
             {room.review.partner
               ? "Both reviews are in."
-              : "Use Demo controls to simulate the partner’s submission."}
+              : "Waiting for your collaborator's review."}
           </div>
         ) : (
           <form
             id="review-form"
-            className="grid"
-            onSubmit={(event) => onSubmit(event)}
+            className="grid section-gap"
+            onSubmit={onSubmit}
           >
             <fieldset className="rating-field">
               <legend>Your rating</legend>
@@ -64,24 +50,23 @@ export default function ReviewPage() {
                 role="radiogroup"
                 aria-label="Choose a rating"
               >
-                {[1, 2, 3, 4, 5].map((rating, itemIndex) => (
-                  <Fragment key={itemIndex}>
-                    <label className={state.rating >= rating ? "filled" : ""}>
-                      <input
-                        type="radio"
-                        name="rating"
-                        defaultValue={rating}
-                        required
-                        aria-label={rating + " stars"}
-                        onChange={(event) =>
-                          onRating(Number(event.target.value))
-                        }
-                      />
-                      <span aria-hidden="true">
-                        <Icon name="star" />
-                      </span>
-                    </label>
-                  </Fragment>
+                {[1, 2, 3, 4, 5].map((rating) => (
+                  <label
+                    key={rating}
+                    className={state.rating >= rating ? "filled" : ""}
+                  >
+                    <input
+                      type="radio"
+                      name="rating"
+                      value={rating}
+                      required
+                      aria-label={`${rating} stars`}
+                      onChange={() => onRating(rating)}
+                    />
+                    <span aria-hidden="true">
+                      <Icon name="star" />
+                    </span>
+                  </label>
                 ))}
               </div>
             </fieldset>
@@ -90,18 +75,37 @@ export default function ReviewPage() {
               <textarea
                 id="review-note"
                 name="note"
-                placeholder="What went well? What would you share with another founder?"
-                defaultValue=""
+                maxLength={3000}
+                placeholder="What went well? What could be better?"
               />
             </div>
-            <button className="btn primary" type="submit">
-              Save demo review
+            <button className="btn primary" type="submit" disabled={state.busy}>
+              Submit private review
             </button>
           </form>
         )}
-        {"\n        "}
+        {room.review.me && room.review.partner && (
+          <div className="review-results section-gap">
+            <h3>Your collaborator's feedback</h3>
+            <p>{room.review.partnerRating}/5</p>
+            <p>{room.review.partnerNote || "No written feedback."}</p>
+            <h3>Your feedback</h3>
+            <p>
+              {room.review.rating}/5 ·{" "}
+              {room.review.note || "No written feedback."}
+            </p>
+            <p className="muted">
+              This collaboration is now part of both profiles' history.
+            </p>
+          </div>
+        )}
       </section>
-      <NextStep />
+      <button
+        className="btn section-gap"
+        onClick={() => onAction({ page: "rooms" })}
+      >
+        View your rooms
+      </button>
     </div>
   );
 }

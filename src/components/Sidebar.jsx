@@ -11,7 +11,7 @@ export const navigation = [
 ];
 
 export default function Sidebar() {
-  const { model, onAction } = useApp();
+  const { state, model, onAction } = useApp();
   return (
     <aside className="sidebar" aria-label="Workspace sidebar">
       <Brand />
@@ -33,6 +33,7 @@ export default function Sidebar() {
           <div className="user-mini-role">{model.roleLabel()}</div>
           <button
             className="link-btn"
+            disabled={state.busy}
             onClick={() => onAction({ action: "sign-out" })}
           >
             Sign out

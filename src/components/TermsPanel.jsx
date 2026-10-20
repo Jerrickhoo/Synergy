@@ -1,7 +1,7 @@
 import FormErrors from "./FormErrors.jsx";
 import { useApp } from "../state/AppContext.jsx";
 export default function TermsPanel({ room, agreement, partner, milestones }) {
-  const { model, onAction, onSubmit } = useApp();
+  const { state, model, onAction, onSubmit } = useApp();
   const { roomStatusLabel } = model;
   return (
     <div className="terms-layout">
@@ -20,13 +20,18 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
             {agreement.partnerLocked
               ? "Confirmed by both"
               : agreement.locked
-                ? roomStatusLabel("terms", partner?.name || room.partnerId)
+                ? roomStatusLabel(
+                    "terms",
+                    partner?.name || room.partnerId,
+                    agreement.confirmedByMe,
+                  )
                 : "Draft"}
           </span>
         </div>
         {"\n          "}
         <form
           id="terms-form"
+          key={JSON.stringify(agreement.draft) + agreement.locked}
           className="grid"
           onSubmit={(event) => onSubmit(event)}
         >
@@ -134,6 +139,15 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
               <span className="status green">
                 Both sides have locked these terms
               </span>
+            ) : !agreement.confirmedByMe ? (
+              <button
+                className="btn primary"
+                type="button"
+                disabled={state.busy}
+                onClick={() => onAction({ action: "accept-terms" })}
+              >
+                Accept shared terms
+              </button>
             ) : (
               <span className="status">
                 {"Waiting for "}

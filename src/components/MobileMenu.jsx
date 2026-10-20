@@ -76,6 +76,7 @@ export default function MobileMenu() {
         </nav>
         <button
           className="btn full"
+          disabled={state.busy}
           onClick={() => onAction({ action: "sign-out" })}
         >
           Sign out

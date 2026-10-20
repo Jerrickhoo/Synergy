@@ -231,7 +231,7 @@ export function transition(state, payload) {
       activeRoom().review.note = String(values.get("note") || "").trim();
       if (activeRoom().review.partner) activeRoom().status = "reviewed";
       state.confirmation = "";
-      record("You submitted a local demo review.", activeRoom().id);
+      record("You submitted a private review.", activeRoom().id);
       return;
     }
     if (payload.form === "profile-form") {
@@ -293,7 +293,13 @@ export function transition(state, payload) {
     }
     if (payload.form === "schedule") {
       if (activeRoom().type !== "mentorship") return;
-      if (invalid("schedule", validateSchedule(payload.values))) return;
+      if (
+        invalid(
+          "schedule",
+          validateSchedule({ ...payload.values, timeZone: payload.timeZone }),
+        )
+      )
+        return;
       activeRoom().milestones.session.schedule = {
         date: payload.values.date,
         time: payload.values.time,
@@ -320,8 +326,8 @@ export function transition(state, payload) {
       text: message,
       time: payload.time,
     });
-    record("You added a message to your demo room.", activeRoom().id);
-    toast("Message added to this prototype room.");
+    record("You sent a room message.", activeRoom().id);
+    toast("Message sent.");
     return;
   }
   if (payload.action === "sign-out") {
@@ -638,9 +644,7 @@ export function transition(state, payload) {
     const milestone = activeRoom().milestones[id];
     if (!milestone) return;
     if (milestone.disputed) {
-      toast(
-        "This milestone is disputed. Resolution is unavailable in this demo.",
-      );
+      toast("Resolve this dispute together before confirming the milestone.");
       return;
     }
     if (!currentAgreement().locked || !currentAgreement().partnerLocked) {

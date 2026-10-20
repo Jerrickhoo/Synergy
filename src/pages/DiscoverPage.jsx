@@ -45,8 +45,8 @@ export default function DiscoverPage() {
           </div>
           <h2>No matches yet</h2>
           <p>
-            There are no profiles in this workspace yet. Start by adding your
-            own so others can learn about you.
+            Complete your profile, then invite a collaborator to create an
+            account on this server. Their completed profile will appear here.
           </p>
           <button className="btn" onClick={() => onAction({ page: "profile" })}>
             View your profile
@@ -174,7 +174,7 @@ export default function DiscoverPage() {
             </select>
           </div>
           <div className="field">
-            <label htmlFor="score-filter">Minimum demo fit</label>
+            <label htmlFor="score-filter">Minimum fit</label>
             <select
               className="filter-select"
               id="score-filter"

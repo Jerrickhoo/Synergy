@@ -4,3 +4,9 @@ playwright-report/
 test-results/
 *.local
 artifacts/
+.data/
+output/
+.playwright-cli/
+.env
+.env.*
+!.env.example

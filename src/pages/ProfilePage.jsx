@@ -1,12 +1,16 @@
-import { Fragment } from "react";
+import { Fragment, useRef } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import Avatar from "../components/Avatar.jsx";
 import FormErrors from "../components/FormErrors.jsx";
 import { profileCompleteness } from "../data/selectors.js";
+import ProfileStats from "../components/ProfileStats.jsx";
+import EmailVerification from "../components/EmailVerification.jsx";
+import ProfileAssistant from "../components/ProfileAssistant.jsx";
 
 export default function ProfilePage() {
   const { state, model, onAction, onSubmit } = useApp();
+  const formRef = useRef(null);
   const founder = state.role === "founder";
   const profile = state.profiles[state.role];
   const completeness = profileCompleteness(profile, state.role);
@@ -17,6 +21,7 @@ export default function ProfilePage() {
         title="Your profile"
         intro="Help others understand what you do and how you can work together."
       />
+      <EmailVerification />
       <section className="card panel">
         <div className="profile-hero">
           <Avatar initials={model.roleInitials()} />
@@ -30,6 +35,7 @@ export default function ProfilePage() {
           <label htmlFor="account-role">I'm here as a</label>
           <select
             id="account-role"
+            disabled={state.busy}
             value={state.role}
             onChange={(event) =>
               onAction({
@@ -45,11 +51,20 @@ export default function ProfilePage() {
         {state.profileEditing ? (
           <form
             id="profile-form"
+            ref={formRef}
             key={state.role}
             className="grid section-gap"
             onSubmit={onSubmit}
           >
             <FormErrors scope="profile-form" />
+            <ProfileAssistant
+              onApply={(draft) => {
+                for (const [key, value] of Object.entries(draft)) {
+                  const field = formRef.current?.elements.namedItem(key);
+                  if (field && value) field.value = value;
+                }
+              }}
+            />
             <div className="field">
               <label htmlFor="profile-name">Your name</label>
               <input
@@ -167,7 +182,11 @@ export default function ProfilePage() {
             )}
 
             <div className="profile-edit-actions">
-              <button className="btn primary" type="submit">
+              <button
+                className="btn primary"
+                type="submit"
+                disabled={state.busy}
+              >
                 Save profile
               </button>
               <button
@@ -224,12 +243,16 @@ export default function ProfilePage() {
           </div>
         )}
       </section>
+      <ProfileStats />
       <details className="card panel profile-history">
         <summary>Collaboration history ({history.length})</summary>
         {history.length ? (
           history.map((item, index) => (
             <p key={index}>
-              {item.title} with {item.partner} · {item.date}
+              {item.type} with {item.partner} · {item.date} · {item.rating}/5
+              {item.note && (
+                <span className="review-feedback">{item.note}</span>
+              )}
             </p>
           ))
         ) : (
@@ -237,7 +260,7 @@ export default function ProfilePage() {
         )}
       </details>
       <p className="local-workspace-note">
-        Local prototype. Your changes last until you refresh this page.
+        Your profile and collaborations are saved on this workspace server.
       </p>
     </div>
   );

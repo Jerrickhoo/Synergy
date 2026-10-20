@@ -8,7 +8,7 @@ import Avatar from "../components/Avatar.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import Icon from "../components/Icon.jsx";
 export default function RoomDetailPage() {
-  const { state, model, onAction, onTabKeyDown } = useApp();
+  const { state, model, onAction, onSubmit, onTabKeyDown } = useApp();
   const {
     allPeople,
     roleName,
@@ -89,10 +89,12 @@ export default function RoomDetailPage() {
             >
               ← All deal rooms
             </button>
-            <span className="status gray target-date">
-              {"Sample target: "}
-              {room.targetDate}
-            </span>
+            <button
+              className="link-btn"
+              onClick={() => onAction({ action: "report" })}
+            >
+              Report a concern
+            </button>
           </>
         }
       />
@@ -119,7 +121,11 @@ export default function RoomDetailPage() {
             (["launched", "reviewed"].includes(room.status) ? "green" : "")
           }
         >
-          {roomStatusLabel(room.status, partner?.name || room.partnerId)}
+          {roomStatusLabel(
+            room.status,
+            partner?.name || room.partnerId,
+            agreement.confirmedByMe,
+          )}
         </span>
       </section>
       {"\n          "}
@@ -190,6 +196,33 @@ export default function RoomDetailPage() {
       </div>
       {"\n        "}
       <NextStep />
+      {state.reportOpen && (
+        <section className="card panel section-gap">
+          <h2>Report a concern</h2>
+          <p className="muted">
+            Describe the issue. Reports are saved on this server for local
+            review.
+          </p>
+          <form
+            id="report-form"
+            className="grid section-gap"
+            onSubmit={onSubmit}
+          >
+            <div className="field">
+              <label htmlFor="report-reason">What happened?</label>
+              <textarea
+                id="report-reason"
+                name="reason"
+                required
+                maxLength={3000}
+              />
+            </div>
+            <button className="btn primary" type="submit" disabled={state.busy}>
+              Submit report
+            </button>
+          </form>
+        </section>
+      )}
     </div>
   );
 }

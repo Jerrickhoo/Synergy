@@ -3,6 +3,7 @@ import { useApp } from "../state/AppContext.jsx";
 import Avatar from "../components/Avatar.jsx";
 import Icon from "../components/Icon.jsx";
 import PageHeader from "../components/PageHeader.jsx";
+import Introductions from "../components/Introductions.jsx";
 export default function RoomsPage() {
   const { state, model, onAction } = useApp();
   const { allPeople, roomStatusLabel } = model;
@@ -32,14 +33,7 @@ export default function RoomsPage() {
             Explore matches
           </button>
         </section>
-        {model.waitingMatches().size > 0 && (
-          <button
-            className="link-btn section-gap"
-            onClick={() => onAction({ page: "waiting" })}
-          >
-            View pending introductions ({model.waitingMatches().size})
-          </button>
-        )}
+        <Introductions compact />
       </div>
     );
   return (
@@ -49,14 +43,7 @@ export default function RoomsPage() {
         title="Rooms"
         intro="Keep agreements, milestones, and conversations in one shared space."
       />
-      {model.waitingMatches().size > 0 && (
-        <button
-          className="link-btn"
-          onClick={() => onAction({ page: "waiting" })}
-        >
-          View pending introductions ({model.waitingMatches().size})
-        </button>
-      )}
+      <Introductions compact />
       <div className="grid room-list">
         {rooms.map((room, itemIndex) => {
           const partner = allPeople().find(
@@ -87,6 +74,7 @@ export default function RoomsPage() {
                     {roomStatusLabel(
                       room.status,
                       partner?.name || room.partnerId,
+                      room.terms.confirmedByMe,
                     )}
                   </span>
                 </div>

@@ -22,7 +22,7 @@ export default function ChatPanel({ room }) {
         <div>
           <h2>Room chat</h2>
           <p className="panel-subtitle">
-            Local demo conversation. Messages are not sent to another person.
+            Messages are shared with your collaborator and saved in this room.
           </p>
         </div>
       </div>

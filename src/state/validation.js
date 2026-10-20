@@ -1,4 +1,4 @@
-import { profileKeys } from "../data/selectors.js";
+import { profileKeys, scheduleInstant } from "../data/selectors.js";
 
 export const stages = ["idea", "pre-seed", "seed", "growth"];
 export const cleanValues = (values) =>
@@ -63,7 +63,7 @@ export function validateCredentials(values, signup = false) {
     : {};
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email || ""))
     errors.email = "Enter a valid email address.";
-  if (String(values.password || "").length < (signup ? 8 : 4))
+  if (String(values.password || "").trim().length < (signup ? 8 : 4))
     errors.password = `Use at least ${signup ? 8 : 4} characters for this demo password.`;
   return errors;
 }
@@ -76,7 +76,10 @@ export function validateSchedule(values, now = new Date()) {
   const validTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(values.time || "");
   if (!validDate || !validTime)
     return { date: "Enter a valid session date and time." };
-  return new Date(`${values.date}T${values.time}`) <= now
+  const instant = scheduleInstant(values);
+  if (Number.isNaN(instant.getTime()))
+    return { date: "Choose a valid session timezone." };
+  return instant <= now
     ? { date: "Choose a future session date and time." }
     : {};
 }

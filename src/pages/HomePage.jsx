@@ -1,7 +1,13 @@
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import Icon from "../components/Icon.jsx";
-import { activeRooms, profileCompleteness } from "../data/selectors.js";
+import {
+  activeRooms,
+  profileCompleteness,
+  roleRooms,
+} from "../data/selectors.js";
+import { upcomingSessions, scheduleLabel } from "../data/selectors.js";
+import Introductions from "../components/Introductions.jsx";
 
 export default function HomePage() {
   const { state, onAction } = useApp();
@@ -10,6 +16,7 @@ export default function HomePage() {
     state.role,
   );
   const rooms = activeRooms(state);
+  const completedCount = roleRooms(state).length - rooms.length;
   const activity = state.activity
     .filter((item) => item.role === state.role)
     .slice(0, 3);
@@ -65,7 +72,9 @@ export default function HomePage() {
           <p className="muted">
             {rooms.length
               ? `${rooms.length} collaboration${rooms.length === 1 ? "" : "s"} in progress.`
-              : "No collaborations yet. When you and someone connect, your shared room will appear here."}
+              : completedCount
+                ? `No collaborations in progress. ${completedCount} completed collaboration${completedCount === 1 ? "" : "s"}.`
+                : "No collaborations yet. When you and someone connect, your shared room will appear here."}
           </p>
           <button
             className="link-btn"
@@ -86,6 +95,41 @@ export default function HomePage() {
           )}
         </section>
       </div>
+      <Introductions compact />
+      {rooms.length > 0 && (
+        <section className="card panel section-gap">
+          <h2>Continue working together</h2>
+          {rooms.slice(0, 3).map((room) => (
+            <div className="collaboration-row" key={room.id}>
+              <span>
+                {room.engagementType} · {room.progress}% complete
+              </span>
+              <button
+                className="btn small"
+                onClick={() => onAction({ action: "open-room", id: room.id })}
+              >
+                Open room
+              </button>
+            </div>
+          ))}
+        </section>
+      )}
+      {upcomingSessions(state).length > 0 && (
+        <section className="card panel section-gap">
+          <h2>Upcoming sessions</h2>
+          {upcomingSessions(state).map(({ room, schedule }) => (
+            <div className="collaboration-row" key={room.id}>
+              <span>{scheduleLabel(schedule)}</span>
+              <button
+                className="btn small"
+                onClick={() => onAction({ action: "open-room", id: room.id })}
+              >
+                View session
+              </button>
+            </div>
+          ))}
+        </section>
+      )}
     </div>
   );
 }

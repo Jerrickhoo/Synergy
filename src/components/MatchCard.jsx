@@ -8,6 +8,8 @@ export default function MatchCard({ person, large = false }) {
   const saved = state.savedByRole[state.role].has(person.id);
   const interested = state.interestByRole[state.role].has(person.id);
   const expanded = state.expanded.has(person.id);
+  const existingRoom = model.existingRoomFor(state.role, person.id);
+  const incoming = state.incomingByRole[state.role].has(person.id);
   return (
     <article className={"match-card " + (large ? "large" : "")}>
       {"\n          "}
@@ -37,7 +39,7 @@ export default function MatchCard({ person, large = false }) {
           >
             ·
           </span>{" "}
-          <span className="verified">Demo profile</span>
+          <span className="verified">Community profile</span>
         </div>
         {"\n            "}
       </div>
@@ -138,7 +140,7 @@ export default function MatchCard({ person, large = false }) {
             className="btn small"
             data-action="interest"
             data-id={person.id}
-            {...(interested
+            {...(interested && !existingRoom
               ? {
                   disabled: true,
                 }
@@ -146,14 +148,24 @@ export default function MatchCard({ person, large = false }) {
             onClick={(event) =>
               onAction(
                 {
-                  action: "interest",
-                  id: person.id,
+                  action: existingRoom
+                    ? "open-room"
+                    : incoming
+                      ? "accept-interest"
+                      : "interest",
+                  id: existingRoom?.id || person.id,
                 },
                 event,
               )
             }
           >
-            {interested ? "Interest sent" : "Express interest"}
+            {existingRoom
+              ? "Open room"
+              : incoming
+                ? "Accept introduction"
+                : interested
+                  ? "Interest sent"
+                  : "Express interest"}
           </button>
           <button
             className="bookmark-btn"
@@ -193,7 +205,7 @@ export default function MatchCard({ person, large = false }) {
       {"\n          "}
       <div className="match-side">
         <div className="score">
-          {person.score}%<span>demo fit</span>
+          {person.score}%<span>profile fit</span>
         </div>
       </div>
       {"\n        "}

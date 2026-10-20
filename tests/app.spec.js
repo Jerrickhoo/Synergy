@@ -7,12 +7,73 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
 
-async function signIn(page, email = "alex@example.com") {
+async function emailCode(page, email) {
+  const response = await page.request.get(
+    `/__test__/email?address=${encodeURIComponent(email)}`,
+  );
+  const { code } = await response.json();
+  expect(code).toMatch(/^\d{6}$/);
+  return code;
+}
+
+async function completeEmailStep(page, email) {
+  await expect(
+    page.getByRole("heading", { name: "Enter your verification code" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Main navigation" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /Resend code in/ }),
+  ).toBeDisabled();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page
+    .getByLabel("Six-digit verification code")
+    .fill(await emailCode(page, email));
+  await page.getByRole("button", { name: "Verify and continue" }).click();
+}
+
+async function startSignIn(page, email = `account-${Date.now()}@example.com`) {
+  email = email.replace("@", `-${Date.now()}@`);
+  const created = await page.request.post("/api/signup", {
+    data: {
+      firstName: "Test",
+      lastName: "User",
+      email,
+      password: "test1234",
+      role: "founder",
+    },
+  });
+  expect(created.ok()).toBe(true);
+  const challenge = await created.json();
+  expect(challenge.token).toBeUndefined();
+  const verified = await page.request.post("/api/auth/verify", {
+    data: {
+      challengeId: challenge.challengeId,
+      code: await emailCode(page, email),
+    },
+  });
+  expect(verified.ok()).toBe(true);
+  const { token } = await verified.json();
+  await page.request.post("/api/logout", {
+    data: {},
+    headers: { Authorization: `Bearer ${token}` },
+  });
   await page.getByLabel("Email address").fill(email);
   await page.getByLabel("Password", { exact: true }).fill("test1234");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  return email;
+}
+
+async function signIn(page, email) {
+  const address = await startSignIn(page, email);
+  await completeEmailStep(page, address);
   await expect(
-    page.getByRole("heading", { name: "Welcome to Synergy" }),
+    page.getByRole("heading", { name: "Welcome, Test" }),
   ).toBeVisible();
 }
 
@@ -46,6 +107,103 @@ async function fillProfile(page) {
   await page.getByLabel("Stage", { exact: true }).selectOption("idea");
   await page.getByLabel("Team size").fill("1");
 }
+
+test("pending sign-in survives refresh and rejects an incorrect code", async ({
+  page,
+}) => {
+  const email = await startSignIn(page);
+  await expect(
+    page.getByRole("heading", { name: "Enter your verification code" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() => sessionStorage.getItem("synergy-session")),
+  ).toBeNull();
+  const stored = await page.evaluate(() =>
+    sessionStorage.getItem("synergy-login-challenge"),
+  );
+  expect(stored).not.toContain("test1234");
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Enter your verification code" }),
+  ).toBeVisible();
+  await page.getByLabel("Six-digit verification code").fill("000000");
+  await page.getByRole("button", { name: "Verify and continue" }).click();
+  await expect(
+    page.getByText("Enter the code from your latest email.", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Main navigation" }),
+  ).toHaveCount(0);
+  await completeEmailStep(page, email);
+  await expect(
+    page.getByRole("heading", { name: "Welcome, Test" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() =>
+      sessionStorage.getItem("synergy-login-challenge"),
+    ),
+  ).toBeNull();
+});
+
+test("a pending sign-in can be left without opening the workspace", async ({
+  page,
+}) => {
+  await startSignIn(page);
+  await expect(
+    page.getByRole("heading", { name: "Enter your verification code" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Back to sign in", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Sign in to Synergy" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() => sessionStorage.getItem("synergy-session")),
+  ).toBeNull();
+  expect(
+    await page.evaluate(() =>
+      sessionStorage.getItem("synergy-login-challenge"),
+    ),
+  ).toBeNull();
+});
+
+test("signup email delivery failures keep a retry screen without granting access", async ({
+  page,
+}) => {
+  await page
+    .getByRole("button", { name: "Create an account", exact: true })
+    .click();
+  await page.getByLabel("First name").fill("Jamie");
+  await page.getByLabel("Last name").fill("Test");
+  await page
+    .getByLabel("Email", { exact: true })
+    .fill(`delivery-failure-${Date.now()}@example.com`);
+  await page.getByLabel("Password", { exact: true }).fill("private-password");
+  await page
+    .getByRole("button", { name: "Create account", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Enter your verification code" }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByText(
+        "Could not send your verification email. Please try again in a minute.",
+        { exact: true },
+      )
+      .first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Verify and continue" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("navigation", { name: "Main navigation" }),
+  ).toHaveCount(0);
+  expect(
+    await page.evaluate(() => sessionStorage.getItem("synergy-session")),
+  ).toBeNull();
+});
 
 test("fresh workspace has one setup action and no sample records", async ({
   page,
@@ -106,7 +264,6 @@ test("blank profile fields, validation, saving and cancel work with user details
     .getByRole("button", { name: "Set up your profile", exact: true })
     .click();
   for (const name of [
-    "Your name",
     "About me",
     "What I offer",
     "What I need",
@@ -115,6 +272,7 @@ test("blank profile fields, validation, saving and cancel work with user details
   ]) {
     await expect(page.getByLabel(name, { exact: true })).toHaveValue("");
   }
+  await expect(page.getByLabel("Your name")).toHaveValue("Test User");
   await expect(page.getByLabel("Stage", { exact: true })).toHaveValue("");
   await fillProfile(page);
   await page.getByLabel("About me").fill("   ");
@@ -155,12 +313,15 @@ for (const role of ["founder", "mentor"]) {
       .click();
     await page.getByLabel("First name").fill("Jamie");
     await page.getByLabel("Last name").fill("Lee");
-    await page.getByLabel("Email", { exact: true }).fill("jamie@example.com");
+    await page
+      .getByLabel("Email", { exact: true })
+      .fill(`jamie-${role}@example.com`);
     await page.getByLabel("Password", { exact: true }).fill("testpassword");
     await page.locator("#signup-role").selectOption(role);
     await page
       .getByRole("button", { name: "Create account", exact: true })
       .click();
+    await completeEmailStep(page, `jamie-${role}@example.com`);
     await expect(
       page.getByRole("heading", { name: "Welcome, Jamie" }),
     ).toBeVisible();
@@ -197,11 +358,11 @@ test("signing in with another email clears the previous local account", async ({
   await page
     .getByRole("button", { name: "Set up your profile", exact: true })
     .click();
-  await expect(page.getByLabel("Your name")).toHaveValue("");
+  await expect(page.getByLabel("Your name")).toHaveValue("Test User");
   await expect(page.getByLabel("About me")).toHaveValue("");
 });
 
-test("browser navigation, unavailable rooms and session refresh remain safe", async ({
+test("browser navigation, unavailable rooms and saved session refresh remain safe", async ({
   page,
 }) => {
   await signIn(page);
@@ -229,7 +390,7 @@ test("browser navigation, unavailable rooms and session refresh remain safe", as
   ).toBeVisible();
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Sign in to Synergy" }),
+    page.getByRole("heading", { name: "Page unavailable" }),
   ).toBeVisible();
 });
 
