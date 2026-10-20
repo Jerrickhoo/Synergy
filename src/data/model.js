@@ -1,3 +1,5 @@
+import defaultTemplates from "./engagement-templates.json" with { type: "json" };
+import { terminalStatuses } from "./collaboration.js";
 export function createModel(state) {
   const people = state.directory;
   const allPeople = () => [
@@ -35,105 +37,15 @@ export function createModel(state) {
           .slice(0, 2)
           .toUpperCase();
   const roomMilestones = (type, seeded = false) => {
-    const names =
-      type === "mentorship"
-        ? [
-            [
-              "goals",
-              "Goals defined",
-              "Agree on the founder’s priority goals and success measures.",
-              false,
-            ],
-            [
-              "session",
-              "Session scheduled",
-              "Book the first guidance session together.",
-              false,
-            ],
-            [
-              "guidance",
-              "Guidance delivered",
-              "Share practical product guidance and key takeaways.",
-              true,
-            ],
-            [
-              "followup",
-              "Follow-up actions logged",
-              "Capture the agreed next steps and owners.",
-              false,
-            ],
-            [
-              "reviewed",
-              "Engagement reviewed",
-              "Reflect on progress and what comes next.",
-              false,
-            ],
-          ]
-        : type === "marketing"
-          ? [
-              [
-                "audience",
-                "Audience aligned",
-                "Agree on the student audiences each team wants to reach.",
-                false,
-              ],
-              [
-                "assets",
-                "Campaign assets ready",
-                "Prepare newsletter and social campaign materials.",
-                false,
-              ],
-              [
-                "launch",
-                "Campaign launched",
-                "Publish the cross-promotion across both channels.",
-                true,
-              ],
-              [
-                "results",
-                "Results shared",
-                "Compare reach, clicks, and sign-ups together.",
-                true,
-              ],
-              [
-                "followup",
-                "Next steps agreed",
-                "Capture what to repeat in the next campaign.",
-                false,
-              ],
-            ]
-          : [
-              [
-                "scope",
-                "Scope defined",
-                "Both teams agreed on what success looks like.",
-                false,
-              ],
-              [
-                "testers",
-                "Testers assigned",
-                "Invite the agreed group of users to the beta.",
-                false,
-              ],
-              [
-                "testing",
-                "Testing round",
-                "Two-week product testing window.",
-                true,
-              ],
-              [
-                "feedback",
-                "Feedback submitted",
-                "Collect feedback in the shared form.",
-                true,
-              ],
-              [
-                "issues",
-                "Issues reviewed",
-                "Review findings and agree on next steps.",
-                false,
-              ],
-            ];
+    const template =
+      (state.engagementTemplates || defaultTemplates)[type] ||
+      defaultTemplates.beta;
+    const names = template.milestones.map((item) => [
+      item.id,
+      item.title,
+      item.description,
+      item.evidence,
+    ]);
     return Object.fromEntries(
       names.map(([id, title, description, evidence], index) => [
         id,
@@ -200,6 +112,12 @@ export function createModel(state) {
         locked: seeded,
         partnerLocked: seeded,
       },
+      template: {
+        id: type,
+        name: (state.engagementTemplates || defaultTemplates)[type]?.name,
+        version:
+          (state.engagementTemplates || defaultTemplates)[type]?.version || 1,
+      },
       milestones: roomMilestones(type, seeded),
       messages: [],
       targetDate: "",
@@ -227,6 +145,7 @@ export function createModel(state) {
           "in-progress": "In progress",
           launched: "Launched",
           reviewed: "Reviewed",
+          cancelled: "Closed",
         }[status];
   const matches = () =>
     [...peopleForRole()].sort((first, second) => second.score - first.score);
@@ -265,7 +184,10 @@ export function createModel(state) {
   };
   const existingRoomFor = (role, partnerId) =>
     Object.values(state.rooms).find(
-      (room) => room.role === role && room.partnerId === partnerId,
+      (room) =>
+        room.role === role &&
+        room.partnerId === partnerId &&
+        !terminalStatuses.includes(room.status),
     );
   return {
     state,
@@ -328,6 +250,7 @@ export function createInitialState() {
         bio: "",
         offer: "",
         need: "",
+        pastExperience: "",
         expertise: "",
         availability: "",
         startups: "",
@@ -370,6 +293,9 @@ export function createInitialState() {
     moreOpen: false,
     passwordVisible: false,
     toast: "",
+    toastType: "success",
+    toastTitle: "",
+    toastId: 0,
     rating: 0,
   };
 }

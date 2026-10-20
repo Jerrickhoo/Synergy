@@ -54,6 +54,166 @@ const signup = (workspace, name) =>
     true,
   );
 
+test("AI clarifies general ambiguity, accepts follow-up answers and proposes only unfamiliar tags", async (t) => {
+  let input;
+  const { call } = await apiFixture(t, {}, async (url, request) => {
+    input = JSON.parse(JSON.parse(request.body).input);
+    const clarified = input.answers.length > 0;
+    return {
+      ok: true,
+      json: async () => ({
+        status: "completed",
+        output: [
+          {
+            content: [
+              {
+                type: "output_text",
+                text: JSON.stringify({
+                  ...profile,
+                  need: clarified ? "Privacy engineering" : "",
+                  clarifications: clarified
+                    ? []
+                    : [
+                        "Do you offer privacy engineering or need help with it?",
+                      ],
+                  proposedTags: clarified
+                    ? [
+                        {
+                          label: "Privacy Engineering",
+                          side: "need",
+                          reason:
+                            "Explicitly requested in the clarification answer.",
+                        },
+                        {
+                          label: "Beta Testers",
+                          side: "need",
+                          reason: "Already covered.",
+                        },
+                      ]
+                    : [],
+                }),
+              },
+            ],
+          },
+        ],
+      }),
+    };
+  });
+  const user = (
+    await call("signup", {
+      firstName: "AI",
+      lastName: "Test",
+      email: "ai@example.com",
+      password: "private-password",
+      role: "founder",
+    })
+  ).result;
+  const first = await call(
+    "ai/profile",
+    {
+      role: "founder",
+      story: "We work on student tools and privacy engineering.",
+    },
+    user.token,
+  );
+  assert.equal(first.status, 200);
+  assert.equal(first.result.clarifications.length, 1);
+  assert.equal(first.result.draft.need, "");
+  const second = await call(
+    "ai/profile",
+    {
+      role: "founder",
+      story: "We work on student tools and privacy engineering.",
+      answers: [
+        {
+          question: first.result.clarifications[0],
+          answer: "We need privacy engineering help.",
+        },
+      ],
+    },
+    user.token,
+  );
+  assert.equal(second.status, 200);
+  assert.equal(second.result.clarifications.length, 0);
+  assert.equal(input.answers[0].answer, "We need privacy engineering help.");
+  assert.ok(input.approvedVocabulary.includes("Beta Testers"));
+  assert.equal(second.result.proposedTags.length, 1);
+  assert.equal(second.result.proposedTags[0].label, "Privacy Engineering");
+  assert.equal(
+    (await call("state", undefined, user.token)).result.state.profiles.founder
+      .need,
+    "",
+  );
+  assert.equal(
+    (
+      await call(
+        "ai/profile",
+        {
+          role: "founder",
+          story: "A sufficiently detailed description.",
+          answers: [{ question: "Question", answer: "" }],
+        },
+        user.token,
+      )
+    ).status,
+    400,
+  );
+  const proposed = await call(
+    "action",
+    {
+      role: "founder",
+      form: "tag-proposal",
+      values: { label: second.result.proposedTags[0].label },
+    },
+    user.token,
+  );
+  assert.equal(proposed.status, 200);
+  assert.ok(!proposed.result.state.vocabulary.includes("Privacy Engineering"));
+});
+
+test("AI mentor drafts include past experience and reject malformed clarification metadata", async () => {
+  const draft = {
+    bio: "Product mentor",
+    offer: "Research",
+    need: "Founder goals",
+    expertise: "Product",
+    availability: "Weekly",
+    startups: "EdTech",
+    pastExperience: "Led product research.",
+    clarifications: [],
+    proposedTags: [],
+  };
+  const provider = (data) => async () => ({
+    ok: true,
+    json: async () => ({
+      status: "completed",
+      output: [
+        { content: [{ type: "output_text", text: JSON.stringify(data) }] },
+      ],
+    }),
+  });
+  const result = await createServices(
+    { openaiKey: "fake", model: "test" },
+    provider(draft),
+  ).draftProfile("mentor", "Research mentor notes.");
+  assert.equal(result.draft.pastExperience, "Led product research.");
+  for (const invalid of [
+    { ...draft, clarifications: ["a".repeat(301)] },
+    {
+      ...draft,
+      proposedTags: [{ label: "Tag", side: "other", reason: "Reason" }],
+    },
+    { ...draft, proposedTags: "not an array" },
+  ])
+    await assert.rejects(
+      createServices({ openaiKey: "fake" }, provider(invalid)).draftProfile(
+        "mentor",
+        "Research mentor notes.",
+      ),
+      (error) => error.status === 502,
+    );
+});
+
 async function apiFixture(t, options = {}, providerResponse) {
   const fixtureData = fixture(t, options);
   const calls = [];
@@ -72,7 +232,14 @@ async function apiFixture(t, options = {}, providerResponse) {
                 output: [
                   {
                     content: [
-                      { type: "output_text", text: JSON.stringify(profile) },
+                      {
+                        type: "output_text",
+                        text: JSON.stringify({
+                          ...profile,
+                          clarifications: [],
+                          proposedTags: [],
+                        }),
+                      },
                     ],
                   },
                 ],

@@ -1,5 +1,7 @@
 import { createInitialState, createModel } from "../data/model.js";
 import { readField } from "./fields.js";
+import { profileOptions } from "../data/collaboration.js";
+import { errorTitle, publishToast } from "./feedback.js";
 import {
   launchBlockers,
   profileKeys,
@@ -31,8 +33,8 @@ export function transition(state, payload) {
     existingRoomFor,
   } = createModel(state);
   const field = (id) => readField(state, id);
-  const toast = (message) => {
-    state.toast = message;
+  const toast = (message, type = "success") => {
+    publishToast(state, message, { type });
   };
   const invalid = (scope, fields) => {
     if (!Object.keys(fields).length) {
@@ -40,6 +42,10 @@ export function transition(state, payload) {
       return false;
     }
     state.formErrors = { scope, fields };
+    publishToast(state, "Review the highlighted details and try again.", {
+      type: "error",
+      title: errorTitle(scope),
+    });
     return true;
   };
   const record = (text, roomId) => {
@@ -77,11 +83,14 @@ export function transition(state, payload) {
     (roomActions.has(payload.action) || roomForms.has(payload.form)) &&
     !activeRoom()
   ) {
-    toast("This room is unavailable for the current role.");
+    toast("This room is unavailable for the current role.", "error");
     return;
   }
   if (payload.action === "set-toast") {
-    state.toast = payload.message;
+    publishToast(state, payload.message, {
+      type: payload.type,
+      title: payload.title,
+    });
     return;
   }
   const nextRoomId = (personId) =>
@@ -217,13 +226,16 @@ export function transition(state, payload) {
     }
     if (payload.form === "review-form") {
       if (!["launched", "reviewed"].includes(activeRoom().status)) {
-        toast("Launch the completed collaboration before reviewing it.");
+        toast(
+          "Launch the completed collaboration before reviewing it.",
+          "error",
+        );
         return;
       }
       const values = new Map(Object.entries(payload.values));
       const rating = values.get("rating");
       if (![1, 2, 3, 4, 5].includes(Number(rating))) {
-        toast("Choose a rating before submitting.");
+        toast("Choose a rating before submitting.", "error");
         return;
       }
       activeRoom().review.me = true;
@@ -250,7 +262,9 @@ export function transition(state, payload) {
         ...state.profiles[state.role],
         ...Object.fromEntries(
           [...values.entries()]
-            .filter(([key]) => profileKeys(state.role).includes(key))
+            .filter(([key]) =>
+              [...profileKeys(state.role), ...profileOptions].includes(key),
+            )
             .map(([key, value]) => [key, String(value).trim()]),
         ),
       };
@@ -261,7 +275,7 @@ export function transition(state, payload) {
     }
     if (payload.form === "terms-form") {
       if (currentAgreement().locked) {
-        toast("Locked terms cannot be edited.");
+        toast("Locked terms cannot be edited.", "error");
         return;
       }
       if (invalid("terms-form", validateTerms(payload.values))) return;
@@ -293,6 +307,11 @@ export function transition(state, payload) {
     }
     if (payload.form === "schedule") {
       if (activeRoom().type !== "mentorship") return;
+      const count = Number(payload.values.count || 1);
+      if (!Number.isInteger(count) || count < 1 || count > 12) {
+        toast("Schedule between 1 and 12 weekly sessions.", "error");
+        return;
+      }
       if (
         invalid(
           "schedule",
@@ -306,6 +325,15 @@ export function transition(state, payload) {
         timeZone:
           payload.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
       };
+      const first = activeRoom().milestones.session.schedule;
+      activeRoom().milestones.session.schedules = Array.from(
+        { length: count },
+        (_, index) => {
+          const date = new Date(`${first.date}T12:00:00Z`);
+          date.setUTCDate(date.getUTCDate() + index * 7);
+          return { ...first, date: date.toISOString().slice(0, 10) };
+        },
+      );
       toast("Session scheduled.");
       record("You scheduled a mentorship session.", activeRoom().id);
       return;
@@ -316,7 +344,7 @@ export function transition(state, payload) {
     };
     const message = input.value.trim();
     if (!message) {
-      toast("Write a message before sending.");
+      toast("Write a message before sending.", "error");
       return;
     }
     activeRoom().messages.push({
@@ -378,6 +406,7 @@ export function transition(state, payload) {
     state.confirmation = "";
     if (payload.page !== "profile") state.profileEditing = false;
     state.page = payload.page;
+    state.notificationOpen = false;
     state.moreOpen = false;
     if (state.page === "rooms")
       state.activeRoomId =
@@ -412,7 +441,10 @@ export function transition(state, payload) {
   } else if (action === "demo-partner-confirm") {
     const room = activeRoom();
     if (!room.terms.locked) {
-      toast("Lock your terms before simulating the partner’s confirmation.");
+      toast(
+        "Lock your terms before simulating the partner’s confirmation.",
+        "error",
+      );
       return;
     }
     if (!room.terms.partnerLocked) {
@@ -435,7 +467,7 @@ export function transition(state, payload) {
     record("Partner confirmation was simulated.", room.id);
   } else if (action === "demo-partner-review") {
     if (!["launched", "reviewed"].includes(activeRoom().status)) {
-      toast("Launch the collaboration before simulating a review.");
+      toast("Launch the collaboration before simulating a review.", "error");
       return;
     }
     activeRoom().review.partner = true;
@@ -493,7 +525,7 @@ export function transition(state, payload) {
     };
     const tag = input.value.trim();
     if (!tag) {
-      toast("Enter a tag first.");
+      toast("Enter a tag first.", "error");
       return;
     }
     const isControlled = [
@@ -644,19 +676,22 @@ export function transition(state, payload) {
     const milestone = activeRoom().milestones[id];
     if (!milestone) return;
     if (milestone.disputed) {
-      toast("Resolve this dispute together before confirming the milestone.");
+      toast(
+        "Resolve this dispute together before confirming the milestone.",
+        "error",
+      );
       return;
     }
     if (!currentAgreement().locked || !currentAgreement().partnerLocked) {
-      toast("Both partners must agree to terms first.");
+      toast("Both partners must agree to terms first.", "error");
       return;
     }
     if (id === "session" && !milestone.schedule) {
-      toast("Schedule the session before confirming it.");
+      toast("Schedule the session before confirming it.", "error");
       return;
     }
     if (milestone.evidence && !milestone.attachment) {
-      toast("Attach evidence before confirming this milestone.");
+      toast("Attach evidence before confirming this milestone.", "error");
       return;
     }
     milestone[action === "confirm-milestone" ? "me" : "partner"] = true;
@@ -699,7 +734,7 @@ export function transition(state, payload) {
   } else if (action === "partner-lock-terms") {
     const agreement = currentAgreement();
     if (!agreement.locked) {
-      toast("Lock your terms first.");
+      toast("Lock your terms first.", "error");
       return;
     }
     agreement.partnerLocked = true;
@@ -708,7 +743,7 @@ export function transition(state, payload) {
   } else if (action === "launch-room") {
     const reasons = launchBlockers(activeRoom());
     if (reasons.length) {
-      toast(reasons[0]);
+      toast(reasons[0], "error");
       return;
     }
     activeRoom().status = "launched";
@@ -730,9 +765,9 @@ export function transition(state, payload) {
       "Email digests are unavailable in this demo. No subscription was created.",
     );
   } else if (action === "milestone-help") {
-    toast("A milestone is complete when both people confirm it.");
+    toast("A milestone is complete when both people confirm it.", "info");
   } else if (action === "room-history") {
-    toast("Your completed rooms stay here as a shared record.");
+    toast("Your completed rooms stay here as a shared record.", "info");
   } else if (action === "report") {
     toast("A private report form would open here in the full product.");
   }

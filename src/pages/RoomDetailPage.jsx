@@ -7,6 +7,7 @@ import { useApp } from "../state/AppContext.jsx";
 import Avatar from "../components/Avatar.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import Icon from "../components/Icon.jsx";
+import { terminalStatuses } from "../data/collaboration.js";
 export default function RoomDetailPage() {
   const { state, model, onAction, onSubmit, onTabKeyDown } = useApp();
   const {
@@ -128,27 +129,39 @@ export default function RoomDetailPage() {
           )}
         </span>
       </section>
+      {room.status === "cancelled" && (
+        <section className="card panel section-gap">
+          <h2>Collaboration closed</h2>
+          <p>{room.closeReason}</p>
+          <p className="muted">
+            The agreement, evidence and conversation remain available. You can
+            start a new introduction from Matches.
+          </p>
+        </section>
+      )}
       {"\n          "}
-      <div className="stage-line" aria-label="Deal room progress">
-        {labels.map((label, index) => (
-          <Fragment key={index}>
-            <div
-              aria-current={index === stage ? "step" : undefined}
-              className={
-                "stage " +
-                (index < stage ? "done" : "") +
-                " " +
-                (index === stage ? "current" : "")
-              }
-            >
-              <span className="stage-dot">
-                {index < stage ? <Icon name="check" /> : ""}
-              </span>
-              <span>{label}</span>
-            </div>
-          </Fragment>
-        ))}
-      </div>
+      {room.status !== "cancelled" && (
+        <div className="stage-line" aria-label="Deal room progress">
+          {labels.map((label, index) => (
+            <Fragment key={index}>
+              <div
+                aria-current={index === stage ? "step" : undefined}
+                className={
+                  "stage " +
+                  (index < stage ? "done" : "") +
+                  " " +
+                  (index === stage ? "current" : "")
+                }
+              >
+                <span className="stage-dot">
+                  {index < stage ? <Icon name="check" /> : ""}
+                </span>
+                <span>{label}</span>
+              </div>
+            </Fragment>
+          ))}
+        </div>
+      )}
       {"\n          "}
       <div
         className="tabs room-tabs"
@@ -196,12 +209,35 @@ export default function RoomDetailPage() {
       </div>
       {"\n        "}
       <NextStep />
+      {!terminalStatuses.includes(room.status) && (
+        <details className="card panel section-gap">
+          <summary>Close this collaboration</summary>
+          <p>
+            Either collaborator can close an unfinished room. Its history is
+            retained and your partner is notified.
+          </p>
+          <form data-form="close-room" className="grid" onSubmit={onSubmit}>
+            <div className="field">
+              <label htmlFor="close-reason">Reason for closing</label>
+              <textarea
+                id="close-reason"
+                name="reason"
+                required
+                maxLength={3000}
+              />
+            </div>
+            <button className="btn" disabled={state.busy}>
+              Close collaboration
+            </button>
+          </form>
+        </details>
+      )}
       {state.reportOpen && (
         <section className="card panel section-gap">
           <h2>Report a concern</h2>
           <p className="muted">
-            Describe the issue. Reports are saved on this server for local
-            review.
+            Describe the issue. A workspace moderator can review the report and
+            resolve a dispute or close the room.
           </p>
           <form
             id="report-form"

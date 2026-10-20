@@ -24,6 +24,14 @@ export default function Sidebar() {
             <span className="nav-label">{label}</span>
           </NavButton>
         ))}
+        {state.isAdmin && (
+          <NavButton page="moderation">
+            <span className="nav-icon">
+              <Icon name="shield" />
+            </span>
+            <span className="nav-label">Moderation</span>
+          </NavButton>
+        )}
       </nav>
       <div className="sidebar-spacer" />
       <div className="user-mini">

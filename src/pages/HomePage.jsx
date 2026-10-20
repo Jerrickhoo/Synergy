@@ -16,7 +16,9 @@ export default function HomePage() {
     state.role,
   );
   const rooms = activeRooms(state);
-  const completedCount = roleRooms(state).length - rooms.length;
+  const completedCount = roleRooms(state).filter((room) =>
+    ["launched", "reviewed"].includes(room.status),
+  ).length;
   const activity = state.activity
     .filter((item) => item.role === state.role)
     .slice(0, 3);
@@ -47,6 +49,16 @@ export default function HomePage() {
           >
             Set up your profile
           </button>
+          <div
+            className="setup-progress-track"
+            role="progressbar"
+            aria-label="Profile completion"
+            aria-valuenow={completeness}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <span style={{ width: `${completeness}%` }} />
+          </div>
           <span className="setup-progress">
             {completeness}% complete · You can edit it anytime
           </span>
@@ -68,6 +80,9 @@ export default function HomePage() {
       )}
       <div className="simple-home-grid">
         <section className="card panel">
+          <span className="section-icon">
+            <Icon name="rooms" />
+          </span>
           <h2>Your collaborations</h2>
           <p className="muted">
             {rooms.length
@@ -84,9 +99,16 @@ export default function HomePage() {
           </button>
         </section>
         <section className="card panel">
+          <span className="section-icon">
+            <Icon name="clock" />
+          </span>
           <h2>Recent activity</h2>
           {activity.length ? (
-            activity.map((item) => <p key={item.id}>{item.text}</p>)
+            activity.map((item) => (
+              <p className="activity-entry" key={item.id}>
+                {item.text}
+              </p>
+            ))
           ) : (
             <p className="muted">
               You're all caught up. Your updates will appear here as you get
@@ -118,7 +140,10 @@ export default function HomePage() {
         <section className="card panel section-gap">
           <h2>Upcoming sessions</h2>
           {upcomingSessions(state).map(({ room, schedule }) => (
-            <div className="collaboration-row" key={room.id}>
+            <div
+              className="collaboration-row"
+              key={`${room.id}-${schedule.date}`}
+            >
               <span>{scheduleLabel(schedule)}</span>
               <button
                 className="btn small"

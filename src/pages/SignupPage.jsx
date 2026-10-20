@@ -1,8 +1,10 @@
 import FormErrors from "../components/FormErrors.jsx";
 import { useApp } from "../state/AppContext.jsx";
 import AuthStory from "../components/AuthStory.jsx";
+import { useState } from "react";
 export default function SignupPage() {
   const { state, onSubmit } = useApp();
+  const [passwordVisible, setPasswordVisible] = useState(false);
   return (
     <div className="page auth-page page-enter">
       <AuthStory />
@@ -17,6 +19,7 @@ export default function SignupPage() {
           <form
             id="signup-form"
             className="grid section-gap"
+            aria-busy={state.busy}
             onSubmit={(event) => onSubmit(event)}
           >
             <FormErrors scope="signup-form" />
@@ -52,14 +55,31 @@ export default function SignupPage() {
             </div>
             <div className="field">
               <label htmlFor="signup-password">Password</label>
-              <input
-                id="signup-password"
-                name="password"
-                type="password"
-                minLength="8"
-                required
-                autoComplete="new-password"
-              />
+              <div className="password-wrap">
+                <input
+                  id="signup-password"
+                  name="password"
+                  type={passwordVisible ? "text" : "password"}
+                  minLength="8"
+                  required
+                  autoComplete="new-password"
+                  aria-describedby="signup-password-help"
+                />
+                <button
+                  className="password-toggle"
+                  type="button"
+                  aria-label={
+                    passwordVisible ? "Hide password" : "Show password"
+                  }
+                  aria-pressed={passwordVisible}
+                  onClick={() => setPasswordVisible(!passwordVisible)}
+                >
+                  {passwordVisible ? "Hide" : "Show"}
+                </button>
+              </div>
+              <span className="field-help" id="signup-password-help">
+                Use at least 8 characters.
+              </span>
             </div>
             <div className="field">
               <label htmlFor="signup-role">I'm here as a</label>

@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react";
 import { useApp } from "../state/AppContext.jsx";
+import { fieldName } from "../state/feedback.js";
 
 export default function FormErrors({ scope }) {
   const { state } = useApp();
   const ref = useRef(null);
+  const lastFocusId = useRef(null);
   const errors =
     state.formErrors?.scope === scope ? state.formErrors.fields : null;
   useEffect(() => {
@@ -11,31 +13,39 @@ export default function FormErrors({ scope }) {
     if (!container) return;
     const fields = [...container.querySelectorAll("input, select, textarea")];
     fields.forEach((input) => {
-      const key =
-        input.name ||
-        input.id.replace(/^confirm-/, "").replace("team", "teamSize");
+      const key = fieldName(input);
+      const descriptions = (input.getAttribute("aria-describedby") || "")
+        .split(" ")
+        .filter((id) => id && !id.startsWith(`${scope}-error-`));
       if (errors?.[key]) {
         input.setAttribute("aria-invalid", "true");
-        input.setAttribute("aria-describedby", `${scope}-errors`);
+        descriptions.push(`${scope}-error-${key}`);
       } else {
         input.removeAttribute("aria-invalid");
-        if (input.getAttribute("aria-describedby") === `${scope}-errors`)
-          input.removeAttribute("aria-describedby");
       }
+      if (descriptions.length)
+        input.setAttribute("aria-describedby", descriptions.join(" "));
+      else input.removeAttribute("aria-describedby");
     });
-    if (errors)
-      fields
-        .find((input) => input.getAttribute("aria-invalid") === "true")
-        ?.focus();
   }, [errors, scope]);
+  useEffect(() => {
+    if (errors && state.toastId !== lastFocusId.current)
+      ref.current
+        ?.closest("form, .onboarding-card")
+        ?.querySelector('[aria-invalid="true"]')
+        ?.focus();
+    lastFocusId.current = state.toastId;
+  }, [errors, scope, state.toastId]);
   return (
-    <div ref={ref} hidden={!errors}>
+    <div ref={ref} hidden={!errors} data-error-scope={scope}>
       {errors && (
-        <div id={`${scope}-errors`} className="form-errors" role="alert">
+        <div id={`${scope}-errors`} className="form-errors">
           <strong>Please check these details</strong>
           <ul>
             {Object.entries(errors).map(([key, value]) => (
-              <li key={key}>{value}</li>
+              <li key={key} id={`${scope}-error-${key}`}>
+                {value}
+              </li>
             ))}
           </ul>
         </div>

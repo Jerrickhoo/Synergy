@@ -1,3 +1,4 @@
+import { terminalStatuses } from "./collaboration.js";
 export const profileKeys = (role) =>
   role === "founder"
     ? ["bio", "offer", "need", "industry", "stage", "teamSize"]
@@ -15,9 +16,7 @@ export function profileCompleteness(profile, role) {
 export const roleRooms = (state) =>
   Object.values(state.rooms).filter((room) => room.role === state.role);
 export const activeRooms = (state) =>
-  roleRooms(state).filter(
-    (room) => !["launched", "reviewed"].includes(room.status),
-  );
+  roleRooms(state).filter((room) => !terminalStatuses.includes(room.status));
 export const roomProgress = (room) => {
   const items = Object.values(room.milestones);
   return items.length
@@ -31,6 +30,7 @@ export const roomProgress = (room) => {
 
 export function launchBlockers(room) {
   if (!room) return ["This room is unavailable."];
+  if (room.status === "cancelled") return ["This collaboration is closed."];
   const reasons = [];
   const items = Object.values(room.milestones);
   if (!room.terms.locked || !room.terms.partnerLocked)
@@ -45,6 +45,8 @@ export function launchBlockers(room) {
     reasons.push(
       "Both collaborators must resolve open disputes before launch.",
     );
+  if (items.some((item) => item.proposal))
+    reasons.push("Resolve proposed milestone revisions before launch.");
   if (room.type === "mentorship" && !room.milestones.session?.schedule)
     reasons.push("Schedule the mentorship session.");
   return reasons;
@@ -59,7 +61,11 @@ export function scheduleLabel(schedule) {
 export function upcomingSessions(state, now = new Date()) {
   return activeRooms(state)
     .filter((room) => room.milestones.session?.schedule)
-    .map((room) => ({ room, schedule: room.milestones.session.schedule }))
+    .flatMap((room) =>
+      (
+        room.milestones.session.schedules || [room.milestones.session.schedule]
+      ).map((schedule) => ({ room, schedule })),
+    )
     .filter(({ schedule }) => scheduleInstant(schedule) > now)
     .sort((a, b) => scheduleInstant(a.schedule) - scheduleInstant(b.schedule));
 }

@@ -18,6 +18,10 @@ export function configuration(env = process.env) {
     mailFrom: (env.MAIL_FROM || "").trim(),
     openaiKey: env.OPENAI_API_KEY || "",
     model: env.OPENAI_MODEL || "gpt-4.1-mini",
+    adminEmails: (env.SYNERGY_ADMIN_EMAILS || "")
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean),
     requireVerification:
       production || env.REQUIRE_EMAIL_VERIFICATION === "true",
     maxFileBytes: 5 * 1024 * 1024,

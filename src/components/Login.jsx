@@ -2,8 +2,12 @@ import Brand from "./Brand.jsx";
 import FormErrors from "./FormErrors.jsx";
 import { useApp } from "../state/AppContext.jsx";
 import LoginCode from "./LoginCode.jsx";
+import Icon from "./Icon.jsx";
+import { useState } from "react";
+import PasswordRecovery from "./PasswordRecovery.jsx";
 export default function Login() {
   const { state, onAction, onSubmit, authChallenge } = useApp();
+  const [recovering, setRecovering] = useState(false);
   return (
     <section
       id="login-shell"
@@ -29,6 +33,26 @@ export default function Login() {
             you’re building—and turn a promising introduction into real
             progress.
           </p>
+          <div className="login-benefits">
+            <div>
+              <span>
+                <Icon name="people" />
+              </span>
+              <div>
+                <strong>Find your people</strong>
+                <p>Connect through shared goals and complementary skills.</p>
+              </div>
+            </div>
+            <div>
+              <span>
+                <Icon name="rooms" />
+              </span>
+              <div>
+                <strong>Turn a connection into progress</strong>
+                <p>Keep commitments, milestones, and conversations together.</p>
+              </div>
+            </div>
+          </div>
           {"\n        "}
 
           {"\n      "}
@@ -53,6 +77,8 @@ export default function Login() {
           {"\n        "}
           {authChallenge ? (
             <LoginCode />
+          ) : recovering ? (
+            <PasswordRecovery onClose={() => setRecovering(false)} />
           ) : (
             <>
               <div className="eyebrow">WELCOME BACK</div>
@@ -60,13 +86,14 @@ export default function Login() {
               <h2 className="login-heading">Sign in to Synergy</h2>
               {"\n        "}
               <p className="login-subheading">
-                Enter your password, then confirm the code we email you to
-                return to your workspace.
+                Your next collaboration starts here. Sign in to pick up where
+                you left off.
               </p>
               {"\n        "}
               <form
                 className="login-form"
                 id="login-form"
+                aria-busy={state.busy}
                 onSubmit={(event) => onSubmit(event)}
               >
                 <FormErrors scope="login-form" />
@@ -99,6 +126,12 @@ export default function Login() {
                     <button
                       className="password-toggle"
                       type="button"
+                      aria-label={
+                        state.passwordVisible
+                          ? "Hide password"
+                          : "Show password"
+                      }
+                      aria-pressed={state.passwordVisible}
                       data-action="toggle-password"
                       onClick={(event) =>
                         onAction(
@@ -122,10 +155,21 @@ export default function Login() {
                   type="submit"
                   disabled={state.busy}
                 >
+                  {state.busy && (
+                    <span className="spinner" aria-hidden="true" />
+                  )}
                   {state.busy ? "Signing in…" : "Sign in"}
+                  {!state.busy && <Icon name="arrow" />}
                 </button>
                 {"\n        "}
               </form>
+              <button
+                className="link-btn section-gap"
+                type="button"
+                onClick={() => setRecovering(true)}
+              >
+                Forgot your password?
+              </button>
               {"\n        "}
               <p className="login-join">
                 {"New to Synergy? "}
@@ -146,7 +190,7 @@ export default function Login() {
               </p>
               {"\n        "}
               <p className="login-disclaimer">
-                Local prototype. Accounts and work are saved on this server.
+                <Icon name="shield" /> Your workspace, all in one place.
               </p>
             </>
           )}

@@ -1,4 +1,55 @@
-# Synergy verification — October 20, 2026
+# Current verification — October 20, 2026
+
+The stakeholder review findings have been addressed in the application. The earlier report is retained below as a historical record and does not describe the current feature boundaries.
+
+## Current checks
+
+| Check                              | Result    |
+| ---------------------------------- | --------- |
+| State, backend and HTTP API checks | 62 passed |
+| Chromium browser checks            | 25 passed |
+| Production build                   | Passed    |
+| Formatting                         | Passed    |
+| Diff whitespace                    | Passed    |
+
+The current changes cover:
+
+- Reopening shared terms with both approvals and milestone confirmations reset; closing unfinished rooms with a recorded reason; starting repeat engagements while retaining prior rooms.
+- Public completion history, distinct-partner ratings, follow-through/quiet-room summaries, verified-email and separately reviewed affiliation badges. Blind ratings remain absent until both reviews arrive. Repeat-partner reviews count once in the aggregate.
+- Team-size and co-marketing audience-size comparison, optional goals/engagement preferences, approved profile tags, and factor explanations that identify missing inputs and zero overlap.
+- Moderator-only report assignment/escalation/resolution, dispute remedies, room closure, suspension/restoration, affiliation review, vocabulary approval and audited decisions. Privileges require a server-configured email and mailbox verification.
+- Full activity view with persisted read state, match suggestions, confirmation/review prompts, deadline/session/quiet-room reminders, and opt-in daily/weekly email digests. Failed provider sends leave updates unread and apply a persisted retry backoff.
+- One to twelve weekly mentorship sessions, rescheduling, shared UTC milestone deadlines, and reset participant confirmations after schedule changes.
+- Approved tag suggestions in AI drafts, clarification of ambiguous fundraising intent, and proposed tags routed to moderator approval.
+- Email-code password recovery with delivery checks, expiration, bounded guesses, hashed codes, single use and session revocation.
+- Consistent database/upload backups, checksums, corruption detection and recovery from a copied snapshot.
+- A development-mode synchronization crash exposed by populated-room browser checks, caused by mutating incoming room objects reused during React reducer checks.
+- Milestone title/scope proposals, partner-only acceptance/rejection, proposer withdrawal, stale decision protection, revision history and evidence preservation. Pending proposals block confirmation and launch; accepting a revision or changing a due date clears the affected milestone confirmations.
+- Moderator-editable reusable room templates stored as versioned workspace data, with existing rooms retaining their copied checklist. Concurrent stale edits and unauthorized changes are rejected.
+- General AI clarification questions and follow-up answers, reviewed unfamiliar-tag proposals, mentor past experience, and clearing stale profile tags when applying a draft. AI responses use the [official Structured Outputs format](https://developers.openai.com/api/docs/guides/structured-outputs); provider tests use controlled responses.
+- Versioned matching weights, fixed directional score snapshots on connection, optional blind match usefulness/shared-goal feedback, and moderator-only aggregate room cohorts. Rooms count once; active, completed and closed outcomes remain separate; older rooms are explicitly unscored.
+
+Browser regressions exercise revised agreements, closure/reconnection, mobile series rescheduling/read state, moderator queues, password recovery and public trust privacy in addition to the original auth/profile/routing/layout checks. Provider requests use controlled responses; no real mail or AI charges are generated. Tests use isolated databases rather than the normal workspace.
+
+Screenshots inspected after the changes:
+
+- [Public trust and score explanations](artifacts/stakeholder-review/fixed-public-trust-desktop.png)
+- [Mobile recurring-session rescheduling](artifacts/stakeholder-review/fixed-scheduling-mobile.png)
+- [Mobile moderation queue](artifacts/stakeholder-review/fixed-moderation-mobile.png)
+- [Approved milestone revision on mobile](artifacts/stakeholder-review/milestone-revision-mobile.png)
+- [Reusable templates and matching settings](artifacts/stakeholder-review/templates-matching-settings-desktop.png)
+- [AI clarification and reviewed tag proposals](artifacts/stakeholder-review/ai-clarification-tags-desktop.png)
+- [Dedicated public mentor experience](artifacts/stakeholder-review/mentor-experience-desktop.png)
+
+## Remaining activation and infrastructure boundaries
+
+Matching weights remain provisional. The new report makes real-outcome evaluation possible but does not validate usefulness or predictive quality by itself. Accepted-room cohorts are observational, include repeat partners and can have small samples. Real collaboration outcomes and a planned evaluation are still needed before tuning can be claimed as validated.
+
+Actual email delivery, AI completions and a public HTTPS deployment still require provider credentials, a verified sender and hosting access. These cannot be established by fake-provider tests. The moderator email is configured locally in the ignored `.env`; the intended account must sign up/sign in and verify its mailbox. No account or verification is fabricated.
+
+The storage remains a single-writer local JSON database with immutable private uploads. Backup/recovery tooling is implemented, while managed database/object storage, off-site backup scheduling, antivirus scanning, browser push and production load testing remain infrastructure/product scope. This verification establishes local prototype readiness, not production certification.
+
+## Earlier verification record (historical)
 
 The core local prototype workflows passed after correcting four issues found during this review. Verification used Windows, Chromium, separate browser tabs, and isolated test databases. The normal workspace database was not used for test accounts.
 

@@ -3,9 +3,10 @@ import { useApp } from "../state/AppContext.jsx";
 import Avatar from "../components/Avatar.jsx";
 import Tags from "../components/Tags.jsx";
 import PageHeader from "../components/PageHeader.jsx";
+import TrustSummary from "../components/TrustSummary.jsx";
 export default function MatchDetailPage() {
   const { state, model, onAction } = useApp();
-  const { allPeople, savedMatches, interestedMatches, scoreFactors } = model;
+  const { savedMatches, interestedMatches, scoreFactors } = model;
   const person = model
     .rolePeople()
     .find((item) => item.id === state.activeMatch);
@@ -33,13 +34,6 @@ export default function MatchDetailPage() {
         </button>
       </div>
     );
-  const explanations = [
-    "Needs and offers complement",
-    "Experience fits your goals",
-    "Relevant industry context",
-    "Stage and team size align",
-    "Shared outcomes",
-  ];
   const existingRoom = model.existingRoomFor(state.role, person.id);
   const incoming = state.incomingByRole[state.role].has(person.id);
   return (
@@ -88,6 +82,29 @@ export default function MatchDetailPage() {
           </div>
           {"\n            "}
           <p className="match-copy">{person.summary}</p>
+          {person.pastExperience && (
+            <div>
+              <h3>Past experience</h3>
+              <p className="preserve-lines">{person.pastExperience}</p>
+            </div>
+          )}
+          {person.goals && (
+            <p>
+              <strong>Collaboration goals:</strong> {person.goals}
+            </p>
+          )}
+          <p className="muted">
+            {[
+              person.stage,
+              person.teamSize && `Team of ${person.teamSize}`,
+              person.audienceSize && `Audience: ${person.audienceSize}`,
+              person.engagementPreference,
+              person.availability,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+          <TrustSummary person={person} detailed />
           {"\n            "}
           <div className="section-gap">
             <h3>What they offer</h3>
@@ -104,6 +121,11 @@ export default function MatchDetailPage() {
           {"\n            "}
           <section className="section-gap">
             <h2>Why this match</h2>
+            <p className="muted">
+              Profile fit uses provisional word-overlap weights (version{" "}
+              {person.matchingVersion || 1}). It is not a prediction of
+              collaboration success.
+            </p>
             <p className="panel-subtitle">
               The same signals shown on your match card explain where your goals
               align.
@@ -123,7 +145,16 @@ export default function MatchDetailPage() {
                     <div className="score-row">
                       <div>
                         <strong>{label}</strong>
-                        <span>{explanations[index]}</span>
+                        {person.factorWeights && (
+                          <span>
+                            Weight:{" "}
+                            {Math.round(person.factorWeights[index] * 100)}%
+                          </span>
+                        )}
+                        <span>
+                          {person.factorDetails?.[index] ||
+                            `${strength} based on profile word overlap.`}
+                        </span>
                       </div>
                       <div
                         className="score-track"

@@ -16,8 +16,13 @@ import ReviewPage from "./pages/ReviewPage.jsx";
 import ProfilePage from "./pages/ProfilePage.jsx";
 import SignupPage from "./pages/SignupPage.jsx";
 import OnboardingPage from "./pages/OnboardingPage.jsx";
+import Toast from "./components/Toast.jsx";
+import NotificationsPage from "./pages/NotificationsPage.jsx";
+import ModerationPage from "./pages/ModerationPage.jsx";
 
 const pages = {
+  notifications: NotificationsPage,
+  moderation: ModerationPage,
   home: HomePage,
   discover: DiscoverPage,
   rooms: RoomsPage,
@@ -52,7 +57,8 @@ function Unavailable({ room = false }) {
   );
 }
 export default function App() {
-  const { state, model, onAction, authChallenge } = useApp();
+  const { state, model, onAction, authChallenge, onInvalid, onFormInput } =
+    useApp();
   const mainRef = useRef(null);
   const authPage = ["signup", "onboarding"].includes(state.page);
   const Page = pages[state.page];
@@ -70,6 +76,8 @@ export default function App() {
     );
   return (
     <div
+      onInvalidCapture={onInvalid}
+      onInputCapture={onFormInput}
       onKeyDown={(event) => {
         if (event.key === "Escape") onAction({ action: "close-overlays" });
       }}
@@ -136,12 +144,10 @@ export default function App() {
           {!authPage && <MobileMenu />}
         </>
       )}
-      <div id="toast-root" aria-live="polite" aria-atomic="true">
-        {state.toast && <div className="toast">{state.toast}</div>}
-      </div>
+      <Toast />
       {state.busy && (
         <div className="saving-indicator" role="status">
-          Working…
+          <span className="spinner" aria-hidden="true" /> Please wait…
         </div>
       )}
     </div>

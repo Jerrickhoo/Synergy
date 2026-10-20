@@ -6,6 +6,8 @@ const paths = {
   profile: "profile",
   signup: "signup",
   onboarding: "onboarding",
+  notifications: "updates",
+  moderation: "moderation",
 };
 
 export function parseRoute(hash) {

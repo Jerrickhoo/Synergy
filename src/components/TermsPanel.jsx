@@ -3,6 +3,9 @@ import { useApp } from "../state/AppContext.jsx";
 export default function TermsPanel({ room, agreement, partner, milestones }) {
   const { state, model, onAction, onSubmit } = useApp();
   const { roomStatusLabel } = model;
+  const readOnly =
+    agreement.locked ||
+    ["launched", "reviewed", "cancelled"].includes(room.status);
   return (
     <div className="terms-layout">
       <section className="card panel room-content terms-form-panel">
@@ -43,7 +46,7 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
               id="term-goal"
               name="goal"
               defaultValue={agreement.draft.goal}
-              {...(agreement.locked
+              {...(readOnly
                 ? {
                     disabled: true,
                   }
@@ -57,7 +60,7 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
             <textarea
               id="term-scope"
               name="scope"
-              {...(agreement.locked
+              {...(readOnly
                 ? {
                     disabled: true,
                   }
@@ -74,7 +77,7 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
                 id="term-timeline"
                 name="timeline"
                 defaultValue={agreement.draft.timeline}
-                {...(agreement.locked
+                {...(readOnly
                   ? {
                       disabled: true,
                     }
@@ -88,7 +91,7 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
                 id="term-commitment"
                 name="commitment"
                 defaultValue={agreement.draft.commitment}
-                {...(agreement.locked
+                {...(readOnly
                   ? {
                       disabled: true,
                     }
@@ -104,7 +107,7 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
               id="term-compensation"
               name="compensation"
               defaultValue={agreement.draft.compensation}
-              {...(agreement.locked
+              {...(readOnly
                 ? {
                     disabled: true,
                   }
@@ -114,7 +117,20 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
           </div>
           {"\n            "}
           <div className="terms-actions">
-            {!agreement.locked ? (
+            {agreement.locked &&
+              !["launched", "reviewed", "cancelled"].includes(room.status) && (
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={state.busy}
+                  onClick={() => onAction({ action: "reopen-terms" })}
+                >
+                  Request changes / reopen terms
+                </button>
+              )}
+            {room.status === "cancelled" ? (
+              <span className="status">This collaboration is closed.</span>
+            ) : !agreement.locked ? (
               <>
                 <button className="btn" type="submit">
                   Save draft

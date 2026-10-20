@@ -13,6 +13,8 @@ const types = {
   ".ico": "image/x-icon",
 };
 const api = createApi();
+const digestTimer = setInterval(() => api.runDigests().catch(() => {}), 60000);
+digestTimer.unref();
 const server = createServer((req, res) =>
   api(req, res, () => {
     try {
@@ -46,6 +48,7 @@ const server = createServer((req, res) =>
   }),
 );
 const port = Number(process.env.PORT || 4173);
+server.once("close", () => clearInterval(digestTimer));
 server.listen(
   port,
   process.env.HOST ||

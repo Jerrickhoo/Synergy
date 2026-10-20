@@ -73,6 +73,12 @@ export default function MobileMenu() {
               {label}
             </NavButton>
           ))}
+          {state.isAdmin && (
+            <NavButton page="moderation">
+              <Icon name="shield" />
+              Moderation
+            </NavButton>
+          )}
         </nav>
         <button
           className="btn full"

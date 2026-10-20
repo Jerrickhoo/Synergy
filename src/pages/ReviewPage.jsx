@@ -79,6 +79,30 @@ export default function ReviewPage() {
                 placeholder="What went well? What could be better?"
               />
             </div>
+            <div className="field">
+              <label htmlFor="match-useful">Was this a useful match?</label>
+              <select id="match-useful" name="useful">
+                <option value="">Prefer not to answer</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="goal-outcome">
+                Did you achieve your shared goal?
+              </label>
+              <select id="goal-outcome" name="goalOutcome">
+                <option value="">Prefer not to answer</option>
+                <option value="achieved">Achieved</option>
+                <option value="partial">Partly achieved</option>
+                <option value="not-achieved">Not achieved</option>
+              </select>
+              <p className="muted">
+                Optional feedback helps evaluate matching. Answers stay private
+                until both reviews are submitted; moderators see aggregate
+                matching outcomes.
+              </p>
+            </div>
             <button className="btn primary" type="submit" disabled={state.busy}>
               Submit private review
             </button>
@@ -89,6 +113,24 @@ export default function ReviewPage() {
             <h3>Your collaborator's feedback</h3>
             <p>{room.review.partnerRating}/5</p>
             <p>{room.review.partnerNote || "No written feedback."}</p>
+            {room.review.partnerUseful && (
+              <p>
+                Useful match:{" "}
+                {room.review.partnerUseful === "yes" ? "Yes" : "No"}
+              </p>
+            )}
+            {room.review.partnerGoalOutcome && (
+              <p>
+                Shared goal:{" "}
+                {
+                  {
+                    achieved: "Achieved",
+                    partial: "Partly achieved",
+                    "not-achieved": "Not achieved",
+                  }[room.review.partnerGoalOutcome]
+                }
+              </p>
+            )}
             <h3>Your feedback</h3>
             <p>
               {room.review.rating}/5 ·{" "}

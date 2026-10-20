@@ -4,9 +4,10 @@ import Brand from "./Brand.jsx";
 
 export default function Topbar() {
   const { state, model, onAction } = useApp();
-  const activity = state.activity
-    .filter((item) => item.role === state.role)
-    .slice(0, 4);
+  const activity = (state.notifications || []).slice(0, 6);
+  const unread = (state.notifications || []).filter(
+    (item) => !item.read,
+  ).length;
   return (
     <header className="topbar simple-topbar">
       <button
@@ -43,6 +44,11 @@ export default function Topbar() {
             onClick={() => onAction({ action: "toggle-notifications" })}
           >
             <Icon name="bell" />
+            {unread > 0 && (
+              <span className="notification-dot" aria-hidden="true">
+                {unread}
+              </span>
+            )}
           </button>
           {state.notificationOpen && (
             <section
@@ -51,6 +57,12 @@ export default function Topbar() {
               aria-label="Notifications"
             >
               <h2>Updates</h2>
+              <button
+                className="link-btn"
+                onClick={() => onAction({ page: "notifications" })}
+              >
+                View all updates and preferences
+              </button>
               {state.incomingByRole[state.role].size > 0 && (
                 <button
                   className="btn small"

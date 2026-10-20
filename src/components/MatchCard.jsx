@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import TrustSummary from "./TrustSummary.jsx";
 import { useApp } from "../state/AppContext.jsx";
 import Avatar from "../components/Avatar.jsx";
 import Tags from "../components/Tags.jsx";
@@ -107,7 +108,7 @@ export default function MatchCard({ person, large = false }) {
                   margin: "8px 0 0",
                 }}
               >
-                Your needs and offers complement each other. This score is a
+                Review the profile signals before connecting. This score is a
                 guide—not a decision made for you.
               </p>
             </>
@@ -200,6 +201,7 @@ export default function MatchCard({ person, large = false }) {
           </button>
           {"\n            "}
         </div>
+        <TrustSummary person={person} />
         {"\n          "}
       </div>
       {"\n          "}

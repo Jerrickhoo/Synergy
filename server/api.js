@@ -12,6 +12,7 @@ export function createApi({
   config = configuration(),
   file = config.file,
   fetcher = fetch,
+  authAttemptsPerMinute = 30,
 } = {}) {
   const workspace = createWorkspace(file, config);
   const services = createServices(config, fetcher);
@@ -43,7 +44,7 @@ export function createApi({
     }
     return send(200, { ...challenge, sent: true });
   }
-  return async function api(req, res, next) {
+  const api = async function api(req, res, next) {
     const url = new URL(req.url, "http://localhost");
     if (!url.pathname.startsWith("/api/")) return next?.();
     res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -137,6 +138,8 @@ export function createApi({
           "/api/signup",
           "/api/auth/verify",
           "/api/auth/resend",
+          "/api/password/request",
+          "/api/password/reset",
         ].includes(url.pathname)
       ) {
         const key = `${req.socket.remoteAddress}:${url.pathname}`;
@@ -144,11 +147,34 @@ export function createApi({
         const recent = (attempts.get(key) || []).filter(
           (time) => time > now - 60000,
         );
-        if (recent.length >= 30)
+        if (recent.length >= authAttemptsPerMinute)
           return send(429, {
             error: "Too many sign-in attempts. Try again in a minute.",
           });
         attempts.set(key, [...recent, now]);
+        if (url.pathname === "/api/password/reset")
+          return send(200, workspace.features.resetPassword(input));
+        if (url.pathname === "/api/password/request") {
+          if (!emailConfiguration(config).enabled)
+            throw new WorkspaceError(
+              "Password recovery requires email delivery. Contact the workspace owner.",
+              503,
+            );
+          try {
+            const proof = workspace.features.beginReset(input.email);
+            if (proof) {
+              await services.sendVerification(proof.email, proof.code, "reset");
+              workspace.features.resetSent(proof.email, proof.code);
+            }
+          } catch (error) {
+            if (!(error instanceof WorkspaceError)) throw error;
+          }
+          return send(200, {
+            ok: true,
+            message:
+              "If this account is eligible, a reset code will arrive shortly. Check spam or request another code after one minute.",
+          });
+        }
         if (url.pathname === "/api/auth/verify")
           return send(
             200,
@@ -194,9 +220,41 @@ export function createApi({
             "AI assistance is not configured yet. You can edit your profile manually.",
             503,
           );
+        const answers = input.answers || [];
+        if (
+          !Array.isArray(answers) ||
+          answers.length > 12 ||
+          answers.some(
+            (item) =>
+              !item ||
+              typeof item.question !== "string" ||
+              item.question.length > 300 ||
+              typeof item.answer !== "string" ||
+              !item.answer.trim() ||
+              item.answer.length > 1000,
+          )
+        )
+          throw new WorkspaceError("Provide valid clarification answers.");
         workspace.reserveAI(token, input.role, input.story);
+        const { draft, clarifications, proposedTags } =
+          await services.draftProfile(input.role, input.story, {
+            answers,
+            vocabulary: workspace.features.vocabulary(),
+          });
         return send(200, {
-          draft: await services.draftProfile(input.role, input.story),
+          draft,
+          clarifications,
+          proposedTags,
+          suggestedTags: {
+            offer: workspace.features.suggestTags(
+              draft.offer,
+              workspace.features.vocabulary(),
+            ),
+            need: workspace.features.suggestTags(
+              draft.need,
+              workspace.features.vocabulary(),
+            ),
+          },
         });
       }
       if (url.pathname === "/api/action")
@@ -214,6 +272,29 @@ export function createApi({
       });
     }
   };
+  let digestRunning = false;
+  api.runDigests = async () => {
+    if (digestRunning || !emailConfiguration(config).enabled) return;
+    digestRunning = true;
+    try {
+      for (const candidate of workspace.features.digestCandidates()) {
+        workspace.features.digestAttempt(candidate.id);
+        try {
+          await services.sendMessage(
+            candidate.email,
+            "Your Synergy collaboration digest",
+            `${candidate.text}\n\nChange digest preferences in Synergy → Updates.`,
+          );
+          workspace.features.digestSent(candidate.id);
+        } catch {
+          workspace.features.digestFailed(candidate.id);
+        }
+      }
+    } finally {
+      digestRunning = false;
+    }
+  };
+  return api;
 }
 
 export function workspacePlugin() {
@@ -221,6 +302,9 @@ export function workspacePlugin() {
   const install = (server) => {
     api ||= createApi();
     server.middlewares.use(api);
+    const timer = setInterval(() => api.runDigests().catch(() => {}), 60000);
+    timer.unref();
+    server.httpServer?.once("close", () => clearInterval(timer));
   };
   return {
     name: "synergy-workspace",

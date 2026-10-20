@@ -12,9 +12,14 @@ const config = configuration({
   BREVO_API_KEY: "browser-test-key",
   MAIL_FROM: "Synergy <test@example.com>",
   REQUIRE_EMAIL_VERIFICATION: "true",
+  SYNERGY_ADMIN_EMAILS: "moderator@example.com,settings-moderator@example.com",
+  OPENAI_API_KEY: "browser-test-ai-key",
 });
 const api = createApi({
   config,
+  // This isolated suite creates many accounts on one loopback IP. Production
+  // keeps createApi's default of 30 authentication requests per minute.
+  authAttemptsPerMinute: 300,
   fetcher: async (url, request) => {
     if (url !== "https://api.brevo.com/v3/smtp/email")
       throw new Error("Unexpected provider call in browser test");

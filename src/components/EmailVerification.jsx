@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
+import FormErrors from "./FormErrors.jsx";
 
 export default function EmailVerification() {
-  const { state, integrationRequest } = useApp();
+  const { state, integrationRequest, notify } = useApp();
   const [message, setMessage] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -27,6 +28,9 @@ export default function EmailVerification() {
       setMessage(
         `Code sent to ${state.accountEmail}. Check your inbox and spam folder. It expires in 15 minutes.`,
       );
+      notify(
+        `Code sent to ${state.accountEmail}. Check your inbox and spam folder.`,
+      );
     } catch (error) {
       setError(error.message);
     }
@@ -37,6 +41,7 @@ export default function EmailVerification() {
     try {
       await integrationRequest("email/verify", { code, role: state.role });
       setMessage("Your email is verified.");
+      notify("Your email is verified. You're ready to connect.");
     } catch (error) {
       setError(error.message);
     }
@@ -66,7 +71,12 @@ export default function EmailVerification() {
                 ? "Send a new code"
                 : "Send verification code"}
           </button>
-          <form className="verification-form" onSubmit={verify}>
+          <form
+            id="email-verification-form"
+            className="verification-form"
+            onSubmit={verify}
+          >
+            <FormErrors scope="email-verification-form" />
             <div className="field">
               <label htmlFor="email-code">Six-digit verification code</label>
               <input

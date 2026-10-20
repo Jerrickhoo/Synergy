@@ -38,6 +38,20 @@ export function requiredFields(values, keys) {
 }
 export function validateProfile(profile, role) {
   const errors = requiredFields(profile, profileKeys(role));
+  if (String(profile.pastExperience || "").length > 2000)
+    errors.pastExperience =
+      "Keep past experience to 2,000 characters or fewer.";
+  if (
+    profile.audienceSize &&
+    (!/^\d+$/.test(profile.audienceSize) ||
+      !Number.isSafeInteger(Number(profile.audienceSize)))
+  )
+    errors.audienceSize = "Audience size must be a non-negative whole number.";
+  if (
+    profile.engagementPreference &&
+    !["one-off", "ongoing", "either"].includes(profile.engagementPreference)
+  )
+    errors.engagementPreference = "Choose a valid engagement preference.";
   if (role === "founder") {
     if (!stages.includes(profile.stage)) errors.stage = "Choose a valid stage.";
     if (
@@ -64,7 +78,7 @@ export function validateCredentials(values, signup = false) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email || ""))
     errors.email = "Enter a valid email address.";
   if (String(values.password || "").trim().length < (signup ? 8 : 4))
-    errors.password = `Use at least ${signup ? 8 : 4} characters for this demo password.`;
+    errors.password = `Use at least ${signup ? 8 : 4} characters for your password.`;
   return errors;
 }
 export function validateSchedule(values, now = new Date()) {

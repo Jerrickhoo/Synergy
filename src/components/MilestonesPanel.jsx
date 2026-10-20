@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Icon from "../components/Icon.jsx";
 import FormErrors from "./FormErrors.jsx";
+import MilestoneRevision from "./MilestoneRevision.jsx";
 import { launchBlockers, scheduleLabel } from "../data/selectors.js";
 export default function MilestonesPanel({
   room,
@@ -12,7 +13,7 @@ export default function MilestonesPanel({
   const { state, model, onAction, onSubmit, onUpload, downloadFile } = useApp();
   const { currentAgreement, statusText } = model;
   const blockers = launchBlockers(room);
-  const launched = ["launched", "reviewed"].includes(room.status);
+  const launched = ["launched", "reviewed", "cancelled"].includes(room.status);
   return (
     <section className="card panel room-content">
       <div className="panel-head">
@@ -21,6 +22,11 @@ export default function MilestonesPanel({
           <p className="panel-subtitle">
             Progress is shared: both partners confirm each step.
           </p>
+          {room.template?.name && (
+            <p className="muted">
+              Template: {room.template.name} · Version {room.template.version}
+            </p>
+          )}
         </div>
         <span
           className={`status ${milestones.every(([, item]) => item.me && item.partner) ? "green" : "gray"}`}
@@ -30,7 +36,7 @@ export default function MilestonesPanel({
               (item) => item.me && item.partner,
             ).length
           }
-          {" of 5 confirmed"}
+          {` of ${milestones.length} confirmed`}
         </span>
       </div>
       {"\n          "}
@@ -51,6 +57,7 @@ export default function MilestonesPanel({
                 {item.evidence ? " *" : ""}
               </div>
               <div className="milestone-note">{item.description}</div>
+              <MilestoneRevision id={id} item={item} closed={launched} />
               <div className="milestone-note">
                 {statusText(id)}
                 {item.disputed ? (
@@ -59,31 +66,99 @@ export default function MilestonesPanel({
                   ""
                 )}
               </div>
-              {room.type === "mentorship" && id === "session" ? (
-                item.schedule ? (
-                  <span className="evidence-chip">
-                    {scheduleLabel(item.schedule)}
-                  </span>
-                ) : (
+              {item.dueDate && (
+                <p className="milestone-note">Due {item.dueDate} (UTC)</p>
+              )}
+              {!launched && (
+                <details className="milestone-date-editor">
+                  <summary>
+                    {item.dueDate ? "Change due date" : "Set due date"}
+                  </summary>
                   <form
+                    data-form="milestone-date"
+                    data-id={id}
+                    onSubmit={onSubmit}
                     className="schedule-form"
-                    data-form="schedule"
-                    onSubmit={(event) => onSubmit(event)}
                   >
-                    <FormErrors scope="schedule" />
-                    <label htmlFor="session-date">Schedule session</label>
-                    <input id="session-date" type="date" name="date" required />
+                    <label htmlFor={`due-${id}`}>Due date (UTC)</label>
                     <input
-                      type="time"
-                      name="time"
-                      aria-label="Session time"
-                      required
+                      id={`due-${id}`}
+                      type="date"
+                      name="dueDate"
+                      defaultValue={item.dueDate || ""}
                     />
-                    <button className="btn small" type="submit">
-                      Save time
+                    <button className="btn small" disabled={state.busy}>
+                      Save due date
                     </button>
                   </form>
-                )
+                </details>
+              )}
+              {room.type === "mentorship" && id === "session" ? (
+                <>
+                  {(
+                    item.schedules || (item.schedule ? [item.schedule] : [])
+                  ).map((schedule) => (
+                    <span className="evidence-chip" key={schedule.date}>
+                      {scheduleLabel(schedule)}
+                    </span>
+                  ))}
+                  {!launched && (
+                    <details className="section-gap">
+                      <summary>
+                        {item.schedule
+                          ? "Reschedule session"
+                          : "Schedule session"}
+                      </summary>
+                      <form
+                        key={JSON.stringify(item.schedule)}
+                        className="schedule-form"
+                        data-form="schedule"
+                        onSubmit={(event) => onSubmit(event)}
+                      >
+                        <FormErrors scope="schedule" />
+                        <label htmlFor="session-date">Schedule session</label>
+                        <input
+                          id="session-date"
+                          type="date"
+                          name="date"
+                          required
+                          defaultValue={item.schedule?.date || ""}
+                        />
+                        <input
+                          type="time"
+                          name="time"
+                          aria-label="Session time"
+                          required
+                          defaultValue={item.schedule?.time || ""}
+                        />
+                        <p className="muted">
+                          Time zone:{" "}
+                          {Intl.DateTimeFormat().resolvedOptions().timeZone}.
+                          Rescheduling clears both confirmations.
+                        </p>
+                        <label htmlFor="session-count">
+                          Weekly sessions (1–12)
+                        </label>
+                        <input
+                          id="session-count"
+                          name="count"
+                          type="number"
+                          min="1"
+                          max="12"
+                          step="1"
+                          defaultValue={item.schedules?.length || 1}
+                        />
+                        <button
+                          className="btn small"
+                          type="submit"
+                          disabled={state.busy}
+                        >
+                          Save time
+                        </button>
+                      </form>
+                    </details>
+                  )}
+                </>
               ) : (
                 ""
               )}
@@ -224,6 +299,7 @@ export default function MilestonesPanel({
                     state.busy ||
                     launched ||
                     item.disputed ||
+                    Boolean(item.proposal) ||
                     !agreement.partnerLocked
                   }
                   data-id={id}
@@ -270,7 +346,7 @@ export default function MilestonesPanel({
               ))}
             </ul>
           )}
-          {launched && (
+          {launched && room.status !== "cancelled" && (
             <button
               className="link-btn"
               onClick={() => onAction({ page: "review" })}
@@ -295,7 +371,11 @@ export default function MilestonesPanel({
             )
           }
         >
-          {launched ? "Collaboration launched" : "Mark as launched"}
+          {room.status === "cancelled"
+            ? "Collaboration closed"
+            : launched
+              ? "Collaboration launched"
+              : "Mark as launched"}
         </button>
       </div>
     </section>

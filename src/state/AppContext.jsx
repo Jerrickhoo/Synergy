@@ -1,5 +1,6 @@
 ﻿import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -13,6 +14,12 @@ import { fieldKey, readField } from "./fields.js";
 import { transition } from "./transitions.js";
 import { applyRoute, parseRoute, routeHash } from "./routes.js";
 import { decode } from "./serialization.js";
+import {
+  errorTitle,
+  fieldName,
+  formValidation,
+  publishToast,
+} from "./feedback.js";
 
 enableMapSet();
 const AppContext = createContext(null);
@@ -46,6 +53,15 @@ const dataKeys = [
   "interestByRole",
   "incomingByRole",
   "trustHistoryByRole",
+  "trustSummary",
+  "isAdmin",
+  "moderation",
+  "vocabulary",
+  "notifications",
+  "notificationPreferences",
+  "affiliation",
+  "engagementTemplates",
+  "matchingConfig",
 ];
 const remoteActions = new Set([
   "choose-role",
@@ -60,6 +76,8 @@ const remoteActions = new Set([
   "dispute",
   "resolve-dispute",
   "launch-room",
+  "reopen-terms",
+  "read-notifications",
 ]);
 const reducer = (state, payload) =>
   produce(state, (draft) => {
@@ -73,9 +91,16 @@ const reducer = (state, payload) =>
         profileEditing: false,
       });
       applyRoute(draft, parseRoute(window.location.hash));
+      if (payload.message) publishToast(draft, payload.message);
     } else if (payload.action === "remote") {
       const previousRooms = draft.rooms;
-      for (const key of dataKeys) draft[key] = payload.state[key];
+      // React can invoke a reducer twice in development. Never mutate rooms
+      // owned by the action: Immer may have frozen them during the first call.
+      for (const key of dataKeys)
+        draft[key] =
+          key === "rooms"
+            ? structuredClone(payload.state[key])
+            : payload.state[key];
       for (const room of Object.values(draft.rooms))
         for (const [id, item] of Object.entries(room.milestones)) {
           item.evidenceOpen =
@@ -88,10 +113,24 @@ const reducer = (state, payload) =>
           )
             item.evidenceOpen = false;
         }
+      if (draft.connectionError && !payload.command)
+        publishToast(
+          draft,
+          "You're connected again. Your workspace is up to date.",
+        );
       draft.connectionError = "";
       if (payload.command) {
         draft.formErrors = payload.state.formErrors;
-        draft.toast = payload.state.toast;
+        if (payload.state.toast)
+          publishToast(draft, payload.state.toast, {
+            type: payload.state.formErrors ? "error" : payload.state.toastType,
+            title: payload.state.toastTitle,
+          });
+        else if (payload.state.formErrors)
+          publishToast(draft, "Review the highlighted details and try again.", {
+            type: "error",
+            title: errorTitle(payload.state.formErrors.scope),
+          });
         draft.confirmation = payload.state.confirmation;
         if (!payload.state.formErrors) {
           if (payload.command.form === "profile-form")
@@ -114,18 +153,37 @@ const reducer = (state, payload) =>
       }
     } else if (payload.action === "request-status") draft.busy = payload.busy;
     else if (payload.action === "request-error") {
-      draft.toast = payload.message;
+      publishToast(draft, payload.message, {
+        type: "error",
+        title: errorTitle(payload.scope),
+      });
       draft.formErrors = payload.fields
         ? { scope: payload.scope, fields: payload.fields }
         : null;
-    } else if (payload.action === "connection-error")
+    } else if (payload.action === "connection-error") {
+      if (draft.connectionError !== payload.message)
+        publishToast(draft, payload.message, {
+          type: "error",
+          title: "Connection interrupted",
+        });
       draft.connectionError = payload.message;
-    else if (payload.action === "signed-out")
+    } else if (payload.action === "clear-field-error") {
+      if (draft.formErrors?.scope === payload.scope) {
+        delete draft.formErrors.fields[payload.field];
+        if (!Object.keys(draft.formErrors.fields).length)
+          draft.formErrors = null;
+      }
+    } else if (payload.action === "signed-out") {
       Object.assign(draft, createInitialState(), {
         restoring: false,
-        toast: payload.message || "",
       });
-    else if (payload.action === "report") draft.reportOpen = !draft.reportOpen;
+      if (payload.message)
+        publishToast(draft, payload.message, {
+          type: "error",
+          title: "Please sign in again",
+        });
+    } else if (payload.action === "report")
+      draft.reportOpen = !draft.reportOpen;
     else if (payload.action === "route-change")
       applyRoute(draft, payload.route);
     else transition(draft, payload);
@@ -149,23 +207,51 @@ export function AppProvider({ children }) {
     return initial;
   });
   const model = useMemo(() => createModel(state), [state]);
+  const dismissToast = useCallback(
+    () => dispatch({ action: "clear-toast" }),
+    [],
+  );
+  const notify = useCallback(
+    (message, type = "success", title = "") =>
+      dispatch({ action: "set-toast", message, type, title }),
+    [],
+  );
   const lastRouteTick = useRef(null);
   async function request(path, body) {
-    const response = await fetch(`/api/${path}`, {
-      method: body ? "POST" : "GET",
-      headers: {
-        ...(body ? { "Content-Type": "application/json" } : {}),
-        ...(token.current ? { Authorization: `Bearer ${token.current}` } : {}),
-      },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    });
-    const result = decode(await response.text());
-    if (!response.ok)
-      throw Object.assign(new Error(result.error), {
-        status: response.status,
-        fields: result.fields,
-        challenge: result.challenge,
+    let response;
+    try {
+      response = await fetch(`/api/${path}`, {
+        method: body ? "POST" : "GET",
+        headers: {
+          ...(body ? { "Content-Type": "application/json" } : {}),
+          ...(token.current
+            ? { Authorization: `Bearer ${token.current}` }
+            : {}),
+        },
+        ...(body ? { body: JSON.stringify(body) } : {}),
       });
+    } catch {
+      throw new Error(
+        "We couldn't reach the server. Check your connection and try again.",
+      );
+    }
+    let result;
+    try {
+      result = decode(await response.text());
+    } catch {
+      throw new Error(
+        "The server couldn't complete your request. Please try again.",
+      );
+    }
+    if (!response.ok)
+      throw Object.assign(
+        new Error(result.error || "Something went wrong. Please try again."),
+        {
+          status: response.status,
+          fields: result.fields,
+          challenge: result.challenge,
+        },
+      );
     return result;
   }
   function rememberLoginChallenge(challenge) {
@@ -185,7 +271,11 @@ export function AppProvider({ children }) {
     revision.current = result.revision;
     rememberLoginChallenge(null);
     window.history.replaceState(null, "", "#/");
-    dispatch({ action: "restore", state: result.state });
+    dispatch({
+      action: "restore",
+      state: result.state,
+      message: "Welcome to your workspace.",
+    });
   }
   useEffect(() => {
     if (!token.current) return;
@@ -255,11 +345,6 @@ export function AppProvider({ children }) {
     };
   }, [state.authenticated, state.restoring, state.role]);
   useEffect(() => {
-    if (!state.toast) return;
-    const timer = setTimeout(() => dispatch({ action: "clear-toast" }), 4000);
-    return () => clearTimeout(timer);
-  }, [state.toast]);
-  useEffect(() => {
     if (!state.confirmation) return;
     const timer = setTimeout(
       () => dispatch({ action: "dismiss-confirmation" }),
@@ -303,6 +388,7 @@ export function AppProvider({ children }) {
       role: state.role,
       activeRoomId: state.activeRoomId,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      termsRevision: state.rooms[state.activeRoomId]?.terms.revision || 0,
     };
     try {
       if (["login-form", "signup-form"].includes(command.form)) {
@@ -310,8 +396,14 @@ export function AppProvider({ children }) {
           command.form === "signup-form" ? "signup" : "login",
           command.values,
         );
-        if (result.verificationRequired) rememberLoginChallenge(result);
-        else acceptSession(result);
+        if (result.verificationRequired) {
+          rememberLoginChallenge(result);
+          notify(
+            `We sent a verification code to ${result.email}.`,
+            "success",
+            "Check your email",
+          );
+        } else acceptSession(result);
       } else if (command.form === "login-code-form") {
         const result = await request("auth/verify", {
           challengeId: authChallenge?.challengeId,
@@ -381,6 +473,41 @@ export function AppProvider({ children }) {
       form.reset();
     if (success && form.id === "chat-form") form.reset();
   }
+  function onInvalid(event) {
+    event.preventDefault();
+    const form = event.target.form;
+    if (!form) return;
+    const firstInvalid = [...form.elements].find(
+      (input) => input.willValidate && !input.validity.valid,
+    );
+    if (event.target !== firstInvalid) return;
+    const scope =
+      form.querySelector("[data-error-scope]")?.dataset.errorScope ||
+      form.dataset.form ||
+      form.id;
+    dispatch({
+      action: "request-error",
+      scope,
+      fields: formValidation(form),
+      message: "Review the highlighted details and try again.",
+    });
+    firstInvalid.focus();
+  }
+  function onFormInput(event) {
+    if (!state.formErrors) return;
+    const input = event.target;
+    const form = input.form;
+    if (!form) return;
+    const scope =
+      form.querySelector("[data-error-scope]")?.dataset.errorScope ||
+      form.dataset.form ||
+      form.id;
+    if (
+      state.formErrors.scope === scope &&
+      state.formErrors.fields[fieldName(input)]
+    )
+      dispatch({ action: "clear-field-error", scope, field: fieldName(input) });
+  }
   async function integrationRequest(path, body) {
     if (pending.current)
       throw new Error("Please wait for your current request to finish.");
@@ -393,6 +520,9 @@ export function AppProvider({ children }) {
         dispatch({ action: "remote", state: result.state });
       }
       return result;
+    } catch (error) {
+      notify(error.message || "Please try again.", "error");
+      throw error;
     } finally {
       pending.current = false;
       dispatch({ action: "request-status", busy: false });
@@ -405,6 +535,7 @@ export function AppProvider({ children }) {
       });
       rememberLoginChallenge(result);
       dispatch({ action: "request-error", message: "" });
+      notify("A new code has been sent. Use the latest code from your email.");
     } catch (error) {
       if (error.challenge)
         rememberLoginChallenge({
@@ -516,6 +647,10 @@ export function AppProvider({ children }) {
         resendLoginCode,
         cancelLogin,
         state,
+        notify,
+        dismissToast,
+        onInvalid,
+        onFormInput,
         model,
         onAction,
         onSubmit,

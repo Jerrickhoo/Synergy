@@ -21,6 +21,9 @@ import { validateCredentials, cleanValues } from "../src/state/validation.js";
 import { transition } from "../src/state/transitions.js";
 import { encode, decode } from "../src/state/serialization.js";
 import { emailConfiguration } from "./email-config.js";
+import { createFeatures } from "./features.js";
+import { trustSummary } from "../src/data/collaboration.js";
+import { defaultMatching } from "../src/data/matching.js";
 
 export class WorkspaceError extends Error {
   constructor(message, status = 400, fields) {
@@ -80,7 +83,17 @@ const overlap = (left, right) => {
   );
 };
 
-export function scoreProfile(mine, theirs, mentor) {
+export function scoreProfile(mine, theirs, mentor, config = defaultMatching) {
+  mine = {
+    ...mine,
+    offer: `${mine.offer || ""} ${mine.offerTags || ""}`,
+    need: `${mine.need || ""} ${mine.needTags || ""}`,
+  };
+  theirs = {
+    ...theirs,
+    offer: `${theirs.offer || ""} ${theirs.offerTags || ""}`,
+    need: `${theirs.need || ""} ${theirs.needTags || ""}`,
+  };
   const need = Math.max(
     overlap(mine.need, theirs.offer),
     overlap(theirs.need, mine.offer),
@@ -93,25 +106,45 @@ export function scoreProfile(mine, theirs, mentor) {
     mine.industry || mine.startups,
     theirs.industry || theirs.startups,
   );
-  const stage =
+  const stageFit =
     mine.stage && theirs.stage ? (mine.stage === theirs.stage ? 1 : 0.4) : 0.5;
-  const goal = overlap(
-    `${mine.need} ${mine.bio}`,
-    `${theirs.offer} ${theirs.bio}`,
+  const marketing = /marketing|audience|promotion|growth/i.test(
+    `${mine.offer} ${mine.need} ${theirs.offer} ${theirs.need}`,
   );
+  const sizes = marketing
+    ? [Number(mine.audienceSize), Number(theirs.audienceSize)]
+    : [Number(mine.teamSize), Number(theirs.teamSize)];
+  const sizeFit = sizes.every((n) => n > 0)
+    ? Math.min(...sizes) / Math.max(...sizes)
+    : null;
+  const stage = mentor
+    ? stageFit
+    : sizeFit === null
+      ? stageFit
+      : (stageFit + sizeFit) / 2;
+  const explicitGoals = Boolean(mine.goals && theirs.goals);
+  const preference =
+    mine.engagementPreference && theirs.engagementPreference
+      ? mine.engagementPreference === "either" ||
+        theirs.engagementPreference === "either" ||
+        mine.engagementPreference === theirs.engagementPreference
+        ? 1
+        : 0
+      : null;
+  const goalWords = explicitGoals
+    ? overlap(mine.goals, theirs.goals)
+    : overlap(`${mine.need} ${mine.bio}`, `${theirs.offer} ${theirs.bio}`);
+  const goal = preference === null ? goalWords : (goalWords + preference) / 2;
   const factors = [need, expertise, industry, stage, goal];
+  const weights = config[mentor ? "mentor" : "founder"];
   const score = Math.round(
     100 *
-      (mentor
-        ? need * 0.35 +
-          expertise * 0.25 +
-          industry * 0.15 +
-          stage * 0.1 +
-          goal * 0.15
-        : need * 0.5 + industry * 0.2 + stage * 0.15 + goal * 0.15),
+      factors.reduce((sum, value, index) => sum + value * weights[index], 0),
   );
   return {
     score,
+    matchingVersion: config.version,
+    factorWeights: weights,
     why: factors.map((value) =>
       value >= 0.65
         ? "Strong"
@@ -122,6 +155,17 @@ export function scoreProfile(mine, theirs, mentor) {
             : "No overlap",
     ),
     factorScores: factors.map((value) => Math.round(value * 100)),
+    factorDetails: [
+      `Need/offer word overlap: ${Math.round(need * 100)}%.`,
+      `Expertise word overlap: ${Math.round(expertise * 100)}%.`,
+      `Industry context word overlap: ${Math.round(industry * 100)}%.`,
+      mentor
+        ? "Stage context only; mentor capacity is not scored."
+        : sizeFit === null
+          ? "Stage comparison only; both size values are needed for size fit."
+          : `Stage and ${marketing ? "audience" : "team"} size; size ratio ${Math.round(sizeFit * 100)}%.`,
+      `${explicitGoals ? "Stated goal" : "Profile-context"} word overlap${preference === null ? "; engagement preference not provided by both" : "; engagement preferences included"}.`,
+    ],
   };
 }
 
@@ -198,18 +242,35 @@ export function createWorkspace(file, options = {}) {
       color: role === "mentor" ? "blue" : "",
       sector: profile.industry || profile.expertise,
       summary: profile.bio,
-      offer: tags(profile.offer),
-      need: tags(profile.need),
+      offer: [...new Set([...tags(profile.offer), ...tags(profile.offerTags)])],
+      need: [...new Set([...tags(profile.need), ...tags(profile.needTags)])],
+      goals: profile.goals || "",
+      engagementPreference: profile.engagementPreference || "",
+      teamSize: profile.teamSize || "",
+      audienceSize: profile.audienceSize || "",
+      stage: profile.stage || "",
+      availability: profile.availability || "",
+      pastExperience: role === "mentor" ? profile.pastExperience || "" : "",
       engagement:
         role === "mentor" || viewer.role === "mentor"
           ? "Mentorship"
           : marketing
             ? "Co-Marketing Swap"
             : "Beta Testing Exchange",
+      emailVerified: Boolean(account.emailVerifiedAt),
+      affiliation:
+        account.affiliation?.status === "verified"
+          ? {
+              organization: account.affiliation.organization,
+              status: "verified",
+            }
+          : null,
+      trust: trustSummary(account.state.rooms, role),
       ...scoreProfile(
         viewer.profiles[viewer.role],
         profile,
         role === "mentor" || viewer.role === "mentor",
+        db.matchingConfig || defaultMatching,
       ),
     };
   }
@@ -224,10 +285,11 @@ export function createWorkspace(file, options = {}) {
       ai: Boolean(options.openaiKey),
       requireVerification: Boolean(options.requireVerification),
       maxFileBytes: options.maxFileBytes || 5 * 1024 * 1024,
+      moderation: Boolean(options.adminEmails?.length),
     };
     state.directory = createInitialState().directory;
     for (const other of Object.values(db.accounts)) {
-      if (other.id === account.id) continue;
+      if (other.id === account.id || other.suspended) continue;
       if (options.requireVerification && !other.emailVerifiedAt) continue;
       for (const otherRole of roles) {
         if (
@@ -269,7 +331,7 @@ export function createWorkspace(file, options = {}) {
         sample: false,
       });
     }
-    return state;
+    return features.decorate(account, state);
   }
   function response(account, role) {
     const state = prepare(account, role);
@@ -277,6 +339,8 @@ export function createWorkspace(file, options = {}) {
       if (!room.review.me || !room.review.partner) {
         delete room.review.partnerRating;
         delete room.review.partnerNote;
+        delete room.review.partnerUseful;
+        delete room.review.partnerGoalOutcome;
       }
     }
     return { state, revision: db.revision };
@@ -287,9 +351,20 @@ export function createWorkspace(file, options = {}) {
       sessions.delete(token);
       fail("Please sign in to continue.", 401);
     }
-    return db.accounts[session.id];
+    const account = db.accounts[session.id];
+    if (!account || account.suspended)
+      fail(
+        "This account is unavailable. Contact the workspace moderator.",
+        403,
+      );
+    return account;
   }
   function openSession(account) {
+    if (account.suspended)
+      fail(
+        "This account is unavailable. Contact the workspace moderator.",
+        403,
+      );
     const token = randomBytes(32).toString("hex");
     sessions.set(token, {
       id: account.id,
@@ -301,6 +376,7 @@ export function createWorkspace(file, options = {}) {
     const lastSent = Math.max(
       account.verification?.sentAt || 0,
       account.loginVerification?.sentAt || 0,
+      account.passwordReset?.sentAt || 0,
     );
     if (lastSent > Date.now() - 60000)
       fail("Wait one minute before requesting another code.", 429);
@@ -397,6 +473,11 @@ export function createWorkspace(file, options = {}) {
           password: "Email or password is incorrect.",
         });
     }
+    if (account.suspended)
+      fail(
+        "This account is unavailable. Contact the workspace moderator.",
+        403,
+      );
     if (options.requireLoginCode) {
       const challengeId = randomBytes(32).toString("hex");
       return loginProof(account, challengeId, {
@@ -446,6 +527,20 @@ export function createWorkspace(file, options = {}) {
     "chat-form",
     "review-form",
   ]);
+  const features = createFeatures({
+    getDb: () => db,
+    save,
+    authenticate,
+    prepare,
+    response,
+    mirror,
+    event,
+    options,
+    fail,
+    hash,
+    reserveCode,
+    sessions,
+  });
 
   function mirror(account, state, room, text) {
     const partner = db.accounts[room.partnerAccountId];
@@ -479,6 +574,10 @@ export function createWorkspace(file, options = {}) {
       note: room.review.partnerNote,
       partnerRating: room.review.rating,
       partnerNote: room.review.note,
+      useful: room.review.partnerUseful,
+      goalOutcome: room.review.partnerGoalOutcome,
+      partnerUseful: room.review.useful,
+      partnerGoalOutcome: room.review.goalOutcome,
     };
     partner.state.rooms[room.id] = shared;
     if (text) event(partner, shared.role, text, room.id);
@@ -496,8 +595,41 @@ export function createWorkspace(file, options = {}) {
       partnerId: person.id,
       type: createModel(state).roomTypeForPerson(person),
     });
+    room.createdAt = room.updatedAt = new Date().toISOString();
     room.partnerAccountId = other.id;
     room.partnerRole = person.role;
+    const config = clone(db.matchingConfig || defaultMatching);
+    const mine = scoreProfile(
+      state.profiles[state.role],
+      other.state.profiles[person.role],
+      state.role === "mentor" || person.role === "mentor",
+      config,
+    );
+    const theirs = scoreProfile(
+      other.state.profiles[person.role],
+      state.profiles[state.role],
+      state.role === "mentor" || person.role === "mentor",
+      config,
+    );
+    room.matchingSnapshot = {
+      version: config.version,
+      weights: config,
+      capturedAt: room.createdAt,
+      scores: [
+        {
+          accountId: account.id,
+          role: state.role,
+          score: mine.score,
+          factors: mine.factorScores,
+        },
+        {
+          accountId: other.id,
+          role: person.role,
+          score: theirs.score,
+          factors: theirs.factorScores,
+        },
+      ],
+    };
     room.terms.confirmedByMe = false;
     state.rooms[id] = room;
     other.state.rooms[id] = {
@@ -535,6 +667,7 @@ export function createWorkspace(file, options = {}) {
       );
   }
   function act(token, input, uploadedFile) {
+    if (features.handles(input)) return features.act(token, input);
     const account = authenticate(token);
     if (["interest", "accept-interest"].includes(input.action))
       requireVerified(account);
@@ -550,6 +683,8 @@ export function createWorkspace(file, options = {}) {
     // Mutations run synchronously against the latest saved data, never a client snapshot.
     const state = prepare(account, input.role);
     state.toast = "";
+    state.toastType = "success";
+    state.toastTitle = "";
     state.confirmation = "";
     state.formErrors = null;
     state.activeRoomId =
@@ -597,12 +732,46 @@ export function createWorkspace(file, options = {}) {
       );
     if (
       room &&
-      ["launched", "reviewed"].includes(room.status) &&
+      (input.action === "accept-terms" ||
+        input.action === "lock-terms" ||
+        input.form === "terms-form") &&
+      input.termsRevision !== undefined &&
+      input.termsRevision !== (room.terms.revision || 0)
+    )
+      fail(
+        "The terms changed. Review the latest agreement before continuing.",
+        409,
+      );
+    if (
+      room &&
+      ["launched", "reviewed", "cancelled"].includes(room.status) &&
       !["chat-form", "review-form"].includes(input.form)
     )
       fail("Completed collaborations cannot be changed.");
     if (room && input.form === "review-form" && room.review.me)
       fail("Your review has already been submitted.");
+    if (
+      room &&
+      input.action === "confirm-milestone" &&
+      room.milestones[input.id].proposal
+    )
+      fail(
+        "Resolve the proposed milestone revision before confirming this work.",
+      );
+    if (room && input.form === "review-form") {
+      if (
+        payload.values.useful &&
+        !["yes", "no"].includes(payload.values.useful)
+      )
+        fail("Choose a valid match usefulness response.");
+      if (
+        payload.values.goalOutcome &&
+        !["achieved", "partial", "not-achieved"].includes(
+          payload.values.goalOutcome,
+        )
+      )
+        fail("Choose a valid goal outcome.");
+    }
     let partnerText;
     if (
       [
@@ -705,8 +874,20 @@ export function createWorkspace(file, options = {}) {
       state.toast = "Report saved for local review.";
       state.reportOpen = false;
     } else {
+      if (input.form === "profile-form") {
+        for (const key of ["offerTags", "needTags"]) {
+          const selected = tags(payload.values[key]);
+          if (selected.some((tag) => !features.vocabulary().includes(tag)))
+            fail("Choose approved tags or propose a new tag for review.");
+        }
+      }
       transition(state, payload);
       if (room && !state.formErrors) {
+        if (input.form === "review-form" && room.review.me)
+          Object.assign(room.review, {
+            useful: payload.values.useful || "",
+            goalOutcome: payload.values.goalOutcome || "",
+          });
         if (input.action === "lock-terms" && room.terms.locked)
           room.terms.confirmedByMe = true;
         if (input.action === "dispute" && room.milestones[input.id])
@@ -726,12 +907,16 @@ export function createWorkspace(file, options = {}) {
           Object.assign(room.milestones.session, { me: false, partner: false });
         if (input.form === "review-form" && room.status === "reviewed")
           room.completedAt = payload.timestamp;
+        if (input.action === "launch-room" && room.status === "launched")
+          room.launchedAt = payload.timestamp;
         room.progress = roomProgress(room);
         partnerText = `${state.accountName} ${input.form === "chat-form" ? "sent a message" : input.form === "review-form" ? "submitted a private review" : "updated your collaboration"}.`;
       }
     }
-    if (room && !state.formErrors && encode(room) !== previousRoom)
+    if (room && !state.formErrors && encode(room) !== previousRoom) {
+      room.updatedAt = new Date().toISOString();
       mirror(account, state, room, partnerText);
+    }
     // Persist only this account's workspace. Directory and trust history are computed.
     state.directory = createInitialState().directory;
     account.state = state;
@@ -745,6 +930,7 @@ export function createWorkspace(file, options = {}) {
     return response(account);
   }
   return {
+    features,
     login,
     act,
     get: (token, role) => response(authenticate(token), role),
@@ -871,7 +1057,7 @@ export function createWorkspace(file, options = {}) {
         fail("This milestone is unavailable for your account and role.", 404);
       if (
         !room.milestones[input.id].evidence ||
-        ["launched", "reviewed"].includes(room.status)
+        ["launched", "reviewed", "cancelled"].includes(room.status)
       )
         fail("Files cannot be added to this milestone.");
       const used = Object.values(db.files)
@@ -891,7 +1077,14 @@ export function createWorkspace(file, options = {}) {
     fileFor(token, id) {
       const account = authenticate(token);
       const file = db.files[id];
-      if (!file || !account.state.rooms[file.roomId])
+      if (
+        !file ||
+        (!account.state.rooms[file.roomId] &&
+          !(
+            features.isAdmin(account) &&
+            db.reports.some((report) => report.roomId === file.roomId)
+          ))
+      )
         fail("File unavailable.", 404);
       return file;
     },

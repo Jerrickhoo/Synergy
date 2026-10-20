@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Avatar from "../components/Avatar.jsx";
 export default function ChatPanel({ room }) {
-  const { onSubmit } = useApp();
+  const { onSubmit, state } = useApp();
   const messagesRef = useRef(null);
   const previousCount = useRef(room.messages.length);
   useEffect(() => {
@@ -65,7 +65,7 @@ export default function ChatPanel({ room }) {
           placeholder="Write a message…"
           aria-label="Write a message"
         />
-        <button className="btn primary" type="submit">
+        <button className="btn primary" type="submit" disabled={state.busy}>
           Send
         </button>
       </form>

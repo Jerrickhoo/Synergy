@@ -55,4 +55,22 @@ Accounts and uploads are stored together under `/var/data`. Keep one instance an
 
 Files are limited to 5 MB each and 50 MB uploaded per account, including earlier evidence versions. Allowed formats are PDF, PNG, JPEG, WebP and UTF-8 text. Downloads require a current session and membership in the file's collaboration room. Files are served as downloads, never as executable pages. Existing evidence descriptions/links still work. Uploaded files are not scanned by an antivirus service; use only trusted participants for this prototype.
 
-This deployment is for a single-server prototype. Password recovery, moderation tooling, antivirus scanning, managed database/object storage, and production load testing remain separate features. Public email, AI billing and hosting are not activated until the corresponding accounts and secrets are configured.
+This deployment is for a single-server prototype. Password recovery and moderation tooling are implemented; antivirus scanning, managed database/object storage, and production load testing remain separate infrastructure work. Public email, AI billing and hosting are not activated until the corresponding accounts and secrets are configured.
+
+## Moderator and notification setup
+
+Set `SYNERGY_ADMIN_EMAILS` to the exact account emails that may moderate, separated by commas. The Render Blueprint prompts for this value. Those accounts must sign up and verify their mailbox before the Moderation navigation item or API privileges become available. No first-user administrator or default privileged account is created. Verify roster/business affiliation through evidence before approving the separate affiliation badge; an email badge establishes mailbox access only.
+
+Moderators can assign/escalate reports, record resolutions, clear disputes for fresh participant confirmation, close unfinished rooms, suspend/restore non-moderator accounts, approve/reject tags and review affiliation requests. Report context includes recent room messages and evidence. Moderators can download files only for rooms that have a report. They cannot inspect blind ratings through the queue. Decisions retain an audit record.
+
+Users can opt in to daily/weekly digests through Updates after email verification. The Node server and Vite plugin run a one-minute scheduler; preview includes the same integration. A single process must remain running. Failed delivery retries after a persisted 15-minute backoff and success advances the daily/weekly send deadline. Updates remain unread until the user marks them read. Digests are plain text and contain no passwords, codes or hidden reviews. Push notifications are not implemented.
+
+Password recovery sends a six-digit, 15-minute code to the account mailbox. It allows five guesses, requires successful provider delivery, stores only a salted hash, and consumes the code on success. Request responses do not reveal whether an account exists. A successful reset revokes sessions and pending sign-in codes; the user must sign in again. Exercise this with a real mailbox during deployment verification.
+
+## Backup and recovery
+
+Run `npm run backup -- /absolute/backup/directory` (PowerShell: `npm.cmd run backup -- C:\Backups\Synergy`). Keep the destination outside the workspace data directory. The command reads one atomic database snapshot, copies the immutable upload IDs referenced by that snapshot, writes SHA-256 checksums, and verifies the result. The server can remain running for snapshot creation because uploads are immutable. Each backup gets a separate timestamp/UUID directory. Missing upload bytes cause backup failure; never restore a partial directory without a valid manifest.
+
+Verify a snapshot with `node server/backup.js --verify /absolute/backup/snapshot`. Copy verified snapshots to a separate storage location and apply a retention policy. This command does not configure off-site storage or a managed backup service.
+
+To restore: stop the server; preserve the current database/uploads as a rollback copy; verify the selected backup; copy its `synergy.json` and `uploads` directory together into a new data directory; set `SYNERGY_DATA_FILE` to that copy; then start a single server and sign in to check profiles, rooms and evidence downloads. Restoring ends existing sessions. Regression tests open a copied backup as a workspace and detect modified evidence bytes.

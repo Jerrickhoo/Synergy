@@ -244,6 +244,9 @@ export default function DiscoverPage() {
               ))
             ) : (
               <section className="empty-state">
+                <div className="empty-icon">
+                  <Icon name={shortlistEmpty ? "star" : "search"} />
+                </div>
                 <h3>
                   {shortlistEmpty
                     ? "Keep your shortlist here"
@@ -260,6 +263,14 @@ export default function DiscoverPage() {
                 >
                   Explore matches
                 </button>
+                {hasFilters && !shortlistEmpty && (
+                  <button
+                    className="btn"
+                    onClick={() => onAction({ action: "clear-filters" })}
+                  >
+                    Clear filters
+                  </button>
+                )}
               </section>
             )}
           </div>
@@ -285,11 +296,17 @@ export default function DiscoverPage() {
             </li>
             <li>
               <strong>Stage / Size Fit</strong>
-              <span>Readiness and team capacity.</span>
+              <span>
+                Stage and team size, or audience size for co-marketing, when
+                provided.
+              </span>
             </li>
             <li>
               <strong>Goal Fit</strong>
-              <span>How closely the desired outcomes align.</span>
+              <span>
+                Stated goals and engagement preferences; profile context when
+                goals are missing.
+              </span>
             </li>
           </ul>
           <p className="score-guide-note">

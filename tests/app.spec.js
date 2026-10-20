@@ -7,6 +7,98 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
 
+test("login validation highlights fields and keeps password guidance accessible", async ({
+  page,
+}) => {
+  let requests = 0;
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/login")) requests++;
+  });
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.locator(".toast-error")).toContainText("Couldn't sign in");
+  await expect(page.getByLabel("Email address")).toBeFocused();
+  await expect(page.getByLabel("Email address")).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute(
+    "aria-describedby",
+    /demo-password-help.*login-form-error-password/,
+  );
+  expect(requests).toBe(0);
+  await page.getByLabel("Email address").fill("person@example.com");
+  await expect(page.getByLabel("Email address")).not.toHaveAttribute(
+    "aria-invalid",
+  );
+  await expect(page.getByLabel("Email address")).toBeFocused();
+  await page.getByLabel("Password", { exact: true }).fill("a-password");
+  await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute(
+    "aria-describedby",
+    "demo-password-help",
+  );
+  await page
+    .getByRole("button", { name: "Show password", exact: true })
+    .click();
+  await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute(
+    "type",
+    "text",
+  );
+  await page
+    .getByRole("button", { name: "Hide password", exact: true })
+    .click();
+  await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute(
+    "type",
+    "password",
+  );
+});
+
+test("wrong credentials show dismissible errors and repeat attempts restart the toast timer", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.getByLabel("Email address").fill("missing-account@example.com");
+  await page.getByLabel("Password", { exact: true }).fill("wrong-password");
+  const submit = page.getByRole("button", { name: "Sign in", exact: true });
+  const toast = page.locator(".toast-error");
+  await submit.click();
+  await expect(toast).toContainText("Email or password is incorrect.");
+  await expect(page.getByLabel("Password", { exact: true })).toBeFocused();
+  await page.clock.fastForward(6000);
+  await submit.click();
+  await expect(submit).toBeEnabled();
+  await page.clock.fastForward(3000);
+  await expect(toast).toBeVisible();
+  await toast.hover();
+  await page.clock.fastForward(9000);
+  await expect(toast).toBeVisible();
+  await page.getByRole("button", { name: "Dismiss notification" }).click();
+  await expect(toast).toHaveCount(0);
+  await expect(page.getByLabel("Email address")).toHaveValue(
+    "missing-account@example.com",
+  );
+  await expect(page.getByLabel("Password", { exact: true })).toHaveValue(
+    "wrong-password",
+  );
+});
+
+test("connection failures give actionable feedback and allow login to be retried", async ({
+  page,
+}) => {
+  await page.route("**/api/login", (route) => route.abort());
+  await page.getByLabel("Email address").fill("person@example.com");
+  await page.getByLabel("Password", { exact: true }).fill("test-password");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.locator(".toast-error")).toContainText(
+    "Check your connection and try again.",
+  );
+  await expect(
+    page.getByRole("button", { name: "Sign in", exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByLabel("Email address")).toHaveValue(
+    "person@example.com",
+  );
+});
+
 async function emailCode(page, email) {
   const response = await page.request.get(
     `/__test__/email?address=${encodeURIComponent(email)}`,
@@ -278,11 +370,17 @@ test("blank profile fields, validation, saving and cancel work with user details
   await page.getByLabel("About me").fill("   ");
   await page.getByRole("button", { name: "Save profile", exact: true }).click();
   await expect(page.getByText("About me is required.")).toBeVisible();
+  await expect(page.locator(".toast-error")).toContainText(
+    "Couldn't save your profile",
+  );
   await page
     .getByLabel("About me")
     .fill("Building a tool to help local communities.");
   await page.getByRole("button", { name: "Save profile", exact: true }).click();
   await expect(page.getByText("100% complete", { exact: true })).toBeVisible();
+  await expect(page.locator(".toast-success")).toContainText(
+    "Your profile has been updated.",
+  );
   await expect(
     page.getByText("Building a tool to help local communities."),
   ).toBeVisible();

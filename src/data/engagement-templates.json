@@ -1,0 +1,113 @@
+{
+  "mentorship": {
+    "id": "mentorship",
+    "name": "Mentorship",
+    "version": 1,
+    "milestones": [
+      {
+        "id": "goals",
+        "title": "Goals defined",
+        "description": "Agree on the founder’s priority goals and success measures.",
+        "evidence": false
+      },
+      {
+        "id": "session",
+        "title": "Session scheduled",
+        "description": "Book the first guidance session together.",
+        "evidence": false
+      },
+      {
+        "id": "guidance",
+        "title": "Guidance delivered",
+        "description": "Share practical product guidance and key takeaways.",
+        "evidence": true
+      },
+      {
+        "id": "followup",
+        "title": "Follow-up actions logged",
+        "description": "Capture the agreed next steps and owners.",
+        "evidence": false
+      },
+      {
+        "id": "reviewed",
+        "title": "Engagement reviewed",
+        "description": "Reflect on progress and what comes next.",
+        "evidence": false
+      }
+    ]
+  },
+  "marketing": {
+    "id": "marketing",
+    "name": "Co-Marketing Swap",
+    "version": 1,
+    "milestones": [
+      {
+        "id": "audience",
+        "title": "Audience aligned",
+        "description": "Agree on the student audiences each team wants to reach.",
+        "evidence": false
+      },
+      {
+        "id": "assets",
+        "title": "Campaign assets ready",
+        "description": "Prepare newsletter and social campaign materials.",
+        "evidence": false
+      },
+      {
+        "id": "launch",
+        "title": "Campaign launched",
+        "description": "Publish the cross-promotion across both channels.",
+        "evidence": true
+      },
+      {
+        "id": "results",
+        "title": "Results shared",
+        "description": "Compare reach, clicks, and sign-ups together.",
+        "evidence": true
+      },
+      {
+        "id": "followup",
+        "title": "Next steps agreed",
+        "description": "Capture what to repeat in the next campaign.",
+        "evidence": false
+      }
+    ]
+  },
+  "beta": {
+    "id": "beta",
+    "name": "Beta Testing Exchange",
+    "version": 1,
+    "milestones": [
+      {
+        "id": "scope",
+        "title": "Scope defined",
+        "description": "Both teams agreed on what success looks like.",
+        "evidence": false
+      },
+      {
+        "id": "testers",
+        "title": "Testers assigned",
+        "description": "Invite the agreed group of users to the beta.",
+        "evidence": false
+      },
+      {
+        "id": "testing",
+        "title": "Testing round",
+        "description": "Two-week product testing window.",
+        "evidence": true
+      },
+      {
+        "id": "feedback",
+        "title": "Feedback submitted",
+        "description": "Collect feedback in the shared form.",
+        "evidence": true
+      },
+      {
+        "id": "issues",
+        "title": "Issues reviewed",
+        "description": "Review findings and agree on next steps.",
+        "evidence": false
+      }
+    ]
+  }
+}

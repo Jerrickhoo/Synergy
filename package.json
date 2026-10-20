@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server/start.js",
+    "backup": "node server/backup.js",
     "test:e2e": "playwright test",
     "test:unit": "node --test tests/*.test.js",
     "test": "npm run test:unit && npm run test:e2e",

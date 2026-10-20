@@ -5,6 +5,11 @@ export default function NextStep() {
   if (state.page === "room-detail" && state.roomTab === "milestones")
     return null;
   const agreement = model.currentAgreement();
+  if (
+    state.page === "room-detail" &&
+    model.activeRoom()?.status === "cancelled"
+  )
+    return null;
   const prompts = {
     "room-detail": {
       title: "Move the collaboration forward",

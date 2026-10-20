@@ -7,6 +7,8 @@ import { profileCompleteness } from "../data/selectors.js";
 import ProfileStats from "../components/ProfileStats.jsx";
 import EmailVerification from "../components/EmailVerification.jsx";
 import ProfileAssistant from "../components/ProfileAssistant.jsx";
+import ProfileOptions from "../components/ProfileOptions.jsx";
+import CommunityRequests from "../components/CommunityRequests.jsx";
 
 export default function ProfilePage() {
   const { state, model, onAction, onSubmit } = useApp();
@@ -61,7 +63,7 @@ export default function ProfilePage() {
               onApply={(draft) => {
                 for (const [key, value] of Object.entries(draft)) {
                   const field = formRef.current?.elements.namedItem(key);
-                  if (field && value) field.value = value;
+                  if (field) field.value = value;
                 }
               }}
             />
@@ -181,13 +183,30 @@ export default function ProfilePage() {
               </div>
             )}
 
+            <ProfileOptions profile={profile} />
+            {!founder && (
+              <div className="field full-width">
+                <label htmlFor="profile-experience">Past experience</label>
+                <textarea
+                  id="profile-experience"
+                  name="pastExperience"
+                  maxLength={2000}
+                  defaultValue={profile.pastExperience || ""}
+                  placeholder="Previous roles, startups advised, projects and lessons you can share."
+                />
+                <p className="muted">
+                  Optional. This appears on your mentor profile.
+                </p>
+              </div>
+            )}
             <div className="profile-edit-actions">
               <button
                 className="btn primary"
                 type="submit"
                 disabled={state.busy}
               >
-                Save profile
+                {state.busy && <span className="spinner" aria-hidden="true" />}
+                {state.busy ? "Saving profile…" : "Save profile"}
               </button>
               <button
                 className="btn"
@@ -215,6 +234,24 @@ export default function ProfilePage() {
                 <h3>What I need</h3>
                 <p>{profile.need}</p>
               </div>
+            )}
+            {profile.goals && (
+              <p>
+                <strong>Goals:</strong> {profile.goals}
+              </p>
+            )}
+            {!founder && profile.pastExperience && (
+              <div>
+                <h3>Past experience</h3>
+                <p className="preserve-lines">{profile.pastExperience}</p>
+              </div>
+            )}
+            {(profile.engagementPreference || profile.audienceSize) && (
+              <p className="muted">
+                {profile.engagementPreference ||
+                  "Engagement preference not specified"}
+                {profile.audienceSize && ` · Audience: ${profile.audienceSize}`}
+              </p>
             )}
             {founder && profile.industry && (
               <p className="muted">
@@ -244,6 +281,13 @@ export default function ProfilePage() {
         )}
       </section>
       <ProfileStats />
+      <CommunityRequests />
+      <button
+        className="btn section-gap"
+        onClick={() => onAction({ page: "notifications" })}
+      >
+        Updates and notification preferences
+      </button>
       <details className="card panel profile-history">
         <summary>Collaboration history ({history.length})</summary>
         {history.length ? (
