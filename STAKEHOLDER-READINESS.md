@@ -1,3 +1,9 @@
+# Current local prototype status - October 25, 2026
+
+The review defects and prototype improvements have been implemented. See [QA-REPORT.md](QA-REPORT.md) for current verification and [DEPLOYMENT.md](DEPLOYMENT.md) for updated Node.js 24+, SQLite, backup and activation instructions. The user confirmed this is local prototype code with no live app. No deployment or provider activation was performed. The October 20 assessment below is historical and its implementation limitations should not be treated as current.
+
+---
+
 # Stakeholder feedback readiness — October 20, 2026
 
 **Verdict: ready for a guided prototype feedback session. A self-service stakeholder link still needs deployment and live email verification.**

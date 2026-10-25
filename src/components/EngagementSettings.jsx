@@ -116,8 +116,13 @@ export default function EngagementSettings() {
               </thead>
               <tbody>
                 {report.cohorts.map((row) => (
-                  <tr key={`${row.version}-${row.type}-${row.band}`}>
-                    <td>{row.version}</td>
+                  <tr
+                    key={`${row.algorithm}-${row.version}-${row.type}-${row.band}`}
+                  >
+                    <td>
+                      {row.version}
+                      <small className="muted"> {row.algorithm}</small>
+                    </td>
                     <td>{row.type}</td>
                     <td>{row.band}</td>
                     <td>{row.rooms}</td>

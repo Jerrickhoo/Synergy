@@ -13,6 +13,7 @@ import { createInitialState, createModel } from "../data/model.js";
 import { fieldKey, readField } from "./fields.js";
 import { transition } from "./transitions.js";
 import { applyRoute, parseRoute, routeHash } from "./routes.js";
+import { fetchWithDeadline } from "./request.js";
 import { decode } from "./serialization.js";
 import {
   errorTitle,
@@ -62,6 +63,7 @@ const dataKeys = [
   "affiliation",
   "engagementTemplates",
   "matchingConfig",
+  "introductionTypesByRole",
 ];
 const remoteActions = new Set([
   "choose-role",
@@ -81,7 +83,11 @@ const remoteActions = new Set([
 ]);
 const reducer = (state, payload) =>
   produce(state, (draft) => {
-    if (payload.action === "restore") {
+    if (payload.action === "capabilities") {
+      draft.integrations = { ...draft.integrations, ...payload.integrations };
+    } else if (payload.action === "restore-error") {
+      draft.connectionError = payload.message;
+    } else if (payload.action === "restore") {
       Object.assign(draft, payload.state, {
         restoring: false,
         busy: false,
@@ -89,6 +95,7 @@ const reducer = (state, payload) =>
         confirmation: "",
         formErrors: null,
         profileEditing: false,
+        connectionError: "",
       });
       applyRoute(draft, parseRoute(window.location.hash));
       if (payload.message) publishToast(draft, payload.message);
@@ -195,9 +202,11 @@ const reducer = (state, payload) =>
   });
 
 export function AppProvider({ children }) {
+  const [restoreTick, setRestoreTick] = useState(0);
   const [authChallenge, setAuthChallenge] = useState(savedLoginChallenge);
   const token = useRef(sessionStorage.getItem("synergy-session"));
   const revision = useRef(-1);
+  const refreshKey = useRef("");
   const pending = useRef(false);
   const [state, dispatch] = useReducer(reducer, undefined, () => {
     const initial = createInitialState();
@@ -220,7 +229,7 @@ export function AppProvider({ children }) {
   async function request(path, body) {
     let response;
     try {
-      response = await fetch(`/api/${path}`, {
+      response = await fetchWithDeadline(`/api/${path}`, {
         method: body ? "POST" : "GET",
         headers: {
           ...(body ? { "Content-Type": "application/json" } : {}),
@@ -278,6 +287,13 @@ export function AppProvider({ children }) {
     });
   }
   useEffect(() => {
+    request("capabilities")
+      .then((integrations) =>
+        dispatch({ action: "capabilities", integrations }),
+      )
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
     if (!token.current) return;
     let stopped = false;
     request("state")
@@ -288,37 +304,63 @@ export function AppProvider({ children }) {
       })
       .catch((error) => {
         if (stopped) return;
-        token.current = null;
-        sessionStorage.removeItem("synergy-session");
-        dispatch({
-          action: "signed-out",
-          message:
-            error.status === 401
-              ? "Your session ended. Sign in to recover your saved workspace."
-              : "Could not reach the workspace server. Please sign in again when it is available.",
-        });
+        if (error.status === 401) {
+          token.current = null;
+          sessionStorage.removeItem("synergy-session");
+          dispatch({
+            action: "signed-out",
+            message:
+              "Your session ended. Sign in to recover your saved workspace.",
+          });
+        } else
+          dispatch({
+            action: "restore-error",
+            message:
+              "Could not reach your saved workspace. Your session is preserved. Retry when your connection is available.",
+          });
       });
     return () => {
       stopped = true;
     };
-  }, []);
+  }, [restoreTick]);
   useEffect(() => {
     if (!state.authenticated || state.restoring) return;
     let stopped = false;
+    let refreshing = false;
+    let failures = 0;
+    let retryAt = 0;
     async function refresh() {
-      if (pending.current) return;
+      if (
+        pending.current ||
+        refreshing ||
+        document.hidden ||
+        Date.now() < retryAt
+      )
+        return;
+      refreshing = true;
       try {
-        const result = await request(`state?role=${state.role}`);
+        const result = await request(
+          `state?role=${state.role}&since=${revision.current}&key=${encodeURIComponent(refreshKey.current || "")}`,
+        );
+        failures = 0;
+        retryAt = 0;
+        if (result.unchanged) return;
         if (
           !stopped &&
           !pending.current &&
-          result.revision >= revision.current
+          result.revision >= revision.current &&
+          (result.revision > revision.current ||
+            result.refreshKey !== refreshKey.current ||
+            state.connectionError)
         ) {
           revision.current = result.revision;
+          refreshKey.current = result.refreshKey;
           dispatch({ action: "remote", state: result.state });
         }
       } catch (error) {
         if (stopped) return;
+        refreshKey.current = "";
+        retryAt = Date.now() + Math.min(30000, 1500 * 2 ** failures++);
         if (error.status === 401) {
           token.current = null;
           sessionStorage.removeItem("synergy-session");
@@ -333,15 +375,23 @@ export function AppProvider({ children }) {
             message:
               "Connection interrupted. Your saved work is safe; updates will resume when the server is available.",
           });
+      } finally {
+        refreshing = false;
       }
     }
     refresh();
     const timer = setInterval(refresh, 1500);
-    window.addEventListener("focus", refresh);
+    const resume = () => {
+      retryAt = 0;
+      refresh();
+    };
+    window.addEventListener("focus", resume);
+    document.addEventListener("visibilitychange", resume);
     return () => {
       stopped = true;
       clearInterval(timer);
-      window.removeEventListener("focus", refresh);
+      window.removeEventListener("focus", resume);
+      document.removeEventListener("visibilitychange", resume);
     };
   }, [state.authenticated, state.restoring, state.role]);
   useEffect(() => {
@@ -385,10 +435,17 @@ export function AppProvider({ children }) {
     dispatch({ action: "request-status", busy: true });
     const payload = {
       ...command,
+      engagementType: command.engagementType,
       role: state.role,
       activeRoomId: state.activeRoomId,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      termsRevision: state.rooms[state.activeRoomId]?.terms.revision || 0,
+      termsRevision:
+        command.values?.revision !== undefined
+          ? Number(command.values.revision)
+          : state.rooms[state.activeRoomId]?.terms.revision || 0,
+      milestoneVersion:
+        state.rooms[state.activeRoomId]?.milestones[command.id]
+          ?.contentVersion || 0,
     };
     try {
       if (["login-form", "signup-form"].includes(command.form)) {
@@ -444,6 +501,13 @@ export function AppProvider({ children }) {
       } catch {
         /* Local sign-out remains possible offline. */
       }
+      try {
+        for (const key of Object.keys(sessionStorage))
+          if (key.startsWith(`synergy-draft:${state.accountId}:`))
+            sessionStorage.removeItem(key);
+      } catch {
+        /* Sign-out remains available if storage is blocked. */
+      }
       token.current = null;
       sessionStorage.removeItem("synergy-session");
       revision.current = -1;
@@ -454,6 +518,14 @@ export function AppProvider({ children }) {
       const form = event.currentTarget.form;
       if (!form.reportValidity()) return;
       payload = { ...payload, values: Object.fromEntries(new FormData(form)) };
+    }
+    if (
+      payload.action === "interest" &&
+      !payload.engagementType &&
+      !state.incomingByRole[state.role].has(payload.id)
+    ) {
+      dispatch({ action: "match-detail", id: payload.id });
+      return;
     }
     if (remoteActions.has(payload.action)) return send(payload);
     dispatch(payload);
@@ -472,6 +544,7 @@ export function AppProvider({ children }) {
     )
       form.reset();
     if (success && form.id === "chat-form") form.reset();
+    return success;
   }
   function onInvalid(event) {
     event.preventDefault();
@@ -509,6 +582,7 @@ export function AppProvider({ children }) {
       dispatch({ action: "clear-field-error", scope, field: fieldName(input) });
   }
   async function integrationRequest(path, body) {
+    if (body === undefined) return request(path);
     if (pending.current)
       throw new Error("Please wait for your current request to finish.");
     pending.current = true;
@@ -571,7 +645,7 @@ export function AppProvider({ children }) {
         room: state.activeRoomId,
         milestone: form.dataset.id,
       });
-      const response = await fetch(`/api/upload?${query}`, {
+      const response = await fetchWithDeadline(`/api/upload?${query}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token.current}`,
@@ -606,7 +680,7 @@ export function AppProvider({ children }) {
   }
   async function downloadFile(file) {
     try {
-      const response = await fetch(`/api/files/${file.id}`, {
+      const response = await fetchWithDeadline(`/api/files/${file.id}`, {
         headers: { Authorization: `Bearer ${token.current}` },
       });
       if (!response.ok) throw new Error((await response.json()).error);
@@ -643,6 +717,7 @@ export function AppProvider({ children }) {
   return (
     <AppContext.Provider
       value={{
+        retryRestore: () => setRestoreTick((value) => value + 1),
         authChallenge,
         resendLoginCode,
         cancelLogin,

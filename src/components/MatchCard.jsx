@@ -45,79 +45,6 @@ export default function MatchCard({ person, large = false }) {
         {"\n            "}
       </div>
       <div className="match-body">
-        <p className="match-copy">{person.summary}</p>
-        {"\n            "}
-        <div
-          style={{
-            display: "flex",
-            gap: "13px",
-            flexWrap: "wrap",
-          }}
-        >
-          {"\n              "}
-          <div>
-            <div className="match-chip-label">THEY OFFER</div>
-            <Tags values={person.offer} color="green" />
-          </div>
-          {"\n              "}
-          <div>
-            <div className="match-chip-label">THEY'RE LOOKING FOR</div>
-            <Tags values={person.need} />
-          </div>
-          {"\n            "}
-        </div>
-        {"\n            "}
-        <button
-          className="link-btn why"
-          data-action="why"
-          data-id={person.id}
-          aria-expanded={expanded}
-          aria-controls={`match-why-${person.id}`}
-          onClick={(event) =>
-            onAction(
-              {
-                action: "why",
-                id: person.id,
-              },
-              event,
-            )
-          }
-        >
-          {expanded ? "Hide" : "Why this match?"}
-        </button>
-        {"\n              "}
-        <div
-          id={`match-why-${person.id}`}
-          className={"why-content " + (expanded ? "open" : "")}
-        >
-          {"\n                "}
-          {expanded ? (
-            <>
-              <div className="why-box">
-                {scoreFactors(person).map(([name, index], itemIndex) => (
-                  <Fragment key={itemIndex}>
-                    <div className="why-metric">
-                      <span>{name}</span>
-                      <strong>{person.why[index]}</strong>
-                    </div>
-                  </Fragment>
-                ))}
-              </div>
-              <p
-                style={{
-                  margin: "8px 0 0",
-                }}
-              >
-                Review the profile signals before connecting. This score is a
-                guide—not a decision made for you.
-              </p>
-            </>
-          ) : (
-            ""
-          )}
-          {"\n              "}
-        </div>
-        {"\n            "}
         <div className="match-actions">
           {"\n              "}
           <button
@@ -201,6 +128,81 @@ export default function MatchCard({ person, large = false }) {
           </button>
           {"\n            "}
         </div>
+
+        <p className="match-copy">{person.summary}</p>
+        {"\n            "}
+        <div
+          style={{
+            display: "flex",
+            gap: "13px",
+            flexWrap: "wrap",
+          }}
+        >
+          {"\n              "}
+          <div>
+            <div className="match-chip-label">THEY OFFER</div>
+            <Tags values={person.offer} color="green" />
+          </div>
+          {"\n              "}
+          <div>
+            <div className="match-chip-label">THEY'RE LOOKING FOR</div>
+            <Tags values={person.need} />
+          </div>
+          {"\n            "}
+        </div>
+        {"\n            "}
+        <button
+          className="link-btn why"
+          data-action="why"
+          data-id={person.id}
+          aria-expanded={expanded}
+          aria-controls={`match-why-${person.id}`}
+          onClick={(event) =>
+            onAction(
+              {
+                action: "why",
+                id: person.id,
+              },
+              event,
+            )
+          }
+        >
+          {expanded ? "Hide" : "Why this match?"}
+        </button>
+        {"\n              "}
+        <div
+          id={`match-why-${person.id}`}
+          className={"why-content " + (expanded ? "open" : "")}
+        >
+          {"\n                "}
+          {expanded ? (
+            <>
+              <div className="why-box">
+                {scoreFactors(person).map(([name, index], itemIndex) => (
+                  <Fragment key={itemIndex}>
+                    <div className="why-metric">
+                      <span>{name}</span>
+                      <strong>{person.why[index]}</strong>
+                      <small>{person.factorDetails?.[index]}</small>
+                    </div>
+                  </Fragment>
+                ))}
+              </div>
+              <p
+                style={{
+                  margin: "8px 0 0",
+                }}
+              >
+                Review the profile signals before connecting. This score is a
+                guide—not a decision made for you.
+              </p>
+            </>
+          ) : (
+            ""
+          )}
+          {"\n              "}
+        </div>
+        {"\n            "}
         <TrustSummary person={person} />
         {"\n          "}
       </div>

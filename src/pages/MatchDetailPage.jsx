@@ -1,4 +1,5 @@
-import { Fragment } from "react";
+import BlockCollaborator from "../components/BlockCollaborator.jsx";
+import { Fragment, useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Avatar from "../components/Avatar.jsx";
 import Tags from "../components/Tags.jsx";
@@ -7,6 +8,7 @@ import TrustSummary from "../components/TrustSummary.jsx";
 export default function MatchDetailPage() {
   const { state, model, onAction } = useApp();
   const { savedMatches, interestedMatches, scoreFactors } = model;
+  const [engagementType, setEngagementType] = useState("");
   const person = model
     .rolePeople()
     .find((item) => item.id === state.activeMatch);
@@ -190,6 +192,36 @@ export default function MatchDetailPage() {
             next.
           </p>
           {"\n            "}
+          {!existingRoom &&
+            !incoming &&
+            !interestedMatches().has(person.id) && (
+              <div className="field section-gap">
+                <label htmlFor="introduction-type">Collaboration type</label>
+                <select
+                  id="introduction-type"
+                  value={engagementType || model.roomTypeForPerson(person)}
+                  onChange={(event) => setEngagementType(event.target.value)}
+                >
+                  {state.role === "mentor" || person.kind === "Mentor" ? (
+                    <option value="mentorship">Mentorship</option>
+                  ) : (
+                    <>
+                      <option value="beta">Beta Testing Exchange</option>
+                      <option value="marketing">Co-Marketing Swap</option>
+                    </>
+                  )}
+                </select>
+                <p className="muted">
+                  Your collaborator reviews this type before accepting. You will
+                  agree on the scope together in the room.
+                </p>
+              </div>
+            )}
+          {(incoming || interestedMatches().has(person.id)) && (
+            <p>
+              Proposed collaboration: <strong>{person.engagement}</strong>
+            </p>
+          )}
           <button
             className="btn primary full"
             data-action="interest"
@@ -208,6 +240,8 @@ export default function MatchDetailPage() {
                       ? "accept-interest"
                       : "interest",
                   id: existingRoom?.id || person.id,
+                  engagementType:
+                    engagementType || model.roomTypeForPerson(person),
                 },
                 event,
               )
@@ -244,6 +278,7 @@ export default function MatchDetailPage() {
               : "Save for later"}
           </button>
           {"\n          "}
+          <BlockCollaborator person={person} />
         </aside>
         {"\n        "}
       </div>

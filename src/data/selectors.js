@@ -28,6 +28,50 @@ export const roomProgress = (room) => {
     : 0;
 };
 
+export function attentionItems(state, now = Date.now()) {
+  const items = [];
+  const add = (priority, text, room, tab = "milestones") =>
+    items.push({ priority, text, roomId: room.id, tab });
+  for (const room of roleRooms(state)) {
+    if (room.status === "launched" && !room.review.me) {
+      items.push({
+        priority: 3,
+        text: "Review your completed collaboration",
+        roomId: room.id,
+        review: true,
+      });
+    }
+    if (terminalStatuses.includes(room.status)) continue;
+    if (room.terms.locked && !room.terms.confirmedByMe)
+      add(1, "Review and accept your collaborator's terms", room, "terms");
+    for (const item of Object.values(room.milestones)) {
+      if (item.disputed) add(0, `Resolve a dispute: ${item.title}`, room);
+      else if (item.proposal && item.proposal.proposedBy !== state.accountId)
+        add(1, `Review proposed scope: ${item.title}`, room);
+      else if (item.partner && !item.me)
+        add(2, `Review and confirm: ${item.title}`, room);
+      if (item.dueDate && !(item.me && item.partner)) {
+        const remaining = Date.parse(`${item.dueDate}T23:59:59Z`) - now;
+        if (remaining <= 86400000)
+          add(
+            remaining < 0 ? 1 : 3,
+            `${remaining < 0 ? "Overdue" : "Due soon"}: ${item.title}`,
+            room,
+          );
+      }
+    }
+  }
+  if (state.incomingByRole[state.role].size)
+    items.push({
+      priority: 2,
+      text: "Respond to your pending introductions",
+      page: "waiting",
+    });
+  return items.sort(
+    (a, b) => a.priority - b.priority || a.text.localeCompare(b.text),
+  );
+}
+
 export function launchBlockers(room) {
   if (!room) return ["This room is unavailable."];
   if (room.status === "cancelled") return ["This collaboration is closed."];

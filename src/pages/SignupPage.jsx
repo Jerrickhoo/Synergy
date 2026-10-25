@@ -13,8 +13,9 @@ export default function SignupPage() {
           <div className="eyebrow">JOIN THE COMMUNITY</div>
           <h1 tabIndex="-1">Create your account</h1>
           <p className="panel-subtitle">
-            Choose your role. We'll email you a code to confirm your account,
-            then you can complete your profile and connect with collaborators.
+            {state.integrations?.loginCode
+              ? "Choose your role. We'll email you a code to confirm your account, then you can complete your profile and connect with collaborators."
+              : "Choose your role, create your account, then complete your profile to find collaborators."}
           </p>
           <form
             id="signup-form"

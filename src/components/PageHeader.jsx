@@ -4,7 +4,7 @@ export default function PageHeader({ eyebrow, title, intro, actions = "" }) {
     <>
       <div className="page-head">
         <div>
-          <div className="eyebrow">{eyebrow}</div>
+          {eyebrow && <div className="eyebrow">{eyebrow}</div>}
           <h1 tabIndex="-1">{title}</h1>
           <p className="intro">{intro}</p>
         </div>

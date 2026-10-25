@@ -111,7 +111,16 @@ export default function Login() {
                 </div>
                 {"\n          "}
                 <div className="field">
-                  <label htmlFor="login-password">Password</label>
+                  <div className="field-label-row">
+                    <label htmlFor="login-password">Password</label>
+                    <button
+                      className="link-btn"
+                      type="button"
+                      onClick={() => setRecovering(true)}
+                    >
+                      Forgot your password?
+                    </button>
+                  </div>
                   <div className="password-wrap">
                     <input
                       id="login-password"
@@ -163,13 +172,6 @@ export default function Login() {
                 </button>
                 {"\n        "}
               </form>
-              <button
-                className="link-btn section-gap"
-                type="button"
-                onClick={() => setRecovering(true)}
-              >
-                Forgot your password?
-              </button>
               {"\n        "}
               <p className="login-join">
                 {"New to Synergy? "}

@@ -1,3 +1,4 @@
+import { createOperations, logFailure } from "./operations.js";
 import { resolve, dirname, join } from "node:path";
 import { mkdirSync, writeFileSync, unlinkSync, readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -16,6 +17,7 @@ export function createApi({
 } = {}) {
   const workspace = createWorkspace(file, config);
   const services = createServices(config, fetcher);
+  const operations = createOperations(config, () => workspace.health());
   const uploads = resolve(dirname(file), "uploads");
   const attempts = new Map();
   async function deliverLoginCode(proof, send) {
@@ -56,8 +58,10 @@ export function createApi({
     };
     try {
       const token = req.headers.authorization?.replace(/^Bearer /, "");
-      if (req.method === "GET" && url.pathname === "/api/health")
-        return send(200, { ok: true });
+      if (req.method === "GET" && url.pathname === "/api/health") {
+        const health = operations.health();
+        return send(health.ok ? 200 : 503, health);
+      }
       const fileRoute = /^\/api\/files\/([0-9a-f-]{36})$/.exec(url.pathname);
       if (req.method === "GET" && fileRoute) {
         const metadata = workspace.fileFor(token, fileRoute[1]);
@@ -78,10 +82,29 @@ export function createApi({
         res.setHeader("Content-Security-Policy", "sandbox");
         return res.end(bytes);
       }
+      if (req.method === "GET" && url.pathname === "/api/capabilities")
+        return send(200, {
+          email: emailConfiguration(config).enabled,
+          loginCode: config.requireLoginCode,
+        });
+      if (req.method === "GET" && url.pathname === "/api/account")
+        return send(200, workspace.accounts.settings(token));
+      if (req.method === "GET" && url.pathname === "/api/account/export") {
+        res.setHeader(
+          "Content-Disposition",
+          'attachment; filename="synergy-account.json"',
+        );
+        return send(200, workspace.accounts.export(token));
+      }
       if (req.method === "GET" && url.pathname === "/api/state")
         return send(
           200,
-          workspace.get(token, url.searchParams.get("role") || undefined),
+          workspace.poll(
+            token,
+            url.searchParams.get("role") || undefined,
+            url.searchParams.get("since"),
+            url.searchParams.get("key"),
+          ),
         );
       if (req.method !== "POST")
         return send(404, { error: "Endpoint unavailable." });
@@ -140,7 +163,8 @@ export function createApi({
           "/api/auth/resend",
           "/api/password/request",
           "/api/password/reset",
-        ].includes(url.pathname)
+        ].includes(url.pathname) ||
+        url.pathname.startsWith("/api/account/")
       ) {
         const key = `${req.socket.remoteAddress}:${url.pathname}`;
         const now = Date.now();
@@ -151,9 +175,52 @@ export function createApi({
           return send(429, {
             error: "Too many sign-in attempts. Try again in a minute.",
           });
+        if (attempts.size > 10000)
+          for (const [storedKey, times] of attempts)
+            if (!times.some((time) => time > now - 60000))
+              attempts.delete(storedKey);
         attempts.set(key, [...recent, now]);
+        if (url.pathname.startsWith("/api/account/")) {
+          if (url.pathname === "/api/account/visibility")
+            return send(
+              200,
+              workspace.accounts.visibility(token, input.visible),
+            );
+          if (url.pathname === "/api/account/block")
+            return send(
+              200,
+              workspace.accounts.block(token, input.accountId, input.blocked),
+            );
+          if (url.pathname === "/api/account/email/verify")
+            return send(
+              200,
+              workspace.accounts.confirmEmail(token, input.code),
+            );
+          await workspace.accounts.password(token, input.password);
+          if (url.pathname === "/api/account/sessions/revoke")
+            return send(200, workspace.accounts.revoke(token, input.id));
+          if (url.pathname === "/api/account/delete") {
+            if (input.confirmation !== "DELETE")
+              throw new WorkspaceError(
+                "Type DELETE to confirm account deletion.",
+              );
+            return send(200, workspace.accounts.delete(token));
+          }
+          if (url.pathname === "/api/account/email") {
+            if (!emailConfiguration(config).enabled)
+              throw new WorkspaceError(
+                "Email delivery must be configured before changing your address.",
+                503,
+              );
+            const proof = workspace.accounts.beginEmail(token, input.email);
+            await services.sendVerification(proof.email, proof.code);
+            workspace.accounts.emailSent(token, proof.email, proof.code);
+            return send(200, { ok: true, email: proof.email });
+          }
+          return send(404, { error: "Endpoint unavailable." });
+        }
         if (url.pathname === "/api/password/reset")
-          return send(200, workspace.features.resetPassword(input));
+          return send(200, await workspace.features.resetPasswordAsync(input));
         if (url.pathname === "/api/password/request") {
           if (!emailConfiguration(config).enabled)
             throw new WorkspaceError(
@@ -190,7 +257,10 @@ export function createApi({
             workspace.resendLogin(input.challengeId),
             send,
           );
-        const result = workspace.login(input, url.pathname === "/api/signup");
+        const result = await workspace.loginAsync(
+          input,
+          url.pathname === "/api/signup",
+        );
         if (result.verificationRequired)
           return await deliverLoginCode(result, send);
         return send(200, result);
@@ -261,8 +331,10 @@ export function createApi({
         return send(200, workspace.act(token, input));
       return send(404, { error: "Endpoint unavailable." });
     } catch (error) {
-      if (!(error instanceof WorkspaceError))
-        console.error("Workspace request failed:", error);
+      if (!(error instanceof WorkspaceError) || error.status >= 500) {
+        operations.invalidate();
+        logFailure("workspace_request_failed", error);
+      }
       return send(error.status || 500, {
         error:
           error instanceof WorkspaceError
@@ -272,6 +344,8 @@ export function createApi({
       });
     }
   };
+  api.close = () => workspace.close();
+  api.runOperations = () => operations.tick();
   let digestRunning = false;
   api.runDigests = async () => {
     if (digestRunning || !emailConfiguration(config).enabled) return;
@@ -286,7 +360,8 @@ export function createApi({
             `${candidate.text}\n\nChange digest preferences in Synergy → Updates.`,
           );
           workspace.features.digestSent(candidate.id);
-        } catch {
+        } catch (error) {
+          logFailure("digest_delivery_failed", error);
           workspace.features.digestFailed(candidate.id);
         }
       }
@@ -302,9 +377,17 @@ export function workspacePlugin() {
   const install = (server) => {
     api ||= createApi();
     server.middlewares.use(api);
-    const timer = setInterval(() => api.runDigests().catch(() => {}), 60000);
+    const timer = setInterval(() => {
+      api
+        .runDigests()
+        .catch((error) => logFailure("digest_scheduler_failed", error));
+      api.runOperations();
+    }, 60000);
     timer.unref();
-    server.httpServer?.once("close", () => clearInterval(timer));
+    server.httpServer?.once("close", () => {
+      clearInterval(timer);
+      api.close();
+    });
   };
   return {
     name: "synergy-workspace",

@@ -1,6 +1,7 @@
 import { useApp } from "../state/AppContext.jsx";
 import Icon from "./Icon.jsx";
 import Brand from "./Brand.jsx";
+import { pageLabel } from "../data/filters.js";
 
 export default function Topbar() {
   const { state, model, onAction } = useApp();
@@ -23,7 +24,11 @@ export default function Topbar() {
       <div className="mobile-brand">
         <Brand compact />
       </div>
-      <span className="workspace-heading">Your workspace</span>
+      <div className="workspace-heading">
+        <span>Workspace</span>
+        <span aria-hidden="true">/</span>
+        <strong>{pageLabel(state.page)}</strong>
+      </div>
       <div className="top-actions">
         <button
           className="icon-btn tablet-signout"
@@ -38,7 +43,9 @@ export default function Topbar() {
           <button
             className="icon-btn"
             id="notification-toggle"
-            aria-label="Notifications"
+            aria-label={
+              unread ? `Notifications, ${unread} unread` : "Notifications"
+            }
             aria-expanded={state.notificationOpen}
             aria-controls="notification-panel"
             onClick={() => onAction({ action: "toggle-notifications" })}
@@ -46,7 +53,7 @@ export default function Topbar() {
             <Icon name="bell" />
             {unread > 0 && (
               <span className="notification-dot" aria-hidden="true">
-                {unread}
+                {unread > 99 ? "99+" : unread}
               </span>
             )}
           </button>
@@ -74,7 +81,10 @@ export default function Topbar() {
               )}
               {activity.length ? (
                 activity.map((item) => (
-                  <p key={item.id}>
+                  <p
+                    className={item.read ? "" : "notification-preview-unread"}
+                    key={item.id}
+                  >
                     {item.text}
                     {item.roomId && (
                       <button

@@ -1,9 +1,10 @@
+import { useDraft } from "../state/useDraft.js";
 import { Fragment, useRef } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import Avatar from "../components/Avatar.jsx";
 import FormErrors from "../components/FormErrors.jsx";
-import { profileCompleteness } from "../data/selectors.js";
+import { profileCompleteness, profileKeys } from "../data/selectors.js";
 import ProfileStats from "../components/ProfileStats.jsx";
 import EmailVerification from "../components/EmailVerification.jsx";
 import ProfileAssistant from "../components/ProfileAssistant.jsx";
@@ -14,9 +15,28 @@ export default function ProfilePage() {
   const { state, model, onAction, onSubmit } = useApp();
   const formRef = useRef(null);
   const founder = state.role === "founder";
-  const profile = state.profiles[state.role];
-  const completeness = profileCompleteness(profile, state.role);
+  const savedProfile = state.profiles[state.role];
+  const draft = useDraft(`${state.accountId}:profile:${state.role}`, {
+    ...savedProfile,
+    name: state.accountName,
+  });
+  const profile = state.profileEditing ? draft.values : savedProfile;
+  const completeness = profileCompleteness(savedProfile, state.role);
   const history = state.trustHistoryByRole[state.role];
+  const fieldNames = {
+    bio: "an introduction",
+    offer: "what you offer",
+    need: "what you need",
+    industry: "your industry",
+    stage: "your startup stage",
+    teamSize: "your team size",
+    expertise: "your expertise",
+    availability: "your availability",
+    startups: "the startups you want to help",
+  };
+  const missing = profileKeys(state.role).filter(
+    (key) => !String(savedProfile[key] || "").trim(),
+  );
   return (
     <div className="page simple-profile page-enter">
       <PageHeader
@@ -33,6 +53,14 @@ export default function ProfilePage() {
           </div>
           <span className="tag profile-progress">{completeness}% complete</span>
         </div>
+        {missing.length > 0 && (
+          <div className="profile-completion-note">
+            <strong>Complete your profile to appear in Matches</strong>
+            <p>
+              Still to add: {missing.map((key) => fieldNames[key]).join(", ")}.
+            </p>
+          </div>
+        )}
         <div className="field account-role">
           <label htmlFor="account-role">I'm here as a</label>
           <select
@@ -56,15 +84,35 @@ export default function ProfilePage() {
             ref={formRef}
             key={state.role}
             className="grid section-gap"
-            onSubmit={onSubmit}
+            onChange={(event) =>
+              draft.update(
+                Object.fromEntries(new FormData(event.currentTarget)),
+              )
+            }
+            onSubmit={async (event) => {
+              const success = await onSubmit(event);
+              if (success) draft.clear();
+            }}
           >
+            <p className="muted">
+              Start with your introduction, what you offer and what you need.
+              Complete the required context below to appear in Matches. Optional
+              preferences can wait.
+            </p>
+            {draft.dirty && (
+              <p className="muted" role="status">
+                Your draft is saved in this tab. Save your profile to publish
+                changes.
+              </p>
+            )}
             <FormErrors scope="profile-form" />
             <ProfileAssistant
-              onApply={(draft) => {
-                for (const [key, value] of Object.entries(draft)) {
+              onApply={(suggestion) => {
+                for (const [key, value] of Object.entries(suggestion)) {
                   const field = formRef.current?.elements.namedItem(key);
                   if (field) field.value = value;
                 }
+                draft.update(Object.fromEntries(new FormData(formRef.current)));
               }}
             />
             <div className="field">
@@ -74,7 +122,7 @@ export default function ProfilePage() {
                 name="name"
                 autoComplete="name"
                 required
-                defaultValue={state.accountName}
+                defaultValue={profile.name || state.accountName}
               />
             </div>
             <div className="field">
@@ -83,6 +131,8 @@ export default function ProfilePage() {
                 id="profile-bio"
                 name="bio"
                 required
+                placeholder="What are you building, and who does it help?"
+                maxLength={2000}
                 defaultValue={profile.bio}
               />
             </div>
@@ -93,6 +143,8 @@ export default function ProfilePage() {
                   id="profile-offer"
                   name="offer"
                   required
+                  placeholder="For example: product design, access to 20 beta testers"
+                  maxLength={2000}
                   defaultValue={profile.offer}
                 />
               </div>
@@ -102,6 +154,8 @@ export default function ProfilePage() {
                   id="profile-need"
                   name="need"
                   required
+                  placeholder="For example: feedback on onboarding from student users"
+                  maxLength={2000}
                   defaultValue={profile.need}
                 />
               </div>
@@ -183,7 +237,10 @@ export default function ProfilePage() {
               </div>
             )}
 
-            <ProfileOptions profile={profile} />
+            <details className="optional-profile">
+              <summary>Optional collaboration preferences and tags</summary>
+              <ProfileOptions profile={profile} />
+            </details>
             {!founder && (
               <div className="field full-width">
                 <label htmlFor="profile-experience">Past experience</label>
@@ -211,7 +268,10 @@ export default function ProfilePage() {
               <button
                 className="btn"
                 type="button"
-                onClick={() => onAction({ action: "cancel-profile-edit" })}
+                onClick={() => {
+                  draft.clear();
+                  onAction({ action: "cancel-profile-edit" });
+                }}
               >
                 Cancel
               </button>
@@ -280,6 +340,12 @@ export default function ProfilePage() {
           </div>
         )}
       </section>
+      <button
+        className="btn section-gap"
+        onClick={() => onAction({ page: "settings" })}
+      >
+        Account settings and privacy
+      </button>
       <ProfileStats />
       <CommunityRequests />
       <button

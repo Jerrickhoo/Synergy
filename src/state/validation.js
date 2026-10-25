@@ -79,6 +79,10 @@ export function validateCredentials(values, signup = false) {
     errors.email = "Enter a valid email address.";
   if (String(values.password || "").trim().length < (signup ? 8 : 4))
     errors.password = `Use at least ${signup ? 8 : 4} characters for your password.`;
+  if (typeof values.password !== "string" || values.password.length > 1024)
+    errors.password = "Use a password with at most 1,024 characters.";
+  if (String(values.email || "").length > 254)
+    errors.email = "Enter a valid email address.";
   return errors;
 }
 export function validateSchedule(values, now = new Date()) {

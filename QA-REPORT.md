@@ -1,4 +1,54 @@
-# Current verification — October 20, 2026
+# Current verification - October 25, 2026
+
+The confirmed review defects and the locally implementable improvements are addressed. This is a local prototype, as confirmed by the user. No public deployment, real mailbox delivery, paid AI call or off-site service was activated.
+
+## Verified results
+
+| Check                                      | Result                                                                                                   |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Unit, backend, storage and HTTP API checks | 74 passed                                                                                                |
+| Chromium, Firefox and WebKit browser suite | 90 passed (30 per engine)                                                                                |
+| Production build                           | Passed                                                                                                   |
+| Formatting and diff whitespace             | Passed                                                                                                   |
+| Automated accessibility scans              | No WCAG 2 A/AA and 2.1 AA violations in the scanned login, discovery, settings and profile-editor states |
+| Synthetic local concurrency smoke test     | 20 users, 200 unchanged-state requests; median 10 ms, p95 16 ms, max 17 ms in that run                   |
+
+The concurrency result describes a disposable loopback workspace on this machine while other checks were running. It is not a production throughput or capacity claim. Accessibility scans do not substitute for a screen-reader or real-device assessment.
+
+## Review findings addressed
+
+| Review area                    | Implemented behavior                                                                                                                                                                                                                                        |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stale milestone confirmations  | Mandatory content versions bind confirmations and dispute resolutions to reviewed evidence, scope, dates, schedules and agreement changes. Stale/missing versions return 409.                                                                               |
+| Lost shared edits              | Terms save/lock/acceptance require the observed revision; every save advances it. Unsaved drafts survive navigation/refresh and remain visible during conflicts.                                                                                            |
+| Connection recovery            | Temporary restore failures preserve sessions and offer Retry. Request deadlines include stalled response bodies; polling has backoff, visibility handling and overlap prevention.                                                                           |
+| Match quality                  | Reciprocal need coverage for exchanges, founder-to-mentor direction for mentorship, Unicode tokens, missing-input explanations and separate algorithm/weight versions.                                                                                      |
+| Setup and activation           | Required profile fields have examples; optional preferences/tags collapse. Drafts are tab/account scoped. Signup reflects email configuration. A copyable invitation link includes localhost limitations.                                                   |
+| Discovery                      | Suggested recommendations differ from Browse all. Industry choices derive from current data. Sort controls, broader score thresholds and twelve-result pages support browsing. Introductions propose an explicit engagement type for the partner to review. |
+| Mobile usability               | Compact discovery headers, reduced spacing and early match actions. Firefox verification-screen sizing was corrected.                                                                                                                                       |
+| Home priorities                | Disputes, pending terms, scope proposals, confirmations, deadlines and reviews take precedence over the completed-profile hero.                                                                                                                             |
+| Persistence and performance    | Transactional SQLite per-account records, WAL, safe legacy import and portable backups. An explicit JSON path remains compatible. HTTP password hashing is asynchronous; unchanged polls avoid directory/scoring reconstruction.                            |
+| Account/privacy                | Pause both profiles, export data, revoke selected/all other sessions, verified email changes, account blocking and password-confirmed deletion with stated shared-record retention.                                                                         |
+| Operations                     | Database/disk/write readiness checks, structured safe failure logs, optional scheduled verified backups and a repeatable synthetic benchmark.                                                                                                               |
+| Accessibility/browser coverage | Three browser engines, keyboard checks, automated accessibility scans and accessible unread counts. Error messages remain until dismissed. Route focus occurs before paint so it cannot steal typing from a newly opened form.                              |
+
+Additional checks cover failed migration retry, competing stale SQLite writers, corruption/missing evidence in backups, account isolation, contact restrictions after blocking/deletion and code/session revocation.
+
+## Compatibility and remaining real-world checks
+
+- Node.js 24+ is now required. New defaults use `.data/synergy.sqlite`. An existing explicit `.json` `SYNERGY_DATA_FILE` remains on JSON until changed; migration does not override an explicit path.
+- Back up an existing workspace and uploads before changing its data path. Automatic default-path migration preserves the neighboring original JSON file. Backups export portable JSON snapshots from either adapter.
+- The app still runs as a single writer/process. SQLite transactions and conditional polling improve this prototype; they do not provide managed object storage or multi-instance autoscaling.
+- A scheduled backup destination is optional and remains unconfigured unless `SYNERGY_BACKUP_DIR` is set. No off-site account or storage mount was provisioned. See [DEPLOYMENT.md](DEPLOYMENT.md) for destination, retention and restore instructions.
+- Deletion removes credentials, email, profile details and preferences and anonymizes displayed identity. Shared agreements, messages, evidence and reviews remain for collaborators, as explained before deletion. Existing backups follow the operator's retention policy.
+- Real email/AI provider behavior, public hosting, actual phones, physical screen readers, antivirus scanning and a real collaboration-outcome study remain unverified or outside this local prototype's scope. No claim of validated matching accuracy is made.
+- Verification used disposable accounts/databases. Application workspace data, private `.env` credentials and the original project specification were not edited. Changes remain in the working tree; no commit, push or deployment was performed.
+
+Visual checks included [mobile discovery](output/playwright/improved-matches-mobile.png) and [account settings](output/playwright/improved-settings-desktop.png). These are local ignored artifacts.
+
+---
+
+# Historical verification — October 20, 2026
 
 The stakeholder review findings have been addressed in the application. The earlier report is retained below as a historical record and does not describe the current feature boundaries.
 

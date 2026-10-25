@@ -322,7 +322,17 @@ function fixture(t, options = {}) {
     c = user("Observer"),
     admin = user("Moderator");
   const act = (u, command) =>
-    workspace.act(u.token, { role: u.state.role, ...command });
+    workspace.act(u.token, {
+      role: u.state.role,
+      termsRevision:
+        workspace.get(u.token).state.rooms[command.activeRoomId]?.terms
+          .revision || 0,
+      milestoneVersion:
+        workspace.get(u.token).state.rooms[command.activeRoomId]?.milestones[
+          command.id
+        ]?.contentVersion || 0,
+      ...command,
+    });
   const verify = (u) => {
     const proof = workspace.beginVerification(u.token);
     workspace.verificationSent(u.token, proof.code);

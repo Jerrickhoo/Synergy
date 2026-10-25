@@ -38,6 +38,7 @@ const api = createApi({
 });
 const server = await createServer({
   configFile: false,
+  cacheDir: `.data/vite-${process.env.PORT || 5181}`,
   base: "./",
   plugins: [
     react(),
@@ -60,7 +61,7 @@ const server = await createServer({
   ],
   server: {
     host: "127.0.0.1",
-    port: 5181,
+    port: Number(process.env.PORT || 5181),
     strictPort: true,
     watch: { ignored: ["**/.data/**", "**/output/**"] },
   },

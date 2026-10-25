@@ -1,8 +1,14 @@
+import { useDraft } from "../state/useDraft.js";
 import FormErrors from "./FormErrors.jsx";
 import { useApp } from "../state/AppContext.jsx";
 export default function TermsPanel({ room, agreement, partner, milestones }) {
   const { state, model, onAction, onSubmit } = useApp();
   const { roomStatusLabel } = model;
+  const draft = useDraft(
+    `${state.accountId}:terms:${room.id}`,
+    agreement.draft,
+    agreement.revision || 0,
+  );
   const readOnly =
     agreement.locked ||
     ["launched", "reviewed", "cancelled"].includes(room.status);
@@ -34,18 +40,43 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
         {"\n          "}
         <form
           id="terms-form"
-          key={JSON.stringify(agreement.draft) + agreement.locked}
           className="grid"
           onSubmit={(event) => onSubmit(event)}
         >
           {"\n            "}
+          <input type="hidden" name="revision" value={draft.version} />
+          {draft.conflict && (
+            <div className="connection-banner" role="alert">
+              Your collaborator changed these terms. Your draft is preserved
+              below. Review the latest saved terms before saving or locking.
+              <details>
+                <summary>Latest saved terms</summary>
+                {Object.entries(agreement.draft).map(([key, value]) => (
+                  <p key={key}>
+                    <strong>{key}:</strong> {value}
+                  </p>
+                ))}
+              </details>
+              <button type="button" className="btn" onClick={draft.clear}>
+                Use latest terms
+              </button>
+            </div>
+          )}
+          {draft.dirty && !draft.conflict && (
+            <p className="muted" role="status">
+              Draft saved in this tab. Save to share with your collaborator.
+            </p>
+          )}
           <FormErrors scope="terms-form" />
           <div className="field">
             <label htmlFor="term-goal">Shared goal</label>
             <input
               id="term-goal"
               name="goal"
-              defaultValue={agreement.draft.goal}
+              onChange={(event) =>
+                draft.update({ ...draft.values, goal: event.target.value })
+              }
+              value={readOnly ? agreement.draft.goal : draft.values.goal || ""}
               {...(readOnly
                 ? {
                     disabled: true,
@@ -60,13 +91,18 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
             <textarea
               id="term-scope"
               name="scope"
+              onChange={(event) =>
+                draft.update({ ...draft.values, scope: event.target.value })
+              }
               {...(readOnly
                 ? {
                     disabled: true,
                   }
                 : {})}
               required
-              defaultValue={agreement.draft.scope}
+              value={
+                readOnly ? agreement.draft.scope : draft.values.scope || ""
+              }
             />
           </div>
           {"\n            "}
@@ -76,7 +112,17 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
               <input
                 id="term-timeline"
                 name="timeline"
-                defaultValue={agreement.draft.timeline}
+                onChange={(event) =>
+                  draft.update({
+                    ...draft.values,
+                    timeline: event.target.value,
+                  })
+                }
+                value={
+                  readOnly
+                    ? agreement.draft.timeline
+                    : draft.values.timeline || ""
+                }
                 {...(readOnly
                   ? {
                       disabled: true,
@@ -90,7 +136,17 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
               <input
                 id="term-commitment"
                 name="commitment"
-                defaultValue={agreement.draft.commitment}
+                onChange={(event) =>
+                  draft.update({
+                    ...draft.values,
+                    commitment: event.target.value,
+                  })
+                }
+                value={
+                  readOnly
+                    ? agreement.draft.commitment
+                    : draft.values.commitment || ""
+                }
                 {...(readOnly
                   ? {
                       disabled: true,
@@ -106,7 +162,17 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
             <input
               id="term-compensation"
               name="compensation"
-              defaultValue={agreement.draft.compensation}
+              onChange={(event) =>
+                draft.update({
+                  ...draft.values,
+                  compensation: event.target.value,
+                })
+              }
+              value={
+                readOnly
+                  ? agreement.draft.compensation
+                  : draft.values.compensation || ""
+              }
               {...(readOnly
                 ? {
                     disabled: true,
@@ -132,12 +198,17 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
               <span className="status">This collaboration is closed.</span>
             ) : !agreement.locked ? (
               <>
-                <button className="btn" type="submit">
+                <button
+                  className="btn"
+                  type="submit"
+                  disabled={state.busy || draft.conflict}
+                >
                   Save draft
                 </button>
                 <button
                   className="btn primary"
                   type="button"
+                  disabled={state.busy || draft.conflict}
                   data-action="lock-terms"
                   onClick={(event) =>
                     onAction(

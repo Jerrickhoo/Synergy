@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { decode } from "../src/state/serialization.js";
+import AxeBuilder from "@axe-core/playwright";
 const profile = {
   bio: "Building tools for students",
   offer: "Technical development",
@@ -44,8 +45,21 @@ async function user(
   });
   return { ...account, email, role };
 }
-const act = (request, u, command) =>
-  post(request, "action", { role: u.role, ...command }, u.token);
+const act = async (request, u, command) => {
+  const current = await state(request, u);
+  const room = current.state.rooms[command.activeRoomId];
+  return post(
+    request,
+    "action",
+    {
+      role: u.role,
+      termsRevision: room?.terms.revision || 0,
+      milestoneVersion: room?.milestones[command.id]?.contentVersion || 0,
+      ...command,
+    },
+    u.token,
+  );
+};
 async function state(request, u) {
   return decode(
     await (
@@ -60,7 +74,7 @@ async function open(page, u, path = "") {
     (token) => sessionStorage.setItem("synergy-session", token),
     u.token,
   );
-  await page.goto(`/#/${path}`);
+  await page.goto(`/?open=${Date.now()}#/${path}`);
 }
 async function capture(page, name) {
   const toast = page.getByRole("button", {
@@ -660,4 +674,200 @@ test("prospective partners see public trust only after both blind reviews are su
     .click();
   await expect(trust).toContainText("Beta Testing Exchange");
   await capture(page, "fixed-public-trust-desktop");
+});
+
+test("temporary restore failures preserve a valid session and allow retry", async ({
+  page,
+  request,
+}) => {
+  const u = await user(request, "Restore");
+  await open(page, u);
+  await expect(
+    page.getByRole("heading", { name: "Welcome, Restore" }),
+  ).toBeVisible();
+  await page.route("**/api/state*", (route) => route.abort());
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Retry opening workspace" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() =>
+      Boolean(sessionStorage.getItem("synergy-session")),
+    ),
+  ).toBe(true);
+  await page.unroute("**/api/state*");
+  await page.getByRole("button", { name: "Retry opening workspace" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Welcome, Restore" }),
+  ).toBeVisible();
+});
+
+test("shared terms preserve dirty drafts through remote edits and navigation", async ({
+  page,
+  request,
+}) => {
+  const { a, b, id } = await pair(request);
+  await open(page, a, `rooms/${id}`);
+  await page
+    .getByLabel("Shared goal", { exact: true })
+    .fill("My unsaved draft");
+  await act(request, b, {
+    form: "terms-form",
+    activeRoomId: id,
+    values: { ...terms, goal: "Partner's latest goal" },
+  });
+  await expect(
+    page.getByRole("button", { name: "Use latest terms" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Shared goal", { exact: true })).toHaveValue(
+    "My unsaved draft",
+  );
+  await expect(
+    page.getByRole("button", { name: "Save draft", exact: true }),
+  ).toBeDisabled();
+  await page.reload();
+  await expect(page.getByLabel("Shared goal", { exact: true })).toHaveValue(
+    "My unsaved draft",
+  );
+  await page.getByRole("button", { name: "Use latest terms" }).click();
+  await expect(page.getByLabel("Shared goal", { exact: true })).toHaveValue(
+    "Partner's latest goal",
+  );
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("button", { name: "Profile", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Edit profile", exact: true }).click();
+  await page
+    .getByLabel("About me", { exact: true })
+    .fill("My profile draft survives navigation");
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("button", { name: "Home", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("button", { name: "Profile", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Edit profile", exact: true }).click();
+  await expect(page.getByLabel("About me", { exact: true })).toHaveValue(
+    "My profile draft survives navigation",
+  );
+});
+
+test("account settings support visibility, private exports, session revocation, verified email changes and deletion", async ({
+  page,
+  request,
+}) => {
+  const u = await user(request, "Settings");
+  await act(request, u, { form: "profile-form", values: profile });
+  await open(page, u, "settings");
+  await page.getByLabel("Show my completed profiles in Matches").uncheck();
+  await expect(
+    page.getByLabel("Show my completed profiles in Matches"),
+  ).not.toBeChecked();
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download my data" }).click();
+  expect((await download).suggestedFilename()).toBe("synergy-account.json");
+  await page
+    .getByLabel("Current password", { exact: true })
+    .nth(0)
+    .fill("private-password");
+  await page.getByRole("button", { name: "Sign out other sessions" }).click();
+  await expect(page.locator(".toast")).toContainText(
+    "Account settings updated",
+  );
+  const email = `changed-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`;
+  await page.getByLabel("New email address").fill(email);
+  await page.locator("#email-password").fill("private-password");
+  await page.getByRole("button", { name: "Send email change code" }).click();
+  await expect(page.getByLabel("Email change code")).toBeVisible();
+  const { code } = await (
+    await request.get(`/__test__/email?address=${encodeURIComponent(email)}`)
+  ).json();
+  await page.getByLabel("Email change code").fill(code);
+  await page.getByRole("button", { name: "Verify new email" }).click();
+  await expect(
+    page.getByText(`Current address: ${email}.`, { exact: false }),
+  ).toBeVisible();
+  await page.getByText("Delete my account", { exact: true }).click();
+  await page.locator("#delete-password").fill("private-password");
+  await page.getByLabel("Type DELETE to confirm").fill("DELETE");
+  await page
+    .getByRole("button", { name: "Permanently delete account" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Sign in to Synergy", exact: true }),
+  ).toBeVisible();
+});
+
+test("mobile discovery keeps the first action visible and lets partners agree on a collaboration type", async ({
+  page,
+  request,
+}) => {
+  const a = await user(request, "MobileDiscovery");
+  const b = await user(request, "MobilePartner");
+  await act(request, a, { form: "profile-form", values: profile });
+  await act(request, b, {
+    form: "profile-form",
+    values: { ...profile, offer: profile.need, need: profile.offer },
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page, a, "matches");
+  await page
+    .getByLabel("Search matches", { exact: true })
+    .fill("MobilePartner");
+  const view = page.getByRole("button", { name: "View match", exact: true });
+  await expect(view).toBeInViewport();
+  await view.click();
+  await page.getByLabel("Collaboration type").selectOption("marketing");
+  await page
+    .getByRole("button", { name: "Express interest", exact: true })
+    .click();
+  const accepted = await act(request, b, {
+    action: "accept-interest",
+    id: `${a.state.accountId}:founder`,
+  });
+  expect(accepted.state.rooms[accepted.state.activeRoomId].type).toBe(
+    "marketing",
+  );
+});
+
+test("keyboard navigation and accessibility checks cover login, discovery, settings and profile editing", async ({
+  page,
+  request,
+}) => {
+  const check = async () => {
+    const result = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+      .analyze();
+    expect(
+      result.violations.map((v) => ({
+        id: v.id,
+        nodes: v.nodes.map((n) => n.target),
+      })),
+    ).toEqual([]);
+  };
+  await page.goto("/");
+  await check();
+  const a = await user(request, "Accessibility");
+  await act(request, a, { form: "profile-form", values: profile });
+  const peer = await user(request, "AccessibilityPartner");
+  await act(request, peer, {
+    form: "profile-form",
+    values: { ...profile, offer: profile.need, need: profile.offer },
+  });
+  await open(page, a, "matches");
+  await page.getByRole("tab", { name: "Suggested", exact: true }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: /Saved/ })).toBeFocused();
+  await check();
+  await page.goto("/#/settings");
+  await expect(
+    page.getByRole("heading", { name: "Profile visibility" }),
+  ).toBeVisible();
+  await check();
+  await page.goto("/#/profile");
+  await page.getByRole("button", { name: "Edit profile", exact: true }).click();
+  await check();
 });

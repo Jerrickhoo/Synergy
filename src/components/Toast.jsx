@@ -1,23 +1,34 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Icon from "./Icon.jsx";
 
 function ToastMessage({ message, type, title, dismiss }) {
+  const timerRef = useRef(null);
+  const elementRef = useRef(null);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const paused = hovered || focused;
-  const duration = type === "error" ? 8000 : 5000;
+  const duration = type === "error" ? null : 5000;
   useEffect(() => {
-    if (paused) return;
-    const timer = setTimeout(dismiss, duration);
-    return () => clearTimeout(timer);
+    if (paused || duration === null) return;
+    timerRef.current = setTimeout(() => {
+      if (!elementRef.current?.matches(":hover, :focus-within")) dismiss();
+    }, duration);
+    return () => clearTimeout(timerRef.current);
   }, [paused, duration, dismiss]);
   return (
     <div
+      ref={elementRef}
       className={`toast toast-${type}`}
-      onMouseEnter={() => setHovered(true)}
+      onMouseEnter={() => {
+        clearTimeout(timerRef.current);
+        setHovered(true);
+      }}
       onMouseLeave={() => setHovered(false)}
-      onFocus={() => setFocused(true)}
+      onFocus={() => {
+        clearTimeout(timerRef.current);
+        setFocused(true);
+      }}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget))
           setFocused(false);

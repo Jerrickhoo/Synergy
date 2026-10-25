@@ -29,10 +29,11 @@ export function matchingReport(accounts) {
       snapshot.scores.reduce((sum, s) => sum + s.score, 0) /
       snapshot.scores.length;
     const band = score < 40 ? "0–39" : score < 70 ? "40–69" : "70–100";
-    const key = `${snapshot.version}:${room.type}:${band}`;
+    const key = `${snapshot.algorithm || "legacy-v1"}:${snapshot.version}:${room.type}:${band}`;
     if (!cohorts.has(key))
       cohorts.set(key, {
         version: snapshot.version,
+        algorithm: snapshot.algorithm || "legacy-v1",
         type: room.type,
         band,
         rooms: 0,

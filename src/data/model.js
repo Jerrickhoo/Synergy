@@ -286,6 +286,7 @@ export function createInitialState() {
     savedByRole: { founder: new Set(), mentor: new Set() },
     interestByRole: { founder: new Set(), mentor: new Set() },
     incomingByRole: { founder: new Set(), mentor: new Set() },
+    introductionTypesByRole: { founder: {}, mentor: {} },
     trustHistoryByRole: { founder: [], mentor: [] },
     fields: {},
     notificationOpen: false,

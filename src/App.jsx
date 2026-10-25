@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { useApp } from "./state/AppContext.jsx";
 import Login from "./components/Login.jsx";
 import Sidebar from "./components/Sidebar.jsx";
@@ -16,11 +16,13 @@ import ReviewPage from "./pages/ReviewPage.jsx";
 import ProfilePage from "./pages/ProfilePage.jsx";
 import SignupPage from "./pages/SignupPage.jsx";
 import OnboardingPage from "./pages/OnboardingPage.jsx";
+import SettingsPage from "./pages/SettingsPage.jsx";
 import Toast from "./components/Toast.jsx";
 import NotificationsPage from "./pages/NotificationsPage.jsx";
 import ModerationPage from "./pages/ModerationPage.jsx";
 
 const pages = {
+  settings: SettingsPage,
   notifications: NotificationsPage,
   moderation: ModerationPage,
   home: HomePage,
@@ -57,23 +59,49 @@ function Unavailable({ room = false }) {
   );
 }
 export default function App() {
-  const { state, model, onAction, authChallenge, onInvalid, onFormInput } =
-    useApp();
+  const {
+    state,
+    model,
+    onAction,
+    authChallenge,
+    retryRestore,
+    onInvalid,
+    onFormInput,
+  } = useApp();
   const mainRef = useRef(null);
   const authPage = ["signup", "onboarding"].includes(state.page);
   const Page = pages[state.page];
   const unavailableRoom =
     ["room-detail", "review"].includes(state.page) && !model.activeRoom();
-  useEffect(() => {
+  // Move route focus before the browser can accept input. A passive effect can
+  // steal focus from a just-opened form in WebKit and lose the user's typing.
+  useLayoutEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
     mainRef.current?.querySelector("h1")?.focus({ preventScroll: true });
-  }, [state.page, state.role, state.activeRoomId, state.activeMatch]);
+  }, [
+    state.page,
+    state.role,
+    state.activeRoomId,
+    state.activeMatch,
+    state.authenticated,
+    state.restoring,
+  ]);
   if (state.restoring)
     return (
-      <div className="session-loading" role="status">
-        Opening your saved workspace…
-      </div>
+      <main className="session-loading" aria-label="Saved workspace">
+        {state.connectionError ? (
+          <>
+            <p role="alert">{state.connectionError}</p>
+            <button className="btn primary" onClick={retryRestore}>
+              Retry opening workspace
+            </button>
+          </>
+        ) : (
+          <p role="status">Opening your saved workspace...</p>
+        )}
+      </main>
     );
+
   return (
     <div
       onInvalidCapture={onInvalid}

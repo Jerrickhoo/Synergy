@@ -40,7 +40,9 @@ export default function ChatPanel({ room }) {
                 <span className="message-meta">
                   {message.name}
                   {" · "}
-                  {message.time}
+                  {message.timestamp
+                    ? new Date(message.timestamp).toLocaleString()
+                    : message.time}
                 </span>
                 {message.text}
               </div>

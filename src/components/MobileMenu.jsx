@@ -3,7 +3,7 @@ import { useApp } from "../state/AppContext.jsx";
 import Brand from "./Brand.jsx";
 import Icon from "./Icon.jsx";
 import NavButton from "./NavButton.jsx";
-import { navigation } from "./Sidebar.jsx";
+import { navigation, workspaceNavigation } from "./Sidebar.jsx";
 export default function MobileMenu() {
   const { state, onAction } = useApp();
   const ref = useRef(null);
@@ -67,12 +67,14 @@ export default function MobileMenu() {
           </button>
         </div>
         <nav className="drawer-nav" aria-label="Mobile navigation">
-          {navigation.map(([page, label, icon]) => (
-            <NavButton key={page} page={page}>
-              <Icon name={icon} />
-              {label}
-            </NavButton>
-          ))}
+          {[...navigation, ...workspaceNavigation].map(
+            ([page, label, icon]) => (
+              <NavButton key={page} page={page}>
+                <Icon name={icon} />
+                {label}
+              </NavButton>
+            ),
+          )}
           {state.isAdmin && (
             <NavButton page="moderation">
               <Icon name="shield" />

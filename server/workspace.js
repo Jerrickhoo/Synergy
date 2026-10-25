@@ -1,18 +1,13 @@
-import {
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-  renameSync,
-  unlinkSync,
-  existsSync,
-} from "node:fs";
-import { dirname } from "node:path";
+import { promisify } from "node:util";
+import { accountControls } from "./accounts.js";
+import { createStorage } from "./storage.js";
 import {
   randomBytes,
   randomUUID,
   randomInt,
   createHash,
   scryptSync,
+  scrypt,
   timingSafeEqual,
 } from "node:crypto";
 import { createInitialState, createModel } from "../src/data/model.js";
@@ -53,11 +48,15 @@ const tags = (text) =>
 const tokens = (text) =>
   new Set(
     String(text || "")
+      .normalize("NFKC")
       .toLowerCase()
-      .replace(/marketing|promotion|audience/g, "growth")
-      .replace(/testers|testing|test/g, "beta")
-      .replace(/development|developer|coding/g, "technical")
-      .match(/[a-z]{3,}/g)
+      .replace(/\b(marketing|promotion|audience)\b/gu, "growth")
+      .replace(/\b(testers|testing|test)\b/gu, "beta")
+      .replace(
+        /\b(development|developer|developers|coding|programming)\b/gu,
+        "technical",
+      )
+      .match(/[\p{L}\p{N}]{2,}/gu)
       ?.filter(
         (word) =>
           ![
@@ -77,12 +76,10 @@ const tokens = (text) =>
 const overlap = (left, right) => {
   const a = tokens(left),
     b = tokens(right);
-  if (!a.size || !b.size) return 0;
-  return (
-    [...a].filter((token) => b.has(token)).length / Math.min(a.size, b.size)
-  );
+  return a.size && b.size
+    ? [...a].filter((word) => b.has(word)).length / a.size
+    : 0;
 };
-
 export function scoreProfile(mine, theirs, mentor, config = defaultMatching) {
   mine = {
     ...mine,
@@ -94,22 +91,29 @@ export function scoreProfile(mine, theirs, mentor, config = defaultMatching) {
     offer: `${theirs.offer || ""} ${theirs.offerTags || ""}`,
     need: `${theirs.need || ""} ${theirs.needTags || ""}`,
   };
-  const need = Math.max(
-    overlap(mine.need, theirs.offer),
-    overlap(theirs.need, mine.offer),
-  );
-  const expertise = Math.max(
-    overlap(mine.need, theirs.expertise || theirs.offer),
-    overlap(theirs.need, mine.expertise || mine.offer),
-  );
+  const forward = overlap(mine.need, theirs.offer),
+    reverse = overlap(theirs.need, mine.offer);
+  const mentorProfile = mine.expertise ? mine : theirs;
+  const founder = mine.expertise ? theirs : mine;
+  const need = mentor
+    ? overlap(founder.need, mentorProfile.offer)
+    : Math.sqrt(forward * reverse);
+  const expertise = mentor
+    ? overlap(founder.need, mentorProfile.expertise || mentorProfile.offer)
+    : 0;
   const industry = overlap(
-    mine.industry || mine.startups,
-    theirs.industry || theirs.startups,
+    mentor ? founder.industry : mine.industry,
+    mentor ? mentorProfile.startups : theirs.industry,
   );
-  const stageFit =
-    mine.stage && theirs.stage ? (mine.stage === theirs.stage ? 1 : 0.4) : 0.5;
-  const marketing = /marketing|audience|promotion|growth/i.test(
-    `${mine.offer} ${mine.need} ${theirs.offer} ${theirs.need}`,
+  const stageKnown = Boolean(mine.stage && theirs.stage);
+  const stageFit = stageKnown ? (mine.stage === theirs.stage ? 1 : 0.4) : 0;
+  const marketing = [
+    [mine.offer, theirs.need],
+    [theirs.offer, mine.need],
+  ].some(
+    ([offer, need]) =>
+      /marketing|audience|promotion|growth/i.test(offer) &&
+      /marketing|audience|promotion|growth/i.test(need),
   );
   const sizes = marketing
     ? [Number(mine.audienceSize), Number(theirs.audienceSize)]
@@ -118,11 +122,13 @@ export function scoreProfile(mine, theirs, mentor, config = defaultMatching) {
     ? Math.min(...sizes) / Math.max(...sizes)
     : null;
   const stage = mentor
-    ? stageFit
+    ? overlap(founder.stage, mentorProfile.startups)
     : sizeFit === null
       ? stageFit
-      : (stageFit + sizeFit) / 2;
-  const explicitGoals = Boolean(mine.goals && theirs.goals);
+      : stageKnown
+        ? (stageFit + sizeFit) / 2
+        : sizeFit / 2;
+  const explicitGoals = Boolean(mine.goals?.trim() && theirs.goals?.trim());
   const preference =
     mine.engagementPreference && theirs.engagementPreference
       ? mine.engagementPreference === "either" ||
@@ -132,47 +138,74 @@ export function scoreProfile(mine, theirs, mentor, config = defaultMatching) {
         : 0
       : null;
   const goalWords = explicitGoals
-    ? overlap(mine.goals, theirs.goals)
-    : overlap(`${mine.need} ${mine.bio}`, `${theirs.offer} ${theirs.bio}`);
+    ? (overlap(mine.goals, theirs.goals) + overlap(theirs.goals, mine.goals)) /
+      2
+    : 0;
   const goal = preference === null ? goalWords : (goalWords + preference) / 2;
   const factors = [need, expertise, industry, stage, goal];
+  const missing = [
+    mentor
+      ? !founder.need?.trim() || !mentorProfile.offer?.trim()
+      : !mine.need.trim() ||
+        !theirs.offer.trim() ||
+        !theirs.need.trim() ||
+        !mine.offer.trim(),
+    !mentorProfile.expertise?.trim(),
+    mentor
+      ? !founder.industry || !mentorProfile.startups
+      : !mine.industry || !theirs.industry,
+    mentor
+      ? !founder.stage || !mentorProfile.startups
+      : !stageKnown && sizeFit === null,
+    !explicitGoals && preference === null,
+  ];
   const weights = config[mentor ? "mentor" : "founder"];
-  const score = Math.round(
-    100 *
-      factors.reduce((sum, value, index) => sum + value * weights[index], 0),
-  );
   return {
-    score,
+    score: Math.round(
+      100 * factors.reduce((sum, value, i) => sum + value * weights[i], 0),
+    ),
     matchingVersion: config.version,
+    matchingAlgorithm: "reciprocal-v2",
     factorWeights: weights,
-    why: factors.map((value) =>
-      value >= 0.65
-        ? "Strong"
-        : value >= 0.3
-          ? "Good"
-          : value > 0
-            ? "Limited"
-            : "No overlap",
+    directionalFit: {
+      yourNeeds: Math.round(forward * 100),
+      theirNeeds: Math.round(reverse * 100),
+    },
+    why: factors.map((value, i) =>
+      missing[i]
+        ? "Missing inputs"
+        : value >= 0.65
+          ? "Strong"
+          : value >= 0.3
+            ? "Good"
+            : value > 0
+              ? "Limited"
+              : "No overlap",
     ),
     factorScores: factors.map((value) => Math.round(value * 100)),
     factorDetails: [
-      `Need/offer word overlap: ${Math.round(need * 100)}%.`,
-      `Expertise word overlap: ${Math.round(expertise * 100)}%.`,
-      `Industry context word overlap: ${Math.round(industry * 100)}%.`,
       mentor
-        ? "Stage context only; mentor capacity is not scored."
+        ? `Founder needs covered by mentor offers: ${Math.round(need * 100)}%.`
+        : `Your needs covered: ${Math.round(forward * 100)}%; their needs covered: ${Math.round(reverse * 100)}%. Both directions contribute.`,
+      mentor
+        ? `Founder needs covered by mentor expertise: ${Math.round(expertise * 100)}%.`
+        : "Expertise applies to mentorship only.",
+      missing[2]
+        ? "Industry inputs missing; no positive fit assumed."
+        : `Industry context word overlap: ${Math.round(industry * 100)}%.`,
+      mentor
+        ? "Founder stage compared with the mentor's stated startup interests; missing context earns no positive fit."
         : sizeFit === null
           ? "Stage comparison only; both size values are needed for size fit."
           : `Stage and ${marketing ? "audience" : "team"} size; size ratio ${Math.round(sizeFit * 100)}%.`,
-      `${explicitGoals ? "Stated goal" : "Profile-context"} word overlap${preference === null ? "; engagement preference not provided by both" : "; engagement preferences included"}.`,
+      `${explicitGoals ? "Stated goal overlap" : "Stated goals missing; no goal overlap assumed"}${preference === null ? "; engagement preference not provided by both" : "; engagement preferences included"}.`,
     ],
   };
 }
 
 export function createWorkspace(file, options = {}) {
-  let db = existsSync(file)
-    ? decode(readFileSync(file, "utf8"))
-    : { version: 1, revision: 0, accounts: {}, reports: [] };
+  const storage = createStorage(file);
+  let db = storage.load();
   if (db.version !== 1 || !db.accounts)
     throw new Error(
       "Unsupported workspace database. Existing data was not changed.",
@@ -182,36 +215,17 @@ export function createWorkspace(file, options = {}) {
   const hash = (value) => createHash("sha256").update(value).digest("hex");
   let committed = clone(db);
   const save = () => {
-    const temporary = `${file}.${randomUUID()}.tmp`;
     try {
+      const expected = db.revision;
       db.revision += 1;
-      mkdirSync(dirname(file), { recursive: true });
-      writeFileSync(temporary, encode(db), { mode: 0o600 });
-      // Windows indexers and file watchers can briefly hold the destination.
-      for (let attempt = 0; ; attempt++) {
-        try {
-          renameSync(temporary, file);
-          break;
-        } catch (error) {
-          if (
-            !["EPERM", "EBUSY", "EACCES"].includes(error.code) ||
-            attempt >= 10
-          )
-            throw error;
-          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
-        }
-      }
+      storage.commit(db, expected);
       committed = clone(db);
     } catch (error) {
       db = clone(committed);
-      try {
-        unlinkSync(temporary);
-      } catch {
-        /* Preserve the original save error. */
-      }
       throw error;
     }
   };
+
   const event = (account, role, text, roomId) =>
     account.state.activity.unshift({
       id: randomUUID(),
@@ -287,9 +301,17 @@ export function createWorkspace(file, options = {}) {
       maxFileBytes: options.maxFileBytes || 5 * 1024 * 1024,
       moderation: Boolean(options.adminEmails?.length),
     };
+    state.introductionTypesByRole ||= { founder: {}, mentor: {} };
     state.directory = createInitialState().directory;
     for (const other of Object.values(db.accounts)) {
-      if (other.id === account.id || other.suspended) continue;
+      if (
+        other.id === account.id ||
+        other.suspended ||
+        other.profileVisible === false ||
+        account.blockedAccounts?.includes(other.id) ||
+        other.blockedAccounts?.includes(account.id)
+      )
+        continue;
       if (options.requireVerification && !other.emailVerifiedAt) continue;
       for (const otherRole of roles) {
         if (
@@ -297,6 +319,13 @@ export function createWorkspace(file, options = {}) {
         )
           continue;
         const item = person(other, otherRole, state);
+        const proposed = state.introductionTypesByRole[state.role]?.[item.id];
+        if (proposed)
+          item.engagement = {
+            beta: "Beta Testing Exchange",
+            marketing: "Co-Marketing Swap",
+            mentorship: "Mentorship",
+          }[proposed];
         state.directory[otherRole === "mentor" ? "mentors" : "founders"].push(
           item,
         );
@@ -343,7 +372,11 @@ export function createWorkspace(file, options = {}) {
         delete room.review.partnerGoalOutcome;
       }
     }
-    return { state, revision: db.revision };
+    return {
+      state,
+      revision: db.revision,
+      refreshKey: `${db.revision}:${state.role}:${Math.floor(Date.now() / 60000)}`,
+    };
   }
   function authenticate(token) {
     const session = sessions.get(token);
@@ -366,7 +399,10 @@ export function createWorkspace(file, options = {}) {
         403,
       );
     const token = randomBytes(32).toString("hex");
+    for (const [key, session] of sessions)
+      if (session.expires <= Date.now()) sessions.delete(key);
     sessions.set(token, {
+      createdAt: Date.now(),
       id: account.id,
       expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
     });
@@ -377,6 +413,7 @@ export function createWorkspace(file, options = {}) {
       account.verification?.sentAt || 0,
       account.loginVerification?.sentAt || 0,
       account.passwordReset?.sentAt || 0,
+      account.emailChange?.sentAt || 0,
     );
     if (lastSent > Date.now() - 60000)
       fail("Wait one minute before requesting another code.", 429);
@@ -431,7 +468,7 @@ export function createWorkspace(file, options = {}) {
       resendAt: account.loginVerification.sentAt + 60000,
     };
   }
-  function login(values, signup = false) {
+  function login(values, signup = false, derived) {
     values = {
       ...cleanValues(values),
       password: String(values.password || ""),
@@ -448,23 +485,25 @@ export function createWorkspace(file, options = {}) {
         fail("An account with this email already exists.", 409, {
           email: "This email is already registered. Sign in instead.",
         });
-      const salt = randomBytes(16).toString("hex");
+      const salt = derived?.salt || randomBytes(16).toString("hex");
       account = {
         id: randomUUID(),
         email,
         salt,
-        passwordHash: scryptSync(values.password, salt, 64).toString("hex"),
+        passwordHash:
+          derived?.hash ||
+          scryptSync(values.password, salt, 64).toString("hex"),
         state: createInitialState(),
       };
       transition(account.state, { form: "signup-form", values });
       db.accounts[account.id] = account;
       save();
     } else {
-      const candidate = scryptSync(
-        values.password,
-        account?.salt || "unknown-account",
-        64,
-      );
+      if (derived && derived.expected !== account?.passwordHash)
+        fail("Account changed. Sign in again.", 401);
+      const candidate =
+        derived?.candidate ||
+        scryptSync(values.password, account?.salt || "unknown-account", 64);
       if (
         !account ||
         !timingSafeEqual(candidate, Buffer.from(account.passwordHash, "hex"))
@@ -487,6 +526,28 @@ export function createWorkspace(file, options = {}) {
       });
     }
     return openSession(account);
+  }
+  async function loginAsync(values, signup = false) {
+    const errors = validateCredentials(values, signup);
+    if (Object.keys(errors).length)
+      fail("Check your account details.", 400, errors);
+    const account = Object.values(db.accounts).find(
+      (item) => item.email === String(values.email).trim().toLowerCase(),
+    );
+    const salt = signup
+      ? randomBytes(16).toString("hex")
+      : account?.salt || "unknown-account";
+    const bytes = await promisify(scrypt)(
+      String(values.password || ""),
+      salt,
+      64,
+    );
+    return login(values, signup, {
+      salt,
+      hash: bytes.toString("hex"),
+      candidate: bytes,
+      expected: account?.passwordHash,
+    });
   }
   const allowedActions = new Set([
     "choose-role",
@@ -547,6 +608,38 @@ export function createWorkspace(file, options = {}) {
     const previous = partner?.state.rooms[room.id];
     if (!partner || !previous || previous.partnerAccountId !== account.id)
       fail("This collaboration is unavailable.", 404);
+    const content = (item) =>
+      encode([
+        item.title,
+        item.description,
+        item.evidence,
+        item.attachment,
+        item.file,
+        item.dueDate,
+        item.schedule,
+        item.schedules,
+        Boolean(item.disputed),
+        room.terms.revision || 0,
+      ]);
+    for (const [id, item] of Object.entries(room.milestones)) {
+      const old = previous.milestones[id];
+      const oldContent = encode([
+        old.title,
+        old.description,
+        old.evidence,
+        old.attachment,
+        old.file,
+        old.dueDate,
+        old.schedule,
+        old.schedules,
+        Boolean(old.disputed),
+        previous.terms.revision || 0,
+      ]);
+      item.contentVersion =
+        (old.contentVersion || 0) + (content(item) !== oldContent ? 1 : 0);
+      if (content(item) !== oldContent) item.me = item.partner = false;
+    }
+    room.progress = roomProgress(room);
     const shared = clone(room);
     shared.role = room.partnerRole;
     shared.partnerRole = room.role;
@@ -593,8 +686,15 @@ export function createWorkspace(file, options = {}) {
       id,
       role: state.role,
       partnerId: person.id,
-      type: createModel(state).roomTypeForPerson(person),
+      type:
+        state.introductionTypesByRole[state.role]?.[person.id] ||
+        createModel(state).roomTypeForPerson(person),
     });
+    room.engagementType = {
+      beta: "Beta Testing Exchange",
+      marketing: "Co-Marketing Swap",
+      mentorship: "Mentorship",
+    }[room.type];
     room.createdAt = room.updatedAt = new Date().toISOString();
     room.partnerAccountId = other.id;
     room.partnerRole = person.role;
@@ -613,6 +713,7 @@ export function createWorkspace(file, options = {}) {
     );
     room.matchingSnapshot = {
       version: config.version,
+      algorithm: "reciprocal-v2",
       weights: config,
       capturedAt: room.createdAt,
       scores: [
@@ -646,6 +747,8 @@ export function createWorkspace(file, options = {}) {
       current.waitingByRole[currentRole].delete(target);
       current.interestByRole[currentRole].delete(target);
       current.incomingByRole[currentRole].delete(target);
+      if (current.introductionTypesByRole?.[currentRole])
+        delete current.introductionTypesByRole[currentRole][target];
     }
     state.activeRoomId = id;
     state.page = "room-detail";
@@ -669,8 +772,14 @@ export function createWorkspace(file, options = {}) {
   function act(token, input, uploadedFile) {
     if (features.handles(input)) return features.act(token, input);
     const account = authenticate(token);
-    if (["interest", "accept-interest"].includes(input.action))
+    if (["interest", "accept-interest"].includes(input.action)) {
       requireVerified(account);
+      if (account.profileVisible === false)
+        fail(
+          "Make your profile visible in Account settings before connecting.",
+          403,
+        );
+    }
     if (Boolean(input.action) === Boolean(input.form))
       fail("Submit one action or form at a time.");
     if (!roles.includes(input.role)) fail("Choose a valid role.");
@@ -704,12 +813,28 @@ export function createWorkspace(file, options = {}) {
         timeZone: "Asia/Manila",
       }),
     };
+    if (input.form === "terms-form" || input.action === "lock-terms")
+      payload.values = Object.fromEntries(
+        ["goal", "scope", "timeline", "commitment", "compensation"].map(
+          (key) => [key, payload.values[key] || ""],
+        ),
+      );
     const roomOperation =
       roomActions.has(input.action) || roomForms.has(input.form);
     const room = roomOperation ? createModel(state).activeRoom() : null;
     const previousRoom = room ? encode(room) : null;
     if (roomOperation && !room)
       fail("This room is unavailable for your account and role.", 404);
+    if (
+      room &&
+      input.form === "chat-form" &&
+      (account.blockedAccounts?.includes(room.partnerAccountId) ||
+        db.accounts[room.partnerAccountId]?.blockedAccounts?.includes(
+          account.id,
+        ) ||
+        db.accounts[room.partnerAccountId]?.deletedAt)
+    )
+      fail("Further contact is unavailable for this collaboration.", 403);
     if (room && input.form === "schedule" && room.type !== "mentorship")
       fail("Scheduling is available only in mentorship rooms.");
     if (
@@ -735,7 +860,6 @@ export function createWorkspace(file, options = {}) {
       (input.action === "accept-terms" ||
         input.action === "lock-terms" ||
         input.form === "terms-form") &&
-      input.termsRevision !== undefined &&
       input.termsRevision !== (room.terms.revision || 0)
     )
       fail(
@@ -748,6 +872,16 @@ export function createWorkspace(file, options = {}) {
       !["chat-form", "review-form"].includes(input.form)
     )
       fail("Completed collaborations cannot be changed.");
+    if (
+      room &&
+      ["confirm-milestone", "resolve-dispute"].includes(input.action) &&
+      input.milestoneVersion !==
+        (room.milestones[input.id]?.contentVersion || 0)
+    )
+      fail(
+        "This milestone changed. Review the latest scope, evidence and schedule before confirming.",
+        409,
+      );
     if (room && input.form === "review-form" && room.review.me)
       fail("Your review has already been submitted.");
     if (
@@ -794,6 +928,17 @@ export function createWorkspace(file, options = {}) {
           "Complete your profile before sending or accepting an introduction.",
         );
       const other = db.accounts[person.accountId];
+      const proposedType =
+        input.engagementType || createModel(state).roomTypeForPerson(person);
+      const permittedTypes =
+        state.role === "mentor" || person.role === "mentor"
+          ? ["mentorship"]
+          : ["beta", "marketing"];
+      if (
+        ["interest", "accept-interest"].includes(input.action) &&
+        !permittedTypes.includes(proposedType)
+      )
+        fail("Choose an engagement type available for these profiles.");
       const ownId = identity(account, state.role);
       if (
         input.action === "accept-interest" &&
@@ -804,6 +949,13 @@ export function createWorkspace(file, options = {}) {
         if (state.incomingByRole[state.role].has(person.id))
           connect(account, state, person);
         else if (!createModel(state).existingRoomFor(state.role, person.id)) {
+          if (state.interestByRole[state.role].has(person.id))
+            fail("This introduction is already pending.", 409);
+          state.introductionTypesByRole ||= { founder: {}, mentor: {} };
+          other.state.introductionTypesByRole ||= { founder: {}, mentor: {} };
+          state.introductionTypesByRole[state.role][person.id] = proposedType;
+          other.state.introductionTypesByRole[person.role][ownId] =
+            proposedType;
           state.waitingByRole[state.role].add(person.id);
           state.interestByRole[state.role].add(person.id);
           other.state.incomingByRole[person.role].add(ownId);
@@ -825,11 +977,17 @@ export function createWorkspace(file, options = {}) {
         state.waitingByRole[state.role].delete(person.id);
         state.interestByRole[state.role].delete(person.id);
         other.state.incomingByRole[person.role].delete(ownId);
+        delete state.introductionTypesByRole[state.role][person.id];
+        if (other.state.introductionTypesByRole?.[person.role])
+          delete other.state.introductionTypesByRole[person.role][ownId];
         state.toast = "Introduction withdrawn.";
       } else if (input.action === "decline-interest") {
         state.incomingByRole[state.role].delete(person.id);
         other.state.waitingByRole[person.role].delete(ownId);
         other.state.interestByRole[person.role].delete(ownId);
+        delete state.introductionTypesByRole[state.role][person.id];
+        if (other.state.introductionTypesByRole?.[person.role])
+          delete other.state.introductionTypesByRole[person.role][ownId];
         state.toast = "Introduction declined.";
         event(
           other,
@@ -888,8 +1046,14 @@ export function createWorkspace(file, options = {}) {
             useful: payload.values.useful || "",
             goalOutcome: payload.values.goalOutcome || "",
           });
-        if (input.action === "lock-terms" && room.terms.locked)
-          room.terms.confirmedByMe = true;
+        if (
+          (input.action === "lock-terms" || input.form === "terms-form") &&
+          !state.formErrors
+        ) {
+          room.terms.revision = (room.terms.revision || 0) + 1;
+          if (input.action === "lock-terms" && room.terms.locked)
+            room.terms.confirmedByMe = true;
+        }
         if (input.action === "dispute" && room.milestones[input.id])
           Object.assign(room.milestones[input.id], {
             me: false,
@@ -929,11 +1093,34 @@ export function createWorkspace(file, options = {}) {
     save();
     return response(account);
   }
+  const accounts = accountControls({
+    getDb: () => db,
+    authenticate,
+    sessions,
+    hash,
+    save,
+    response,
+    reserveCode,
+    mirror,
+    fail,
+  });
   return {
+    health: () => storage.health(),
+    close: () => storage.close(),
+    accounts,
     features,
     login,
+    loginAsync,
     act,
     get: (token, role) => response(authenticate(token), role),
+    poll(token, role, since, key) {
+      const account = authenticate(token);
+      const currentRole = roles.includes(role) ? role : account.state.role;
+      const refreshKey = `${db.revision}:${currentRole}:${Math.floor(Date.now() / 60000)}`;
+      if (Number(since) === db.revision && key === refreshKey)
+        return { unchanged: true, revision: db.revision, refreshKey };
+      return response(account, currentRole);
+    },
     logout: (token) => sessions.delete(token),
     resendLogin(challengeId) {
       const account = loginAccount(challengeId);

@@ -1,3 +1,32 @@
+# Local prototype and deployment operations
+
+The current app requires Node.js 24+. New workspaces use `.data/synergy.sqlite`; explicit JSON paths remain supported. The storage adapter uses the [Node SQLite API](https://nodejs.org/docs/latest-v24.x/api/sqlite.html). No public deployment or external provider was activated by the October 25 changes.
+
+## Storage upgrades and recovery
+
+Before an existing installation changes its data path, run the backup command against its existing configuration. Start with the new default path only after preserving the database and neighboring uploads. When `synergy.sqlite` is empty and a neighboring `synergy.json` exists, the app imports the old snapshot transactionally and leaves the original intact. It keeps using JSON if `SYNERGY_DATA_FILE` explicitly names a `.json` file. Run only one Synergy server per database. A second stale writer is rejected rather than overwriting newer records.
+
+Backups export a consistent, portable `synergy.json` snapshot from either storage format and copy referenced immutable uploads. Restore into a new directory using the existing verification procedure below. Do not copy an active SQLite file alone: WAL commits may be in its neighboring journal. Use the backup command for a live snapshot.
+
+`SYNERGY_BACKUP_DIR` enables a scheduled, checksummed backup once every `SYNERGY_BACKUP_INTERVAL_HOURS` (default 24). Point it at a separately mounted or synchronized off-site location outside the database/upload directory. The app retries failures after 15 minutes and logs `scheduled_backup_failed`; `/api/health` includes backup configuration, last success and failure status. No destination is configured by default. Configure the storage mount or synchronization yourself, verify delivery to that destination, set a retention policy, and perform a restore drill. This app does not provision a cloud backup account or delete old snapshots automatically.
+
+`/api/health` checks database integrity/readability, a write probe in its data directory and at least 20 MB of free disk. It returns 503 when unavailable. Readiness is cached for 30 seconds. Structured failure logs include event, timestamp and error class/code; they omit passwords, tokens, provider responses and submitted text. Background digest failures are logged and retain their existing retry backoff.
+
+The optional `npm run benchmark` uses a disposable SQLite workspace and synthetic loopback requests. Its timings describe that local run only. It does not validate internet latency, large datasets, sustained production traffic or managed infrastructure.
+
+## Local acceptance checklist
+
+1. Run `npm ci`, install all three Playwright browser engines, and run format, unit/backend, browser and build checks.
+2. Create a founder pair, choose an engagement, accept it, agree terms, upload evidence, confirm from both accounts, launch and release both private reviews.
+3. Verify stale terms and evidence actions fail and drafts survive navigation. Simulate a connection interruption while refreshing, then retry without re-entering credentials.
+4. Test visibility, blocking, session revocation, export and deletion using disposable accounts. Review the retention text before deletion.
+5. Create a verified backup, restore it into a new directory and check a room and uploaded file.
+6. If external services are enabled later, use actual mailboxes to test signup, recovery and email changes; verify an actual AI draft only if AI is part of the pilot. Test the intended HTTPS deployment after provisioning it.
+
+The provider and hosting instructions below remain applicable, with the updated Node and storage settings above.
+
+---
+
 # Enable the integrations
 
 The app includes private file uploads, real email verification through Brevo or Resend, and optional OpenAI profile drafts. The code works locally without credentials; email and AI controls explain when a service is not enabled. Public production mode requires working email configuration and verified accounts before introductions, uploads, or AI use.
@@ -51,7 +80,7 @@ In Profile → Edit profile, expand “Get help drafting your profile.” Genera
 4. Deploy. The build runs `npm ci --include=dev && npm run build`; the service runs `npm start`. Render terminates HTTPS. The server listens on `0.0.0.0:$PORT`; `/api/health` is its health check.
 5. Test signup, verification with a real mailbox, profile drafts, and a shared-room file upload/download on the resulting HTTPS URL. Provider contract tests do not prove real mail delivery, an active API balance, DNS configuration, or a successful public deployment.
 
-Accounts and uploads are stored together under `/var/data`. Keep one instance and one writer for this JSON database. Do not move the data path onto the ephemeral source directory or configure autoscaling. Back up the database and the `uploads` directory together while the service is stopped or from a consistent disk snapshot. A server restart ends sessions; users sign in again to recover their saved work.
+Accounts and uploads are stored together under `/var/data`. Keep one instance and one writer for this database. Do not move the data path onto the ephemeral source directory or configure autoscaling. Use `npm run backup` to export a consistent database/upload snapshot, or stop the service before copying the database with all SQLite journal files and uploads. A server restart ends sessions; users sign in again to recover their saved work.
 
 Files are limited to 5 MB each and 50 MB uploaded per account, including earlier evidence versions. Allowed formats are PDF, PNG, JPEG, WebP and UTF-8 text. Downloads require a current session and membership in the file's collaboration room. Files are served as downloads, never as executable pages. Existing evidence descriptions/links still work. Uploaded files are not scanned by an antivirus service; use only trusted participants for this prototype.
 

@@ -52,7 +52,7 @@ test("login validation highlights fields and keeps password guidance accessible"
   );
 });
 
-test("wrong credentials show dismissible errors and repeat attempts restart the toast timer", async ({
+test("wrong credentials remain visible until dismissed and support repeat attempts", async ({
   page,
 }) => {
   await page.clock.install();
@@ -69,7 +69,7 @@ test("wrong credentials show dismissible errors and repeat attempts restart the 
   await page.clock.fastForward(3000);
   await expect(toast).toBeVisible();
   await toast.hover();
-  await page.clock.fastForward(9000);
+  await page.clock.fastForward(30000);
   await expect(toast).toBeVisible();
   await page.getByRole("button", { name: "Dismiss notification" }).click();
   await expect(toast).toHaveCount(0);

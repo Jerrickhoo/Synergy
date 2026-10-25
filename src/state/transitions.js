@@ -353,6 +353,7 @@ export function transition(state, payload) {
       initials: roleInitials(),
       text: message,
       time: payload.time,
+      timestamp: payload.timestamp,
     });
     record("You sent a room message.", activeRoom().id);
     toast("Message sent.");
@@ -545,7 +546,8 @@ export function transition(state, payload) {
     state.page = "match-detail";
   } else if (action === "open-room") {
     state.activeRoomId = payload.id;
-    state.page = "room-detail";
+    state.page = payload.review ? "review" : "room-detail";
+    state.roomTab = payload.tab || "terms";
   } else if (
     action === "simulate-response" ||
     action === "review-proposed-terms"

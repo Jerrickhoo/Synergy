@@ -8,7 +8,8 @@ import {
 import { resolve, dirname, join, sep } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
-import { decode } from "../src/state/serialization.js";
+import { encode, decode } from "../src/state/serialization.js";
+import { readWorkspaceSnapshot } from "./storage.js";
 const checksum = (bytes) => createHash("sha256").update(bytes).digest("hex");
 export function backupWorkspace(file, targetRoot) {
   const source = resolve(file),
@@ -18,8 +19,8 @@ export function backupWorkspace(file, targetRoot) {
     throw new Error(
       "Choose a backup directory outside the workspace data directory and uploads.",
     );
-  const bytes = readFileSync(source);
-  const snapshot = decode(bytes.toString("utf8"));
+  const snapshot = readWorkspaceSnapshot(source);
+  const bytes = Buffer.from(encode(snapshot));
   if (snapshot.version !== 1 || !snapshot.accounts)
     throw new Error("Invalid workspace snapshot.");
   const target = join(
@@ -67,6 +68,12 @@ export function verifyBackup(directory) {
   }
   if (!manifest.files["synergy.json"])
     throw new Error("Backup has no workspace snapshot.");
+  const snapshot = decode(readFileSync(join(root, "synergy.json"), "utf8"));
+  if (snapshot.version !== 1 || !snapshot.accounts)
+    throw new Error("Backup has an invalid workspace snapshot.");
+  for (const id of Object.keys(snapshot.files || {}))
+    if (!/^[0-9a-f-]{36}$/.test(id) || !manifest.files[`uploads/${id}`])
+      throw new Error("Backup is missing referenced evidence.");
   return manifest;
 }
 if (

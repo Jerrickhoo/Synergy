@@ -23,9 +23,12 @@ export function filterPeople(people, filters) {
 }
 export const pageLabel = (page) =>
   ({
+    settings: "Account settings",
     home: "Home",
     discover: "Matches",
-    waiting: "Waiting",
+    waiting: "Introductions",
+    notifications: "Updates",
+    moderation: "Moderation",
     rooms: "Deal rooms",
     "room-detail": "Deal room",
     "match-detail": "Match details",

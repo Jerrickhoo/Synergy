@@ -6,6 +6,7 @@ const paths = {
   profile: "profile",
   signup: "signup",
   onboarding: "onboarding",
+  settings: "settings",
   notifications: "updates",
   moderation: "moderation",
 };

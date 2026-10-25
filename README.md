@@ -4,7 +4,7 @@ Synergy is a working local React/Vite prototype for finding startup collaborator
 
 ## Run locally
 
-Requires Node.js 20.19+ or 22.12+ and npm.
+Requires Node.js 24+ and npm (SQLite uses the built-in Node database module).
 
 ```sh
 npm install
@@ -38,11 +38,11 @@ You can use the role selector in Profile to maintain separate founder and mentor
 
 ## Storage and boundaries
 
-The server saves the workspace atomically in `.data/synergy.json` and binary files in the neighboring `uploads` directory, excluded from Git. Back up both together. Set `SYNERGY_DATA_FILE` to use another database path. `npm start` also accepts `HOST` and `PORT` (local defaults: `127.0.0.1`, `4173`; production binds to `0.0.0.0`). Run a single server process for each data file.
+New workspaces use transactional SQLite with WAL at `.data/synergy.sqlite`. Changed account records are committed in one transaction. The previous default `.data/synergy.json` is imported once when the new default is first opened; the original file is preserved. An explicit `.json` `SYNERGY_DATA_FILE` remains supported through the atomic JSON compatibility adapter. The server saves binary files in the neighboring `uploads` directory, excluded from Git. Back up both together. Set `SYNERGY_DATA_FILE` to use another database path. `npm start` also accepts `HOST` and `PORT` (local defaults: `127.0.0.1`, `4173`; production binds to `0.0.0.0`). Run a single server process for each data file.
 
 Passwords are salted and hashed with scrypt. With email configured, signup and every new sign-in require a six-digit emailed code before the server issues a session or returns workspace data. Codes allow five guesses and expire after 15 minutes; resends require a one-minute wait. Pending sign-ins survive a page refresh without storing the password or code. Without provider credentials, local development still supports password-only access; production requires email configuration. Requests require an account session and room membership; partner confirmations cannot be simulated through the API. Session tokens are scoped to a browser tab and remain across refreshes. Closing the tab or restarting the server requires signing in again; saved work remains.
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for free Brevo email delivery (or the existing Resend option), OpenAI profile drafts, and the Render hosting configuration. Copy `.env.example` to `.env`, then set `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY`, and your verified `MAIL_FROM` to activate real verification emails. Generate your own key in the provider account; no key is bundled. AI is optional and uses its separate key. Keys stay on the server. In production, email verification is required before introductions, uploads or AI use; unverified profiles stay out of the directory. AI suggestions are reviewed before saving, with five attempts per account per day. Matching continues to use transparent word-overlap rules.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for free Brevo email delivery (or the existing Resend option), OpenAI profile drafts, and the Render hosting configuration. Copy `.env.example` to `.env`, then set `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY`, and your verified `MAIL_FROM` to activate real verification emails. Generate your own key in the provider account; no key is bundled. AI is optional and uses its separate key. Keys stay on the server. In production, email verification is required before introductions, uploads or AI use; unverified profiles stay out of the directory. AI suggestions are reviewed before saving, with five attempts per account per day. Matching uses Unicode-aware word coverage. Exchanges score both directions of need/offer coverage; mentorship compares founder needs with mentor offers/expertise. Missing inputs earn no positive signal. Algorithm versions are recorded separately from weight versions.
 
 Set `SYNERGY_ADMIN_EMAILS` to the comma-separated moderator account emails. Moderator access requires a verified email. The Moderation page supports report assignment/escalation/resolution, dispute remedies, closing unfinished rooms, account suspension, affiliation verification and approval of proposed vocabulary tags. Decisions are audited. Profile → Affiliation verification and community tags lets users submit evidence and propose tags. AI drafts ask follow-up questions about ambiguous intent, roles, audiences and unfamiliar terms, including fundraising. Users answer before applying suggestions and can submit automatically suggested unfamiliar tags for moderation. Drafts and tag suggestions never change a profile or the approved vocabulary automatically. Live model behavior still requires provider smoke checks.
 
@@ -52,25 +52,28 @@ Moderation → Matching evaluation reports distinct rooms by scoring version, ro
 
 Digests are off by default. Verified accounts can opt in after mail delivery is configured. The running Node/Vite server checks every minute, sends due daily/weekly digests, and backs off for 15 minutes after failures. Delivery status appears in Updates. Reminders are computed from current workspace data; browser push is not implemented.
 
-Public hosting has been prepared but has not been activated here. It requires a connected Render account, persistent storage, a verified sender and provider credentials. Real mail, AI completions and public deployment still require live smoke checks. Google login, antivirus scanning, managed database/object storage and production load testing remain outside this single-server prototype. `npm run backup` creates a checksummed database/upload snapshot; see [DEPLOYMENT.md](DEPLOYMENT.md) for verification and restore instructions.
+Public hosting has been prepared but has not been activated here. It requires a connected Render account, persistent storage, a verified sender and provider credentials. Real mail, AI completions and public deployment still require live smoke checks. Google login, antivirus scanning, managed multi-server database/object storage remain outside this single-server prototype. `npm run benchmark` runs a synthetic local concurrency smoke test, not a production capacity certification. `npm run backup` creates a checksummed database/upload snapshot; see [DEPLOYMENT.md](DEPLOYMENT.md) for verification and restore instructions.
 
 ## Checks
 
 ```sh
-npx playwright install chromium
+npx playwright install chromium firefox webkit
 npm run check:format
 npm run test:unit
 npm run test:e2e
 npm run build
 ```
 
-Unit/backend checks also cover terms revision, repeat engagements, public trust privacy, moderator authorization/remedies, vocabulary approval, affiliation badges, deadline/read-state persistence, recurring rescheduling, password-reset security, digest delivery and backup restoration/corruption detection. Browser checks cover the original auth/profile/navigation flows plus revised terms, closure/reconnection, mobile scheduling/notifications, moderation and password recovery. Provider calls use controlled responses and never send real mail or incur API charges. Browser checks use isolated data and a fake outbox on port 5181.
+Unit/backend checks also cover terms revision, repeat engagements, public trust privacy, moderator authorization/remedies, vocabulary approval, affiliation badges, deadline/read-state persistence, recurring rescheduling, password-reset security, digest delivery and backup restoration/corruption detection. Browser checks cover the original auth/profile/navigation flows plus revised terms, closure/reconnection, mobile scheduling/notifications, moderation and password recovery. Provider calls use controlled responses and never send real mail or incur API charges. Browser checks use isolated SQLite databases and fake outboxes on ports 5181-5183, one for each browser engine.
 
 ## Source layout
 
 - `server/workspace.js`: saved accounts, matching, invitations, shared-room updates, authorization, and private reviews.
 - `server/api.js`: JSON API and Vite integration.
 - `server/features.js`: lifecycle extensions, moderation, notification/digest state and recovery.
+- `server/storage.js`: transactional per-account SQLite persistence and atomic JSON compatibility.
+- `server/accounts.js`: visibility, blocking, exports, email changes, sessions and account deletion.
+- `server/operations.js`: storage readiness, safe error logs and optional scheduled backups.
 - `server/backup.js`: consistent database/upload snapshots and checksum verification.
 - `server/start.js`: server for the built app.
 - `src/state/`: UI state, API synchronization, routing, serialization, and validation.
@@ -80,3 +83,13 @@ Unit/backend checks also cover terms revision, repeat engagements, public trust 
 - `tests/`: state, backend, API, and browser checks. Fictional fixtures are used only for tests.
 
 `Synergy.md`, `Synergy.pdf`, and the original image are unchanged. `AUDIT.md` retains the earlier design and implementation history; its memory-only limitations describe previous versions.
+
+## Reliability and account controls (October 25, 2026)
+
+Shared terms saves/locks/acceptance require the displayed revision. Every saved draft advances it. Milestone confirmations and dispute resolutions require the observed content version, including evidence, scope, schedule, due date and agreement changes. Stale commands return 409. The UI preserves local terms/profile drafts within an account's browser tab and shows remote conflicts without replacing unsaved text. Temporary restore failures preserve the session and provide Retry. Requests have deadlines; background polling pauses in hidden tabs, avoids overlapping requests and skips unchanged workspaces.
+
+Suggested shows up to twelve eligible profiles with at least 30% fit; Browse all includes the full role directory. Search, data-derived industry choices, score thresholds, sorting and twelve-result pages support browsing. Introduction details let founders propose beta testing or co-marketing; the other party sees the selected type before accepting. Mentor introductions use mentorship. Home prioritizes disputes, terms, confirmations, deadlines and reviews.
+
+Profile links to Account settings and privacy. Users can pause both profiles, export their workspace, revoke other sessions and change their email with their current password plus a delivered code to the new mailbox. Blocking withdraws introductions, closes unfinished shared rooms and prevents further chat. Account deletion requires the current password and typing DELETE. It removes profile details, credentials, email, pending codes and private preferences, revokes sessions and anonymizes the participant name in shared chat/history. Shared agreements, messages, evidence and reviews remain accessible to collaborators; uploaded evidence is retained with those shared records. Existing backup snapshots follow the operator's retention policy and are not rewritten. Users should avoid putting private information in shared messages/evidence they do not want collaborators to retain.
+
+SQLite improves transactional durability and avoids rewriting the whole database file on every save. Directory/scoring and account snapshots still run in one process; this is not an autoscaling architecture. Run one application writer per database. Before migrating an existing deployment, back up the database and uploads together. Public providers, real devices and actual screen readers still require separate live checks; this repository does not claim real outcome validation for matching.

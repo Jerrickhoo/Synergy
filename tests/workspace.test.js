@@ -64,7 +64,17 @@ function signup(workspace, name, role = "founder") {
   );
 }
 const act = (workspace, user, command) =>
-  workspace.act(user.token, { role: user.state.role, ...command });
+  workspace.act(user.token, {
+    role: user.state.role,
+    termsRevision:
+      workspace.get(user.token).state.rooms[command.activeRoomId]?.terms
+        .revision || 0,
+    milestoneVersion:
+      workspace.get(user.token).state.rooms[command.activeRoomId]?.milestones[
+        command.id
+      ]?.contentVersion || 0,
+    ...command,
+  });
 function pair(workspace) {
   const a = signup(workspace, "Alex");
   const b = signup(workspace, "Jamie");

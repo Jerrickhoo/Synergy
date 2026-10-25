@@ -1,4 +1,5 @@
-import { randomUUID, randomBytes, scryptSync } from "node:crypto";
+import { promisify } from "node:util";
+import { randomUUID, randomBytes, scryptSync, scrypt } from "node:crypto";
 import {
   defaultVocabulary,
   suggestTags,
@@ -649,7 +650,20 @@ export function createFeatures({
         save();
       }
     },
-    resetPassword(input) {
+    async resetPasswordAsync(input) {
+      if (
+        typeof input.password !== "string" ||
+        input.password.trim().length < 8 ||
+        input.password.length > 1024
+      )
+        fail("Use a password with 8-1,024 characters.");
+      const salt = randomBytes(16).toString("hex");
+      const passwordHash = (
+        await promisify(scrypt)(input.password, salt, 64)
+      ).toString("hex");
+      return this.resetPassword(input, { salt, passwordHash });
+    },
+    resetPassword(input, derived) {
       const account = Object.values(db().accounts).find(
         (a) =>
           a.email ===
@@ -680,12 +694,10 @@ export function createFeatures({
         save();
         fail("Use a password with 8–1,024 characters.");
       }
-      account.salt = randomBytes(16).toString("hex");
-      account.passwordHash = scryptSync(
-        input.password,
-        account.salt,
-        64,
-      ).toString("hex");
+      account.salt = derived?.salt || randomBytes(16).toString("hex");
+      account.passwordHash =
+        derived?.passwordHash ||
+        scryptSync(input.password, account.salt, 64).toString("hex");
       account.emailVerifiedAt ||= new Date().toISOString();
       delete account.passwordReset;
       delete account.loginVerification;
