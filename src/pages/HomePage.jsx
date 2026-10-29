@@ -1,6 +1,5 @@
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
-import Icon from "../components/Icon.jsx";
 import {
   activeRooms,
   attentionItems,
@@ -38,39 +37,15 @@ export default function HomePage() {
   const savedCount = model
     .rolePeople()
     .filter((person) => state.savedByRole[state.role].has(person.id)).length;
-  const hasConnected = roleRooms(state).length > 0;
-  const journey = [
-    {
-      title: "Introduce yourself",
-      text: "Share your strengths and what you need.",
-      done: completeness === 100,
-      action: { action: "edit-profile" },
-    },
-    {
-      title: "Find your people",
-      text: "Explore profiles and send an introduction.",
-      done: incoming + outgoing > 0 || hasConnected,
-      action: { page: "discover" },
-    },
-    {
-      title: "Build together",
-      text: "Agree on a plan in your shared room.",
-      done: roleRooms(state).some(
-        (room) => room.terms.locked && room.terms.partnerLocked,
-      ),
-      action: { page: "rooms" },
-    },
-  ];
   return (
     <div className="page simple-home page-enter">
       <PageHeader
-        eyebrow="YOUR WORKSPACE, AT A GLANCE"
         title={
           state.accountName
             ? `Welcome, ${state.accountName.split(" ")[0]}`
             : "Welcome to Synergy"
         }
-        intro="Find your people. Make a plan. Move something forward."
+        intro="Manage your introductions and current collaborations."
       />
       <section className="workspace-metrics" aria-label="Workspace overview">
         {[
@@ -80,7 +55,7 @@ export default function HomePage() {
             detail: completedCount
               ? `${completedCount} completed`
               : "Your shared workspaces",
-            icon: "rooms",
+
             page: "rooms",
           },
           {
@@ -91,29 +66,25 @@ export default function HomePage() {
               : outgoing
                 ? "Waiting for a response"
                 : "Start a conversation",
-            icon: "people",
+
             page: "waiting",
           },
           {
             label: "Saved matches",
             value: savedCount,
             detail: "People on your shortlist",
-            icon: "star",
+
             page: "discover",
             matchTab: "saved",
           },
-        ].map(({ label, value, detail, icon, ...destination }) => (
+        ].map(({ label, value, detail, ...destination }) => (
           <button
             className="workspace-metric"
             key={label}
             onClick={() => onAction(destination)}
           >
             <span className="metric-heading">
-              <span className="section-icon">
-                <Icon name={icon} />
-              </span>
               <span>{label}</span>
-              <Icon name="arrow" />
             </span>
             <strong>{value}</strong>
             <span className="metric-detail">{detail}</span>
@@ -124,7 +95,6 @@ export default function HomePage() {
         <div className="home-next-action">
           {attention.length > 0 ? (
             <section className="card getting-started attention-card">
-              <span className="eyebrow">NEEDS YOUR ATTENTION</span>
               <h2>{attention[0].text}</h2>
               <p>
                 {attention.length} pending action
@@ -150,15 +120,8 @@ export default function HomePage() {
             </section>
           ) : completeness < 100 ? (
             <section className="card getting-started">
-              <div className="empty-icon">
-                <Icon name="profile" />
-              </div>
-              <span className="eyebrow">LET'S START HERE</span>
-              <h2>Make your profile yours</h2>
-              <p>
-                Share what you're working on, what you can offer, and where you
-                need help.
-              </p>
+              <h2>Profile setup</h2>
+              <p>Add your background, skills and collaboration needs.</p>
               <button
                 className="btn primary"
                 onClick={() => onAction({ action: "edit-profile" })}
@@ -203,10 +166,7 @@ export default function HomePage() {
             </section>
           ) : (
             <section className="card getting-started">
-              <div className="empty-icon">
-                <Icon name="search" />
-              </div>
-              <h2>Your profile is ready</h2>
+              <h2>Find collaborators</h2>
               <p>Head to Matches to find people to work with.</p>
               <button
                 className="btn primary"
@@ -217,48 +177,9 @@ export default function HomePage() {
             </section>
           )}
         </div>
-        <aside
-          className="card collaboration-path"
-          aria-label="Your collaboration path"
-        >
-          <span className="eyebrow">FROM HELLO TO PROGRESS</span>
-          <h2>Your next chapter</h2>
-          <p className="muted">A little structure for a good start.</p>
-          <ol>
-            {journey.map((step, index) => (
-              <li key={step.title} className={step.done ? "path-complete" : ""}>
-                <span className="path-number">
-                  {step.done ? (
-                    <>
-                      <Icon name="check" />
-                      <span className="sr-only">Completed</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="sr-only">Step </span>
-                      {index + 1}
-                    </>
-                  )}
-                </span>
-                <div>
-                  <button
-                    className="link-btn"
-                    onClick={() => onAction(step.action)}
-                  >
-                    {step.title}
-                  </button>
-                  <p>{step.text}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </aside>
       </div>
       <div className="simple-home-grid">
         <section className="card panel">
-          <span className="section-icon">
-            <Icon name="rooms" />
-          </span>
           <h2>Your collaborations</h2>
           <p className="muted">
             {rooms.length
@@ -275,9 +196,6 @@ export default function HomePage() {
           </button>
         </section>
         <section className="card panel">
-          <span className="section-icon">
-            <Icon name="clock" />
-          </span>
           <h2>Recent activity</h2>
           {activity.length ? (
             activity.map((item) => (
@@ -286,10 +204,7 @@ export default function HomePage() {
               </p>
             ))
           ) : (
-            <p className="muted">
-              You're all caught up. Your updates will appear here as you get
-              started.
-            </p>
+            <p className="muted">No recent activity.</p>
           )}
           <button
             className="link-btn"
@@ -302,7 +217,7 @@ export default function HomePage() {
       <Introductions compact />
       {rooms.length > 0 && (
         <section className="card panel section-gap">
-          <h2>Continue working together</h2>
+          <h2>Active collaborations</h2>
           {rooms.slice(0, 3).map((room) => (
             <div className="collaboration-row" key={room.id}>
               <span>

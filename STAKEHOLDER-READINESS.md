@@ -1,3 +1,9 @@
+# Prototype cleanup ? October 29, 2026
+
+The current app uses simulated sign-in accepting any non-empty credentials, with a founder/mentor dropdown at the bottom right with no third-party API keys. External email, verification, recovery, digests and AI drafting have been removed. The welcome screen and settings contain no unavailable-service prompts. README.md and DEPLOYMENT.md describe the current prototype; the assessments below are historical and their email-activation requirements no longer apply.
+
+---
+
 # Current local prototype status - October 25, 2026
 
 The review defects and prototype improvements have been implemented. See [QA-REPORT.md](QA-REPORT.md) for current verification and [DEPLOYMENT.md](DEPLOYMENT.md) for updated Node.js 24+, SQLite, backup and activation instructions. The user confirmed this is local prototype code with no live app. No deployment or provider activation was performed. The October 20 assessment below is historical and its implementation limitations should not be treated as current.

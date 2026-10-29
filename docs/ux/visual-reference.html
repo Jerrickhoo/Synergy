@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Synergy — visual reference</title>
+    <link rel="icon" type="image/svg+xml" href="../../public/favicon.svg" />
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        color: #1c2b23;
+        background: #f2f4f1;
+        font-size: 15px;
+        line-height: 1.55;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 48px 28px;
+      }
+      main {
+        max-width: 1100px;
+        margin: auto;
+      }
+      h1 {
+        font-size: 34px;
+        letter-spacing: -1px;
+        margin: 8px 0 12px;
+      }
+      h2 {
+        font-size: 19px;
+        margin: 0 0 20px;
+        letter-spacing: -0.3px;
+      }
+      h3 {
+        font-size: 18px;
+        margin: 0;
+      }
+      p {
+        margin: 6px 0 18px;
+      }
+      small,
+      .muted {
+        color: #4f6056;
+      }
+      .eyebrow {
+        color: #245e49;
+        font-size: 12px;
+        font-weight: 650;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
+      .intro {
+        max-width: 720px;
+        color: #4f6056;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 22px;
+        margin-top: 32px;
+      }
+      .panel {
+        background: white;
+        border: 1px solid #c8d2cc;
+        padding: 26px;
+        border-radius: 12px;
+        min-width: 0;
+      }
+      .note {
+        font-size: 12px;
+        margin: 20px 0 0;
+        color: #4f6056;
+      }
+      .logo-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 16px;
+        border-radius: 8px;
+      }
+      .logo-row img {
+        width: 150px;
+        max-width: 65%;
+        height: auto;
+      }
+      .dark {
+        background: #202e27;
+        color: white;
+        margin: 12px 0;
+      }
+      .sizes {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-top: 18px;
+      }
+      .sizes img {
+        width: auto;
+      }
+      .swatches {
+        display: flex;
+        gap: 8px;
+        margin-top: 20px;
+      }
+      .swatch {
+        width: 44px;
+        height: 44px;
+        border-radius: 8px;
+        border: 1px solid #c8d2cc;
+      }
+      .identity {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 20px;
+      }
+      .avatar {
+        display: grid;
+        place-items: center;
+        width: 52px;
+        height: 52px;
+        background: #dbe7de;
+        color: #244834;
+        border-radius: 12px;
+        font-weight: 650;
+        flex-shrink: 0;
+      }
+      .identity p {
+        margin: 2px 0 0;
+        font-size: 13px;
+        color: #4f6056;
+      }
+      .section {
+        border-top: 1px solid #e0e7df;
+        padding-top: 18px;
+        margin-top: 18px;
+      }
+      .section strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+      .tag {
+        display: inline-block;
+        background: #e6ece7;
+        color: #344b3d;
+        border-radius: 5px;
+        padding: 3px 9px;
+        font-size: 12px;
+        margin: 0 4px 6px 0;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 18px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      button,
+      select {
+        font: inherit;
+        color: inherit;
+      }
+      button {
+        cursor: pointer;
+        border: 1px solid #b2c2b6;
+        border-radius: 8px;
+        background: white;
+        padding: 10px 16px;
+        min-height: 44px;
+        font-weight: 600;
+      }
+      button.primary {
+        background: #245e49;
+        color: white;
+        border-color: #245e49;
+      }
+      button:hover {
+        background: #e4ede6;
+      }
+      button.primary:hover {
+        background: #194732;
+      }
+      :focus-visible {
+        outline: 2px solid #24866b;
+        outline-offset: 3px;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        margin: 16px 0 6px;
+      }
+      select {
+        width: 100%;
+        appearance: none;
+        min-height: 44px;
+        border: 1px solid #b2c2b6;
+        border-radius: 8px;
+        padding: 10px 42px 10px 14px;
+        background: white
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%234f6056' stroke-width='1.8'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E")
+          right 13px center / 18px no-repeat;
+      }
+      select:disabled {
+        background-color: #eef2ec;
+        color: #637368;
+      }
+      .toast {
+        display: flex;
+        gap: 12px;
+        padding: 16px;
+        border: 1px solid #ced8cf;
+        border-radius: 12px;
+        box-shadow:
+          0 8px 28px #203d2914,
+          0 2px 6px #203d2908;
+      }
+      .toast .status {
+        flex-shrink: 0;
+        display: grid;
+        place-items: center;
+        background: #e8f7f0;
+        color: #08745b;
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        font-weight: 700;
+      }
+      .toast p {
+        margin: 2px 0 0;
+        font-size: 13px;
+        color: #425449;
+      }
+      .toast button {
+        padding: 0;
+        min-height: 36px;
+        width: 36px;
+        border: none;
+        margin-left: auto;
+        color: #4f6056;
+      }
+      .calendar-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .calendar-head button {
+        padding: 4px 12px;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        table-layout: fixed;
+        margin-top: 14px;
+        text-align: center;
+      }
+      th {
+        color: #4f6056;
+        font-weight: 500;
+        font-size: 11px;
+        padding: 8px 0;
+      }
+      td {
+        font-size: 13px;
+        height: 40px;
+      }
+      .selected {
+        background: #245e49;
+        color: white;
+        border-radius: 8px;
+      }
+      .agenda {
+        border-top: 1px solid #e0e7df;
+        padding-top: 16px;
+        margin-top: 12px;
+      }
+      .agenda span {
+        display: block;
+        font-size: 13px;
+        color: #4f6056;
+      }
+      .slots {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+      .slots button {
+        padding: 10px 4px;
+        font-size: 13px;
+      }
+      .slots .chosen {
+        background: #e4ede6;
+        border-color: #245e49;
+        color: #194732;
+      }
+      footer {
+        margin-top: 28px;
+        font-size: 12px;
+        color: #4f6056;
+      }
+      @media (max-width: 700px) {
+        body {
+          padding: 24px 16px;
+        }
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        h1 {
+          font-size: 28px;
+        }
+        .panel {
+          padding: 22px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="eyebrow">Synergy · design direction · October 29, 2026</div>
+        <h1>Clearer connections. Calmer screens.</h1>
+        <p class="intro">
+          A working reference for identity, hierarchy, controls and feedback.
+          Identity, selects and toast styling ship in Phase 1. Profile, match
+          and calendar compositions below guide later phases.
+        </p>
+      </header>
+      <div class="grid">
+        <section class="panel">
+          <h2>01 / Identity</h2>
+          <div class="logo-row">
+            <img
+              src="../../public/brand/synergy-lockup.svg"
+              alt="Synergy full-color logo"
+            /><small>On light</small>
+          </div>
+          <div class="logo-row dark">
+            <img
+              src="../../public/brand/synergy-lockup-light.svg"
+              alt="Synergy logo for dark surfaces"
+            /><small style="color: #dce6df">On dark</small>
+          </div>
+          <div class="logo-row">
+            <img
+              src="../../public/brand/synergy-lockup-mono.svg"
+              alt="Synergy monochrome logo"
+            /><small>One color</small>
+          </div>
+          <div class="sizes">
+            <img
+              src="../../public/favicon.svg"
+              width="16"
+              height="16"
+              alt="16 pixel favicon"
+            /><img
+              src="../../public/favicon.svg"
+              width="24"
+              height="24"
+              alt="24 pixel favicon"
+            /><img
+              src="../../public/favicon.svg"
+              width="32"
+              height="32"
+              alt="32 pixel favicon"
+            /><small>Small-size check</small>
+          </div>
+          <div class="swatches" aria-label="Brand palette">
+            <span
+              class="swatch"
+              style="background: #245e49"
+              title="Action green #245e49"
+            ></span
+            ><span
+              class="swatch"
+              style="background: #24866b"
+              title="Ribbon #24866b"
+            ></span
+            ><span
+              class="swatch"
+              style="background: #a5cf65"
+              title="Link #a5cf65"
+            ></span
+            ><span
+              class="swatch"
+              style="background: #f2f4f1"
+              title="Canvas #f2f4f1"
+            ></span
+            ><span
+              class="swatch"
+              style="background: #202e27"
+              title="Sidebar #202e27"
+            ></span>
+          </div>
+          <p class="note">
+            Retain the linked ribbon silhouette. Use balanced clear space, a
+            quiet wordmark, and lighter ribbon colors on dark surfaces.
+          </p>
+        </section>
+        <section class="panel">
+          <h2>02 / Profile hierarchy — proposed</h2>
+          <div class="identity">
+            <div class="avatar" aria-hidden="true">AC</div>
+            <div>
+              <small>Mentor</small>
+              <h3>Alex Chen</h3>
+              <p>Product strategy · Early-stage teams</p>
+            </div>
+          </div>
+          <p>
+            I help founders turn user research into a focused product direction.
+          </p>
+          <div class="section">
+            <strong>How I can help</strong
+            ><span class="tag">Product strategy</span
+            ><span class="tag">User research</span
+            ><span class="tag">Onboarding</span>
+          </div>
+          <div class="section">
+            <strong>Availability</strong>
+            <p class="muted">Two sessions per month · Asia/Manila</p>
+          </div>
+          <div class="actions">
+            <button class="primary" type="button">Introduce yourself</button
+            ><button type="button">Save profile</button>
+          </div>
+          <p class="note">
+            Identity first, relevant help second, next action clearly grouped.
+            Fictional composition; availability text does not imply live
+            booking.
+          </p>
+        </section>
+        <section class="panel">
+          <h2>03 / Match card — proposed</h2>
+          <div class="identity">
+            <div class="avatar" aria-hidden="true">S</div>
+            <div>
+              <small>Startup · EdTech</small>
+              <h3>StudyLoop</h3>
+              <p>Idea stage · Team of four</p>
+            </div>
+          </div>
+          <p>Helping students build calmer study routines.</p>
+          <div class="section">
+            <strong>Looking for help with</strong
+            ><span class="tag">Onboarding</span
+            ><span class="tag">User research</span>
+          </div>
+          <p class="muted">
+            Your product expertise connects with their onboarding goals.
+          </p>
+          <div class="actions">
+            <button class="primary" type="button">View match</button
+            ><small>Profile fit is provisional</small>
+          </div>
+          <p class="note">
+            Mentor cards should surface startup needs. Keep score detail
+            available without letting it dominate the first scan.
+          </p>
+        </section>
+        <section class="panel">
+          <h2>04 / Shared controls and feedback</h2>
+          <label for="sort">Sort by</label
+          ><select id="sort">
+            <option>Highest fit</option>
+            <option>Name</option>
+            <option>Completed collaborations</option>
+          </select>
+          <label for="disabled">Unavailable control</label
+          ><select id="disabled" disabled>
+            <option>Just this session</option>
+          </select>
+          <div class="section">
+            <div class="toast">
+              <span class="status" aria-hidden="true">✓</span>
+              <div>
+                <strong>Profile saved</strong>
+                <p>Your changes are ready to share.</p>
+              </div>
+              <button type="button" aria-label="Dismiss sample notification">
+                ×
+              </button>
+            </div>
+          </div>
+          <p class="note">
+            A uniform border, compact status icon, clear text and close control.
+            Selects keep native keyboard and mobile behavior. Tab through this
+            sheet to inspect focus.
+          </p>
+        </section>
+        <section class="panel">
+          <h2>05 / Calendar overview — proposed</h2>
+          <div class="calendar-head">
+            <strong>October 2026</strong><button type="button">Today</button>
+          </div>
+          <table aria-label="October calendar composition">
+            <thead>
+              <tr>
+                <th>Mon</th>
+                <th>Tue</th>
+                <th>Wed</th>
+                <th>Thu</th>
+                <th>Fri</th>
+                <th>Sat</th>
+                <th>Sun</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td>1</td>
+                <td>2</td>
+                <td>3</td>
+                <td>4</td>
+              </tr>
+              <tr>
+                <td>5</td>
+                <td>6</td>
+                <td>7</td>
+                <td>8</td>
+                <td>9</td>
+                <td>10</td>
+                <td>11</td>
+              </tr>
+              <tr>
+                <td>12</td>
+                <td>13</td>
+                <td>14</td>
+                <td>15</td>
+                <td>16</td>
+                <td>17</td>
+                <td>18</td>
+              </tr>
+              <tr>
+                <td>19</td>
+                <td>20</td>
+                <td>21</td>
+                <td>22</td>
+                <td>23</td>
+                <td>24</td>
+                <td>25</td>
+              </tr>
+              <tr>
+                <td>26</td>
+                <td>27</td>
+                <td>28</td>
+                <td class="selected">29</td>
+                <td>30</td>
+                <td>31</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="agenda">
+            <strong>Thursday, October 29</strong
+            ><span>10:00 AM · Mentorship session</span
+            ><span>StudyLoop · Asia/Manila</span>
+          </div>
+          <p class="note">
+            Aligned dates and a useful agenda take priority over a decorative
+            hero. The application overview can show event labels and overflow
+            indicators.
+          </p>
+        </section>
+        <section class="panel">
+          <h2>06 / Session picker — proposed</h2>
+          <small>Selected date</small>
+          <h3>Saturday, October 31</h3>
+          <p class="muted">
+            Choose a suggested time to discuss with your collaborator.
+          </p>
+          <div class="slots">
+            <button type="button">9:00 AM</button
+            ><button type="button" class="chosen" aria-pressed="true">
+              10:00 AM</button
+            ><button type="button">11:00 AM</button
+            ><button type="button">1:00 PM</button
+            ><button type="button">2:00 PM</button
+            ><button type="button">3:00 PM</button>
+          </div>
+          <div class="section">
+            <strong>Before saving</strong>
+            <p class="muted">
+              October 31 · 10:00 AM<br />Timezone: Asia/Manila<br />Confirm
+              availability together in Chat.
+            </p>
+          </div>
+          <button type="button" class="primary">Save session schedule</button>
+          <p class="note">
+            A focused date → time → confirmation sequence. Verified availability
+            and conflict checking require separate workflow decisions.
+          </p>
+        </section>
+      </div>
+      <footer>
+        Reference compositions only. Samples do not create profiles, save
+        settings or book sessions. See PHASE-0-REVIEW.md for workflow findings
+        and decisions.
+      </footer>
+    </main>
+  </body>
+</html>

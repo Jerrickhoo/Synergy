@@ -2,7 +2,10 @@ import { Fragment, useEffect, useRef } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Avatar from "../components/Avatar.jsx";
 export default function ChatPanel({ room }) {
-  const { onSubmit, state } = useApp();
+  const { onSubmit, state, model } = useApp();
+  const partner = model
+    .allPeople()
+    .find((person) => person.id === room.partnerId);
   const messagesRef = useRef(null);
   const previousCount = useRef(room.messages.length);
   useEffect(() => {
@@ -32,7 +35,12 @@ export default function ChatPanel({ room }) {
           <Fragment key={itemIndex}>
             <div className="message">
               {message.who === "partner" ? (
-                <Avatar initials={message.initials} color="coral" />
+                <Avatar
+                  image={partner?.image}
+                  name={message.name}
+                  initials={message.initials}
+                  color="coral"
+                />
               ) : (
                 ""
               )}

@@ -1,10 +1,9 @@
-import { promisify } from "node:util";
+import { promisify, isDeepStrictEqual } from "node:util";
 import { accountControls } from "./accounts.js";
 import { createStorage } from "./storage.js";
 import {
   randomBytes,
   randomUUID,
-  randomInt,
   createHash,
   scryptSync,
   scrypt,
@@ -15,10 +14,14 @@ import { profileCompleteness, roomProgress } from "../src/data/selectors.js";
 import { validateCredentials, cleanValues } from "../src/state/validation.js";
 import { transition } from "../src/state/transitions.js";
 import { encode, decode } from "../src/state/serialization.js";
-import { emailConfiguration } from "./email-config.js";
 import { createFeatures } from "./features.js";
 import { trustSummary } from "../src/data/collaboration.js";
 import { defaultMatching } from "../src/data/matching.js";
+import {
+  demoProfiles,
+  legacyDemoProfiles,
+  demoDirectoryVersion,
+} from "./demo-directory.js";
 
 export class WorkspaceError extends Error {
   constructor(message, status = 400, fields) {
@@ -226,6 +229,72 @@ export function createWorkspace(file, options = {}) {
     }
   };
 
+  if (options.demoMode) {
+    let samplesChanged = false;
+    const snapshot = (name, profile) => ({ name, profile });
+    const sampleSnapshot = (sample) =>
+      snapshot(sample.name, {
+        ...createInitialState().profiles[sample.role],
+        ...sample.profile,
+      });
+    for (const sample of demoProfiles) {
+      const id = `demo-sample-${sample.id}`;
+      const existing = db.accounts[id];
+      if (existing) {
+        // Only untouched fixtures are refreshed. Shared work and account settings
+        // are outside the snapshot and are never reset by a fixture upgrade.
+        if (
+          !existing.demoSample ||
+          existing.demoFixture?.version >= demoDirectoryVersion
+        )
+          continue;
+        const legacy = legacyDemoProfiles.find((item) => item.id === sample.id);
+        const baseline =
+          existing.demoFixture?.snapshot || (legacy && sampleSnapshot(legacy));
+        if (
+          !baseline ||
+          !isDeepStrictEqual(
+            snapshot(
+              existing.state.accountName,
+              existing.state.profiles[sample.role],
+            ),
+            baseline,
+          )
+        )
+          continue;
+        existing.state.accountName = sample.name;
+        existing.state.profiles[sample.role] = sampleSnapshot(sample).profile;
+        existing.demoFixture = {
+          version: demoDirectoryVersion,
+          snapshot: sampleSnapshot(sample),
+        };
+        samplesChanged = true;
+        continue;
+      }
+      const state = createInitialState();
+      state.role = sample.role;
+      state.accountName = sample.name;
+      state.accountEmail = `${sample.id}@example.invalid`;
+      state.profileDone = true;
+      Object.assign(state.profiles[sample.role], sample.profile);
+      db.accounts[id] = {
+        id,
+        demo: true,
+        demoSample: true,
+        demoFixture: {
+          version: demoDirectoryVersion,
+          snapshot: sampleSnapshot(sample),
+        },
+        email: state.accountEmail,
+        salt: randomBytes(16).toString("hex"),
+        passwordHash: randomBytes(64).toString("hex"),
+        state,
+      };
+      samplesChanged = true;
+    }
+    if (samplesChanged) save();
+  }
+
   const event = (account, role, text, roomId) =>
     account.state.activity.unshift({
       id: randomUUID(),
@@ -253,6 +322,7 @@ export function createWorkspace(file, options = {}) {
       name: account.state.accountName,
       kind: role === "mentor" ? "Mentor" : "Startup",
       initials: initials(account.state.accountName),
+      image: profile.image || "",
       color: role === "mentor" ? "blue" : "",
       sector: profile.industry || profile.expertise,
       summary: profile.bio,
@@ -265,6 +335,8 @@ export function createWorkspace(file, options = {}) {
       stage: profile.stage || "",
       availability: profile.availability || "",
       pastExperience: role === "mentor" ? profile.pastExperience || "" : "",
+      expertise: role === "mentor" ? profile.expertise || "" : "",
+      startups: role === "mentor" ? profile.startups || "" : "",
       engagement:
         role === "mentor" || viewer.role === "mentor"
           ? "Mentorship"
@@ -295,9 +367,8 @@ export function createWorkspace(file, options = {}) {
     state.accountId = account.id;
     state.emailVerified = Boolean(account.emailVerifiedAt);
     state.integrations = {
-      email: emailConfiguration(options).enabled,
-      ai: Boolean(options.openaiKey),
-      requireVerification: Boolean(options.requireVerification),
+      demoMode: Boolean(options.demoMode),
+      guest: Boolean(account.demo),
       maxFileBytes: options.maxFileBytes || 5 * 1024 * 1024,
       moderation: Boolean(options.adminEmails?.length),
     };
@@ -306,13 +377,14 @@ export function createWorkspace(file, options = {}) {
     for (const other of Object.values(db.accounts)) {
       if (
         other.id === account.id ||
+        (other.demo &&
+          (!account.demo || !other.demoSample || !options.demoMode)) ||
         other.suspended ||
         other.profileVisible === false ||
         account.blockedAccounts?.includes(other.id) ||
         other.blockedAccounts?.includes(account.id)
       )
         continue;
-      if (options.requireVerification && !other.emailVerifiedAt) continue;
       for (const otherRole of roles) {
         if (
           profileCompleteness(other.state.profiles[otherRole], otherRole) < 100
@@ -364,6 +436,7 @@ export function createWorkspace(file, options = {}) {
   }
   function response(account, role) {
     const state = prepare(account, role);
+    if (features.rememberNotifications(account, state)) save();
     for (const room of Object.values(state.rooms)) {
       if (!room.review.me || !room.review.partner) {
         delete room.review.partnerRating;
@@ -407,66 +480,6 @@ export function createWorkspace(file, options = {}) {
       expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
     });
     return { ...response(account), token };
-  }
-  function reserveCode(account, field, extra = {}) {
-    const lastSent = Math.max(
-      account.verification?.sentAt || 0,
-      account.loginVerification?.sentAt || 0,
-      account.passwordReset?.sentAt || 0,
-      account.emailChange?.sentAt || 0,
-    );
-    if (lastSent > Date.now() - 60000)
-      fail("Wait one minute before requesting another code.", 429);
-    const day = new Date().toISOString().slice(0, 10);
-    if (db.mailUsage?.day !== day) db.mailUsage = { day, count: 0 };
-    if (db.mailUsage.count >= 100)
-      fail(
-        "Today's email request limit has been reached. Please try again tomorrow.",
-        429,
-      );
-    db.mailUsage.count += 1;
-    const code = String(randomInt(100000, 1000000));
-    const salt = randomBytes(16).toString("hex");
-    account[field] = {
-      ...extra,
-      hash: hash(salt + code),
-      salt,
-      expires: extra.challengeExpires || Date.now() + 15 * 60000,
-      sentAt: Date.now(),
-      attempts: 0,
-      delivered: false,
-    };
-    save();
-    return { email: account.email, code };
-  }
-  function loginAccount(challengeId) {
-    if (typeof challengeId !== "string" || !/^[a-f0-9]{64}$/.test(challengeId))
-      fail("This sign-in request is unavailable. Start signing in again.", 401);
-    const challengeHash = hash(challengeId);
-    const account = Object.values(db.accounts).find(
-      (item) => item.loginVerification?.challengeHash === challengeHash,
-    );
-    if (
-      !account ||
-      account.loginVerification.expires < Date.now() ||
-      account.loginVerification.attempts >= 5
-    )
-      fail(
-        "This sign-in request expired or has too many attempts. Start signing in again.",
-        401,
-      );
-    return account;
-  }
-  function loginProof(account, challengeId, extra) {
-    const proof = reserveCode(account, "loginVerification", extra);
-    return {
-      ...proof,
-      verificationRequired: true,
-      challengeId,
-      purpose: extra.purpose,
-      expiresAt: account.loginVerification.expires,
-      resendAt: account.loginVerification.sentAt + 60000,
-    };
   }
   function login(values, signup = false, derived) {
     values = {
@@ -517,14 +530,6 @@ export function createWorkspace(file, options = {}) {
         "This account is unavailable. Contact the workspace moderator.",
         403,
       );
-    if (options.requireLoginCode) {
-      const challengeId = randomBytes(32).toString("hex");
-      return loginProof(account, challengeId, {
-        challengeHash: hash(challengeId),
-        challengeExpires: Date.now() + 15 * 60000,
-        purpose: signup ? "signup" : "login",
-      });
-    }
     return openSession(account);
   }
   async function loginAsync(values, signup = false) {
@@ -598,8 +603,6 @@ export function createWorkspace(file, options = {}) {
     event,
     options,
     fail,
-    hash,
-    reserveCode,
     sessions,
   });
 
@@ -762,18 +765,10 @@ export function createWorkspace(file, options = {}) {
       id,
     );
   }
-  function requireVerified(account) {
-    if (options.requireVerification && !account.emailVerifiedAt)
-      fail(
-        "Verify your email in your profile before connecting, uploading files or using AI.",
-        403,
-      );
-  }
   function act(token, input, uploadedFile) {
     if (features.handles(input)) return features.act(token, input);
     const account = authenticate(token);
     if (["interest", "accept-interest"].includes(input.action)) {
-      requireVerified(account);
       if (account.profileVisible === false)
         fail(
           "Make your profile visible in Account settings before connecting.",
@@ -1100,7 +1095,6 @@ export function createWorkspace(file, options = {}) {
     hash,
     save,
     response,
-    reserveCode,
     mirror,
     fail,
   });
@@ -1111,6 +1105,42 @@ export function createWorkspace(file, options = {}) {
     features,
     login,
     loginAsync,
+    openDemo(role) {
+      if (!options.demoMode) fail("Demo access is disabled.", 404);
+      if (!roles.includes(role)) fail("Choose a founder or mentor preview.");
+      const state = createInitialState();
+      const account = {
+        id: randomUUID(),
+        demo: true,
+        email: `demo-${randomUUID()}@example.invalid`,
+        salt: randomBytes(16).toString("hex"),
+        passwordHash: randomBytes(64).toString("hex"),
+        state,
+      };
+      state.role = role;
+      state.accountName = role === "founder" ? "Maria Santos" : "David Park";
+      state.accountEmail = account.email;
+      state.profileDone = true;
+      Object.assign(state.profiles.founder, {
+        bio: "Building a budgeting app that helps students manage their money.",
+        offer: "Beta testing, Student user insights",
+        need: "Product strategy, Onboarding guidance",
+        industry: "FinTech",
+        stage: "pre-seed",
+        teamSize: "4",
+      });
+      Object.assign(state.profiles.mentor, {
+        bio: "Helping early teams improve their products and find traction.",
+        offer: "Product strategy, Growth, Onboarding guidance",
+        need: "Early teams, Product challenges",
+        expertise: "Product strategy, Growth",
+        availability: "Monthly sessions",
+        startups: "Idea and pre-seed teams",
+      });
+      db.accounts[account.id] = account;
+      save();
+      return openSession(account);
+    },
     act,
     get: (token, role) => response(authenticate(token), role),
     poll(token, role, since, key) {
@@ -1122,119 +1152,8 @@ export function createWorkspace(file, options = {}) {
       return response(account, currentRole);
     },
     logout: (token) => sessions.delete(token),
-    resendLogin(challengeId) {
-      const account = loginAccount(challengeId);
-      const { challengeHash, challengeExpires, purpose } =
-        account.loginVerification;
-      return loginProof(account, challengeId, {
-        challengeHash,
-        challengeExpires,
-        purpose,
-      });
-    },
-    loginCodeSent(challengeId, code) {
-      const account = loginAccount(challengeId);
-      const proof = account.loginVerification;
-      if (proof.hash === hash(proof.salt + code)) {
-        proof.delivered = true;
-        save();
-      }
-    },
-    verifyLogin(challengeId, code) {
-      const account = loginAccount(challengeId);
-      const proof = account.loginVerification;
-      if (!proof.delivered)
-        fail(
-          "The email could not be sent. Request a new code before continuing.",
-        );
-      proof.attempts += 1;
-      const valid =
-        /^\d{6}$/.test(String(code)) &&
-        timingSafeEqual(
-          Buffer.from(proof.hash, "hex"),
-          Buffer.from(hash(proof.salt + code), "hex"),
-        );
-      if (!valid) {
-        save();
-        fail("That verification code is incorrect.", 400, {
-          code: "Enter the code from your latest email.",
-        });
-      }
-      account.emailVerifiedAt ||= new Date().toISOString();
-      delete account.loginVerification;
-      delete account.verification;
-      save();
-      return openSession(account);
-    },
-    beginVerification(token) {
-      const account = authenticate(token);
-      if (account.emailVerifiedAt) fail("Your email is already verified.");
-      return reserveCode(account, "verification");
-    },
-    verificationSent(token, code) {
-      const account = authenticate(token);
-      if (
-        account.verification?.hash === hash(account.verification.salt + code)
-      ) {
-        account.verification.delivered = true;
-        save();
-      }
-    },
-    verifyEmail(token, code, role) {
-      const account = authenticate(token);
-      const proof = account.verification;
-      if (
-        !proof?.delivered ||
-        proof.expires < Date.now() ||
-        proof.attempts >= 5
-      )
-        fail(
-          "Request a new verification code. The previous code is unavailable or expired.",
-        );
-      proof.attempts += 1;
-      const valid =
-        /^\d{6}$/.test(String(code)) &&
-        timingSafeEqual(
-          Buffer.from(proof.hash, "hex"),
-          Buffer.from(hash(proof.salt + code), "hex"),
-        );
-      if (!valid) {
-        save();
-        fail("That verification code is incorrect.");
-      }
-      account.emailVerifiedAt = new Date().toISOString();
-      delete account.verification;
-      save();
-      return response(account, role);
-    },
-    reserveAI(token, role, story) {
-      const account = authenticate(token);
-      requireVerified(account);
-      if (
-        !roles.includes(role) ||
-        typeof story !== "string" ||
-        story.trim().length < 20 ||
-        story.length > 4000
-      )
-        fail(
-          "Describe your work in 20–4,000 characters and choose a valid role.",
-        );
-      const day = new Date().toISOString().slice(0, 10);
-      if (account.aiUsage?.day !== day) account.aiUsage = { day, count: 0 };
-      db.aiUsage ||= { day, count: 0 };
-      if (db.aiUsage.day !== day) db.aiUsage = { day, count: 0 };
-      if (account.aiUsage.count >= 5 || db.aiUsage.count >= 100)
-        fail(
-          "Today's AI request limit has been reached. Please try again tomorrow.",
-          429,
-        );
-      account.aiUsage.count += 1;
-      db.aiUsage.count += 1;
-      save();
-    },
     authorizeUpload(token, input, size = 0) {
       const account = authenticate(token);
-      requireVerified(account);
       const room = account.state.rooms[input.activeRoomId];
       if (
         !room ||

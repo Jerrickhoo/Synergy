@@ -1,10 +1,40 @@
 const formTitles = {
   "login-form": "Couldn't sign in",
   "signup-form": "Couldn't create your account",
-  "login-code-form": "Couldn't verify your code",
   "profile-form": "Couldn't save your profile",
   schedule: "Couldn't schedule your session",
 };
+
+export const connectionMessage =
+  "We can't reach your workspace. Updates will resume automatically when the connection returns.";
+
+export function connectionInterrupted(state, { scope, saving = false } = {}) {
+  if (state.connectionError && !saving) return;
+  state.connectionError = connectionMessage;
+  // One persistent banner owns the outage; repeated polls do not publish toasts.
+  if (saving) {
+    state.connectionError =
+      "We couldn't confirm your last change was saved. Reconnect, review your workspace, and try again.";
+    if (scope)
+      state.formErrors = {
+        scope,
+        fields: {
+          _request:
+            "We couldn't confirm this change was saved. Your form is still open. Review it and try again once connected.",
+        },
+      };
+  }
+}
+
+export function connectionRestored(state, announce = true) {
+  if (!state.connectionError) return;
+  state.connectionError = "";
+  if (announce)
+    publishToast(
+      state,
+      "You're connected again. Your workspace is up to date.",
+    );
+}
 
 export function publishToast(state, message, options = {}) {
   state.toast = message;
@@ -39,10 +69,7 @@ export function formValidation(form) {
             ? "Enter a valid email address, like you@example.com."
             : validity.tooShort
               ? `Use at least ${input.minLength} characters for ${label.toLowerCase()}.`
-              : validity.patternMismatch &&
-                  input.autocomplete === "one-time-code"
-                ? "Enter the six-digit code from your email."
-                : input.validationMessage;
+              : input.validationMessage;
         return [fieldName(input), message];
       }),
   );

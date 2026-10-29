@@ -1,21 +1,26 @@
 export default function TrustSummary({ person, detailed = false }) {
   const trust = person.trust;
-  if (!trust) return null;
+  if (!trust)
+    return (
+      <p className="muted">
+        Collaboration history is unavailable for this profile.
+      </p>
+    );
   return (
     <section
       className="trust-summary section-gap"
       aria-label={`Trust history for ${person.name}`}
     >
       <div className="tag-row">
-        <span className="tag">
-          {person.emailVerified ? "Email verified" : "Email unverified"}
-        </span>
         {person.affiliation && (
           <span className="tag green">
             Affiliation verified: {person.affiliation.organization}
           </span>
         )}
       </div>
+      {detailed && !trust.completed && !trust.cancelled && (
+        <h3>A new collaboration profile</h3>
+      )}
       <p>
         {trust.completed} completed ·{" "}
         {trust.averageRating === null
@@ -32,9 +37,8 @@ export default function TrustSummary({ person, detailed = false }) {
             days
           </p>
           <p className="muted">
-            Repeat-partner reviews count once in the average. Email verification
-            confirms mailbox access; affiliation is checked separately by a
-            moderator.
+            Repeat-partner reviews count once in the average. Affiliation is
+            reviewed separately.
           </p>
           {trust.ratingPattern && (
             <p className="muted">{trust.ratingPattern}</p>

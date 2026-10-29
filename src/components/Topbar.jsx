@@ -1,10 +1,23 @@
 import { useApp } from "../state/AppContext.jsx";
+import { useEffect } from "react";
 import Icon from "./Icon.jsx";
 import Brand from "./Brand.jsx";
 import { pageLabel } from "../data/filters.js";
+import NotificationRow, { useUpdateClock } from "./NotificationRow.jsx";
 
 export default function Topbar() {
   const { state, model, onAction } = useApp();
+  const now = useUpdateClock();
+  useEffect(() => {
+    if (!state.notificationOpen) return;
+    const closeOnEscape = (event) => {
+      if (event.key !== "Escape") return;
+      onAction({ action: "close-notifications" });
+      document.getElementById("notification-toggle")?.focus();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [state.notificationOpen, onAction]);
   const activity = (state.notifications || []).slice(0, 6);
   const unread = (state.notifications || []).filter(
     (item) => !item.read,
@@ -81,22 +94,12 @@ export default function Topbar() {
               )}
               {activity.length ? (
                 activity.map((item) => (
-                  <p
-                    className={item.read ? "" : "notification-preview-unread"}
+                  <NotificationRow
                     key={item.id}
-                  >
-                    {item.text}
-                    {item.roomId && (
-                      <button
-                        className="link-btn"
-                        onClick={() =>
-                          onAction({ action: "open-room", id: item.roomId })
-                        }
-                      >
-                        Open room
-                      </button>
-                    )}
-                  </p>
+                    item={item}
+                    now={now}
+                    compact
+                  />
                 ))
               ) : (
                 <p>No updates yet. You're all caught up.</p>
@@ -107,6 +110,8 @@ export default function Topbar() {
         <button
           className="account-button"
           aria-label={`Open profile for ${model.roleName()}`}
+          aria-current={state.page === "profile" ? "page" : undefined}
+          title="Your profile"
           onClick={() => onAction({ page: "profile" })}
         >
           <span className="avatar">{model.roleInitials()}</span>

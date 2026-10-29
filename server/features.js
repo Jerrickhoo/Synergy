@@ -1,5 +1,4 @@
-import { promisify } from "node:util";
-import { randomUUID, randomBytes, scryptSync, scrypt } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import {
   defaultVocabulary,
   suggestTags,
@@ -21,31 +20,31 @@ export function createFeatures({
   event,
   options,
   fail,
-  hash,
-  reserveCode,
   sessions,
 }) {
   const db = () => getDb();
   const accountById = (id) =>
     Object.hasOwn(db().accounts, id) ? db().accounts[id] : null;
   const isAdmin = (account) =>
-    Boolean(
-      account.emailVerifiedAt && options.adminEmails?.includes(account.email),
-    );
+    Boolean(options.adminEmails?.includes(account.email));
   const vocabulary = () =>
     [...new Set([...defaultVocabulary, ...(db().approvedTags || [])])].sort();
   function notifications(account, state, now = Date.now()) {
     const items = state.activity
       .filter((item) => item.role === state.role)
       .map((item) => ({ ...item, kind: "activity" }));
-    const add = (id, text, roomId, kind, matchId) =>
+    const add = (id, text, roomId, kind, matchId, timing = {}) =>
       items.push({
         id,
         text,
         roomId,
         kind,
         matchId,
-        timestamp: new Date(now).toISOString(),
+        timestamp:
+          account.notificationCreatedAt?.[`${state.role}:${id}`] ||
+          new Date(now).toISOString(),
+        generated: true,
+        ...timing,
         role: state.role,
       });
     for (const person of state.role === "mentor"
@@ -85,6 +84,8 @@ export function createFeatures({
             `Review the proposed revision: ${item.title}.`,
             room.id,
             "confirmation",
+            null,
+            { tab: "milestones" },
           );
         if (item.partner && !item.me)
           add(
@@ -92,6 +93,8 @@ export function createFeatures({
             `Your confirmation is needed: ${item.title}.`,
             room.id,
             "confirmation",
+            null,
+            { tab: "milestones" },
           );
         if (item.dueDate && !(item.me && item.partner)) {
           const remaining = Date.parse(`${item.dueDate}T23:59:59Z`) - now;
@@ -101,6 +104,8 @@ export function createFeatures({
               `${item.title} is ${remaining < 0 ? "overdue" : "due within a day"} (${item.dueDate}, UTC).`,
               room.id,
               "reminder",
+              null,
+              { dueAt: `${item.dueDate}T23:59:59Z`, tab: "milestones" },
             );
         }
         for (const schedule of item.schedules ||
@@ -112,6 +117,11 @@ export function createFeatures({
               "Your mentorship session starts within 24 hours.",
               room.id,
               "reminder",
+              null,
+              {
+                sessionAt: scheduleInstant(schedule).toISOString(),
+                tab: "schedule",
+              },
             );
         }
       }
@@ -130,7 +140,26 @@ export function createFeatures({
         );
     }
     const read = new Set(account.readNotifications || []);
-    return items.map((item) => ({ ...item, read: read.has(item.id) }));
+    return items
+      .map((item) => ({ ...item, read: read.has(item.id) }))
+      .sort(
+        (a, b) =>
+          (Date.parse(b.timestamp) || 0) - (Date.parse(a.timestamp) || 0),
+      );
+  }
+  // Called only at the response boundary, after successful commands. Preparing
+  // data for validation remains read-only; repeated polls do not write again.
+  function rememberNotifications(account, state) {
+    let changed = false;
+    for (const item of state.notifications || []) {
+      if (!item.generated) continue;
+      const key = `${state.role}:${item.id}`;
+      if (account.notificationCreatedAt?.[key]) continue;
+      account.notificationCreatedAt ||= {};
+      account.notificationCreatedAt[key] = item.timestamp;
+      changed = true;
+    }
+    return changed;
   }
   function decorate(account, state) {
     state.isAdmin = isAdmin(account);
@@ -138,12 +167,6 @@ export function createFeatures({
     state.engagementTemplates = db().engagementTemplates || defaultTemplates;
     state.matchingConfig = db().matchingConfig || defaultMatching;
     state.notifications = notifications(account, state);
-    state.notificationPreferences = {
-      ...(account.notificationPreferences || { digest: "off" }),
-      lastSentAt: account.lastDigestAt || null,
-      lastAttemptAt: account.digestAttemptAt || null,
-      deliveryError: account.digestError || "",
-    };
     state.affiliation = account.affiliation || null;
     state.trustSummary = trustSummary(state.rooms, state.role);
     if (state.isAdmin)
@@ -193,9 +216,11 @@ export function createFeatures({
   }
   const actions = new Set(["reopen-terms", "close-room", "read-notifications"]);
   const forms = new Set([
+    "task-create",
+    "task-update",
+    "task-delete",
     "close-room",
     "milestone-date",
-    "notification-preferences",
     "tag-proposal",
     "affiliation-request",
     "moderation",
@@ -222,6 +247,9 @@ export function createFeatures({
     const roomAction =
       ["reopen-terms", "close-room"].includes(input.action) ||
       [
+        "task-create",
+        "task-update",
+        "task-delete",
         "close-room",
         "milestone-date",
         "milestone-proposal",
@@ -237,7 +265,7 @@ export function createFeatures({
     state.formErrors = null;
     state.confirmation = "";
     if (["engagement-template", "matching-config"].includes(input.form)) {
-      if (!isAdmin(account)) fail("Verified moderator access required.", 403);
+      if (!isAdmin(account)) fail("Moderator access required.", 403);
       if (input.form === "engagement-template") {
         const id = text("type");
         const current = (db().engagementTemplates || defaultTemplates)[id];
@@ -418,6 +446,67 @@ export function createFeatures({
       room.closedAt = new Date().toISOString();
       room.closeReason = text("reason");
       state.toast = "Collaboration closed. Its history remains available.";
+    } else if (
+      ["task-create", "task-update", "task-delete"].includes(input.form)
+    ) {
+      room.tasks ||= [];
+      const task = room.tasks.find((item) => item.id === input.id);
+      if (input.form !== "task-create") {
+        if (!task) fail("This task is unavailable. Refresh the board.", 404);
+        if (Number(values.version) !== task.version)
+          fail("This task changed. Review the latest card and try again.", 409);
+      }
+      if (input.form === "task-delete") {
+        room.tasks = room.tasks.filter((item) => item.id !== task.id);
+        state.toast = "Task deleted.";
+      } else {
+        const title = text("title"),
+          description = text("description");
+        const status = text("status"),
+          priority = text("priority");
+        const assignee = text("assignee"),
+          dueDate = text("dueDate");
+        const milestoneId = text("milestoneId");
+        if (!title || title.length > 160)
+          fail("Use a task title of 1–160 characters.");
+        if (!["todo", "doing", "done"].includes(status))
+          fail("Choose a valid task status.");
+        if (!["low", "normal", "high"].includes(priority))
+          fail("Choose a valid priority.");
+        if (assignee && ![account.id, room.partnerAccountId].includes(assignee))
+          fail("Assign this task to a room collaborator.");
+        if (milestoneId && !Object.hasOwn(room.milestones, milestoneId))
+          fail("Choose a room milestone.");
+        const parsed = new Date(`${dueDate}T12:00:00Z`);
+        if (
+          dueDate &&
+          (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate) ||
+            Number.isNaN(parsed.getTime()) ||
+            parsed.toISOString().slice(0, 10) !== dueDate)
+        )
+          fail("Choose a valid task due date.");
+        const fields = {
+          title,
+          description,
+          status,
+          priority,
+          assignee,
+          dueDate,
+          milestoneId,
+        };
+        if (task) Object.assign(task, fields, { version: task.version + 1 });
+        else {
+          if (room.tasks.length >= 300)
+            fail("This board has reached its 300-task limit.");
+          room.tasks.push({
+            ...fields,
+            id: randomUUID(),
+            version: 1,
+            createdAt: new Date().toISOString(),
+          });
+        }
+        state.toast = task ? "Task updated." : "Task added to the board.";
+      }
     } else if (input.form === "milestone-date") {
       if (!Object.hasOwn(room.milestones, input.id))
         fail("This milestone is unavailable.", 404);
@@ -444,18 +533,6 @@ export function createFeatures({
         ...new Set([...(account.readNotifications || []), ...ids]),
       ].slice(-10000);
       state.toast = "Updates marked as read.";
-    } else if (input.form === "notification-preferences") {
-      if (!["off", "daily", "weekly"].includes(values.digest))
-        fail("Choose a valid digest frequency.");
-      if (
-        values.digest !== "off" &&
-        (!account.emailVerifiedAt || !state.integrations.email)
-      )
-        fail(
-          "Verify your email and configure delivery before enabling digests.",
-        );
-      account.notificationPreferences = { digest: values.digest };
-      state.toast = "Notification preferences saved.";
     } else if (input.form === "tag-proposal") {
       const label = text("label");
       if (label.length < 3 || label.length > 60)
@@ -627,135 +704,11 @@ export function createFeatures({
   }
   return {
     decorate,
+    rememberNotifications,
     vocabulary,
     suggestTags,
     isAdmin,
     handles: (input) => actions.has(input.action) || forms.has(input.form),
     act,
-    beginReset(email) {
-      const account = Object.values(db().accounts).find(
-        (a) => a.email === String(email).trim().toLowerCase(),
-      );
-      if (!account || account.suspended) return null;
-      return reserveCode(account, "passwordReset");
-    },
-    resetSent(email, code) {
-      const account = Object.values(db().accounts).find(
-        (a) => a.email === email,
-      );
-      if (
-        account?.passwordReset?.hash === hash(account.passwordReset.salt + code)
-      ) {
-        account.passwordReset.delivered = true;
-        save();
-      }
-    },
-    async resetPasswordAsync(input) {
-      if (
-        typeof input.password !== "string" ||
-        input.password.trim().length < 8 ||
-        input.password.length > 1024
-      )
-        fail("Use a password with 8-1,024 characters.");
-      const salt = randomBytes(16).toString("hex");
-      const passwordHash = (
-        await promisify(scrypt)(input.password, salt, 64)
-      ).toString("hex");
-      return this.resetPassword(input, { salt, passwordHash });
-    },
-    resetPassword(input, derived) {
-      const account = Object.values(db().accounts).find(
-        (a) =>
-          a.email ===
-          String(input.email || "")
-            .trim()
-            .toLowerCase(),
-      );
-      const proof = account?.passwordReset;
-      if (
-        !proof?.delivered ||
-        proof.expires <= Date.now() ||
-        proof.attempts >= 5
-      )
-        fail("Reset code unavailable. Request a new code.");
-      proof.attempts++;
-      if (
-        !/^\d{6}$/.test(String(input.code)) ||
-        hash(proof.salt + input.code) !== proof.hash
-      ) {
-        save();
-        fail("Reset code is incorrect.");
-      }
-      if (
-        typeof input.password !== "string" ||
-        input.password.trim().length < 8 ||
-        input.password.length > 1024
-      ) {
-        save();
-        fail("Use a password with 8–1,024 characters.");
-      }
-      account.salt = derived?.salt || randomBytes(16).toString("hex");
-      account.passwordHash =
-        derived?.passwordHash ||
-        scryptSync(input.password, account.salt, 64).toString("hex");
-      account.emailVerifiedAt ||= new Date().toISOString();
-      delete account.passwordReset;
-      delete account.loginVerification;
-      delete account.verification;
-      for (const [key, session] of sessions)
-        if (session.id === account.id) sessions.delete(key);
-      save();
-      return { ok: true };
-    },
-    digestCandidates(now = Date.now()) {
-      return Object.values(db().accounts)
-        .filter((a) => {
-          const frequency = a.notificationPreferences?.digest;
-          return (
-            !a.suspended &&
-            a.emailVerifiedAt &&
-            ["daily", "weekly"].includes(frequency) &&
-            now - (a.digestAttemptAt || 0) >= 15 * 60000 &&
-            now - (a.lastDigestAt || 0) >=
-              (frequency === "daily" ? 1 : 7) * 86400000
-          );
-        })
-        .map((a) => {
-          const items = ["founder", "mentor"]
-            .flatMap((role) => notifications(a, prepare(a, role), now))
-            .filter((item) => !item.read);
-          return {
-            id: a.id,
-            email: a.email,
-            text: [...new Set(items.map((item) => item.text))]
-              .slice(0, 50)
-              .join("\n"),
-          };
-        })
-        .filter((a) => a.text);
-    },
-    digestSent(id, now = Date.now()) {
-      const account = db().accounts[id];
-      if (account) {
-        account.lastDigestAt = now;
-        account.digestError = "";
-        save();
-      }
-    },
-    digestAttempt(id, now = Date.now()) {
-      const account = db().accounts[id];
-      if (account) {
-        account.digestAttemptAt = now;
-        save();
-      }
-    },
-    digestFailed(id) {
-      const account = db().accounts[id];
-      if (account) {
-        account.digestError =
-          "Delivery failed. Retrying after 15 minutes while the server is running.";
-        save();
-      }
-    },
   };
 }

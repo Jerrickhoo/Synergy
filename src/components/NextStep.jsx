@@ -12,11 +12,11 @@ export default function NextStep() {
     return null;
   const prompts = {
     "room-detail": {
-      title: "Move the collaboration forward",
+      title: "Milestones",
       text:
         state.roomTab === "terms"
-          ? "Once terms are clear, agree on the work"
-          : "Keep the shared work moving",
+          ? "Both collaborators must accept the terms before starting."
+          : "Review the agreed work and confirm completed milestones.",
       button:
         state.roomTab === "terms" ? "View milestones" : "Go to milestones",
       action: {
@@ -26,7 +26,7 @@ export default function NextStep() {
       disabled: !agreement?.locked || !agreement?.partnerLocked,
     },
     review: {
-      title: "Your next chapter",
+      title: "Profile",
       text: "Keep your collaboration profile up to date",
       button: "View profile",
       action: {
@@ -34,8 +34,8 @@ export default function NextStep() {
       },
     },
     profile: {
-      title: "Meet your next collaborator",
-      text: "Meet the people who can help with your next move",
+      title: "Find collaborators",
+      text: "Browse founders and mentors by skills and needs",
       button: "Explore matches",
       action: {
         page: "discover",
@@ -46,7 +46,6 @@ export default function NextStep() {
   return (
     <section className="next-step-card">
       <div>
-        <div className="next-step-kicker">NEXT STEP</div>
         <h2>{prompt.title}</h2>
         <p>{prompt.text}</p>
       </div>

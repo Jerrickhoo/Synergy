@@ -346,39 +346,6 @@ test("account export excludes credentials, session revocation is isolated, and d
   assert.equal(deleted.state.profiles.founder.bio, "");
 });
 
-test("email changes require delivered, current, bounded codes and revoke other sessions", (t) => {
-  const { w, a } = fixture(t);
-  const other = w.login({
-    email: "alex@example.com",
-    password: "private-password",
-  });
-  const proof = w.accounts.beginEmail(a.token, "new-alex@example.com");
-  assert.throws(
-    () => w.accounts.confirmEmail(a.token, proof.code),
-    /unavailable/,
-  );
-  w.accounts.emailSent(a.token, proof.email, proof.code);
-  assert.throws(() => w.accounts.confirmEmail(a.token, "000000"), /incorrect/);
-  const result = w.accounts.confirmEmail(a.token, proof.code);
-  assert.equal(result.state.accountEmail, proof.email);
-  assert.equal(result.state.emailVerified, true);
-  assert.throws(
-    () => w.get(other.token),
-    (error) => error.status === 401,
-  );
-  assert.throws(
-    () => w.accounts.confirmEmail(a.token, proof.code),
-    /unavailable/,
-  );
-  assert.throws(
-    () => w.login({ email: "alex@example.com", password: "private-password" }),
-    /incorrect/,
-  );
-  assert.ok(
-    w.login({ email: proof.email, password: "private-password" }).token,
-  );
-});
-
 test("SQLite transactions preserve history, reject competing stale writers and support verified portable backups", (t) => {
   const { w, file, dir, a, b, act, pair } = fixture(t, true);
   const id = pair();
@@ -527,6 +494,10 @@ test("legacy migration preserves the source and retries safely after an invalid 
   writeFileSync(legacy, bytes);
   const migrated = createWorkspace(target);
   try {
+    assert.equal(
+      readWorkspaceSnapshot(target).revision,
+      readWorkspaceSnapshot(file).revision,
+    );
     assert.ok(
       migrated.login({
         email: "alex@example.com",
@@ -534,10 +505,8 @@ test("legacy migration preserves the source and retries safely after an invalid 
       }).token,
     );
     assert.deepEqual(readFileSync(legacy), bytes);
-    assert.equal(
-      readWorkspaceSnapshot(target).revision,
-      readWorkspaceSnapshot(file).revision,
-    );
+    // Login can record first-seen times for generated notifications. The
+    // migration itself must preserve the original revision and source bytes.
   } finally {
     migrated.close();
   }

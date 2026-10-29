@@ -103,60 +103,18 @@ export default function MilestonesPanel({
                     </span>
                   ))}
                   {!launched && (
-                    <details className="section-gap">
-                      <summary>
-                        {item.schedule
-                          ? "Reschedule session"
-                          : "Schedule session"}
-                      </summary>
-                      <form
-                        key={JSON.stringify(item.schedule)}
-                        className="schedule-form"
-                        data-form="schedule"
-                        onSubmit={(event) => onSubmit(event)}
-                      >
-                        <FormErrors scope="schedule" />
-                        <label htmlFor="session-date">Schedule session</label>
-                        <input
-                          id="session-date"
-                          type="date"
-                          name="date"
-                          required
-                          defaultValue={item.schedule?.date || ""}
-                        />
-                        <input
-                          type="time"
-                          name="time"
-                          aria-label="Session time"
-                          required
-                          defaultValue={item.schedule?.time || ""}
-                        />
-                        <p className="muted">
-                          Time zone:{" "}
-                          {Intl.DateTimeFormat().resolvedOptions().timeZone}.
-                          Rescheduling clears both confirmations.
-                        </p>
-                        <label htmlFor="session-count">
-                          Weekly sessions (1–12)
-                        </label>
-                        <input
-                          id="session-count"
-                          name="count"
-                          type="number"
-                          min="1"
-                          max="12"
-                          step="1"
-                          defaultValue={item.schedules?.length || 1}
-                        />
-                        <button
-                          className="btn small"
-                          type="submit"
-                          disabled={state.busy}
-                        >
-                          Save time
-                        </button>
-                      </form>
-                    </details>
+                    <button
+                      className="btn small section-gap"
+                      type="button"
+                      disabled={state.busy}
+                      onClick={() =>
+                        onAction({ action: "room-tab", tab: "schedule" })
+                      }
+                    >
+                      {item.schedule
+                        ? "Reschedule session"
+                        : "Schedule session"}
+                    </button>
                   )}
                 </>
               ) : (

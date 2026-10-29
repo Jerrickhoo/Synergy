@@ -17,6 +17,8 @@ import { fetchWithDeadline } from "./request.js";
 import { decode } from "./serialization.js";
 import {
   errorTitle,
+  connectionInterrupted,
+  connectionRestored,
   fieldName,
   formValidation,
   publishToast,
@@ -24,21 +26,6 @@ import {
 
 enableMapSet();
 const AppContext = createContext(null);
-function savedLoginChallenge() {
-  try {
-    const challenge = JSON.parse(
-      sessionStorage.getItem("synergy-login-challenge"),
-    );
-    if (
-      challenge?.expiresAt > Date.now() &&
-      /^[a-f0-9]{64}$/.test(challenge.challengeId)
-    )
-      return challenge;
-  } catch {
-    /* An expired or malformed pending sign-in can be started again. */
-  }
-  return null;
-}
 const dataKeys = [
   "accountId",
   "accountName",
@@ -120,12 +107,7 @@ const reducer = (state, payload) =>
           )
             item.evidenceOpen = false;
         }
-      if (draft.connectionError && !payload.command)
-        publishToast(
-          draft,
-          "You're connected again. Your workspace is up to date.",
-        );
-      draft.connectionError = "";
+      connectionRestored(draft, !payload.command);
       if (payload.command) {
         draft.formErrors = payload.state.formErrors;
         if (payload.state.toast)
@@ -160,20 +142,24 @@ const reducer = (state, payload) =>
       }
     } else if (payload.action === "request-status") draft.busy = payload.busy;
     else if (payload.action === "request-error") {
-      publishToast(draft, payload.message, {
-        type: "error",
-        title: errorTitle(payload.scope),
-      });
-      draft.formErrors = payload.fields
-        ? { scope: payload.scope, fields: payload.fields }
-        : null;
-    } else if (payload.action === "connection-error") {
-      if (draft.connectionError !== payload.message)
+      if (payload.connectionIssue && draft.authenticated)
+        connectionInterrupted(draft, {
+          scope: payload.scope,
+          saving: payload.saving !== false,
+        });
+      else {
         publishToast(draft, payload.message, {
           type: "error",
-          title: "Connection interrupted",
+          title: errorTitle(payload.scope),
         });
-      draft.connectionError = payload.message;
+        draft.formErrors = payload.fields
+          ? { scope: payload.scope, fields: payload.fields }
+          : null;
+      }
+    } else if (payload.action === "connection-error") {
+      if (!draft.connectionError) connectionInterrupted(draft);
+    } else if (payload.action === "connection-restored") {
+      connectionRestored(draft);
     } else if (payload.action === "clear-field-error") {
       if (draft.formErrors?.scope === payload.scope) {
         delete draft.formErrors.fields[payload.field];
@@ -183,6 +169,7 @@ const reducer = (state, payload) =>
     } else if (payload.action === "signed-out") {
       Object.assign(draft, createInitialState(), {
         restoring: false,
+        integrations: draft.integrations,
       });
       if (payload.message)
         publishToast(draft, payload.message, {
@@ -203,7 +190,6 @@ const reducer = (state, payload) =>
 
 export function AppProvider({ children }) {
   const [restoreTick, setRestoreTick] = useState(0);
-  const [authChallenge, setAuthChallenge] = useState(savedLoginChallenge);
   const token = useRef(sessionStorage.getItem("synergy-session"));
   const revision = useRef(-1);
   const refreshKey = useRef("");
@@ -240,8 +226,11 @@ export function AppProvider({ children }) {
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
     } catch {
-      throw new Error(
-        "We couldn't reach the server. Check your connection and try again.",
+      throw Object.assign(
+        new Error(
+          "We couldn't reach the server. Check your connection and try again.",
+        ),
+        { connectionIssue: true },
       );
     }
     let result;
@@ -263,27 +252,14 @@ export function AppProvider({ children }) {
       );
     return result;
   }
-  function rememberLoginChallenge(challenge) {
-    setAuthChallenge(challenge);
-    if (challenge) {
-      token.current = null;
-      sessionStorage.removeItem("synergy-session");
-      sessionStorage.setItem(
-        "synergy-login-challenge",
-        JSON.stringify(challenge),
-      );
-    } else sessionStorage.removeItem("synergy-login-challenge");
-  }
   function acceptSession(result) {
     token.current = result.token;
     sessionStorage.setItem("synergy-session", result.token);
     revision.current = result.revision;
-    rememberLoginChallenge(null);
     window.history.replaceState(null, "", "#/");
     dispatch({
       action: "restore",
       state: result.state,
-      message: "Welcome to your workspace.",
     });
   }
   useEffect(() => {
@@ -344,14 +320,14 @@ export function AppProvider({ children }) {
         );
         failures = 0;
         retryAt = 0;
-        if (result.unchanged) return;
+        if (result.unchanged) {
+          if (!stopped) dispatch({ action: "connection-restored" });
+          return;
+        }
         if (
           !stopped &&
           !pending.current &&
-          result.revision >= revision.current &&
-          (result.revision > revision.current ||
-            result.refreshKey !== refreshKey.current ||
-            state.connectionError)
+          result.revision >= revision.current
         ) {
           revision.current = result.revision;
           refreshKey.current = result.refreshKey;
@@ -372,8 +348,6 @@ export function AppProvider({ children }) {
         } else
           dispatch({
             action: "connection-error",
-            message:
-              "Connection interrupted. Your saved work is safe; updates will resume when the server is available.",
           });
       } finally {
         refreshing = false;
@@ -438,7 +412,10 @@ export function AppProvider({ children }) {
       engagementType: command.engagementType,
       role: state.role,
       activeRoomId: state.activeRoomId,
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      timeZone:
+        command.form === "schedule" && command.values?.timeZone
+          ? command.values.timeZone
+          : Intl.DateTimeFormat().resolvedOptions().timeZone,
       termsRevision:
         command.values?.revision !== undefined
           ? Number(command.values.revision)
@@ -453,19 +430,6 @@ export function AppProvider({ children }) {
           command.form === "signup-form" ? "signup" : "login",
           command.values,
         );
-        if (result.verificationRequired) {
-          rememberLoginChallenge(result);
-          notify(
-            `We sent a verification code to ${result.email}.`,
-            "success",
-            "Check your email",
-          );
-        } else acceptSession(result);
-      } else if (command.form === "login-code-form") {
-        const result = await request("auth/verify", {
-          challengeId: authChallenge?.challengeId,
-          code: command.values.code,
-        });
         acceptSession(result);
       } else {
         const result = await request("action", payload);
@@ -475,16 +439,12 @@ export function AppProvider({ children }) {
       }
       return true;
     } catch (error) {
-      if (error.challenge)
-        rememberLoginChallenge({
-          ...error.challenge,
-          deliveryError: error.message,
-        });
       dispatch({
         action: "request-error",
         message: error.message || "Could not save. Please try again.",
         fields: error.fields,
         scope: command.form,
+        connectionIssue: error.connectionIssue,
       });
       return false;
     } finally {
@@ -494,6 +454,20 @@ export function AppProvider({ children }) {
   }
   async function onAction(payload, event) {
     event?.preventDefault();
+    if (payload.action === "enter-demo") {
+      if (pending.current) return;
+      pending.current = true;
+      dispatch({ action: "request-status", busy: true });
+      try {
+        acceptSession(await request("demo", { role: payload.roleChoice }));
+      } catch (error) {
+        dispatch({ action: "request-error", message: error.message });
+      } finally {
+        pending.current = false;
+        dispatch({ action: "request-status", busy: false });
+      }
+      return;
+    }
     if (payload.action === "sign-out") {
       if (pending.current) return;
       try {
@@ -538,10 +512,7 @@ export function AppProvider({ children }) {
       id: form.dataset.id,
       values: Object.fromEntries(new FormData(form)),
     });
-    if (
-      success &&
-      ["login-form", "signup-form", "login-code-form"].includes(form.id)
-    )
+    if (success && ["login-form", "signup-form"].includes(form.id))
       form.reset();
     if (success && form.id === "chat-form") form.reset();
     return success;
@@ -595,34 +566,16 @@ export function AppProvider({ children }) {
       }
       return result;
     } catch (error) {
-      notify(error.message || "Please try again.", "error");
+      dispatch({
+        action: "request-error",
+        message: error.message || "Please try again.",
+        connectionIssue: error.connectionIssue,
+      });
       throw error;
     } finally {
       pending.current = false;
       dispatch({ action: "request-status", busy: false });
     }
-  }
-  async function resendLoginCode() {
-    try {
-      const result = await integrationRequest("auth/resend", {
-        challengeId: authChallenge?.challengeId,
-      });
-      rememberLoginChallenge(result);
-      dispatch({ action: "request-error", message: "" });
-      notify("A new code has been sent. Use the latest code from your email.");
-    } catch (error) {
-      if (error.challenge)
-        rememberLoginChallenge({
-          ...error.challenge,
-          deliveryError: error.message,
-        });
-      throw error;
-    }
-  }
-  function cancelLogin() {
-    if (pending.current) return;
-    rememberLoginChallenge(null);
-    dispatch({ action: "signed-out" });
   }
   async function onUpload(event) {
     event.preventDefault();
@@ -672,6 +625,7 @@ export function AppProvider({ children }) {
         action: "request-error",
         message:
           error.message || "Could not upload the file. Please try again.",
+        connectionIssue: error.connectionIssue,
       });
     } finally {
       pending.current = false;
@@ -694,6 +648,8 @@ export function AppProvider({ children }) {
       dispatch({
         action: "request-error",
         message: error.message || "Could not download the file.",
+        connectionIssue: error.connectionIssue,
+        saving: false,
       });
     }
   }
@@ -718,9 +674,6 @@ export function AppProvider({ children }) {
     <AppContext.Provider
       value={{
         retryRestore: () => setRestoreTick((value) => value + 1),
-        authChallenge,
-        resendLoginCode,
-        cancelLogin,
         state,
         notify,
         dismissToast,

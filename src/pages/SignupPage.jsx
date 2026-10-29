@@ -1,21 +1,16 @@
 import FormErrors from "../components/FormErrors.jsx";
 import { useApp } from "../state/AppContext.jsx";
-import AuthStory from "../components/AuthStory.jsx";
 import { useState } from "react";
 export default function SignupPage() {
   const { state, onSubmit } = useApp();
   const [passwordVisible, setPasswordVisible] = useState(false);
   return (
     <div className="page auth-page page-enter">
-      <AuthStory />
       <section className="auth-form-panel">
         <div className="card panel">
-          <div className="eyebrow">JOIN THE COMMUNITY</div>
           <h1 tabIndex="-1">Create your account</h1>
           <p className="panel-subtitle">
-            {state.integrations?.loginCode
-              ? "Choose your role. We'll email you a code to confirm your account, then you can complete your profile and connect with collaborators."
-              : "Choose your role, create your account, then complete your profile to find collaborators."}
+            Choose your role, then complete your profile to find collaborators.
           </p>
           <form
             id="signup-form"

@@ -42,14 +42,9 @@ function ToastMessage({ message, type, title, dismiss }) {
         />
       </span>
       <div className="toast-copy">
-        <strong>
-          {title ||
-            {
-              error: "Something went wrong",
-              success: "All set",
-              info: "Good to know",
-            }[type]}
-        </strong>
+        {(title || type === "error") && (
+          <strong>{title || "Something went wrong"}</strong>
+        )}
         <p>{message}</p>
       </div>
       <button

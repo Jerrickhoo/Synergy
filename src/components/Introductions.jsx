@@ -35,7 +35,12 @@ export default function Introductions({ compact = false }) {
       )}
       {people.map((person) => (
         <article className="introduction-row" key={person.id}>
-          <Avatar initials={person.initials} />
+          <Avatar
+            image={person.image}
+            name={person.name}
+            initials={person.initials}
+            color={person.color}
+          />
           <div className="introduction-copy">
             <h3>{person.name}</h3>
             <p>

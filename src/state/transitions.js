@@ -2,6 +2,7 @@ import { createInitialState, createModel } from "../data/model.js";
 import { readField } from "./fields.js";
 import { profileOptions } from "../data/collaboration.js";
 import { errorTitle, publishToast } from "./feedback.js";
+import { weeklySchedules } from "../data/planning.js";
 import {
   launchBlockers,
   profileKeys,
@@ -308,10 +309,6 @@ export function transition(state, payload) {
     if (payload.form === "schedule") {
       if (activeRoom().type !== "mentorship") return;
       const count = Number(payload.values.count || 1);
-      if (!Number.isInteger(count) || count < 1 || count > 12) {
-        toast("Schedule between 1 and 12 weekly sessions.", "error");
-        return;
-      }
       if (
         invalid(
           "schedule",
@@ -324,16 +321,12 @@ export function transition(state, payload) {
         time: payload.values.time,
         timeZone:
           payload.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+        ...(payload.values.durationMinutes
+          ? { durationMinutes: Number(payload.values.durationMinutes) }
+          : {}),
       };
       const first = activeRoom().milestones.session.schedule;
-      activeRoom().milestones.session.schedules = Array.from(
-        { length: count },
-        (_, index) => {
-          const date = new Date(`${first.date}T12:00:00Z`);
-          date.setUTCDate(date.getUTCDate() + index * 7);
-          return { ...first, date: date.toISOString().slice(0, 10) };
-        },
-      );
+      activeRoom().milestones.session.schedules = weeklySchedules(first, count);
       toast("Session scheduled.");
       record("You scheduled a mentorship session.", activeRoom().id);
       return;
@@ -762,10 +755,6 @@ export function transition(state, payload) {
     activeRoom().review.partner = true;
     if (activeRoom().review.me) activeRoom().status = "reviewed";
     state.confirmation = "Partner review simulated.";
-  } else if (action === "digest") {
-    toast(
-      "Email digests are unavailable in this demo. No subscription was created.",
-    );
   } else if (action === "milestone-help") {
     toast("A milestone is complete when both people confirm it.", "info");
   } else if (action === "room-history") {

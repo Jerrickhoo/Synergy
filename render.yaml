@@ -21,15 +21,7 @@ services:
         value: 0.0.0.0
       - key: SYNERGY_DATA_FILE
         value: /var/data/synergy.sqlite
-      - key: EMAIL_PROVIDER
-        value: brevo
-      - key: BREVO_API_KEY
-        sync: false
-      - key: MAIL_FROM
-        sync: false
+      - key: SYNERGY_DEMO_MODE
+        value: "true"
       - key: SYNERGY_ADMIN_EMAILS
         sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: OPENAI_MODEL
-        value: gpt-4.1-mini

@@ -1,3 +1,7 @@
+# Current prototype note ? October 29, 2026
+
+External email and AI integrations and their controls have been removed. The report below is historical; its provider, verification, recovery and digest checks describe earlier versions. Current checks are listed in README.md.
+
 # Current verification - October 25, 2026
 
 The confirmed review defects and the locally implementable improvements are addressed. This is a local prototype, as confirmed by the user. No public deployment, real mailbox delivery, paid AI call or off-site service was activated.

@@ -1,4 +1,3 @@
-import { logFailure } from "./operations.js";
 import { createServer } from "node:http";
 import { createReadStream, statSync } from "node:fs";
 import { resolve, extname, sep } from "node:path";
@@ -14,13 +13,10 @@ const types = {
   ".ico": "image/x-icon",
 };
 const api = createApi();
-const digestTimer = setInterval(() => {
-  api
-    .runDigests()
-    .catch((error) => logFailure("digest_scheduler_failed", error));
+const operationsTimer = setInterval(() => {
   api.runOperations();
 }, 60000);
-digestTimer.unref();
+operationsTimer.unref();
 const server = createServer((req, res) =>
   api(req, res, () => {
     try {
@@ -55,7 +51,7 @@ const server = createServer((req, res) =>
 );
 const port = Number(process.env.PORT || 4173);
 server.once("close", () => {
-  clearInterval(digestTimer);
+  clearInterval(operationsTimer);
   api.close();
 });
 for (const signal of ["SIGINT", "SIGTERM"])

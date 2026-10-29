@@ -189,6 +189,13 @@ export function createModel(state) {
         room.partnerId === partnerId &&
         !terminalStatuses.includes(room.status),
     );
+  const suggestedMatches = () =>
+    matches()
+      .filter(
+        (person) =>
+          person.score >= 30 && !existingRoomFor(state.role, person.id),
+      )
+      .slice(0, 12);
   return {
     state,
     people,
@@ -204,6 +211,7 @@ export function createModel(state) {
     activeRoom,
     roomStatusLabel,
     matches,
+    suggestedMatches,
     browsePeople,
     rolePeople,
     savedMatches,

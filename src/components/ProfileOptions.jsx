@@ -1,6 +1,6 @@
 import { useApp } from "../state/AppContext.jsx";
 
-export default function ProfileOptions({ profile }) {
+export default function ProfileOptions({ profile, founder = true }) {
   const { state } = useApp();
   return (
     <fieldset className="profile-options grid">
@@ -29,20 +29,22 @@ export default function ProfileOptions({ profile }) {
             <option value="either">Either</option>
           </select>
         </div>
-        <div className="field">
-          <label htmlFor="profile-audience">Audience size</label>
-          <input
-            id="profile-audience"
-            name="audienceSize"
-            type="number"
-            min="0"
-            step="1"
-            defaultValue={profile.audienceSize || ""}
-          />
-          <span className="field-help">
-            Optional. Used for co-marketing size comparisons.
-          </span>
-        </div>
+        {founder && (
+          <div className="field">
+            <label htmlFor="profile-audience">Audience size</label>
+            <input
+              id="profile-audience"
+              name="audienceSize"
+              type="number"
+              min="0"
+              step="1"
+              defaultValue={profile.audienceSize || ""}
+            />
+            <span className="field-help">
+              Optional. Used for co-marketing size comparisons.
+            </span>
+          </div>
+        )}
       </div>
       <datalist id="approved-tags">
         {(state.vocabulary || []).map((tag) => (

@@ -1,4 +1,15 @@
 import { terminalStatuses } from "./collaboration.js";
+export const profileFieldNames = {
+  bio: "an introduction",
+  offer: "what you offer",
+  need: "what you need",
+  industry: "your industry",
+  stage: "your startup stage",
+  teamSize: "your team size",
+  expertise: "your expertise",
+  availability: "your availability",
+  startups: "the startups you want to help",
+};
 export const profileKeys = (role) =>
   role === "founder"
     ? ["bio", "offer", "need", "industry", "stage", "teamSize"]
@@ -140,7 +151,15 @@ export function scheduleInstant(schedule) {
       );
       instant += target - represented;
     }
-    return new Date(instant);
+    const p = Object.fromEntries(
+      format
+        .formatToParts(new Date(instant))
+        .map(({ type, value }) => [type, value]),
+    );
+    const represented = Date.parse(
+      `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}Z`,
+    );
+    return represented === target ? new Date(instant) : new Date(NaN);
   } catch {
     return new Date(NaN);
   }

@@ -28,25 +28,11 @@ export default function RoomsPage() {
           intro="Your conversations, plans, and progress in one place."
         />
         <section className="card clean-empty-state">
-          <div className="empty-icon">
-            <Icon name="rooms" />
-          </div>
           <h2>No rooms yet</h2>
           <p>
             A shared room starts when you and a collaborator both agree to
             connect.
           </p>
-          <div className="empty-guide" aria-label="How collaboration starts">
-            <span>
-              <Icon name="search" /> Find a match
-            </span>
-            <span>
-              <Icon name="people" /> Both agree to connect
-            </span>
-            <span>
-              <Icon name="rooms" /> Start your shared room
-            </span>
-          </div>
           <button
             className="btn primary"
             onClick={() => onAction({ page: "discover" })}
@@ -60,7 +46,6 @@ export default function RoomsPage() {
   return (
     <div className="page page-enter">
       <PageHeader
-        eyebrow="YOUR SHARED WORKSPACES"
         title="Rooms"
         intro="Keep agreements, milestones, and conversations in one shared space."
       />
@@ -102,6 +87,8 @@ export default function RoomsPage() {
               <article className="card room-list-card">
                 <div className="room-list-person">
                   <Avatar
+                    image={partner?.image}
+                    name={partner?.name}
                     initials={partner?.initials || "?"}
                     color={partner?.color || ""}
                   />

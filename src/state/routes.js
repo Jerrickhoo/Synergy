@@ -3,6 +3,7 @@ const paths = {
   discover: "matches",
   waiting: "waiting",
   rooms: "rooms",
+  calendar: "calendar",
   profile: "profile",
   signup: "signup",
   onboarding: "onboarding",

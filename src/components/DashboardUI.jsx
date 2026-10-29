@@ -51,11 +51,10 @@ export function WelcomeBanner() {
   return (
     <section className="welcome-banner">
       <div className="welcome-copy">
-        <span className="eyebrow">A LITTLE SYNERGY GOES A LONG WAY</span>
         <h1 tabIndex={-1}>Welcome back, {model.roleName().split(" ")[0]} </h1>
         <p>
           {state.role === "founder"
-            ? "Find your next good fit. Turn complementary strengths into something you can build together."
+            ? "View matches, introductions and collaboration activity."
             : "Your experience makes a difference. Connect with founders ready for their next move."}
         </p>
         <div className="welcome-actions">
@@ -93,7 +92,12 @@ export function RecommendationCard({ person, compact = false }) {
   if (compact)
     return (
       <article className="recommendation-row">
-        <Avatar initials={person.initials} color={person.color} />
+        <Avatar
+          image={person.image}
+          name={person.name}
+          initials={person.initials}
+          color={person.color}
+        />
         <div className="recommendation-copy">
           <h3>{person.name}</h3>
           <p>{person.sector}</p>
@@ -110,7 +114,12 @@ export function RecommendationCard({ person, compact = false }) {
     );
   return (
     <article className="featured-row">
-      <Avatar initials={person.initials} color={person.color} />
+      <Avatar
+        image={person.image}
+        name={person.name}
+        initials={person.initials}
+        color={person.color}
+      />
       <div className="featured-copy">
         <h3>{person.name}</h3>
         <span className="featured-sector">{person.sector}</span>

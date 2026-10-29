@@ -10,10 +10,50 @@ import {
 import { transition } from "../src/state/transitions.js";
 import { applyRoute, parseRoute, routeHash } from "../src/state/routes.js";
 import {
+  connectionInterrupted,
+  connectionRestored,
+  connectionMessage,
+} from "../src/state/feedback.js";
+import {
   validateCredentials,
   validateProfile,
   validateSchedule,
 } from "../src/state/validation.js";
+
+test("connection outages stay in one persistent notice and recovery announces once", () => {
+  const state = createInitialState();
+  for (let poll = 0; poll < 4; poll++) connectionInterrupted(state);
+  assert.equal(state.connectionError, connectionMessage);
+  assert.equal(state.toast, "");
+  assert.equal(state.toastId, 0);
+  connectionRestored(state);
+  assert.equal(state.connectionError, "");
+  assert.match(state.toast, /connected again/);
+  const recoveryId = state.toastId;
+  connectionRestored(state);
+  assert.equal(state.toastId, recoveryId);
+  state.toast = "";
+  connectionInterrupted(state);
+  assert.equal(state.connectionError, connectionMessage);
+  assert.equal(state.toast, "");
+});
+
+test("an interrupted save keeps its form open with inline retry guidance", () => {
+  const state = createInitialState();
+  state.profileEditing = true;
+  connectionInterrupted(state, { scope: "profile-form", saving: true });
+  assert.equal(state.profileEditing, true);
+  assert.equal(state.formErrors.scope, "profile-form");
+  assert.match(state.formErrors.fields._request, /couldn't confirm/);
+  assert.match(state.connectionError, /last change/);
+  connectionInterrupted(state);
+  assert.match(state.connectionError, /last change/);
+  assert.equal(state.toast, "");
+  connectionRestored(state, false);
+  assert.equal(state.toast, "");
+  assert.equal(state.connectionError, "");
+  assert.match(state.formErrors.fields._request, /try again/);
+});
 
 const readyRoom = (state) => {
   const room = state.rooms["founder-campus"];

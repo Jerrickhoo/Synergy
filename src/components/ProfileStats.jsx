@@ -14,7 +14,11 @@ export default function ProfileStats() {
     <div className="profile-stats">
       <div className="profile-stat">
         <strong>{average}</strong>
-        <span>Rating from distinct partners</span>
+        <span>
+          {average === "—"
+            ? "No partner ratings yet"
+            : "Rating from distinct partners"}
+        </span>
       </div>
       <div className="profile-stat">
         <strong>{state.trustSummary?.completed ?? history.length}</strong>

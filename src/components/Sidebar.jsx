@@ -7,7 +7,7 @@ export const navigation = [
   ["home", "Home", "home"],
   ["discover", "Matches", "search"],
   ["rooms", "Rooms", "rooms"],
-  ["profile", "Profile", "profile"],
+  ["calendar", "Calendar", "calendar"],
 ];
 export const workspaceNavigation = [
   ["waiting", "Introductions", "people"],

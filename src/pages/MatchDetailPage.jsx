@@ -1,13 +1,24 @@
-import BlockCollaborator from "../components/BlockCollaborator.jsx";
-import { Fragment, useState } from "react";
+﻿import BlockCollaborator from "../components/BlockCollaborator.jsx";
+import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Avatar from "../components/Avatar.jsx";
 import Tags from "../components/Tags.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import TrustSummary from "../components/TrustSummary.jsx";
+import Icon from "../components/Icon.jsx";
+import {
+  fitFactors,
+  fitSummary,
+  stageLabel,
+  preferenceLabel,
+} from "../data/profile-presentation.js";
+
 export default function MatchDetailPage() {
+  const { state } = useApp();
+  return <MatchDetail key={`${state.role}:${state.activeMatch}`} />;
+}
+function MatchDetail() {
   const { state, model, onAction } = useApp();
-  const { savedMatches, interestedMatches, scoreFactors } = model;
   const [engagementType, setEngagementType] = useState("");
   const person = model
     .rolePeople()
@@ -16,209 +27,123 @@ export default function MatchDetailPage() {
     return (
       <div className="page page-enter">
         <PageHeader
-          eyebrow="MATCH DETAILS"
           title="Match unavailable"
-          intro="Choose someone from Matches to see their profile."
+          intro="This profile may have changed its visibility or is no longer available. Explore Matches to find someone else."
         />
-        <button
-          className="btn"
-          data-page="discover"
-          onClick={(event) =>
-            onAction(
-              {
-                page: "discover",
-              },
-              event,
-            )
-          }
-        >
+        <button className="btn" onClick={() => onAction({ page: "discover" })}>
           Back to matches
         </button>
       </div>
     );
   const existingRoom = model.existingRoomFor(state.role, person.id);
   const incoming = state.incomingByRole[state.role].has(person.id);
+  const interested = model.interestedMatches().has(person.id);
+  const mentor = person.kind === "Mentor";
+  const factors = model.scoreFactors(person);
+  const rows = fitFactors(person, factors);
+  const isScore =
+    typeof person.score === "number" && Number.isFinite(person.score);
   return (
-    <div className="page page-enter">
+    <div className="page match-detail-page page-enter">
       <button
         className="link-btn back-link"
-        data-page="discover"
-        onClick={(event) =>
-          onAction(
-            {
-              page: "discover",
-            },
-            event,
-          )
-        }
+        onClick={() => onAction({ page: "discover" })}
       >
         ← Back to matches
       </button>
-      <PageHeader
-        eyebrow="YOUR MATCH, EXPLAINED"
-        title="Match details"
-        intro="A clear view of what you can build together."
-      />
-      <div className="detail-layout">
-        {"\n          "}
-        <section className="card panel">
-          {"\n            "}
-          <div className="profile-hero">
-            <Avatar initials={person.initials} color={person.color} />
-            <div>
-              <div className="eyebrow">
-                {person.kind}
-                {" · COMMUNITY PROFILE"}
-              </div>
-              <h2>{person.name}</h2>
-              <p>{person.sector}</p>
-            </div>
-            <div
-              className="score"
-              style={{
-                marginLeft: "auto",
-              }}
-            >
-              {person.score}%<span>profile fit</span>
-            </div>
+      <p className="page-kicker">Match details</p>
+      <div className="match-detail-layout">
+        <section className="card identity-panel match-identity-panel">
+          <div className="identity-heading">
+            <Avatar
+              image={person.image}
+              name={person.name}
+              initials={person.initials}
+              color={person.color}
+              size={64}
+            />
+            <PageHeader
+              title={person.name}
+              intro={[person.kind, person.sector].filter(Boolean).join(" · ")}
+            />
           </div>
-          {"\n            "}
-          <p className="match-copy">{person.summary}</p>
-          {person.pastExperience && (
-            <div>
-              <h3>Past experience</h3>
-              <p className="preserve-lines">{person.pastExperience}</p>
-            </div>
-          )}
-          {person.goals && (
-            <p>
-              <strong>Collaboration goals:</strong> {person.goals}
-            </p>
-          )}
-          <p className="muted">
-            {[
-              person.stage,
-              person.teamSize && `Team of ${person.teamSize}`,
-              person.audienceSize && `Audience: ${person.audienceSize}`,
-              person.engagementPreference,
-              person.availability,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
+          <p className="identity-summary preserve-lines">
+            {person.summary || "An introduction has not been added yet."}
           </p>
-          <TrustSummary person={person} detailed />
-          {"\n            "}
-          <div className="section-gap">
-            <h3>What they offer</h3>
-            <Tags values={person.offer} color="green" />
-            <h3
-              style={{
-                marginTop: "16px",
-              }}
-            >
-              What they need
-            </h3>
-            <Tags values={person.need} />
-          </div>
-          {"\n            "}
-          <section className="section-gap">
-            <h2>Why this match</h2>
-            <p className="muted">
-              Profile fit uses provisional word-overlap weights (version{" "}
-              {person.matchingVersion || 1}). It is not a prediction of
-              collaboration success.
-            </p>
-            <p className="panel-subtitle">
-              The same signals shown on your match card explain where your goals
-              align.
-            </p>
-            <div className="grid score-breakdown">
-              {scoreFactors(person).map(([label, index], itemIndex) => {
-                const strength = person.why[index] || "Good";
-                const width =
-                  person.factorScores?.[index] ??
-                  (strength === "Strong" || strength === "High"
-                    ? 90
-                    : strength === "Good"
-                      ? 72
-                      : 55);
-                return (
-                  <Fragment key={itemIndex}>
-                    <div className="score-row">
-                      <div>
-                        <strong>{label}</strong>
-                        {person.factorWeights && (
-                          <span>
-                            Weight:{" "}
-                            {Math.round(person.factorWeights[index] * 100)}%
-                          </span>
-                        )}
-                        <span>
-                          {person.factorDetails?.[index] ||
-                            `${strength} based on profile word overlap.`}
-                        </span>
-                      </div>
-                      <div
-                        className="score-track"
-                        role="img"
-                        aria-label={label + ": " + strength}
-                      >
-                        <i
-                          style={{
-                            width: width + "%",
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </Fragment>
-                );
-              })}
-            </div>
-          </section>
-          {"\n          "}
-        </section>
-        {"\n          "}
-        <aside className="card panel detail-next">
-          <div className="eyebrow">NEXT STEP</div>
-          <h2
-            style={{
-              marginTop: "8px",
-            }}
-          >
-            Start a conversation
-          </h2>
-          <p className="panel-subtitle">
-            A simple show of interest opens the door. You decide what happens
-            next.
-          </p>
-          {"\n            "}
-          {!existingRoom &&
-            !incoming &&
-            !interestedMatches().has(person.id) && (
-              <div className="field section-gap">
-                <label htmlFor="introduction-type">Collaboration type</label>
-                <select
-                  id="introduction-type"
-                  value={engagementType || model.roomTypeForPerson(person)}
-                  onChange={(event) => setEngagementType(event.target.value)}
-                >
-                  {state.role === "mentor" || person.kind === "Mentor" ? (
-                    <option value="mentorship">Mentorship</option>
-                  ) : (
-                    <>
-                      <option value="beta">Beta Testing Exchange</option>
-                      <option value="marketing">Co-Marketing Swap</option>
-                    </>
-                  )}
-                </select>
-                <p className="muted">
-                  Your collaborator reviews this type before accepting. You will
-                  agree on the scope together in the room.
-                </p>
-              </div>
+          <div className="identity-metadata">
+            {!mentor && person.stage && <span>{stageLabel(person.stage)}</span>}
+            {!mentor && person.teamSize && (
+              <span>Team of {person.teamSize}</span>
             )}
-          {(incoming || interestedMatches().has(person.id)) && (
-            <p>
+            {mentor && person.availability && (
+              <span>
+                <Icon name="clock" />
+                {person.availability}
+              </span>
+            )}
+            <span className="identity-fit">
+              {isScore ? `${person.score}% profile fit` : "Fit unavailable"}
+            </span>
+          </div>
+        </section>
+        <aside
+          className="card panel match-action-panel"
+          aria-label="Collaboration actions"
+        >
+          <span className="action-eyebrow">
+            <Icon
+              name={existingRoom ? "rooms" : incoming ? "inbox" : "handshake"}
+            />
+            {existingRoom
+              ? "Connected"
+              : incoming
+                ? "Introduction received"
+                : interested
+                  ? "Waiting for a response"
+                  : "Your next step"}
+          </span>
+          <h2>
+            {existingRoom
+              ? "Continue your collaboration"
+              : incoming
+                ? "Meet your collaborator"
+                : interested
+                  ? "Introduction sent"
+                  : "Start a conversation"}
+          </h2>
+          <p>
+            {existingRoom
+              ? "Your shared room has the agreed scope and next steps."
+              : incoming
+                ? "Review the proposed collaboration before accepting. You’ll agree on the scope together."
+                : interested
+                  ? "They can accept or decline your introduction. You can withdraw it while you wait."
+                  : "Send an introduction to discuss a collaboration and agree on a focused goal."}
+          </p>
+          {!existingRoom && !incoming && !interested && (
+            <div className="field">
+              <label htmlFor="introduction-type">Collaboration type</label>
+              <select
+                id="introduction-type"
+                value={engagementType || model.roomTypeForPerson(person)}
+                onChange={(event) => setEngagementType(event.target.value)}
+              >
+                {state.role === "mentor" || mentor ? (
+                  <option value="mentorship">Mentorship</option>
+                ) : (
+                  <>
+                    <option value="beta">Beta Testing Exchange</option>
+                    <option value="marketing">Co-Marketing Swap</option>
+                  </>
+                )}
+              </select>
+              <p className="field-help">
+                Your collaborator reviews this type before accepting.
+              </p>
+            </div>
+          )}
+          {(incoming || interested) && !existingRoom && (
+            <p className="proposed-type">
               Proposed collaboration: <strong>{person.engagement}</strong>
             </p>
           )}
@@ -226,61 +151,178 @@ export default function MatchDetailPage() {
             className="btn primary full"
             data-action="interest"
             data-id={person.id}
-            {...(interestedMatches().has(person.id) && !existingRoom
-              ? {
-                  disabled: true,
-                }
-              : {})}
-            onClick={(event) =>
-              onAction(
-                {
-                  action: existingRoom
-                    ? "open-room"
-                    : incoming
-                      ? "accept-interest"
-                      : "interest",
-                  id: existingRoom?.id || person.id,
-                  engagementType:
-                    engagementType || model.roomTypeForPerson(person),
-                },
-                event,
-              )
+            disabled={state.busy || (interested && !existingRoom && !incoming)}
+            onClick={() =>
+              onAction({
+                action: existingRoom
+                  ? "open-room"
+                  : incoming
+                    ? "accept-interest"
+                    : "interest",
+                id: existingRoom?.id || person.id,
+                engagementType:
+                  engagementType || model.roomTypeForPerson(person),
+              })
             }
           >
             {existingRoom
               ? "Open room"
               : incoming
                 ? "Accept introduction"
-                : interestedMatches().has(person.id)
+                : interested
                   ? "Interest sent"
                   : "Express interest"}
+            <Icon name="arrow" />
           </button>
-          {"\n            "}
+          {incoming && !existingRoom && (
+            <button
+              className="btn full"
+              disabled={state.busy}
+              onClick={() =>
+                onAction({ action: "decline-interest", id: person.id })
+              }
+            >
+              Decline introduction
+            </button>
+          )}
+          {interested && !incoming && !existingRoom && (
+            <button
+              className="btn full"
+              disabled={state.busy}
+              onClick={() =>
+                onAction({ action: "cancel-interest", id: person.id })
+              }
+            >
+              Withdraw introduction
+            </button>
+          )}
           <button
             className="btn full"
+            aria-pressed={model.savedMatches().has(person.id)}
+            disabled={state.busy}
             data-action="save"
             data-id={person.id}
-            style={{
-              marginTop: "10px",
-            }}
-            onClick={(event) =>
-              onAction(
-                {
-                  action: "save",
-                  id: person.id,
-                },
-                event,
-              )
-            }
+            onClick={() => onAction({ action: "save", id: person.id })}
           >
-            {savedMatches().has(person.id)
+            {model.savedMatches().has(person.id)
               ? "Saved for later"
               : "Save for later"}
           </button>
-          {"\n          "}
-          <BlockCollaborator person={person} />
+          <details className="match-safety">
+            <summary>Safety and privacy</summary>
+            <BlockCollaborator person={person} />
+          </details>
         </aside>
-        {"\n        "}
+        <div className="match-reading-column">
+          <section className="card panel profile-section">
+            <p className="section-eyebrow">
+              {mentor ? "Mentorship" : "Collaboration focus"}
+            </p>
+            <h2>
+              {mentor ? "Expertise and support" : "What this startup needs"}
+            </h2>
+            {mentor && person.expertise && (
+              <p className="expertise-lead">{person.expertise}</p>
+            )}
+            <div className="profile-section-pair">
+              <div>
+                <h3>{mentor ? "Can help with" : "Looking for help with"}</h3>
+                {(mentor ? person.offer : person.need)?.length ? (
+                  <Tags
+                    values={mentor ? person.offer : person.need}
+                    color="green"
+                  />
+                ) : (
+                  <p className="muted">Not added yet.</p>
+                )}
+              </div>
+              <div>
+                <h3>
+                  {mentor
+                    ? "What they need from founders"
+                    : "Can offer in return"}
+                </h3>
+                {(mentor ? person.need : person.offer)?.length ? (
+                  <Tags values={mentor ? person.need : person.offer} />
+                ) : (
+                  <p className="muted">Not added yet.</p>
+                )}
+              </div>
+            </div>
+            {person.goals && (
+              <div className="profile-section-block">
+                <h3>Collaboration goals</h3>
+                <p className="preserve-lines">{person.goals}</p>
+              </div>
+            )}
+            {mentor && person.startups && (
+              <div className="profile-section-block">
+                <h3>Startups they want to help</h3>
+                <p>{person.startups}</p>
+              </div>
+            )}
+            <p className="profile-preference">
+              {preferenceLabel(person.engagementPreference)}
+              {!mentor && person.audienceSize
+                ? ` · Audience: ${person.audienceSize}`
+                : ""}
+            </p>
+          </section>
+          <section className="card panel profile-section">
+            <p className="section-eyebrow">Background</p>
+            <h2>Experience and collaboration history</h2>
+            {person.pastExperience && (
+              <div className="profile-section-block">
+                <h3>Past experience</h3>
+                <p className="preserve-lines">{person.pastExperience}</p>
+              </div>
+            )}
+            <TrustSummary person={person} detailed />
+          </section>
+          <section className="card panel profile-section fit-section">
+            <p className="section-eyebrow">Profile alignment</p>
+            <h2>Why this match</h2>
+            <p>{fitSummary(person, factors)}</p>
+            <p className="muted">
+              Fit is a guide based on your profiles, not a prediction of
+              success.
+            </p>
+            <details className="fit-details">
+              <summary>See fit breakdown</summary>
+              <div className="score-breakdown">
+                {rows.map((row) => (
+                  <div className="fit-detail-row" key={row.index}>
+                    <div className="fit-detail-heading">
+                      <h3>{row.label}</h3>
+                      <span>
+                        {row.status}
+                        {row.score !== null ? ` · ${row.score}%` : ""}
+                      </span>
+                    </div>
+                    {row.score !== null && (
+                      <div className="score-track" aria-hidden="true">
+                        <i style={{ width: `${row.score}%` }} />
+                      </div>
+                    )}
+                    <p>{row.detail}</p>
+                    {typeof person.factorWeights?.[row.index] === "number" && (
+                      <small>
+                        Weight in the overall fit:{" "}
+                        {Math.round(person.factorWeights[row.index] * 100)}%
+                      </small>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="fit-method">
+                Matching method: profile word coverage.{" "}
+                {person.matchingAlgorithm &&
+                  `Algorithm: ${person.matchingAlgorithm}. `}
+                Configuration version {person.matchingVersion || "unavailable"}.
+              </p>
+            </details>
+          </section>
+        </div>
       </div>
     </div>
   );

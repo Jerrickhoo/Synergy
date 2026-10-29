@@ -29,19 +29,12 @@ async function user(
   email = `${name}-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`,
 ) {
   email = email.toLowerCase();
-  const challenge = await post(request, "signup", {
+  const account = await post(request, "signup", {
     firstName: name,
     lastName: "Browser",
     email,
     role,
     password: "private-password",
-  });
-  const { code } = await (
-    await request.get(`/__test__/email?address=${encodeURIComponent(email)}`)
-  ).json();
-  const account = await post(request, "auth/verify", {
-    challengeId: challenge.challengeId,
-    code,
   });
   return { ...account, email, role };
 }
@@ -290,87 +283,6 @@ test("mentor experience can be edited and appears on the public mentor profile",
   await observerPage.close();
 });
 
-test("AI follow-up questions block application until answered and unfamiliar tags can be proposed", async ({
-  page,
-  request,
-}) => {
-  const u = await user(request, "Clarification");
-  await act(request, u, { form: "profile-form", values: profile });
-  let calls = 0;
-  await page.route("**/api/ai/profile", async (route) => {
-    const body = route.request().postDataJSON();
-    calls++;
-    if (calls === 2)
-      expect(body.answers[0].answer).toBe("We need privacy engineering help.");
-    await route.fulfill({
-      json: {
-        draft: {
-          bio: profile.bio,
-          offer: profile.offer,
-          need: calls === 1 ? "" : "Privacy engineering",
-          industry: profile.industry,
-          stage: profile.stage,
-          teamSize: profile.teamSize,
-        },
-        clarifications:
-          calls === 1
-            ? ["Do you offer privacy engineering or need help with it?"]
-            : [],
-        proposedTags:
-          calls === 1
-            ? []
-            : [
-                {
-                  label: "Privacy Engineering",
-                  side: "need",
-                  reason: "You explicitly need this skill.",
-                },
-              ],
-        suggestedTags: { offer: ["Technical Development"], need: [] },
-      },
-    });
-  });
-  await open(page, u, "profile");
-  await page.getByRole("button", { name: "Edit profile", exact: true }).click();
-  await page
-    .getByText("Get help drafting your profile", { exact: true })
-    .click();
-  await page
-    .getByLabel("Your notes", { exact: true })
-    .fill("We build student tools and privacy engineering.");
-  await page
-    .getByRole("button", { name: "Generate draft", exact: true })
-    .click();
-  await expect(
-    page.getByRole("button", { name: "Use these suggestions", exact: true }),
-  ).toBeDisabled();
-  await page
-    .getByLabel("Do you offer privacy engineering or need help with it?", {
-      exact: true,
-    })
-    .fill("We need privacy engineering help.");
-  await page
-    .getByRole("button", { name: "Generate updated draft", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Use these suggestions", exact: true })
-    .click();
-  await expect(page.getByLabel("What I need", { exact: true })).toHaveValue(
-    "Privacy engineering",
-  );
-  await expect(page.getByLabel("Need tags", { exact: true })).toHaveValue("");
-  await page
-    .getByRole("button", { name: "Propose Privacy Engineering", exact: true })
-    .click();
-  await expect(
-    page.getByRole("button", { name: "Submitted for review", exact: true }),
-  ).toBeDisabled();
-  await capture(page, "ai-clarification-tags-desktop");
-  await page.getByRole("button", { name: "Save profile", exact: true }).click();
-  expect((await state(request, u)).state.profiles.founder.need).toBe(
-    "Privacy engineering",
-  );
-});
 async function agree(request, a, b, id) {
   await act(request, a, {
     action: "lock-terms",
@@ -458,19 +370,50 @@ test("weekly mentorship rescheduling and notification read state work on mobile"
   await page.setViewportSize({ width: 360, height: 900 });
   await open(page, a, `rooms/${id}`);
   await page.getByRole("tab", { name: "Milestones", exact: true }).click();
-  await page.getByText("Schedule session", { exact: true }).first().click();
-  await page.getByLabel("Schedule session", { exact: true }).fill("2035-04-01");
-  await page.getByLabel("Session time", { exact: true }).fill("10:00");
-  await page.getByLabel("Weekly sessions (1–12)").fill("3");
-  await page.getByRole("button", { name: "Save time", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Schedule session", exact: true })
+    .click();
+  await page.getByLabel("Session date", { exact: true }).fill("2035-04-01");
+  await page
+    .getByLabel("Or choose another time", { exact: true })
+    .fill("10:00");
+  await page.getByLabel("Session duration", { exact: true }).selectOption("45");
+  await page.getByLabel("Repeat", { exact: true }).selectOption("3");
+  await page
+    .getByRole("button", { name: "Review schedule", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Review session schedule", exact: true }),
+  ).toContainText("45 minutes");
+  await page
+    .getByRole("button", { name: "Save session schedule", exact: true })
+    .click();
+  await expect(
+    page.getByText("Your session schedule is saved.", { exact: true }),
+  ).toBeVisible();
+  expect(
+    (await state(request, a)).state.rooms[id].milestones.session.schedule
+      .durationMinutes,
+  ).toBe(45);
+  await page.getByRole("tab", { name: "Milestones", exact: true }).click();
   await expect(page.getByText(/2035-04-15 · 10:00/)).toBeVisible();
-  const scheduleDetails = page
-    .locator("details")
-    .filter({ has: page.getByText("Reschedule session", { exact: true }) });
-  if ((await scheduleDetails.getAttribute("open")) === null)
-    await page.getByText("Reschedule session", { exact: true }).click();
-  await page.getByLabel("Schedule session", { exact: true }).fill("2035-04-02");
-  await page.getByRole("button", { name: "Save time", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Reschedule session", exact: true })
+    .click();
+  await page.getByLabel("Session date", { exact: true }).fill("2035-04-02");
+  await page
+    .getByLabel("Or choose another time", { exact: true })
+    .fill("10:00");
+  await page
+    .getByRole("button", { name: "Review schedule", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Update session schedule", exact: true })
+    .click();
+  await expect(
+    page.getByText("Your session schedule is saved.", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("tab", { name: "Milestones", exact: true }).click();
   await expect(page.getByText(/2035-04-16 · 10:00/)).toBeVisible();
   expect(
     await page.evaluate(
@@ -483,19 +426,12 @@ test("weekly mentorship rescheduling and notification read state work on mobile"
     .getByRole("button", { name: "Mark all as read", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "All updates (0 unread)", exact: true }),
+    page.getByRole("status").filter({ hasText: /^0 unread updates$/ }),
   ).toBeVisible();
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "All updates (0 unread)", exact: true }),
+    page.getByRole("status").filter({ hasText: /^0 unread updates$/ }),
   ).toBeVisible();
-  await page.getByLabel("Digest frequency").selectOption("weekly");
-  await page
-    .getByRole("button", { name: "Save preferences", exact: true })
-    .click();
-  expect((await state(request, a)).state.notificationPreferences.digest).toBe(
-    "weekly",
-  );
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -583,45 +519,6 @@ test("verified moderators review reports, tags and affiliations while ordinary a
   await capture(page, "fixed-moderation-mobile");
 });
 
-test("account recovery changes the password and returns to sign in without granting a session", async ({
-  page,
-  request,
-}) => {
-  const account = await user(request, "Recover");
-  await page.goto("/");
-  await page.getByRole("button", { name: "Forgot your password?" }).click();
-  await page.getByLabel("Account email").fill(account.email);
-  await page
-    .getByRole("button", { name: "Send reset code", exact: true })
-    .click();
-  const { code } = await (
-    await request.get(
-      `/__test__/email?address=${encodeURIComponent(account.email)}`,
-    )
-  ).json();
-  await page.getByLabel("Reset code").fill(code);
-  await page
-    .getByLabel("New password", { exact: true })
-    .fill("replacement-password");
-  await page
-    .getByRole("button", { name: "Reset password", exact: true })
-    .click();
-  await expect(
-    page.getByText(
-      /Password updated. Sign in with your new password. Previous sessions/,
-    ),
-  ).toBeVisible();
-  expect(
-    await page.evaluate(() => sessionStorage.getItem("synergy-session")),
-  ).toBeNull();
-  await page
-    .getByRole("button", { name: "Back to sign in", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "Sign in to Synergy" }),
-  ).toBeVisible();
-});
-
 test("prospective partners see public trust only after both blind reviews are submitted", async ({
   page,
   request,
@@ -685,7 +582,13 @@ test("temporary restore failures preserve a valid session and allow retry", asyn
   await expect(
     page.getByRole("heading", { name: "Welcome, Restore" }),
   ).toBeVisible();
-  await page.route("**/api/state*", (route) => route.abort());
+  await page.route("**/api/state*", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Temporarily unavailable" }),
+    }),
+  );
   await page.reload();
   await expect(
     page.getByRole("button", { name: "Retry opening workspace" }),
@@ -733,10 +636,7 @@ test("shared terms preserve dirty drafts through remote edits and navigation", a
   await expect(page.getByLabel("Shared goal", { exact: true })).toHaveValue(
     "Partner's latest goal",
   );
-  await page
-    .getByRole("navigation", { name: "Main navigation" })
-    .getByRole("button", { name: "Profile", exact: true })
-    .click();
+  await page.getByRole("button", { name: /^Open profile for / }).click();
   await page.getByRole("button", { name: "Edit profile", exact: true }).click();
   await page
     .getByLabel("About me", { exact: true })
@@ -745,17 +645,14 @@ test("shared terms preserve dirty drafts through remote edits and navigation", a
     .getByRole("navigation", { name: "Main navigation" })
     .getByRole("button", { name: "Home", exact: true })
     .click();
-  await page
-    .getByRole("navigation", { name: "Main navigation" })
-    .getByRole("button", { name: "Profile", exact: true })
-    .click();
+  await page.getByRole("button", { name: /^Open profile for / }).click();
   await page.getByRole("button", { name: "Edit profile", exact: true }).click();
   await expect(page.getByLabel("About me", { exact: true })).toHaveValue(
     "My profile draft survives navigation",
   );
 });
 
-test("account settings support visibility, private exports, session revocation, verified email changes and deletion", async ({
+test("account settings support visibility, private exports, session revocation and deletion", async ({
   page,
   request,
 }) => {
@@ -777,19 +674,6 @@ test("account settings support visibility, private exports, session revocation, 
   await expect(page.locator(".toast")).toContainText(
     "Account settings updated",
   );
-  const email = `changed-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`;
-  await page.getByLabel("New email address").fill(email);
-  await page.locator("#email-password").fill("private-password");
-  await page.getByRole("button", { name: "Send email change code" }).click();
-  await expect(page.getByLabel("Email change code")).toBeVisible();
-  const { code } = await (
-    await request.get(`/__test__/email?address=${encodeURIComponent(email)}`)
-  ).json();
-  await page.getByLabel("Email change code").fill(code);
-  await page.getByRole("button", { name: "Verify new email" }).click();
-  await expect(
-    page.getByText(`Current address: ${email}.`, { exact: false }),
-  ).toBeVisible();
   await page.getByText("Delete my account", { exact: true }).click();
   await page.locator("#delete-password").fill("private-password");
   await page.getByLabel("Type DELETE to confirm").fill("DELETE");

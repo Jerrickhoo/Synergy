@@ -28,11 +28,7 @@ export default function SettingsPage() {
         notify("Your account has been deleted.");
         return;
       }
-      notify(
-        path === "account/email"
-          ? "Check your new email address for the code."
-          : "Account settings updated.",
-      );
+      notify("Account settings updated.");
       await load();
     } catch (error) {
       setError(error.message);
@@ -168,95 +164,29 @@ export default function SettingsPage() {
                     </option>
                   ))}
               </select>
-              <label htmlFor="session-password">Current password</label>
-              <input
-                id="session-password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                maxLength={1024}
-              />
+              {!state.integrations?.guest && (
+                <>
+                  <label htmlFor="session-password">Current password</label>
+                  <input
+                    id="session-password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    maxLength={1024}
+                  />
+                </>
+              )}
               <button className="btn" disabled={state.busy}>
                 Sign out other sessions
               </button>
             </form>
           </section>
           <section className="card panel section-gap">
-            <h2>Change email</h2>
-            <p>
-              Current address: {state.accountEmail}. Verify the new address to
-              finish. Other sessions will be signed out.
-            </p>
-            {state.integrations.email ? (
-              <>
-                <form
-                  className="grid"
-                  onSubmit={(event) => submit(event, "account/email")}
-                >
-                  <label htmlFor="new-email">New email address</label>
-                  <input
-                    id="new-email"
-                    name="email"
-                    type="email"
-                    required
-                    maxLength={254}
-                    autoComplete="email"
-                  />
-                  <label htmlFor="email-password">Current password</label>
-                  <input
-                    id="email-password"
-                    name="password"
-                    type="password"
-                    required
-                    maxLength={1024}
-                    autoComplete="current-password"
-                  />
-                  <button className="btn" disabled={state.busy}>
-                    Send email change code
-                  </button>
-                </form>
-                {settings.pendingEmail && (
-                  <form
-                    className="grid section-gap"
-                    onSubmit={(event) => submit(event, "account/email/verify")}
-                  >
-                    <p>
-                      Code sent to {settings.pendingEmail.email}. Request
-                      another after{" "}
-                      {new Date(
-                        settings.pendingEmail.resendAt,
-                      ).toLocaleTimeString()}
-                      .
-                    </p>
-                    <label htmlFor="email-change-code">Email change code</label>
-                    <input
-                      id="email-change-code"
-                      name="code"
-                      required
-                      inputMode="numeric"
-                      pattern="[0-9]{6}"
-                      maxLength={6}
-                      autoComplete="one-time-code"
-                    />
-                    <button className="btn primary" disabled={state.busy}>
-                      Verify new email
-                    </button>
-                  </form>
-                )}
-              </>
-            ) : (
-              <p className="muted">
-                Email changes will be available when email delivery is enabled.
-              </p>
-            )}
-          </section>
-          <section className="card panel section-gap">
             <h2>Your data</h2>
             <p>
               Download your profiles, shared workspace records and preferences.
-              Passwords, verification codes and unreleased partner reviews are
-              excluded.
+              Passwords and unreleased partner reviews are excluded.
             </p>
             <button
               className="btn"
@@ -277,15 +207,19 @@ export default function SettingsPage() {
                 className="grid"
                 onSubmit={(event) => submit(event, "account/delete")}
               >
-                <label htmlFor="delete-password">Current password</label>
-                <input
-                  id="delete-password"
-                  name="password"
-                  type="password"
-                  required
-                  maxLength={1024}
-                  autoComplete="current-password"
-                />
+                {!state.integrations?.guest && (
+                  <>
+                    <label htmlFor="delete-password">Current password</label>
+                    <input
+                      id="delete-password"
+                      name="password"
+                      type="password"
+                      required
+                      maxLength={1024}
+                      autoComplete="current-password"
+                    />
+                  </>
+                )}
                 <label htmlFor="delete-confirmation">
                   Type DELETE to confirm
                 </label>

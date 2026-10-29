@@ -20,8 +20,11 @@ import SettingsPage from "./pages/SettingsPage.jsx";
 import Toast from "./components/Toast.jsx";
 import NotificationsPage from "./pages/NotificationsPage.jsx";
 import ModerationPage from "./pages/ModerationPage.jsx";
+import CalendarPage from "./pages/CalendarPage.jsx";
+import Icon from "./components/Icon.jsx";
 
 const pages = {
+  calendar: CalendarPage,
   settings: SettingsPage,
   notifications: NotificationsPage,
   moderation: ModerationPage,
@@ -41,7 +44,6 @@ function Unavailable({ room = false }) {
   return (
     <div className="page">
       <PageHeader
-        eyebrow="LET’S GET YOU BACK"
         title={room ? "Room unavailable" : "Page unavailable"}
         intro={
           room
@@ -59,15 +61,8 @@ function Unavailable({ room = false }) {
   );
 }
 export default function App() {
-  const {
-    state,
-    model,
-    onAction,
-    authChallenge,
-    retryRestore,
-    onInvalid,
-    onFormInput,
-  } = useApp();
+  const { state, model, onAction, retryRestore, onInvalid, onFormInput } =
+    useApp();
   const mainRef = useRef(null);
   const authPage = ["signup", "onboarding"].includes(state.page);
   const Page = pages[state.page];
@@ -124,7 +119,7 @@ export default function App() {
       >
         Skip to content
       </button>
-      {!state.authenticated && (!authPage || authChallenge) ? (
+      {!state.authenticated && !authPage ? (
         <Login />
       ) : (
         <>
@@ -136,23 +131,18 @@ export default function App() {
             {!authPage && <Sidebar />}
             <main id="main-content" tabIndex={-1} ref={mainRef}>
               {authPage ? <AuthHeader /> : <Topbar />}
-              {state.authenticated &&
-                state.integrations?.requireVerification &&
-                !state.emailVerified &&
-                state.page !== "profile" && (
-                  <div className="connection-banner" role="status">
-                    Verify your email to connect with collaborators.{" "}
-                    <button
-                      className="link-btn"
-                      onClick={() => onAction({ page: "profile" })}
-                    >
-                      Open profile
-                    </button>
-                  </div>
-                )}
               {state.connectionError && (
-                <div className="connection-banner" role="status">
-                  {state.connectionError}
+                <div
+                  className="connection-banner workspace-connection"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  <Icon name="alert" />
+                  <div>
+                    <strong>Connection interrupted</strong>
+                    <p>{state.connectionError}</p>
+                  </div>
                 </div>
               )}
               <div

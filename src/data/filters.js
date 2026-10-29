@@ -30,6 +30,7 @@ export const pageLabel = (page) =>
     notifications: "Updates",
     moderation: "Moderation",
     rooms: "Deal rooms",
+    calendar: "Calendar",
     "room-detail": "Deal room",
     "match-detail": "Match details",
     review: "Review",

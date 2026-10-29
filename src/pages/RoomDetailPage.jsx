@@ -1,8 +1,10 @@
 import NextStep from "../components/NextStep.jsx";
 import ChatPanel from "../components/ChatPanel.jsx";
 import MilestonesPanel from "../components/MilestonesPanel.jsx";
+import TaskBoard from "../components/TaskBoard.jsx";
+import SchedulePanel from "../components/SchedulePanel.jsx";
 import TermsPanel from "../components/TermsPanel.jsx";
-import { Fragment } from "react";
+import { Fragment, useLayoutEffect, useRef } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Avatar from "../components/Avatar.jsx";
 import PageHeader from "../components/PageHeader.jsx";
@@ -38,7 +40,29 @@ export default function RoomDetailPage() {
     "Reviewed",
   ];
   const tab = state.roomTab;
+  const tabsRef = useRef(null);
+  useLayoutEffect(() => {
+    const tabs = tabsRef.current;
+    if (!tabs) return;
+    const reveal = () => {
+      const selected = tabs.querySelector('[aria-selected="true"]');
+      if (!selected) return;
+      const item = selected.getBoundingClientRect(),
+        bounds = tabs.getBoundingClientRect();
+      if (item.right > bounds.right)
+        tabs.scrollLeft += item.right - bounds.right;
+      else if (item.left < bounds.left)
+        tabs.scrollLeft += item.left - bounds.left;
+    };
+    reveal();
+    const observer = new ResizeObserver(reveal);
+    observer.observe(tabs);
+    return () => observer.disconnect();
+  }, [tab, room.id]);
   let panel = "";
+  if (tab === "tasks") panel = <TaskBoard room={room} partner={partner} />;
+  if (tab === "schedule" && room.type === "mentorship")
+    panel = <SchedulePanel room={room} partner={partner} />;
   if (tab === "terms")
     panel = (
       <TermsPanel
@@ -71,9 +95,8 @@ export default function RoomDetailPage() {
   return (
     <div className="page page-enter">
       <PageHeader
-        eyebrow="DEAL ROOM"
         title={roomTitle}
-        intro="A focused space for clear terms, steady progress, and honest conversations."
+        intro="Plan your work, share progress, and move this collaboration forward."
         actions={
           <>
             <button
@@ -112,6 +135,8 @@ export default function RoomDetailPage() {
           </span>
           <Avatar
             initials={partner?.initials || "?"}
+            image={partner?.image}
+            name={partner?.name}
             color={partner?.color || ""}
           />
           <strong>{partner?.name || room.partnerId}</strong>
@@ -165,12 +190,15 @@ export default function RoomDetailPage() {
       {"\n          "}
       <div
         className="tabs room-tabs"
+        ref={tabsRef}
         role="tablist"
         aria-label="Deal room sections"
       >
         {[
           ["terms", "Terms"],
           ["milestones", "Milestones"],
+          ["tasks", "Task board"],
+          ...(room.type === "mentorship" ? [["schedule", "Schedule"]] : []),
           ["chat", "Chat"],
         ].map(([key, label], itemIndex) => (
           <Fragment key={itemIndex}>

@@ -1,4 +1,5 @@
 import { profileKeys, scheduleInstant } from "../data/selectors.js";
+import { weeklySchedules } from "../data/planning.js";
 
 export const stages = ["idea", "pre-seed", "seed", "growth"];
 export const cleanValues = (values) =>
@@ -86,6 +87,20 @@ export function validateCredentials(values, signup = false) {
   return errors;
 }
 export function validateSchedule(values, now = new Date()) {
+  const count = Number(
+    values.count === undefined || values.count === "" ? 1 : values.count,
+  );
+  if (!Number.isInteger(count) || count < 1 || count > 12)
+    return { count: "Schedule between 1 and 12 weekly sessions." };
+  if (
+    values.durationMinutes !== undefined &&
+    values.durationMinutes !== "" &&
+    ![15, 30, 45, 60, 90, 120].includes(Number(values.durationMinutes))
+  )
+    return {
+      durationMinutes:
+        "Choose a session duration of 15, 30, 45, 60, 90 or 120 minutes.",
+    };
   const validDate =
     /^\d{4}-\d{2}-\d{2}$/.test(values.date || "") &&
     !Number.isNaN(Date.parse(`${values.date}T00:00`)) &&
@@ -96,7 +111,17 @@ export function validateSchedule(values, now = new Date()) {
     return { date: "Enter a valid session date and time." };
   const instant = scheduleInstant(values);
   if (Number.isNaN(instant.getTime()))
-    return { date: "Choose a valid session timezone." };
+    return {
+      time: "Choose a valid local session time and timezone. Clock-change gaps cannot be scheduled.",
+    };
+  if (
+    weeklySchedules(values, count).some((schedule) =>
+      Number.isNaN(scheduleInstant(schedule).getTime()),
+    )
+  )
+    return {
+      time: "A weekly session falls in a clock-change gap. Choose another starting time.",
+    };
   return instant <= now
     ? { date: "Choose a future session date and time." }
     : {};

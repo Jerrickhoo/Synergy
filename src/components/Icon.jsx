@@ -58,8 +58,11 @@ export default function Icon({ name }) {
     ),
     settings: (
       <>
-        <circle cx="12" cy="12" r="4" />
-        <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2" />
+        <path
+          d="m9 3-.5 2.3-1.1.6-2.2-.7-3 5.2L4 12v1.2l-1.8 1.6 3 5.2 2.2-.7 1.1.6L9 22h6l.5-2.1 1.1-.6 2.2.7 3-5.2-1.8-1.6V12l1.8-1.6-3-5.2-2.2.7-1.1-.6L15 3Z"
+          transform="translate(0 -0.5)"
+        />
+        <circle cx="12" cy="12" r="3" />
       </>
     ),
     spark: (

@@ -11,7 +11,6 @@ export function accountControls({
   hash,
   save,
   response,
-  reserveCode,
   mirror,
   fail,
 }) {
@@ -21,6 +20,7 @@ export function accountControls({
   };
   async function password(token, value) {
     const account = authenticate(token);
+    if (account.demo) return;
     if (typeof value !== "string" || value.length > 1024)
       fail("Enter your current password.", 400);
     const expected = account.passwordHash;
@@ -75,13 +75,6 @@ export function accountControls({
           id,
           name: getDb().accounts[id]?.state.accountName || "Deleted account",
         })),
-        pendingEmail: account.emailChange
-          ? {
-              email: account.emailChange.newEmail,
-              expiresAt: account.emailChange.expires,
-              resendAt: account.emailChange.sentAt + 60000,
-            }
-          : null,
         sessions: [...sessions]
           .filter(
             ([, session]) =>
@@ -219,68 +212,6 @@ export function accountControls({
       save();
       revoke(account.id);
       return { ok: true };
-    },
-    beginEmail(token, email) {
-      const account = authenticate(token);
-      email = String(email || "")
-        .trim()
-        .toLowerCase();
-      if (
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-        email.length > 254 ||
-        email === account.email
-      )
-        fail("Enter a different valid email address.");
-      if (
-        Object.values(getDb().accounts).some((other) => other.email === email)
-      )
-        fail("This email is unavailable.", 409);
-      const proof = reserveCode(account, "emailChange", { newEmail: email });
-      return { ...proof, email };
-    },
-    emailSent(token, email, code) {
-      const account = authenticate(token),
-        proof = account.emailChange;
-      if (proof?.newEmail === email && proof.hash === hash(proof.salt + code)) {
-        proof.delivered = true;
-        save();
-      }
-    },
-    confirmEmail(token, code) {
-      const account = authenticate(token),
-        proof = account.emailChange;
-      if (
-        !proof?.delivered ||
-        proof.expires <= Date.now() ||
-        proof.attempts >= 5
-      )
-        fail("Email change code unavailable. Request a new code.");
-      proof.attempts++;
-      if (
-        !/^\d{6}$/.test(String(code)) ||
-        proof.hash !== hash(proof.salt + code)
-      ) {
-        save();
-        fail("Email change code is incorrect.");
-      }
-      if (
-        Object.values(getDb().accounts).some(
-          (other) => other.email === proof.newEmail,
-        )
-      )
-        fail("This email is unavailable.", 409);
-      account.email = account.state.accountEmail = proof.newEmail;
-      account.emailVerifiedAt = new Date().toISOString();
-      for (const key of [
-        "emailChange",
-        "passwordReset",
-        "loginVerification",
-        "verification",
-      ])
-        delete account[key];
-      save();
-      revoke(account.id, token);
-      return response(account);
     },
   };
 }

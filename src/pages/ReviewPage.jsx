@@ -23,7 +23,6 @@ export default function ReviewPage() {
   return (
     <div className="page page-enter">
       <PageHeader
-        eyebrow="CLOSE THE LOOP"
         title="How did it go?"
         intro="Your feedback stays private until both collaborators submit their reviews."
       />

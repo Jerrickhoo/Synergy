@@ -15,10 +15,13 @@ export async function fetchWithDeadline(url, options = {}, timeout = 30000) {
     });
   } catch (error) {
     if (controller.signal.aborted)
-      throw new Error(
-        "The request timed out. Check your connection and try again.",
+      throw Object.assign(
+        new Error(
+          "The request timed out. Check your connection and try again.",
+        ),
+        { connectionIssue: true },
       );
-    throw error;
+    throw Object.assign(error, { connectionIssue: true });
   } finally {
     clearTimeout(timer);
   }

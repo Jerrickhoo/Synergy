@@ -13,9 +13,6 @@ import { createWorkspace, scoreProfile } from "../server/workspace.js";
 import { decode } from "../src/state/serialization.js";
 import { backupWorkspace, verifyBackup } from "../server/backup.js";
 import { scheduleInstant, upcomingSessions } from "../src/data/selectors.js";
-import { createServer } from "node:http";
-import { createApi } from "../server/api.js";
-import { configuration } from "../server/config.js";
 import { defaultMatching } from "../src/data/matching.js";
 
 test("milestone revisions require the partner's approval, reject stale decisions and preserve evidence", (t) => {
@@ -102,9 +99,8 @@ test("milestone revisions require the partner's approval, reject stale decisions
 });
 
 test("workspace templates are versioned, moderator-only and copied into future rooms", (t) => {
-  const { workspace: w, a, admin, act, verify, pair, file } = fixture(t);
+  const { workspace: w, a, admin, act, pair, file } = fixture(t);
   const oldRoom = pair();
-  verify(admin);
   const template = w.get(admin.token).state.engagementTemplates.beta;
   const values = {
     type: "beta",
@@ -120,7 +116,7 @@ test("workspace templates are versioned, moderator-only and copied into future r
     });
   assert.throws(
     () => act(a, { form: "engagement-template", values }),
-    /moderator/,
+    /moderator/i,
   );
   act(admin, { form: "engagement-template", values });
   assert.throws(
@@ -195,8 +191,7 @@ test("pending scope changes block launch and terminal rooms reject further revis
 });
 
 test("matching captures fixed versioned scores and counts rooms once with blind outcome feedback", (t) => {
-  const { workspace: w, a, b, admin, act, verify, pair, complete } = fixture(t);
-  verify(admin);
+  const { workspace: w, a, b, admin, act, pair, complete } = fixture(t);
   const id = pair();
   const snapshot = w.get(a.token).state.rooms[id].matchingSnapshot;
   const values = { version: 1 };
@@ -206,7 +201,10 @@ test("matching captures fixed versioned scores and counts rooms once with blind 
     });
   values["founder-0"] = 60;
   values["founder-2"] = 10;
-  assert.throws(() => act(a, { form: "matching-config", values }), /moderator/);
+  assert.throws(
+    () => act(a, { form: "matching-config", values }),
+    /moderator/i,
+  );
   act(admin, { form: "matching-config", values });
   assert.equal(w.get(a.token).state.matchingConfig.version, 2);
   assert.deepEqual(w.get(a.token).state.rooms[id].matchingSnapshot, snapshot);
@@ -286,6 +284,80 @@ const profile = {
   stage: "idea",
   teamSize: "3",
 };
+
+test("room task boards share changes, persist, and reject stale or unauthorized edits", (t) => {
+  const { workspace: w, a, b, c, act, pair, file } = fixture(t);
+  const roomId = pair();
+  const values = {
+    title: "Prepare the beta brief",
+    description: "Write goals and recruitment criteria",
+    status: "todo",
+    priority: "high",
+    assignee: b.state.accountId,
+    dueDate: "2035-04-01",
+    milestoneId: "scope",
+  };
+  const create = { form: "task-create", activeRoomId: roomId, values };
+  assert.throws(() => act(c, create), /unavailable/);
+  assert.throws(() => act(a, { ...create, role: "mentor" }), /unavailable/);
+  for (const change of [
+    { title: " " },
+    { priority: "urgent" },
+    { status: "unknown" },
+    { dueDate: "2035-02-30" },
+    { assignee: c.state.accountId },
+    { milestoneId: "__proto__" },
+  ])
+    assert.throws(() =>
+      act(a, { ...create, values: { ...values, ...change } }),
+    );
+  act(a, create);
+  const task = w.get(b.token).state.rooms[roomId].tasks[0];
+  assert.equal(task.title, values.title);
+  assert.equal(task.assignee, b.state.accountId);
+  assert.equal(task.version, 1);
+  const update = {
+    form: "task-update",
+    activeRoomId: roomId,
+    id: task.id,
+    values: { ...task, status: "doing" },
+  };
+  assert.throws(() => act(c, update), /unavailable/);
+  act(b, update);
+  assert.equal(w.get(a.token).state.rooms[roomId].tasks[0].status, "doing");
+  assert.throws(() => act(a, update), /task changed/);
+  assert.throws(
+    () => act(a, { ...update, form: "task-delete" }),
+    /task changed/,
+  );
+  const fresh = w.get(a.token).state.rooms[roomId].tasks[0];
+  act(a, {
+    ...update,
+    values: { ...fresh, title: "Brief ready", status: "done" },
+  });
+  const restarted = createWorkspace(file).login({
+    email: "jamie@example.com",
+    password: "private-password",
+  });
+  assert.equal(restarted.state.rooms[roomId].tasks[0].title, "Brief ready");
+  assert.equal(restarted.state.rooms[roomId].tasks[0].status, "done");
+  assert.equal(w.get(a.token).state.rooms[roomId].milestones.scope.me, false);
+  act(b, {
+    form: "task-delete",
+    activeRoomId: roomId,
+    id: task.id,
+    values: { version: 3 },
+  });
+  assert.deepEqual(w.get(a.token).state.rooms[roomId].tasks, []);
+  assert.throws(() => act(a, update), /task is unavailable/);
+  act(a, create);
+  act(a, {
+    form: "close-room",
+    activeRoomId: roomId,
+    values: { reason: "Finished for now" },
+  });
+  assert.throws(() => act(b, create), /cannot be changed/);
+});
 const terms = {
   goal: "Validate onboarding",
   scope: "Twenty testers",
@@ -301,8 +373,6 @@ function fixture(t, options = {}) {
   });
   const file = join(dir, "data", "workspace.json");
   const workspace = createWorkspace(file, {
-    resendKey: "fake-key",
-    mailFrom: "Synergy <test@example.com>",
     adminEmails: ["moderator@example.com"],
     ...options,
   });
@@ -333,11 +403,6 @@ function fixture(t, options = {}) {
         ]?.contentVersion || 0,
       ...command,
     });
-  const verify = (u) => {
-    const proof = workspace.beginVerification(u.token);
-    workspace.verificationSent(u.token, proof.code);
-    return workspace.verifyEmail(u.token, proof.code, u.state.role);
-  };
   for (const u of [a, b, c]) act(u, { form: "profile-form", values: profile });
   const pair = () => {
     act(a, { action: "interest", id: `${b.state.accountId}:founder` });
@@ -381,7 +446,6 @@ function fixture(t, options = {}) {
     c,
     admin,
     act,
-    verify,
     pair,
     agree,
     complete,
@@ -500,7 +564,7 @@ test("matching uses size, audience and engagement goals and describes missing or
 });
 
 test("moderators verify affiliations, approve vocabulary, resolve disputes and enforce account access", (t) => {
-  const { workspace: w, a, b, c, admin, act, verify, pair, agree } = fixture(t);
+  const { workspace: w, a, b, c, admin, act, pair, agree } = fixture(t);
   const id = pair();
   agree(id);
   act(a, { action: "dispute", activeRoomId: id, id: "scope" });
@@ -520,11 +584,6 @@ test("moderators verify affiliations, approve vocabulary, resolve disputes and e
     () => act(a, { form: "moderation", values }),
     /Moderator access/,
   );
-  assert.throws(
-    () => act(admin, { form: "moderation", values }),
-    /Moderator access/,
-  );
-  verify(admin);
   assert.throws(
     () =>
       act(admin, {
@@ -627,8 +686,8 @@ test("moderators verify affiliations, approve vocabulary, resolve disputes and e
   assert.equal(w.get(admin.token).state.moderation.audit.length, 5);
 });
 
-test("due dates, unread notifications and digest preferences survive restart and respect roles", (t) => {
-  const { workspace: w, a, b, act, verify, pair, agree, file } = fixture(t);
+test("due dates and unread notifications survive restart and respect roles", (t) => {
+  const { workspace: w, a, b, act, pair, agree, file } = fixture(t);
   const id = pair();
   agree(id);
   act(a, {
@@ -656,26 +715,29 @@ test("due dates, unread notifications and digest preferences survive restart and
     .state.notifications.find((n) => n.kind === "reminder");
   assert.ok(notification);
   assert.equal(notification.read, false);
+  assert.equal(notification.dueAt, "2025-01-01T23:59:59Z");
+  assert.equal(notification.tab, "milestones");
+  assert.notEqual(notification.timestamp, notification.dueAt);
+  const later = Date.now() + 120000;
+  t.mock.method(Date, "now", () => later);
+  const repeated = w.get(b.token);
+  assert.equal(
+    repeated.state.notifications.find((n) => n.id === notification.id)
+      .timestamp,
+    notification.timestamp,
+  );
+  assert.equal(
+    w.get(b.token).revision,
+    repeated.revision,
+    "repeated reads do not rewrite notification metadata",
+  );
   act(b, { action: "read-notifications", id: notification.id });
   assert.equal(
     w.get(b.token).state.notifications.find((n) => n.id === notification.id)
       .read,
     true,
   );
-  assert.throws(
-    () =>
-      act(a, { form: "notification-preferences", values: { digest: "daily" } }),
-    /Verify your email/,
-  );
-  verify(a);
-  act(a, { form: "notification-preferences", values: { digest: "daily" } });
-  assert.equal(w.features.digestCandidates().length, 1);
-  w.features.digestAttempt(a.state.accountId);
-  assert.equal(w.features.digestCandidates().length, 0);
-  const restarted = createWorkspace(file, {
-    resendKey: "fake-key",
-    mailFrom: "Synergy <test@example.com>",
-  });
+  const restarted = createWorkspace(file, {});
   const recovered = restarted.login({
     email: "jamie@example.com",
     password: "private-password",
@@ -685,69 +747,16 @@ test("due dates, unread notifications and digest preferences survive restart and
     true,
   );
   assert.equal(
+    recovered.state.notifications.find((n) => n.id === notification.id)
+      .timestamp,
+    notification.timestamp,
+  );
+  assert.equal(
     restarted
       .get(recovered.token, "mentor")
       .state.notifications.some((n) => n.id === notification.id),
     false,
   );
-});
-
-test("password reset is delivered-only, bounded, single-use, persisted and revokes previous sessions", (t) => {
-  const { workspace: w, a, file } = fixture(t);
-  assert.equal(w.features.beginReset("unknown@example.com"), null);
-  const proof = w.features.beginReset("alex@example.com");
-  assert.throws(
-    () =>
-      w.features.resetPassword({
-        email: proof.email,
-        code: proof.code,
-        password: "replacement-password",
-      }),
-    /unavailable/,
-  );
-  w.features.resetSent(proof.email, proof.code);
-  assert.throws(
-    () =>
-      w.features.resetPassword({
-        email: proof.email,
-        code: "000000",
-        password: "replacement-password",
-      }),
-    /incorrect/,
-  );
-  const restarted = createWorkspace(file);
-  restarted.features.resetPassword({
-    email: proof.email,
-    code: proof.code,
-    password: "replacement-password",
-  });
-  assert.throws(
-    () =>
-      restarted.features.resetPassword({
-        email: proof.email,
-        code: proof.code,
-        password: "another-password",
-      }),
-    /unavailable/,
-  );
-  assert.throws(
-    () => restarted.login({ email: proof.email, password: "private-password" }),
-    /incorrect/,
-  );
-  assert.ok(
-    restarted.login({ email: proof.email, password: "replacement-password" })
-      .token,
-  );
-  // Also exercise revocation without a restart.
-  w.features.resetPassword({
-    email: proof.email,
-    code: proof.code,
-    password: "replacement-password",
-  });
-  assert.throws(() => w.get(a.token), /sign in/);
-  const stored = readFileSync(file, "utf8");
-  assert.equal(stored.includes("replacement-password"), false);
-  assert.equal(stored.includes(proof.code), false);
 });
 
 test("mentorship can be rescheduled as a weekly series and clears confirmations for both partners", (t) => {
@@ -772,7 +781,12 @@ test("mentorship can be rescheduled as a weekly series and clears confirmations 
   }).state.activeRoomId;
   act(a, { action: "lock-terms", activeRoomId: id, values: terms });
   act(b, { role: "mentor", action: "accept-terms", activeRoomId: id });
-  const values = { date: "2035-04-01", time: "10:00", count: "3" };
+  const values = {
+    date: "2035-04-01",
+    time: "10:00",
+    count: "3",
+    durationMinutes: "45",
+  };
   act(a, {
     form: "schedule",
     activeRoomId: id,
@@ -799,6 +813,11 @@ test("mentorship can be rescheduled as a weekly series and clears confirmations 
   assert.equal(room.milestones.session.me, false);
   assert.equal(room.milestones.session.partner, false);
   assert.equal(room.milestones.session.schedules.length, 3);
+  assert.ok(
+    room.milestones.session.schedules.every(
+      (schedule) => schedule.durationMinutes === 45,
+    ),
+  );
   assert.equal(room.milestones.session.schedules[2].date, "2035-04-16");
   assert.equal(upcomingSessions(w.get(a.token).state).length, 3);
   assert.equal(
@@ -834,221 +853,4 @@ test("backups capture the database and immutable uploads and detect corruption",
   // Signing in doesn't write when verification is disabled, so the backup stays valid.
   writeFileSync(join(target, "uploads", id), "modified");
   assert.throws(() => verifyBackup(target), /verification failed/);
-});
-
-test("HTTP recovery conceals account existence and digest delivery is opt-in, private and deduplicated", async (t) => {
-  const { workspace: w, a, b, verify, act, pair, agree, file } = fixture(t);
-  verify(a);
-  const id = pair();
-  agree(id);
-  act(a, { form: "notification-preferences", values: { digest: "daily" } });
-  const sent = [];
-  const config = {
-    ...configuration({}),
-    file,
-    brevoKey: "fake-test-key",
-    mailProvider: "brevo",
-    mailFrom: "Synergy <test@example.com>",
-  };
-  const api = createApi({
-    config,
-    fetcher: async (url, request) => {
-      const body = JSON.parse(request.body);
-      sent.push(body);
-      return { ok: true, json: async () => ({ messageId: "fake-message" }) };
-    },
-  });
-  const server = createServer((req, res) => api(req, res));
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(
-    () =>
-      new Promise((resolve) => {
-        server.close(resolve);
-        server.closeAllConnections();
-      }),
-  );
-  const base = `http://127.0.0.1:${server.address().port}`;
-  const post = async (path, data, token) => {
-    const res = await fetch(`${base}/api/${path}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(data),
-    });
-    return { status: res.status, body: decode(await res.text()) };
-  };
-  await api.runDigests();
-  await api.runDigests();
-  assert.equal(sent.length, 1);
-  assert.equal(sent[0].to[0].email, "alex@example.com");
-  assert.match(sent[0].subject, /digest/);
-  assert.equal(JSON.stringify(sent[0]).includes("private-password"), false);
-  const login = await post("login", {
-    email: "jamie@example.com",
-    password: "private-password",
-  });
-  assert.equal(login.status, 200);
-  const unknown = await post("password/request", {
-    email: "absent@example.com",
-  });
-  const known = await post("password/request", { email: "jamie@example.com" });
-  assert.deepEqual(unknown, known);
-  assert.equal(known.body.code, undefined);
-  const mail = sent.at(-1);
-  assert.equal(mail.to[0].email, "jamie@example.com");
-  assert.match(mail.subject, /Reset/);
-  const code = mail.textContent.match(/code is (\d{6})/)[1];
-  const reset = await post("password/reset", {
-    email: "jamie@example.com",
-    code,
-    password: "new-private-password",
-  });
-  assert.equal(reset.status, 200);
-  const previousSession = await fetch(`${base}/api/state`, {
-    headers: { Authorization: `Bearer ${login.body.token}` },
-  });
-  assert.equal(previousSession.status, 401);
-  assert.equal(
-    (
-      await post("password/reset", {
-        email: "jamie@example.com",
-        code,
-        password: "new-private-password",
-      })
-    ).status,
-    400,
-  );
-  assert.equal(
-    (
-      await post("login", {
-        email: "jamie@example.com",
-        password: "private-password",
-      })
-    ).status,
-    401,
-  );
-  assert.equal(
-    (
-      await post("login", {
-        email: "jamie@example.com",
-        password: "new-private-password",
-      })
-    ).status,
-    200,
-  );
-  assert.equal(
-    (
-      await post(
-        "action",
-        { role: "founder", form: "moderation", values: {} },
-        login.body.token,
-      )
-    ).status,
-    401,
-  );
-});
-
-test("reset code guesses and expiration are enforced and failures never activate a code", (t) => {
-  const { workspace: w, file } = fixture(t);
-  const proof = w.features.beginReset("alex@example.com");
-  w.features.resetSent(proof.email, proof.code);
-  for (let i = 0; i < 5; i++)
-    assert.throws(
-      () =>
-        w.features.resetPassword({
-          email: proof.email,
-          code: "000000",
-          password: "replacement-password",
-        }),
-      /incorrect/,
-    );
-  assert.throws(
-    () =>
-      w.features.resetPassword({
-        email: proof.email,
-        code: proof.code,
-        password: "replacement-password",
-      }),
-    /unavailable/,
-  );
-  const data = JSON.parse(readFileSync(file, "utf8"));
-  const account = Object.values(data.accounts).find(
-    (a) => a.email === proof.email,
-  );
-  account.passwordReset.expires = 1;
-  account.passwordReset.attempts = 0;
-  writeFileSync(file, JSON.stringify(data));
-  assert.throws(
-    () =>
-      createWorkspace(file).features.resetPassword({
-        email: proof.email,
-        code: proof.code,
-        password: "replacement-password",
-      }),
-    /unavailable/,
-  );
-});
-
-test("failed provider delivery leaves reset codes unusable and applies digest retry backoff", async (t) => {
-  const { workspace: w, a, act, verify, file } = fixture(t);
-  verify(a);
-  act(a, { form: "notification-preferences", values: { digest: "daily" } });
-  const requests = [];
-  const config = {
-    ...configuration({}),
-    file,
-    mailProvider: "brevo",
-    brevoKey: "fake-key",
-    mailFrom: "Synergy <test@example.com>",
-  };
-  const api = createApi({
-    config,
-    fetcher: async (_url, request) => {
-      requests.push(JSON.parse(request.body));
-      return { ok: false };
-    },
-  });
-  const server = createServer((req, res) => api(req, res));
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(
-    () =>
-      new Promise((resolve) => {
-        server.close(resolve);
-        server.closeAllConnections();
-      }),
-  );
-  const base = `http://127.0.0.1:${server.address().port}`;
-  const post = async (path, data) =>
-    fetch(`${base}/api/${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-  const response = await post("password/request", {
-    email: "alex@example.com",
-  });
-  assert.equal(response.status, 200);
-  const code = requests.at(-1).textContent.match(/code is (\d{6})/)[1];
-  assert.equal(
-    (
-      await post("password/reset", {
-        email: "alex@example.com",
-        code,
-        password: "replacement-password",
-      })
-    ).status,
-    400,
-  );
-  const before = requests.length;
-  await api.runDigests();
-  await api.runDigests();
-  assert.equal(requests.length, before + 1);
-  const persisted = decode(readFileSync(file, "utf8")).accounts[
-    a.state.accountId
-  ];
-  assert.equal(persisted.passwordReset.delivered, false);
-  assert.equal(persisted.lastDigestAt, undefined);
-  assert.match(persisted.digestError, /Delivery failed/);
 });
