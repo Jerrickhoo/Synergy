@@ -18,6 +18,16 @@ Use Node.js 24+ and run `npm install` followed by `npm run dev`. For a built pre
 
 Accounts and uploads live together under `/var/data`. Keep one server instance and one writer per database. Use persistent storage; a static deployment of `dist/` cannot run the local API or preserve work. Updating this repository does not automatically update an existing hosted service's environment settings.
 
+## Netlify frontend
+
+`https://synergy-prototype.netlify.app` serves the built frontend. `netlify.toml` proxies `/api/*` to the Render service at `https://synergy-prototype-api.onrender.com`, so the browser stays on one origin and the existing CSP and sessions work unchanged. The Render service must list the Netlify URL in `SYNERGY_ALLOWED_ORIGINS` (set in `render.yaml`) or every sign-in and change is rejected with 403.
+
+1. Deploy the Render service first and confirm its URL matches the proxy target in `netlify.toml`. Render appends a suffix when a service name is taken; update `netlify.toml` if it did.
+2. Run `netlify deploy --build --prod --site synergy-prototype`.
+3. Open the Netlify URL and sign in as each role.
+
+Keep the Render service on a paid instance: a free instance sleeps when idle, and its cold start exceeds Netlify's proxy timeout. Every visitor reaches Render through Netlify's proxy, so the 30-per-minute sign-in limit is shared across visitors.
+
 ## Storage and operations
 
 The default data file is `.data/synergy.sqlite`; explicit JSON paths are also supported. An empty default SQLite database imports a neighboring `synergy.json` without deleting the original. Preserve the database and uploads before changing data paths. Do not copy an active SQLite file alone: committed data may remain in WAL journals. Use the backup command for a consistent live snapshot.

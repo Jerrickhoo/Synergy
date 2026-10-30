@@ -95,7 +95,8 @@ export function createApi({
       if (
         req.headers.origin &&
         req.headers.origin !== `http://${req.headers.host}` &&
-        req.headers.origin !== `https://${req.headers.host}`
+        req.headers.origin !== `https://${req.headers.host}` &&
+        !config.allowedOrigins.includes(req.headers.origin)
       )
         return send(403, { error: "Use the same origin as the workspace." });
       if (url.pathname === "/api/upload") {

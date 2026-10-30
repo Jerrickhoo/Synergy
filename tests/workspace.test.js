@@ -428,6 +428,44 @@ test("HTTP API enforces sessions, JSON and same-origin requests", async (t) => {
   assert.equal(decode(await state.text()).state.accountName, "Alex Tester");
 });
 
+test("HTTP API accepts configured frontend origins only", async (t) => {
+  const { file } = fixture(t);
+  const api = createApi({
+    file,
+    config: configuration({
+      SYNERGY_DATA_FILE: file,
+      SYNERGY_ALLOWED_ORIGINS: "https://frontend.example/",
+    }),
+  });
+  const server = createServer((req, res) =>
+    api(req, res, () => {
+      res.writeHead(404);
+      res.end();
+    }),
+  );
+  await new Promise((done) => server.listen(0, "127.0.0.1", done));
+  t.after(() => new Promise((done) => server.close(done)));
+  const signup = (origin, email) =>
+    fetch(`http://127.0.0.1:${server.address().port}/api/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: origin },
+      body: JSON.stringify({
+        firstName: "Alex",
+        lastName: "Tester",
+        email,
+        password: "private-password",
+      }),
+    });
+  assert.equal(
+    (await signup("https://another.example", "a@example.com")).status,
+    403,
+  );
+  assert.equal(
+    (await signup("https://frontend.example", "b@example.com")).status,
+    200,
+  );
+});
+
 test("mentorship scheduling preserves the participant timezone across both accounts", (t) => {
   const { workspace } = fixture(t);
   const a = signup(workspace, "Alex"),

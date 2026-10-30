@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: synergy
+    name: synergy-prototype-api
     runtime: node
     plan: 0.5c-512mb
     region: singapore
@@ -23,5 +23,7 @@ services:
         value: /var/data/synergy.sqlite
       - key: SYNERGY_DEMO_MODE
         value: "true"
+      - key: SYNERGY_ALLOWED_ORIGINS
+        value: https://synergy-prototype.netlify.app
       - key: SYNERGY_ADMIN_EMAILS
         sync: false

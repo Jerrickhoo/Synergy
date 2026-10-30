@@ -21,6 +21,11 @@ export function configuration(env = process.env) {
       .split(",")
       .map((email) => email.trim().toLowerCase())
       .filter(Boolean),
+    // Extra browser origins allowed to POST, e.g. a static frontend that proxies /api.
+    allowedOrigins: (env.SYNERGY_ALLOWED_ORIGINS || "")
+      .split(",")
+      .map((origin) => origin.trim().replace(/\/$/, ""))
+      .filter(Boolean),
     maxFileBytes: 5 * 1024 * 1024,
     accountFileBytes: 50 * 1024 * 1024,
   };
