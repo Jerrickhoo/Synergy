@@ -68,7 +68,7 @@ export default function NotificationRow({ item, now, compact = false }) {
           <div className="update-actions">
             {destination.command && (
               <button
-                className="link-btn"
+                className="btn primary small"
                 onClick={() => {
                   if (state.notificationOpen)
                     onAction({ action: "toggle-notifications" });
@@ -80,7 +80,7 @@ export default function NotificationRow({ item, now, compact = false }) {
             )}
             {!item.read && (
               <button
-                className="link-btn"
+                className="btn small update-read-action"
                 disabled={state.busy}
                 onClick={() =>
                   onAction({ action: "read-notifications", id: item.id })

@@ -1,11 +1,33 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
+import SelectField from "../components/SelectField.jsx";
+import Overlay from "../components/Overlay.jsx";
+import FormErrors from "../components/FormErrors.jsx";
+import Icon from "../components/Icon.jsx";
+import { readTheme, applyTheme, themeKey } from "../state/theme.js";
 
 export default function SettingsPage() {
   const { state, integrationRequest, onAction, notify } = useApp();
   const [settings, setSettings] = useState(null);
   const [error, setError] = useState("");
+  const [dialog, setDialog] = useState(null);
+  const [actionError, setActionError] = useState("");
+  const [working, setWorking] = useState(false);
+  const [sessionTarget, setSessionTarget] = useState("others");
+  const [targetRole, setTargetRole] = useState(null);
+  const [theme, setTheme] = useState(readTheme);
+  useEffect(() => {
+    const sync = () => {
+      setTheme(readTheme());
+      applyTheme(readTheme());
+    };
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, []);
+  const submitting = useRef(false);
+  const opener = useRef(null);
+  const busy = working || state.busy;
   async function load() {
     try {
       setSettings(await integrationRequest("account"));
@@ -17,31 +39,93 @@ export default function SettingsPage() {
   useEffect(() => {
     load();
   }, []);
-  async function submit(event, path) {
+  function openDialog(kind, event) {
+    if (busy) return;
+    onAction({
+      action: "clear-form-errors",
+      scope: "account-confirmation-form",
+    });
+    opener.current = event.currentTarget;
+    setActionError("");
+    setSessionTarget("others");
+    setDialog(kind);
+  }
+  function closeDialog() {
+    if (submitting.current) return;
+    onAction({
+      action: "clear-form-errors",
+      scope: "account-confirmation-form",
+    });
+    setDialog(null);
+    setActionError("");
+    requestAnimationFrame(() => opener.current?.focus());
+  }
+  async function confirm(event) {
     event.preventDefault();
-    const form = event.currentTarget;
+    if (submitting.current || state.busy) return;
+    submitting.current = true;
+    setWorking(true);
+    setActionError("");
+    const values = Object.fromEntries(new FormData(event.currentTarget));
+    const path =
+      dialog === "pause"
+        ? "account/visibility"
+        : dialog === "sessions"
+          ? "account/sessions/revoke"
+          : "account/delete";
     try {
-      await integrationRequest(path, Object.fromEntries(new FormData(form)));
-      form.reset();
-      if (path === "account/delete") {
+      await integrationRequest(
+        path,
+        dialog === "pause" ? { visible: false } : values,
+      );
+      if (dialog === "delete") {
         await onAction({ action: "sign-out" });
         notify("Your account has been deleted.");
         return;
       }
-      notify("Account settings updated.");
+      if (dialog === "pause")
+        setSettings((current) => ({ ...current, visible: false }));
+      else
+        setSettings((current) => ({
+          ...current,
+          sessions: current.sessions.filter(
+            (session) =>
+              session.current ||
+              (values.id !== "others" && session.id !== values.id),
+          ),
+        }));
+      setDialog(null);
+      notify(
+        dialog === "pause"
+          ? "Discovery paused. Existing rooms remain available."
+          : "Account settings updated. Selected sessions have been signed out.",
+      );
       await load();
+      requestAnimationFrame(() => opener.current?.focus());
     } catch (error) {
-      setError(error.message);
+      setActionError(error.message);
+    } finally {
+      submitting.current = false;
+      setWorking(false);
     }
   }
   async function change(path, body) {
+    if (submitting.current || state.busy) return;
+    submitting.current = true;
+    setWorking(true);
     try {
       await integrationRequest(path, body);
       await load();
-      return true;
+      notify(
+        path === "account/visibility"
+          ? "Discovery resumed. Withdrawn introductions stay withdrawn."
+          : "Account settings updated.",
+      );
     } catch (error) {
       setError(error.message);
-      return false;
+    } finally {
+      submitting.current = false;
+      setWorking(false);
     }
   }
   async function exportAccount() {
@@ -59,54 +143,78 @@ export default function SettingsPage() {
       setError(error.message);
     }
   }
+  const titles = {
+    pause: "Pause discovery?",
+    sessions: "Sign out other sessions?",
+    delete: "Delete your account?",
+  };
   return (
-    <div className="page page-enter">
+    <div className="page settings-page page-enter">
       <PageHeader
         title="Account settings"
         intro="Control your visibility, account access and personal data."
       />
+      <section className="card panel settings-section appearance-settings">
+        <h2>Appearance</h2>
+        <p>Choose Light or Dark for this browser. Light is the default.</p>
+        <SelectField
+          id="appearance-theme"
+          label="Color theme"
+          value={theme}
+          onChange={(event) => {
+            const next = event.target.value;
+            setTheme(next);
+            applyTheme(next);
+            try {
+              localStorage.setItem(themeKey, next);
+            } catch {
+              notify(
+                "Theme applied for this visit. Browser storage is unavailable.",
+                "info",
+              );
+            }
+          }}
+          options={[
+            { value: "light", label: "Light" },
+            { value: "dark", label: "Dark" },
+          ]}
+        />
+      </section>
       {error && (
-        <p className="connection-banner" role="alert">
-          {error}
-        </p>
+        <div className="connection-banner" role="alert">
+          <p>{error}</p>
+          <button className="btn small" onClick={load}>
+            Retry account settings
+          </button>
+        </div>
       )}
       {!settings ? (
         <section className="card panel">
           <p>Opening account settings…</p>
-          {error && (
-            <button className="btn" onClick={load}>
-              Retry
-            </button>
-          )}
         </section>
       ) : (
         <>
-          <section className="card panel">
-            <h2>Profile visibility</h2>
+          <section className="card panel settings-section section-gap">
+            <h2>Profiles</h2>
             <p>
-              Pausing removes both profiles from discovery and withdraws pending
-              introductions. Existing rooms stay available.
+              Switch between your founder and mentor profiles. Each keeps its
+              own details and drafts.
             </p>
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={settings.visible}
-                disabled={state.busy}
-                onChange={async (event) => {
-                  const visible = event.target.checked;
-                  const previous = settings.visible;
-                  setSettings((current) => ({ ...current, visible }));
-                  if (!(await change("account/visibility", { visible })))
-                    setSettings((current) => ({
-                      ...current,
-                      visible: previous,
-                    }));
-                }}
-              />{" "}
-              Show my completed profiles in Matches
-            </label>
+            <SelectField
+              id="active-profile"
+              label="Active profile"
+              value={state.role}
+              disabled={busy}
+              onChange={(event) => {
+                if (event.target.value !== state.role)
+                  setTargetRole(event.target.value);
+              }}
+            >
+              <option value="founder">Startup founder</option>
+              <option value="mentor">Mentor</option>
+            </SelectField>
           </section>
-          <section className="card panel section-gap">
+          <section className="card panel settings-section section-gap">
             <h2>Blocked collaborators</h2>
             <p>
               Blocking hides both accounts from each other in Matches, withdraws
@@ -119,7 +227,7 @@ export default function SettingsPage() {
                   <span>{person.name}</span>
                   <button
                     className="btn"
-                    disabled={state.busy}
+                    disabled={busy}
                     onClick={() =>
                       change("account/block", {
                         accountId: person.id,
@@ -138,8 +246,9 @@ export default function SettingsPage() {
               </p>
             )}
           </section>
-          <section className="card panel section-gap">
-            <h2>Sign-in sessions</h2>
+          <section className="card panel settings-section section-gap">
+            <h2>Account access</h2>
+            <h3>Sign-in sessions</h3>
             {settings.sessions.map((session) => (
               <div className="collaboration-row" key={session.id}>
                 <span>
@@ -148,78 +257,253 @@ export default function SettingsPage() {
                 </span>
               </div>
             ))}
-            <form
-              className="grid section-gap"
-              onSubmit={(event) => submit(event, "account/sessions/revoke")}
-            >
-              <label htmlFor="session-target">Sessions to sign out</label>
-              <select id="session-target" name="id" defaultValue="others">
-                <option value="others">All other sessions</option>
-                {settings.sessions
-                  .filter((session) => !session.current)
-                  .map((session) => (
-                    <option key={session.id} value={session.id}>
-                      Session opened{" "}
-                      {new Date(session.createdAt).toLocaleString()}
-                    </option>
-                  ))}
-              </select>
-              {!state.integrations?.guest && (
-                <>
-                  <label htmlFor="session-password">Current password</label>
-                  <input
-                    id="session-password"
-                    name="password"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    maxLength={1024}
-                  />
-                </>
-              )}
-              <button className="btn" disabled={state.busy}>
-                Sign out other sessions
-              </button>
-            </form>
+            <p className="muted">
+              Manage other sessions in Danger zone below. This tab stays signed
+              in.
+            </p>
           </section>
-          <section className="card panel section-gap">
+          <section className="card panel settings-section section-gap">
             <h2>Your data</h2>
             <p>
               Download your profiles, shared workspace records and preferences.
               Passwords and unreleased partner reviews are excluded.
             </p>
-            <button
-              className="btn"
-              disabled={state.busy}
-              onClick={exportAccount}
-            >
+            <button className="btn" disabled={busy} onClick={exportAccount}>
               Download my data
             </button>
-            <details className="section-gap">
-              <summary>Delete my account</summary>
+          </section>
+          <details
+            id="danger-zone"
+            className="card panel settings-section danger-zone section-gap"
+            aria-labelledby="danger-zone-heading"
+          >
+            <summary id="danger-zone-heading">
+              <span>Danger zone</span>
+              <Icon name="chevron" />
+            </summary>
+            <p>
+              Review the consequences before changing account access or removing
+              your account.
+            </p>
+            <div className="account-action-row">
+              <div>
+                <h3>Profile visibility</h3>
+                <p role="status">
+                  {settings.visible
+                    ? "Your completed profiles are visible in Matches."
+                    : "Discovery is paused. Both profiles are hidden from Matches."}
+                </p>
+                <p>
+                  Hide both profiles and withdraw pending introductions.
+                  Existing rooms remain available. Resuming does not restore
+                  withdrawn introductions.
+                </p>
+              </div>
+              <button
+                className="btn"
+                disabled={busy}
+                onClick={(event) =>
+                  settings.visible
+                    ? openDialog("pause", event)
+                    : change("account/visibility", { visible: true })
+                }
+              >
+                {settings.visible ? "Pause discovery" : "Resume discovery"}
+              </button>
+            </div>
+            <div className="account-action-row">
+              <div>
+                <h3>Other sign-in sessions</h3>
+                <p>
+                  Sign out other tabs or devices. Your current session stays
+                  active.
+                </p>
+              </div>
+              <button
+                className="btn"
+                disabled={busy}
+                onClick={(event) => openDialog("sessions", event)}
+              >
+                Sign out other sessions
+              </button>
+            </div>
+            <div className="account-action-row">
+              <div>
+                <h3>Delete account</h3>
+                <p>
+                  Permanently remove your private account information. Shared
+                  history remains anonymized.
+                </p>
+              </div>
+              <button
+                className="btn danger"
+                disabled={busy}
+                onClick={(event) => openDialog("delete", event)}
+              >
+                Delete my account
+              </button>
+            </div>
+          </details>
+        </>
+      )}
+      {targetRole && (
+        <Overlay
+          id="profile-switch-dialog"
+          title="Switch active profile?"
+          initialFocusSelector="#cancel-profile-switch"
+          onClose={() => setTargetRole(null)}
+          busy={busy}
+          footer={
+            <>
+              <button
+                id="cancel-profile-switch"
+                className="btn"
+                disabled={busy}
+                onClick={() => setTargetRole(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn primary"
+                disabled={busy}
+                onClick={async () => {
+                  const success = await onAction({
+                    action: "choose-role",
+                    roleChoice: targetRole,
+                  });
+                  if (success) setTargetRole(null);
+                }}
+              >
+                {busy ? "Switching…" : "Switch profile"}
+              </button>
+            </>
+          }
+        >
+          <p>
+            Switch from{" "}
+            <strong>
+              {state.role === "founder" ? "Startup founder" : "Mentor"}
+            </strong>{" "}
+            to{" "}
+            <strong>
+              {targetRole === "founder" ? "Startup founder" : "Mentor"}
+            </strong>
+            ?
+          </p>
+          <p>
+            Each profile keeps its own draft in this tab. Unsaved edits remain
+            unpublished until you select Save profile.
+          </p>
+        </Overlay>
+      )}
+      {dialog && settings && (
+        <Overlay
+          id="account-action-dialog"
+          title={titles[dialog]}
+          onClose={closeDialog}
+          initialFocusSelector="#cancel-account-action"
+          busy={busy}
+          footer={
+            <>
+              <button
+                id="cancel-account-action"
+                className="btn"
+                disabled={busy}
+                onClick={closeDialog}
+              >
+                Cancel
+              </button>
+              <button
+                form="account-confirmation-form"
+                type="submit"
+                className={`btn ${dialog === "delete" ? "danger" : "primary"}`}
+                disabled={busy}
+              >
+                {busy
+                  ? "Saving…"
+                  : dialog === "pause"
+                    ? "Pause discovery"
+                    : dialog === "sessions"
+                      ? "Confirm session sign-out"
+                      : "Permanently delete account"}
+              </button>
+            </>
+          }
+        >
+          <form
+            id="account-confirmation-form"
+            className="grid"
+            aria-busy={busy}
+            onSubmit={confirm}
+          >
+            <FormErrors scope="account-confirmation-form" />
+            {dialog === "pause" ? (
+              <p>
+                Both profiles will disappear from Matches and all pending
+                introductions will be withdrawn. Your existing rooms stay
+                available. Resuming discovery later will not restore withdrawn
+                introductions.
+              </p>
+            ) : dialog === "delete" ? (
               <p>
                 Your profile, email, credentials and preferences will be
                 removed. Unfinished rooms close. Shared agreements, messages,
                 evidence and reviews remain for collaborators, with your name
                 replaced by “Deleted account.” This cannot be undone.
               </p>
-              <form
-                className="grid"
-                onSubmit={(event) => submit(event, "account/delete")}
-              >
-                {!state.integrations?.guest && (
-                  <>
-                    <label htmlFor="delete-password">Current password</label>
-                    <input
-                      id="delete-password"
-                      name="password"
-                      type="password"
-                      required
-                      maxLength={1024}
-                      autoComplete="current-password"
-                    />
-                  </>
-                )}
+            ) : (
+              <>
+                <SelectField
+                  id="session-target"
+                  name="id"
+                  label="Sessions to sign out"
+                  value={sessionTarget}
+                  onChange={(event) => setSessionTarget(event.target.value)}
+                  disabled={busy}
+                >
+                  <option value="others">All other sessions</option>
+                  {settings.sessions
+                    .filter((session) => !session.current)
+                    .map((session) => (
+                      <option key={session.id} value={session.id}>
+                        Session opened{" "}
+                        {new Date(session.createdAt).toLocaleString()}
+                      </option>
+                    ))}
+                </SelectField>
+                <p>
+                  {sessionTarget === "others"
+                    ? `All ${settings.sessions.filter((session) => !session.current).length} other active sessions will be signed out.`
+                    : "The selected session will be signed out."}{" "}
+                  This tab stays signed in. Those tabs must sign in again to
+                  continue.
+                </p>
+              </>
+            )}
+            {dialog !== "pause" && !state.integrations?.guest && (
+              <div className="field">
+                <label
+                  htmlFor={
+                    dialog === "delete" ? "delete-password" : "session-password"
+                  }
+                >
+                  Current password
+                </label>
+                <input
+                  id={
+                    dialog === "delete" ? "delete-password" : "session-password"
+                  }
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  maxLength={1024}
+                  disabled={busy}
+                />
+              </div>
+            )}
+            {dialog === "delete" && (
+              <div className="field">
                 <label htmlFor="delete-confirmation">
                   Type DELETE to confirm
                 </label>
@@ -229,14 +513,17 @@ export default function SettingsPage() {
                   pattern="DELETE"
                   required
                   autoComplete="off"
+                  disabled={busy}
                 />
-                <button className="btn danger" disabled={state.busy}>
-                  Permanently delete account
-                </button>
-              </form>
-            </details>
-          </section>
-        </>
+              </div>
+            )}
+            {actionError && (
+              <p className="account-action-error" role="alert">
+                {actionError} Review your details and try again.
+              </p>
+            )}
+          </form>
+        </Overlay>
       )}
     </div>
   );

@@ -1,3 +1,4 @@
+import SelectField from "./SelectField.jsx";
 import { useState } from "react";
 import Brand from "./Brand.jsx";
 import FormErrors from "./FormErrors.jsx";
@@ -95,7 +96,7 @@ export default function Login() {
                     )
                   }
                 >
-                  {state.passwordVisible ? "Hide" : "Show"}
+                  <Icon name={state.passwordVisible ? "eye-off" : "eye"} />
                 </button>
               </div>
               <span className="field-help" id="demo-password-help">
@@ -141,8 +142,19 @@ export default function Login() {
         </div>
         {demoMode && (
           <div className="prototype-role-control">
-            <label htmlFor="prototype-role">Prototype role</label>
-            <select
+            <div className="prototype-role-heading">
+              <label htmlFor="prototype-role">Prototype role</label>
+              <details className="prototype-role-help">
+                <summary aria-label="About role previews">
+                  <Icon name="info" />
+                </summary>
+                <p>
+                  Role previews are for browsing sample profiles. Preview
+                  accounts cannot connect with each other.
+                </p>
+              </details>
+            </div>
+            <SelectField
               id="prototype-role"
               value={prototypeRole}
               disabled={state.busy}
@@ -150,7 +162,7 @@ export default function Login() {
             >
               <option value="founder">Founder</option>
               <option value="mentor">Mentor</option>
-            </select>
+            </SelectField>
           </div>
         )}
         {"\n    "}

@@ -14,18 +14,21 @@ export default function FormErrors({ scope }) {
     const fields = [...container.querySelectorAll("input, select, textarea")];
     fields.forEach((input) => {
       const key = fieldName(input);
-      const descriptions = (input.getAttribute("aria-describedby") || "")
+      const visible = input.dataset.selectTrigger
+        ? document.getElementById(input.dataset.selectTrigger)
+        : input;
+      const descriptions = (visible.getAttribute("aria-describedby") || "")
         .split(" ")
         .filter((id) => id && !id.startsWith(`${scope}-error-`));
       if (errors?.[key]) {
-        input.setAttribute("aria-invalid", "true");
+        visible.setAttribute("aria-invalid", "true");
         descriptions.push(`${scope}-error-${key}`);
       } else {
-        input.removeAttribute("aria-invalid");
+        visible.removeAttribute("aria-invalid");
       }
       if (descriptions.length)
-        input.setAttribute("aria-describedby", descriptions.join(" "));
-      else input.removeAttribute("aria-describedby");
+        visible.setAttribute("aria-describedby", descriptions.join(" "));
+      else visible.removeAttribute("aria-describedby");
     });
   }, [errors, scope]);
   useEffect(() => {

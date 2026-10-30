@@ -22,6 +22,13 @@ export default function MilestonesPanel({
           <p className="panel-subtitle">
             Progress is shared: both partners confirm each step.
           </p>
+          {room.type === "mentorship" && (
+            <p className="muted">
+              Agree goals → schedule → share guidance → record follow-up →
+              reflect together. Progress reflection is shared; your private
+              review comes after completion.
+            </p>
+          )}
           {room.template?.name && (
             <p className="muted">
               Template: {room.template.name} · Version {room.template.version}
@@ -293,9 +300,15 @@ export default function MilestonesPanel({
       {"\n          "}
       <div className="milestone-launch">
         <div>
-          <h3>Ready to launch?</h3>
+          <h3>
+            {room.type === "mentorship"
+              ? "Ready to complete your mentorship?"
+              : "Ready to launch?"}
+          </h3>
           <p className="panel-subtitle">
-            Complete every milestone together before launching.
+            {room.type === "mentorship"
+              ? "Both collaborators must confirm every milestone. Then either person can complete the mentorship and leave a separate private review."
+              : "Complete every milestone together before launching."}
           </p>
           {!launched && blockers.length > 0 && (
             <ul className="launch-blockers" id="launch-blockers">
@@ -332,8 +345,12 @@ export default function MilestonesPanel({
           {room.status === "cancelled"
             ? "Collaboration closed"
             : launched
-              ? "Collaboration launched"
-              : "Mark as launched"}
+              ? room.type === "mentorship"
+                ? "Mentorship completed"
+                : "Collaboration launched"
+              : room.type === "mentorship"
+                ? "Complete mentorship"
+                : "Mark as launched"}
         </button>
       </div>
     </section>

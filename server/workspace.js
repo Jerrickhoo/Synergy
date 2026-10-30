@@ -17,6 +17,7 @@ import { encode, decode } from "../src/state/serialization.js";
 import { createFeatures } from "./features.js";
 import { trustSummary } from "../src/data/collaboration.js";
 import { defaultMatching } from "../src/data/matching.js";
+import { normalizeProfile } from "../src/data/profile-content.js";
 import {
   demoProfiles,
   legacyDemoProfiles,
@@ -84,6 +85,8 @@ const overlap = (left, right) => {
     : 0;
 };
 export function scoreProfile(mine, theirs, mentor, config = defaultMatching) {
+  mine = normalizeProfile(mine);
+  theirs = normalizeProfile(theirs);
   mine = {
     ...mine,
     offer: `${mine.offer || ""} ${mine.offerTags || ""}`,
@@ -305,7 +308,7 @@ export function createWorkspace(file, options = {}) {
       sample: false,
     });
   function person(account, role, viewer) {
-    const profile = account.state.profiles[role];
+    const profile = normalizeProfile(account.state.profiles[role]);
     const mine = viewer.profiles[viewer.role];
     const marketing = [
       [mine.offer, profile.need],
@@ -391,6 +394,19 @@ export function createWorkspace(file, options = {}) {
         )
           continue;
         const item = person(other, otherRole, state);
+        item.canSimulateAcceptance = Boolean(
+          options.demoMode &&
+          account.demo &&
+          !account.demoSample &&
+          other.demo &&
+          other.demoSample &&
+          account.profileVisible !== false &&
+          state.waitingByRole[state.role].has(item.id) &&
+          state.interestByRole[state.role].has(item.id) &&
+          other.state.incomingByRole[otherRole].has(
+            identity(account, state.role),
+          ),
+        );
         const proposed = state.introductionTypesByRole[state.role]?.[item.id];
         if (proposed)
           item.engagement = {
@@ -560,6 +576,7 @@ export function createWorkspace(file, options = {}) {
     "interest",
     "cancel-interest",
     "accept-interest",
+    "simulate-acceptance",
     "decline-interest",
     "lock-terms",
     "accept-terms",
@@ -679,7 +696,7 @@ export function createWorkspace(file, options = {}) {
     if (text) event(partner, shared.role, text, room.id);
     state.rooms[room.id] = room;
   }
-  function connect(account, state, person) {
+  function connect(account, state, person, acceptedByPartner = false) {
     const other = db.accounts[person.accountId];
     const ownId = identity(account, state.role);
     if (createModel(state).existingRoomFor(state.role, person.id))
@@ -757,18 +774,31 @@ export function createWorkspace(file, options = {}) {
     state.page = "room-detail";
     state.roomTab = "terms";
     state.confirmation = "You're connected. Your shared room is ready.";
-    event({ state }, state.role, `You connected with ${person.name}.`, id);
+    event(
+      { state },
+      state.role,
+      acceptedByPartner
+        ? `${person.name} accepted your introduction. Your room is ready.`
+        : `You connected with ${person.name}.`,
+      id,
+    );
     event(
       other,
       person.role,
-      `${state.accountName} accepted your introduction. Your room is ready.`,
+      acceptedByPartner
+        ? `You accepted ${state.accountName}'s introduction. Your room is ready.`
+        : `${state.accountName} accepted your introduction. Your room is ready.`,
       id,
     );
   }
-  function act(token, input, uploadedFile) {
+  function act(token, input, uploadedFile, avatar) {
     if (features.handles(input)) return features.act(token, input);
     const account = authenticate(token);
-    if (["interest", "accept-interest"].includes(input.action)) {
+    if (
+      ["interest", "accept-interest", "simulate-acceptance"].includes(
+        input.action,
+      )
+    ) {
       if (account.profileVisible === false)
         fail(
           "Make your profile visible in Account settings before connecting.",
@@ -902,7 +932,43 @@ export function createWorkspace(file, options = {}) {
         fail("Choose a valid goal outcome.");
     }
     let partnerText;
-    if (
+    if (input.action === "simulate-acceptance") {
+      if (!options.demoMode || !account.demo || account.demoSample)
+        fail(
+          "Acceptance simulation is available only to prototype preview accounts.",
+          403,
+        );
+      const target = createModel(state)
+        .rolePeople()
+        .find((person) => person.id === input.id);
+      const fictional = target && db.accounts[target.accountId];
+      if (!fictional?.demo || !fictional.demoSample || fictional.deletedAt)
+        fail(
+          "Only a fictional prototype collaborator can simulate acceptance.",
+          403,
+        );
+      const existing = createModel(state).existingRoomFor(
+        state.role,
+        target.id,
+      );
+      if (existing) {
+        if (["cancelled", "reviewed", "launched"].includes(existing.status))
+          fail("This introduction has already been resolved.", 409);
+        state.page = "room-detail";
+        state.activeRoomId = existing.id;
+        state.roomTab = "terms";
+      } else {
+        if (
+          !target.canSimulateAcceptance ||
+          profileCompleteness(state.profiles[state.role], state.role) !== 100
+        )
+          fail(
+            "This outgoing introduction is no longer eligible for simulated acceptance.",
+            409,
+          );
+        connect(account, state, target, true);
+      }
+    } else if (
       [
         "interest",
         "accept-interest",
@@ -1012,22 +1078,56 @@ export function createWorkspace(file, options = {}) {
         : "Dispute resolved. Confirm the milestone again together.";
       partnerText = `${state.accountName} agreed to resolve a milestone dispute.`;
     } else if (input.form === "report-form") {
-      if (!payload.values.reason) fail("Describe what happened.");
-      const reportRoom = state.rooms[input.activeRoomId];
-      if (!reportRoom || reportRoom.role !== state.role)
-        fail("This room is unavailable.", 404);
+      if (
+        !payload.values.reason ||
+        payload.values.reason.length > 3000 ||
+        (payload.values.details || "").length > 3000
+      )
+        fail("Choose a reason and keep report details under 3,000 characters.");
+      const requestedProfile = payload.values.profileId;
+      const reportRoom = requestedProfile
+        ? Object.values(state.rooms).find(
+            (room) =>
+              room.role === state.role && room.partnerId === requestedProfile,
+          )
+        : state.rooms[input.activeRoomId];
+      const reported =
+        createModel(state)
+          .rolePeople()
+          .find((person) => person.id === requestedProfile) ||
+        (reportRoom?.role === state.role
+          ? createModel(state)
+              .allPeople()
+              .find((person) => person.id === reportRoom.partnerId)
+          : null);
+      if (!reported || reported.accountId === account.id)
+        fail("This collaborator is unavailable for reporting.", 404);
       db.reports.push({
         id: randomUUID(),
         accountId: account.id,
-        roomId: reportRoom.id,
+        reporterAccountId: account.id,
+        reporterProfileId: identity(account, state.role),
+        reportedAccountId: reported.accountId,
+        reportedProfileId: reported.id,
+        roomId: reportRoom?.id || null,
         reason: payload.values.reason,
+        details: payload.values.details || "",
         timestamp: payload.timestamp,
         status: "open",
       });
-      state.toast = "Report saved for local review.";
+      state.toast =
+        "Report saved for moderator review. This collaborator has not been blocked.";
       state.reportOpen = false;
     } else {
       if (input.form === "profile-form") {
+        payload.values = normalizeProfile(payload.values);
+        const image = payload.values.image;
+        if (
+          image &&
+          !avatar &&
+          image !== account.state.profiles[state.role].image
+        )
+          fail("Upload your own profile photo using Save profile.", 403);
         for (const key of ["offerTags", "needTags"]) {
           const selected = tags(payload.values[key]);
           if (selected.some((tag) => !features.vocabulary().includes(tag)))
@@ -1035,6 +1135,18 @@ export function createWorkspace(file, options = {}) {
         }
       }
       transition(state, payload);
+      if (input.form === "profile-form" && !state.formErrors) {
+        if (avatar) {
+          state.profiles[state.role].image = `/api/avatars/${avatar.id}`;
+          db.files[avatar.id] = {
+            ...avatar,
+            purpose: "avatar",
+            accountId: account.id,
+            role: state.role,
+          };
+        } else if (payload.values.image === "")
+          state.profiles[state.role].image = "";
+      }
       if (room && !state.formErrors) {
         if (input.form === "review-form" && room.review.me)
           Object.assign(room.review, {
@@ -1128,6 +1240,7 @@ export function createWorkspace(file, options = {}) {
         industry: "FinTech",
         stage: "pre-seed",
         teamSize: "4",
+        image: "/demo/avatars/maria.svg",
       });
       Object.assign(state.profiles.mentor, {
         bio: "Helping early teams improve their products and find traction.",
@@ -1136,12 +1249,73 @@ export function createWorkspace(file, options = {}) {
         expertise: "Product strategy, Growth",
         availability: "Monthly sessions",
         startups: "Idea and pre-seed teams",
+        image: "/demo/avatars/david.svg",
       });
       db.accounts[account.id] = account;
       save();
       return openSession(account);
     },
     act,
+    authorizeProfile(token, input, size = 0) {
+      const account = authenticate(token);
+      if (
+        input.form !== "profile-form" ||
+        input.action ||
+        !roles.includes(input.role)
+      )
+        fail("Submit a valid profile.");
+      if (
+        !input.values ||
+        typeof input.values !== "object" ||
+        Array.isArray(input.values) ||
+        ("image" in input.values && typeof input.values.image !== "string")
+      )
+        fail("Submit valid profile fields and a JPEG, PNG or WebP photo.");
+      const used = Object.values(db.files)
+        .filter((item) => item.accountId === account.id)
+        .reduce((sum, item) => sum + item.size, 0);
+      if (used + size > (options.accountFileBytes || 50 * 1024 * 1024))
+        fail("Your workspace file allowance of 50 MB has been reached.", 413);
+    },
+    saveProfile(token, input, metadata) {
+      this.authorizeProfile(token, input, metadata.size);
+      return act(token, input, undefined, metadata);
+    },
+    avatarStored(id) {
+      const photo = db.files[id];
+      return Boolean(
+        photo?.purpose === "avatar" &&
+        db.accounts[photo.accountId]?.state.profiles[photo.role]?.image ===
+          `/api/avatars/${id}`,
+      );
+    },
+    avatarFor(token, id) {
+      const viewer = authenticate(token);
+      const photo = db.files[id];
+      const owner = photo && db.accounts[photo.accountId];
+      const image = `/api/avatars/${id}`;
+      if (
+        !photo ||
+        photo.purpose !== "avatar" ||
+        !owner ||
+        owner.deletedAt ||
+        owner.state.profiles[photo.role]?.image !== image
+      )
+        fail("Profile photo unavailable.", 404);
+      const visible =
+        owner.profileVisible !== false &&
+        !owner.suspended &&
+        !viewer.blockedAccounts?.includes(owner.id) &&
+        !owner.blockedAccounts?.includes(viewer.id) &&
+        (!owner.demo || (viewer.demo && owner.demoSample && options.demoMode));
+      const collaborator = Object.values(viewer.state.rooms).some(
+        (room) =>
+          room.partnerAccountId === owner.id && room.partnerRole === photo.role,
+      );
+      if (viewer.id !== owner.id && !visible && !collaborator)
+        fail("Profile photo unavailable.", 404);
+      return photo;
+    },
     get: (token, role) => response(authenticate(token), role),
     poll(token, role, since, key) {
       const account = authenticate(token);

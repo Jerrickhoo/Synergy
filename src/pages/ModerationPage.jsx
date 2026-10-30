@@ -1,3 +1,4 @@
+import SelectField from "../components/SelectField.jsx";
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import EngagementSettings from "../components/EngagementSettings.jsx";
@@ -14,33 +15,33 @@ function Decision({ kind, id, decisions, report = false }) {
       <input type="hidden" name="id" value={id} />
       <div className="field">
         <label htmlFor={`${prefix}-decision`}>Decision</label>
-        <select id={`${prefix}-decision`} name="decision">
+        <SelectField id={`${prefix}-decision`} name="decision">
           {decisions.map((value) => (
             <option key={value} value={value}>
               {value}
             </option>
           ))}
-        </select>
+        </SelectField>
       </div>
       {report && (
         <>
           <div className="field">
             <label htmlFor={`${prefix}-assignee`}>Assign to moderator</label>
-            <select id={`${prefix}-assignee`} name="assignee">
+            <SelectField id={`${prefix}-assignee`} name="assignee">
               {state.moderation.moderators.map((email) => (
                 <option key={email}>{email}</option>
               ))}
-            </select>
+            </SelectField>
           </div>
           <div className="field">
             <label htmlFor={`${prefix}-remedy`}>Resolution action</label>
-            <select id={`${prefix}-remedy`} name="remedy">
+            <SelectField id={`${prefix}-remedy`} name="remedy">
               <option value="none">Record decision only</option>
               <option value="resolve-disputes">
                 Clear disputes; require both partners to reconfirm
               </option>
               <option value="close">Close unfinished collaboration</option>
-            </select>
+            </SelectField>
           </div>
         </>
       )}
@@ -88,6 +89,14 @@ export default function ModerationPage() {
                 {report.status} · {report.reason.slice(0, 100)}
               </summary>
               <p>{report.reason}</p>
+              {report.details && (
+                <p className="preserve-lines">{report.details}</p>
+              )}
+              <p className="muted">
+                Reporter: {report.reporterProfileId || report.accountId} ·
+                Reported profile:{" "}
+                {report.reportedProfileId || "See room context"}
+              </p>
               <p>Assigned to {report.assignee || "unassigned"}</p>
               {report.resolution && <p>Decision: {report.resolution}</p>}
               {report.context && (

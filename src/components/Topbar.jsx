@@ -1,29 +1,20 @@
 import { useApp } from "../state/AppContext.jsx";
-import { useEffect } from "react";
+import { useRef } from "react";
 import Icon from "./Icon.jsx";
 import Brand from "./Brand.jsx";
 import { pageLabel } from "../data/filters.js";
-import NotificationRow, { useUpdateClock } from "./NotificationRow.jsx";
+import NotificationPreview from "./NotificationPreview.jsx";
+import Avatar from "./Avatar.jsx";
 
 export default function Topbar() {
   const { state, model, onAction } = useApp();
-  const now = useUpdateClock();
-  useEffect(() => {
-    if (!state.notificationOpen) return;
-    const closeOnEscape = (event) => {
-      if (event.key !== "Escape") return;
-      onAction({ action: "close-notifications" });
-      document.getElementById("notification-toggle")?.focus();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [state.notificationOpen, onAction]);
-  const activity = (state.notifications || []).slice(0, 6);
+  const headerRef = useRef(null);
+  const actionsRef = useRef(null);
   const unread = (state.notifications || []).filter(
     (item) => !item.read,
   ).length;
   return (
-    <header className="topbar simple-topbar">
+    <header ref={headerRef} className="topbar simple-topbar">
       <button
         id="navigation-toggle"
         className="icon-btn mobile-menu-toggle"
@@ -37,18 +28,22 @@ export default function Topbar() {
       <div className="mobile-brand">
         <Brand compact />
       </div>
-      <div className="workspace-heading">
-        <span>Workspace</span>
-        <span aria-hidden="true">/</span>
-        <strong>{pageLabel(state.page)}</strong>
-      </div>
-      <div className="top-actions">
+      {["room-detail", "match-detail", "review", "trust"].includes(
+        state.page,
+      ) && (
+        <div className="workspace-heading">
+          <span>Workspace</span>
+          <span aria-hidden="true">/</span>
+          <strong>{pageLabel(state.page)}</strong>
+        </div>
+      )}
+      <div ref={actionsRef} className="top-actions">
         <button
           className="icon-btn tablet-signout"
           aria-label="Sign out"
           disabled={state.busy}
           title="Sign out"
-          onClick={() => onAction({ action: "sign-out" })}
+          onClick={(event) => onAction({ action: "request-sign-out" }, event)}
         >
           <Icon name="logout" />
         </button>
@@ -61,7 +56,15 @@ export default function Topbar() {
             }
             aria-expanded={state.notificationOpen}
             aria-controls="notification-panel"
-            onClick={() => onAction({ action: "toggle-notifications" })}
+            onClick={() => {
+              if (!state.notificationOpen)
+                window.dispatchEvent(
+                  new CustomEvent("synergy:popover", {
+                    detail: "notifications",
+                  }),
+                );
+              onAction({ action: "toggle-notifications" });
+            }}
           >
             <Icon name="bell" />
             {unread > 0 && (
@@ -71,40 +74,10 @@ export default function Topbar() {
             )}
           </button>
           {state.notificationOpen && (
-            <section
-              id="notification-panel"
-              className="notification-panel"
-              aria-label="Notifications"
-            >
-              <h2>Updates</h2>
-              <button
-                className="link-btn"
-                onClick={() => onAction({ page: "notifications" })}
-              >
-                View all updates and preferences
-              </button>
-              {state.incomingByRole[state.role].size > 0 && (
-                <button
-                  className="btn small"
-                  onClick={() => onAction({ page: "waiting" })}
-                >
-                  Respond to introductions (
-                  {state.incomingByRole[state.role].size})
-                </button>
-              )}
-              {activity.length ? (
-                activity.map((item) => (
-                  <NotificationRow
-                    key={item.id}
-                    item={item}
-                    now={now}
-                    compact
-                  />
-                ))
-              ) : (
-                <p>No updates yet. You're all caught up.</p>
-              )}
-            </section>
+            <NotificationPreview
+              headerRef={headerRef}
+              actionsRef={actionsRef}
+            />
           )}
         </div>
         <button
@@ -114,7 +87,11 @@ export default function Topbar() {
           title="Your profile"
           onClick={() => onAction({ page: "profile" })}
         >
-          <span className="avatar">{model.roleInitials()}</span>
+          <Avatar
+            image={state.profiles[state.role].image}
+            name={model.roleName()}
+            identity={state.accountId}
+          />
           <span className="account-copy">
             <strong>{model.roleName()}</strong>
             <span>{model.roleLabel()}</span>

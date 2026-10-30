@@ -1,11 +1,12 @@
 import InviteCollaborator from "../components/InviteCollaborator.jsx";
 import { useState, useEffect } from "react";
 import { useApp } from "../state/AppContext.jsx";
-import { filterPeople } from "../data/filters.js";
+import { filterPeople, validMinimumFit } from "../data/filters.js";
 import MatchCard from "../components/MatchCard.jsx";
 import Icon from "../components/Icon.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import Overlay from "../components/Overlay.jsx";
+import SelectField from "../components/SelectField.jsx";
 import { profileKeys, profileFieldNames } from "../data/selectors.js";
 export default function DiscoverPage() {
   const { state, model, onAction, onFilter, onTabKeyDown } = useApp();
@@ -17,11 +18,13 @@ export default function DiscoverPage() {
   const advancedCount = [
     state.matchFilters.type !== "all",
     state.matchFilters.industry !== "all",
-    state.matchFilters.score !== "0",
+    Number(state.matchFilters.score) > 0,
     state.matchFilters.engagement !== "all",
   ].filter(Boolean).length;
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState(state.matchFilters);
+  const [fitInputInvalid, setFitInputInvalid] = useState(false);
+  const fitValid = validMinimumFit(draftFilters.score) && !fitInputInvalid;
   const [guideOpen, setGuideOpen] = useState(false);
   const missing = profileKeys(state.role).filter(
     (key) => !String(state.profiles[state.role][key] || "").trim(),
@@ -95,7 +98,11 @@ export default function DiscoverPage() {
       <div className="page discovery-page page-enter">
         <PageHeader
           title="Matches"
-          intro="Find startups and mentors to work with."
+          intro={
+            state.role === "mentor"
+              ? "Find startups that need your expertise."
+              : "Find startups and mentors to work with."
+          }
         />
         {profilePrompt}
         <section className="card clean-empty-state">
@@ -115,7 +122,11 @@ export default function DiscoverPage() {
     <div className="page discovery-page page-enter">
       <PageHeader
         title="Matches"
-        intro="Find the right people to build something together."
+        intro={
+          state.role === "mentor"
+            ? "Explore startup needs, stages and goals to find where you can help."
+            : "Find the right people to build something together."
+        }
       />
       {profilePrompt}
       <div className="discovery-controls">
@@ -185,6 +196,7 @@ export default function DiscoverPage() {
             aria-controls="advanced-filters"
             onClick={() => {
               setDraftFilters({ ...state.matchFilters });
+              setFitInputInvalid(false);
               setFiltersOpen(true);
             }}
           >
@@ -219,21 +231,24 @@ export default function DiscoverPage() {
                 <>
                   <button
                     className="link-btn"
-                    onClick={() =>
+                    onClick={() => {
+                      setFitInputInvalid(false);
                       setDraftFilters({
                         ...draftFilters,
                         type: "all",
                         industry: "all",
                         score: "0",
                         engagement: "all",
-                      })
-                    }
+                      });
+                    }}
                   >
                     Reset filters
                   </button>
                   <button
                     className="btn primary"
+                    disabled={!fitValid}
                     onClick={() => {
+                      if (!fitValid) return;
                       for (const key of [
                         "type",
                         "industry",
@@ -255,7 +270,7 @@ export default function DiscoverPage() {
               <div className="overlay-filters">
                 <div className="field">
                   <label htmlFor="type-filter">Type</label>
-                  <select
+                  <SelectField
                     className="filter-select"
                     id="type-filter"
                     aria-label="Filter by type"
@@ -267,11 +282,11 @@ export default function DiscoverPage() {
                     <option value="all">All types</option>
                     <option value="Startup">Startups</option>
                     <option value="Mentor">Mentors</option>
-                  </select>
+                  </SelectField>
                 </div>
                 <div className="field">
                   <label htmlFor="industry-filter">Industry</label>
-                  <select
+                  <SelectField
                     className="filter-select"
                     id="industry-filter"
                     aria-label="Filter by industry"
@@ -286,30 +301,43 @@ export default function DiscoverPage() {
                         {industry}
                       </option>
                     ))}
-                  </select>
+                  </SelectField>
                 </div>
                 <div className="field">
-                  <label htmlFor="score-filter">Minimum fit</label>
-                  <select
-                    className="filter-select"
+                  <label htmlFor="score-filter">Minimum fit (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
                     id="score-filter"
-                    aria-label="Filter by score"
+                    aria-label="Minimum fit (%)"
+                    aria-invalid={!fitValid}
+                    aria-describedby="score-filter-help score-filter-error"
                     value={draftFilters.score}
-                    onChange={(event) =>
-                      updateDraft("score", event.target.value)
+                    onInput={(event) =>
+                      setFitInputInvalid(event.currentTarget.validity.badInput)
                     }
+                    onChange={(event) => {
+                      setFitInputInvalid(event.target.validity.badInput);
+                      updateDraft("score", event.target.value);
+                    }}
+                  />
+                  <p id="score-filter-help" className="field-help">
+                    Includes matches at or above this percentage. Leave empty
+                    for any fit.
+                  </p>
+                  <p
+                    id="score-filter-error"
+                    className="field-error"
+                    role={!fitValid ? "alert" : undefined}
                   >
-                    <option value="0">Any score</option>
-                    <option value="30">30% and above</option>
-                    <option value="50">50% and above</option>
-                    <option value="70">70% and above</option>
-                    <option value="80">80% and above</option>
-                    <option value="85">85% and above</option>
-                  </select>
+                    {!fitValid ? "Enter a whole percentage from 0 to 100." : ""}
+                  </p>
                 </div>
                 <div className="field">
                   <label htmlFor="engagement-filter">Engagement</label>
-                  <select
+                  <SelectField
                     className="filter-select"
                     id="engagement-filter"
                     aria-label="Filter by engagement type"
@@ -324,7 +352,7 @@ export default function DiscoverPage() {
                     </option>
                     <option value="Co-Marketing Swap">Co-Marketing Swap</option>
                     <option value="Mentorship">Mentorship</option>
-                  </select>
+                  </SelectField>
                 </div>
               </div>
             </Overlay>
@@ -364,17 +392,17 @@ export default function DiscoverPage() {
               </p>
             </div>
             <div className="field discovery-sort">
-              <label htmlFor="match-sort">Sort by</label>
-              <select
+              <SelectField
                 id="match-sort"
-                aria-label="Sort by"
+                label="Sort by"
                 value={sort || (state.matchTab === "browse" ? "name" : "fit")}
                 onChange={(event) => setSort(event.target.value)}
-              >
-                <option value="fit">Highest fit</option>
-                <option value="name">Name</option>
-                <option value="experience">Completed collaborations</option>
-              </select>
+                options={[
+                  { value: "fit", label: "Highest fit" },
+                  { value: "name", label: "Name" },
+                  { value: "experience", label: "Completed collaborations" },
+                ]}
+              />
             </div>
           </div>
           <div className="match-list" id="discovery-list">

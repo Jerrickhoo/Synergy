@@ -1,0 +1,38 @@
+# Source and stylesheet ownership
+
+The repository root contains the app entry point, package manifests, Vite/Playwright configuration, environment example and Render/Git configuration. Detailed documents live under the [documentation index](../README.md). Run all npm and operator commands from the repository root.
+
+| Path                           | Responsibility                                                                                                                                                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/pages/`                   | Route-level layouts for discovery, profiles, rooms, Updates, Calendar and account controls.                                                                                                                         |
+| `src/components/`              | Shared controls, overlays and collaboration panels. `SelectField` owns the visible combobox and its hidden native form control; `NotificationRow` serves both Updates and preview rows.                             |
+| `src/state/`                   | Client API synchronization, routing, serialization, validation, drafts and transitions. `AppContext` distinguishes voluntary sign-out requests from forced logout; `scroll-lock.js` counts overlapping modal locks. |
+| `src/data/`                    | Matching/selectors, profile and collaboration rules, mentorship and planning helpers, engagement templates.                                                                                                         |
+| `server/`                      | Local API, account/session enforcement, collaboration lifecycle, SQLite/JSON persistence, files, moderation, health and backups.                                                                                    |
+| `public/`                      | Runtime brand and fictional demo assets. Reference PDFs and the original flow diagram are documentation, not public app downloads.                                                                                  |
+| `tests/`                       | Unit/backend/API tests and the existing browser projects; test servers use separate generated database paths.                                                                                                       |
+| `scripts/check-references.js`  | Local documentation and HTML reference-path verification.                                                                                                                                                           |
+| `.github/workflows/checks.yml` | Fresh install, reference/format/unit/build/browser checks.                                                                                                                                                          |
+
+## CSS cascade
+
+`src/main.jsx` deliberately imports styles in the order below. Keep this order when adding scoped rules; inspect the effective cascade before moving older base rules. This cleanup does not restructure component folders or merge the entire cascade.
+
+| Import order | File                     | Owner                                                                                                                                                                                                                           |
+| ------------ | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1            | `src/styles.css`         | Base tokens, reset/forms, app shell, navigation, login and original general page layouts. Generic input/select resets remain compatible with the native form backing element.                                                   |
+| 2            | `src/planning.css`       | Task board, Calendar and scheduling layouts, including their responsive variants.                                                                                                                                               |
+| 3            | `src/discovery.css`      | Match lists/cards, fit explanation layout and discovery responsiveness. Whole fit-button hover comes from the shared interactive surface.                                                                                       |
+| 4            | `src/match-overlays.css` | Discovery filter and fit-explanation dialog layouts. Shared controls inside these dialogs retain shared control styling.                                                                                                        |
+| 5            | `src/shared-ui.css`      | Control tokens, custom-select triggers/options, full-row hover/focus, brand refinements, account navigation, workspace background and shared responsive/reduced-motion/forced-colors behavior.                                  |
+| 6            | `src/profile-pages.css`  | Profile/completion/community, Updates rows, measured notification preview and account/Danger zone layouts. Notification positioning is measured by `NotificationPreview.jsx`; this file owns its visual/scroll/animation rules. |
+| 7            | `src/mentorship.css`     | Mentor Home/discovery and mentorship-specific layout refinements.                                                                                                                                                               |
+| 8            | `src/theme.css`          | Shared semantic Light/Dark palette, interaction/status contrast and theme-specific shell treatment. Feature styles consume tokens; fixed dark navigation retains its own contrast in either theme.                              |
+
+The custom select's `display:none` native element exists for FormData, validation and reset. Native-picker decoration and old feature-scoped native-select sizing were removed in E after all 27 consumers migrated. Do not reintroduce a second visible dropdown style. Notification sizing/positioning was already consolidated in C; its mobile, reduced-motion and forced-colors rules are intentional variants, not duplicates.
+
+## Generated files and working data
+
+`node_modules/`, `dist/`, `output/`, `artifacts/`, `.playwright-cli/`, `test-results/` and `playwright-report/` stay ignored. Install/build/test commands reproduce dependencies and build output. Review captures may be unique; retain them when reports reference them.
+
+`.data/`, uploads, backups and environment files contain operational or private state. Do not prune them as part of source cleanup. Browser suites and manual review use isolated data files. The release review does not publish or migrate the workspace.

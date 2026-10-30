@@ -19,8 +19,9 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
           <div>
             <h2>Terms &amp; expectations</h2>
             <p className="panel-subtitle">
-              Agree on a clear goal, scope, timeline, and exchange before work
-              begins.
+              {room.type === "mentorship"
+                ? "Agree on the startup challenge, guidance, preparation and time commitment before your sessions."
+                : "Agree on a clear goal, scope, timeline, and exchange before work begins."}
             </p>
           </div>
           <span
@@ -158,9 +159,23 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
           </div>
           {"\n            "}
           <div className="field">
-            <label htmlFor="term-compensation">Exchange</label>
+            <label htmlFor="term-compensation">
+              {room.type === "mentorship"
+                ? "Mentoring arrangement"
+                : "Exchange"}
+            </label>
+            {room.type === "mentorship" && (
+              <p className="field-help" id="mentoring-arrangement-help">
+                Record whether guidance is voluntary or any agreed compensation.
+              </p>
+            )}
             <input
               id="term-compensation"
+              aria-describedby={
+                room.type === "mentorship"
+                  ? "mentoring-arrangement-help"
+                  : undefined
+              }
               name="compensation"
               onChange={(event) =>
                 draft.update({
@@ -219,7 +234,9 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
                     )
                   }
                 >
-                  Lock terms &amp; start
+                  {room.type === "mentorship"
+                    ? "Confirm mentoring agreement"
+                    : "Lock terms & start"}
                 </button>
               </>
             ) : agreement.partnerLocked ? (
@@ -247,7 +264,9 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
         </form>
       </section>
       <aside className="card panel before-lock">
-        <h2>Before you lock</h2>
+        <h2>
+          {room.type === "mentorship" ? "Before you agree" : "Before you lock"}
+        </h2>
         <p className="panel-subtitle">
           A shared understanding makes it easier to move forward.
         </p>
@@ -256,7 +275,11 @@ export default function TermsPanel({ room, agreement, partner, milestones }) {
           <li>Define scope and deliverables</li>
           <li>Set a realistic timeline</li>
           <li>Confirm each person’s commitment</li>
-          <li>Make the exchange explicit</li>
+          <li>
+            {room.type === "mentorship"
+              ? "Agree on preparation and any compensation"
+              : "Make the exchange explicit"}
+          </li>
         </ul>
       </aside>
     </div>

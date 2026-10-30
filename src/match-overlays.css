@@ -10,14 +10,14 @@
   height: 56px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: conic-gradient(var(--green) var(--fit), #e3ebe4 0);
+  background: conic-gradient(var(--green) var(--fit), var(--surface-soft) 0);
 }
 .fit-ring::before {
   content: "";
   position: absolute;
   inset: 4px;
   border-radius: inherit;
-  background: white;
+  background: var(--paper);
   z-index: -1;
 }
 .fit-ring strong {
@@ -40,9 +40,9 @@
   max-height: calc(100dvh - 48px);
   padding: 0;
   margin: auto;
-  border: 1px solid #dce4dd;
+  border: 1px solid var(--line);
   border-radius: 16px;
-  background: white;
+  background: var(--paper);
   color: var(--ink);
   box-shadow: 0 24px 80px #102a2430;
   overflow-y: auto;
@@ -64,7 +64,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 18px 24px;
-  border-bottom: 1px solid #e6ece6;
+  border-bottom: 1px solid var(--line);
 }
 .discovery-overlay-header h2 {
   margin: 0;
@@ -92,12 +92,6 @@
 .overlay-filters label {
   font-size: 13px;
 }
-.overlay-filters select {
-  min-height: 46px;
-  border-color: #cbd6ce;
-  border-radius: 8px;
-  font-size: 14px;
-}
 .discovery-overlay-footer {
   flex-shrink: 0;
   display: flex;
@@ -105,7 +99,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 18px 24px;
-  border-top: 1px solid #e6ece6;
+  border-top: 1px solid var(--line);
 }
 .discovery-overlay-footer .btn {
   border-radius: 8px;
@@ -120,7 +114,7 @@
   gap: 18px;
   padding: 20px;
   border-radius: 12px;
-  background: #f1f6f0;
+  background: var(--surface-soft);
   margin-bottom: 26px;
 }
 .fit-overview .fit-ring {
@@ -154,7 +148,7 @@
 .fit-factor-track {
   flex-basis: 100%;
   height: 5px;
-  background: #e6ece6;
+  background: var(--surface-soft);
   border-radius: 5px;
   overflow: hidden;
 }
@@ -162,7 +156,7 @@
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--green);
+  background: var(--accent-solid);
 }
 .discovery-overlay .preview-needs,
 .discovery-overlay .trust-summary {
@@ -211,9 +205,6 @@
   .overlay-filters {
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
-  }
-  .overlay-filters select {
-    font-size: 16px;
   }
   .fit-overview {
     padding: 14px;

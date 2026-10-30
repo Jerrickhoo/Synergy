@@ -1,3 +1,5 @@
+> Archived development record. For current behavior, setup and release evidence, use the [project README](../../README.md) and [documentation index](../README.md). Dates and results below describe earlier versions.
+
 # Current prototype note ? October 29, 2026
 
 External email and AI integrations and their controls have been removed. The report below is historical; its provider, verification, recovery and digest checks describe earlier versions. Current checks are listed in README.md.
@@ -43,12 +45,12 @@ Additional checks cover failed migration retry, competing stale SQLite writers, 
 - Node.js 24+ is now required. New defaults use `.data/synergy.sqlite`. An existing explicit `.json` `SYNERGY_DATA_FILE` remains on JSON until changed; migration does not override an explicit path.
 - Back up an existing workspace and uploads before changing its data path. Automatic default-path migration preserves the neighboring original JSON file. Backups export portable JSON snapshots from either adapter.
 - The app still runs as a single writer/process. SQLite transactions and conditional polling improve this prototype; they do not provide managed object storage or multi-instance autoscaling.
-- A scheduled backup destination is optional and remains unconfigured unless `SYNERGY_BACKUP_DIR` is set. No off-site account or storage mount was provisioned. See [DEPLOYMENT.md](DEPLOYMENT.md) for destination, retention and restore instructions.
+- A scheduled backup destination is optional and remains unconfigured unless `SYNERGY_BACKUP_DIR` is set. No off-site account or storage mount was provisioned. See [DEPLOYMENT.md](../operations/DEPLOYMENT.md) for destination, retention and restore instructions.
 - Deletion removes credentials, email, profile details and preferences and anonymizes displayed identity. Shared agreements, messages, evidence and reviews remain for collaborators, as explained before deletion. Existing backups follow the operator's retention policy.
 - Real email/AI provider behavior, public hosting, actual phones, physical screen readers, antivirus scanning and a real collaboration-outcome study remain unverified or outside this local prototype's scope. No claim of validated matching accuracy is made.
 - Verification used disposable accounts/databases. Application workspace data, private `.env` credentials and the original project specification were not edited. Changes remain in the working tree; no commit, push or deployment was performed.
 
-Visual checks included [mobile discovery](output/playwright/improved-matches-mobile.png) and [account settings](output/playwright/improved-settings-desktop.png). These are local ignored artifacts.
+Visual checks included [mobile discovery](../../output/playwright/improved-matches-mobile.png) and [account settings](../../output/playwright/improved-settings-desktop.png). These are local ignored artifacts.
 
 ---
 
@@ -87,13 +89,13 @@ Browser regressions exercise revised agreements, closure/reconnection, mobile se
 
 Screenshots inspected after the changes:
 
-- [Public trust and score explanations](artifacts/stakeholder-review/fixed-public-trust-desktop.png)
-- [Mobile recurring-session rescheduling](artifacts/stakeholder-review/fixed-scheduling-mobile.png)
-- [Mobile moderation queue](artifacts/stakeholder-review/fixed-moderation-mobile.png)
-- [Approved milestone revision on mobile](artifacts/stakeholder-review/milestone-revision-mobile.png)
-- [Reusable templates and matching settings](artifacts/stakeholder-review/templates-matching-settings-desktop.png)
-- [AI clarification and reviewed tag proposals](artifacts/stakeholder-review/ai-clarification-tags-desktop.png)
-- [Dedicated public mentor experience](artifacts/stakeholder-review/mentor-experience-desktop.png)
+- [Public trust and score explanations](../../artifacts/stakeholder-review/fixed-public-trust-desktop.png)
+- [Mobile recurring-session rescheduling](../../artifacts/stakeholder-review/fixed-scheduling-mobile.png)
+- [Mobile moderation queue](../../artifacts/stakeholder-review/fixed-moderation-mobile.png)
+- [Approved milestone revision on mobile](../../artifacts/stakeholder-review/milestone-revision-mobile.png)
+- [Reusable templates and matching settings](../../artifacts/stakeholder-review/templates-matching-settings-desktop.png)
+- [AI clarification and reviewed tag proposals](../../artifacts/stakeholder-review/ai-clarification-tags-desktop.png)
+- [Dedicated public mentor experience](../../artifacts/stakeholder-review/mentor-experience-desktop.png)
 
 ## Remaining activation and infrastructure boundaries
 
@@ -151,9 +153,9 @@ Backend regression checks cover the first three fixes. The corrected Home messag
 
 ## Visual evidence
 
-- [Mobile chat after connection recovery](output/playwright/qa-chat-mobile.png)
-- [Reviews revealed after both submissions](output/playwright/qa-reviews-desktop.png)
-- [Tablet profile with completed collaboration history](output/playwright/qa-profile-tablet.png)
+- [Mobile chat after connection recovery](../../output/playwright/qa-chat-mobile.png)
+- [Reviews revealed after both submissions](../../output/playwright/qa-reviews-desktop.png)
+- [Tablet profile with completed collaboration history](../../output/playwright/qa-profile-tablet.png)
 
 ## Integration verification
 
@@ -168,10 +170,10 @@ The six additional integration tests passed on the installed Node runtime and on
 | Browser controls  | In the built app, sent/entered a verification code, generated/reviewed/applied a profile draft, and saved it. Selected an actual text file in the browser file chooser, uploaded it, and downloaded the same contents. The mobile upload form fits 360 px with no horizontal page overflow. No browser console errors were recorded.             |
 | Production server | Started in production mode with isolated data and dummy mail credentials. The app and `/api/health` returned HTTP 200, and the app included its Content Security Policy and cache headers. Production startup without email configuration is rejected. This check does not activate or validate real provider credentials.                       |
 
-The Render Blueprint passed validation against Render's official JSON schema, and the [deployment guide](DEPLOYMENT.md) is prepared. Live mail delivery, real AI completions and public hosting still require provider accounts, a verified sending domain, API keys and a Render connection. They have not been claimed as live-tested or deployed.
+The Render Blueprint passed validation against Render's official JSON schema, and the [deployment guide](../operations/DEPLOYMENT.md) is prepared. Live mail delivery, real AI completions and public hosting still require provider accounts, a verified sending domain, API keys and a Render connection. They have not been claimed as live-tested or deployed.
 
-- [Reviewed AI draft and populated form](output/playwright/integration-profile-draft.png)
-- [Mobile file evidence controls](output/playwright/integration-file-mobile.png)
+- [Reviewed AI draft and populated form](../../output/playwright/integration-profile-draft.png)
+- [Mobile file evidence controls](../../output/playwright/integration-file-mobile.png)
 
 ## Scope
 

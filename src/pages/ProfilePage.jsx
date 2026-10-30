@@ -1,4 +1,6 @@
-﻿import { useDraft } from "../state/useDraft.js";
+import SelectField from "../components/SelectField.jsx";
+import { useId, useState } from "react";
+import { useDraft } from "../state/useDraft.js";
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import Avatar from "../components/Avatar.jsx";
@@ -18,28 +20,152 @@ import ProfileStats from "../components/ProfileStats.jsx";
 import ProfileOptions from "../components/ProfileOptions.jsx";
 import CommunityRequests from "../components/CommunityRequests.jsx";
 import Icon from "../components/Icon.jsx";
+import ProfilePhoto from "../components/ProfilePhoto.jsx";
+import { normalizeProfile } from "../data/profile-content.js";
 
 export default function ProfilePage() {
   const { state } = useApp();
   return <ProfileContent key={`${state.accountId}:${state.role}`} />;
 }
-function ProfileField({ id, label, value, multiline = false, hint, ...props }) {
+function ProfileField({
+  id,
+  label,
+  value,
+  multiline = false,
+  hint,
+  optional = false,
+  tags = false,
+  ...props
+}) {
   const Input = multiline ? "textarea" : "input";
+  const describedBy =
+    [optional && `profile-${id}-optional`, hint && `profile-${id}-help`]
+      .filter(Boolean)
+      .join(" ") || undefined;
+  const entries = tags ? profileTags(value) : [];
+  const labelElement = <label htmlFor={`profile-${id}`}>{label}</label>;
   return (
     <div className="field">
-      <label htmlFor={`profile-${id}`}>{label}</label>
+      {optional ? (
+        <div className="profile-label-row">
+          {labelElement}
+          <span className="field-optional" id={`profile-${id}-optional`}>
+            Optional
+          </span>
+        </div>
+      ) : (
+        labelElement
+      )}
       <Input
         id={`profile-${id}`}
         defaultValue={value || ""}
-        aria-describedby={hint ? `profile-${id}-help` : undefined}
+        aria-describedby={describedBy}
         {...props}
       />
-      {hint && (
-        <p className="field-help" id={`profile-${id}-help`}>
-          {hint}
-        </p>
+      {entries.length > 0 && (
+        <div className="profile-tag-preview" aria-hidden="true">
+          <Tags values={entries} color="green" />
+        </div>
+      )}
+      {(hint || props.maxLength) && (
+        <div className="field-footer">
+          {hint && (
+            <p className="field-help" id={`profile-${id}-help`}>
+              {hint}
+            </p>
+          )}
+          {props.maxLength && (
+            <span className="field-count" aria-hidden="true">
+              {String(value || "").length} / {props.maxLength}
+            </span>
+          )}
+        </div>
       )}
     </div>
+  );
+}
+function EditSection({ title, intro, disabled, children }) {
+  const introId = useId();
+  return (
+    <fieldset
+      className="card profile-fieldset"
+      disabled={disabled}
+      aria-describedby={intro ? introId : undefined}
+    >
+      <legend>{title}</legend>
+      {intro && (
+        <p className="profile-fieldset-intro" id={introId}>
+          {intro}
+        </p>
+      )}
+      {children}
+    </fieldset>
+  );
+}
+// Form order for the checklist; profileKeys decides which keys apply.
+const requiredFields = [
+  ["bio", "About me", "profile-bio"],
+  ["industry", "Industry", "profile-industry"],
+  ["stage", "Stage", "profile-stage"],
+  ["teamSize", "Team size", "profile-size"],
+  ["expertise", "Expertise areas", "profile-expertise"],
+  ["availability", "Availability", "profile-availability"],
+  ["startups", "Startups I want to help", "profile-startups"],
+  ["offer", "What I offer", "profile-offer"],
+  ["need", "What I need", "profile-need"],
+];
+function focusField(id) {
+  const field = document.getElementById(id);
+  if (!field) return;
+  field.focus({ preventScroll: true });
+  field.scrollIntoView({ block: "center" });
+}
+function ProfileChecklist({ items }) {
+  const added = items.filter((item) => item.done).length;
+  const ready = added === items.length;
+  return (
+    <section
+      className={`card profile-checklist${ready ? " ready" : ""}`}
+      aria-labelledby="profile-checklist-heading"
+    >
+      <h2 id="profile-checklist-heading">
+        {ready ? "Ready for Matches" : "Finish your profile"}
+      </h2>
+      <p>
+        {ready
+          ? "Every required detail is filled in."
+          : `${added} of ${items.length} required details added. Complete them to appear in Matches.`}
+      </p>
+      <div className="profile-checklist-bar" aria-hidden="true">
+        <span style={{ width: `${(added / items.length) * 100}%` }} />
+      </div>
+      <ul>
+        {items.map((item) => (
+          <li key={item.key}>
+            {item.done ? (
+              <span className="profile-checklist-item" data-done="true">
+                <span className="profile-checklist-mark" aria-hidden="true">
+                  <Icon name="check" />
+                </span>
+                {item.label}
+                <span className="visually-hidden">, added</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="profile-checklist-item interactive-surface"
+                onClick={() => focusField(item.target)}
+              >
+                <span className="profile-checklist-mark" aria-hidden="true" />
+                {item.label}
+                <span className="visually-hidden">, still to add</span>
+                <Icon name="arrow" />
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 function ProfileSection({ title, children, className = "" }) {
@@ -51,6 +177,7 @@ function ProfileSection({ title, children, className = "" }) {
   );
 }
 function TextValue({ value, empty = "Not added yet." }) {
+  value = String(value || "").trim();
   return (
     <p className={`preserve-lines ${value ? "" : "muted"}`}>{value || empty}</p>
   );
@@ -65,8 +192,9 @@ function TagValue({ value, empty }) {
 }
 function ProfileContent() {
   const { state, model, onAction, onSubmit } = useApp();
+  const [photoReading, setPhotoReading] = useState(false);
   const founder = state.role === "founder";
-  const savedProfile = state.profiles[state.role];
+  const savedProfile = normalizeProfile(state.profiles[state.role]);
   const draft = useDraft(`${state.accountId}:profile:${state.role}`, {
     ...savedProfile,
     name: state.accountName,
@@ -77,147 +205,167 @@ function ProfileContent() {
   const missing = profileKeys(state.role).filter(
     (key) => !String(savedProfile[key] || "").trim(),
   );
+  const checklist = requiredFields
+    .filter(([key]) => profileKeys(state.role).includes(key))
+    .map(([key, label, target]) => ({
+      key,
+      label,
+      target,
+      done: Boolean(String(draft.values[key] || "").trim()),
+    }));
+  const optionalAdded = [
+    "goals",
+    "engagementPreference",
+    founder && "audienceSize",
+    "offerTags",
+    "needTags",
+  ].filter((key) => key && String(draft.values[key] || "").trim()).length;
+  const updateField = (key, value) =>
+    draft.update({ ...draft.values, [key]: value });
   return (
     <div className="page simple-profile profile-page page-enter">
       <PageHeader
-        title="Your profile"
+        title={
+          state.profileEditing
+            ? completeness
+              ? "Edit profile"
+              : "Set up your profile"
+            : "Your profile"
+        }
         intro={
           state.profileEditing
-            ? "Edit your public profile. Save when you’re ready to share your changes."
+            ? founder
+              ? "Update what mentors and other founders see about you. Nothing changes until you save."
+              : "Update what founders see about you. Nothing changes until you save."
             : founder
               ? "Show what you’re building and the help that would move it forward."
               : "Share your expertise, experience and the startups you want to support."
         }
       />
-      <section className="card identity-panel own-identity-panel">
-        <div className="identity-heading">
-          <Avatar
-            image={savedProfile.image}
-            name={model.roleName()}
-            initials={model.roleInitials()}
-            size={64}
-          />
-          <div className="own-identity-copy">
-            <span className="section-eyebrow">{model.roleLabel()}</span>
-            <h2>{model.roleName()}</h2>
-            <p>
-              {founder
-                ? [
-                    savedProfile.industry,
-                    stageLabel(savedProfile.stage),
-                    savedProfile.teamSize && `Team of ${savedProfile.teamSize}`,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ") || "Your startup story starts here"
-                : savedProfile.expertise || "Add the expertise you can share"}
-            </p>
-          </div>
-          {!state.profileEditing && (
+      {!state.profileEditing && (
+        <section className="card identity-panel own-identity-panel">
+          <div className="identity-heading">
+            <Avatar
+              image={profile.image}
+              name={model.roleName()}
+              identity={state.accountId}
+              size={64}
+            />
+            <div className="own-identity-copy">
+              <span className="section-eyebrow">{model.roleLabel()}</span>
+              <h2>{model.roleName()}</h2>
+              <p>
+                {founder
+                  ? [
+                      savedProfile.industry,
+                      stageLabel(savedProfile.stage),
+                      savedProfile.teamSize &&
+                        `Team of ${savedProfile.teamSize}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "Your startup story starts here"
+                  : savedProfile.expertise || "Add the expertise you can share"}
+              </p>
+            </div>
             <button
               className="btn primary"
               onClick={() => onAction({ action: "edit-profile" })}
             >
               {completeness ? "Edit profile" : "Set up your profile"}
             </button>
+          </div>
+          {missing.length > 0 && (
+            <div className="profile-completion-note">
+              <strong>Complete your profile to appear in Matches</strong>
+              <p>
+                Still to add:{" "}
+                {missing.map((key) => profileFieldNames[key]).join(", ")}.
+              </p>
+            </div>
           )}
-        </div>
-        <div className="profile-identity-footer">
-          <div className="profile-completion">
-            <span>{completeness}% complete</span>
-            <span className="profile-completion-track" aria-hidden="true">
-              <i style={{ width: `${completeness}%` }} />
-            </span>
-          </div>
-          <div className="field account-role">
-            <label htmlFor="account-role">I'm here as a</label>
-            <select
-              id="account-role"
-              disabled={state.busy}
-              value={state.role}
-              onChange={(event) =>
-                onAction({
-                  action: "choose-role",
-                  roleChoice: event.target.value,
-                })
-              }
-            >
-              <option value="founder">Startup founder</option>
-              <option value="mentor">Mentor</option>
-            </select>
-          </div>
-        </div>
-        {missing.length > 0 && (
-          <div className="profile-completion-note">
-            <strong>Complete your profile to appear in Matches</strong>
-            <p>
-              Still to add:{" "}
-              {missing.map((key) => profileFieldNames[key]).join(", ")}.
-            </p>
-          </div>
-        )}
-      </section>
+        </section>
+      )}
       {state.profileEditing ? (
         <form
           id="profile-form"
+          aria-busy={state.busy}
           key={state.role}
           className="profile-edit-form"
-          onChange={(event) =>
-            draft.update(Object.fromEntries(new FormData(event.currentTarget)))
-          }
+          onChange={(event) => {
+            if (event.target.type !== "file")
+              draft.update({
+                ...draft.values,
+                ...Object.fromEntries(new FormData(event.currentTarget)),
+              });
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && event.target.tagName === "INPUT")
+              event.preventDefault();
+          }}
           onSubmit={async (event) => {
-            const success = await onSubmit(event);
+            event.preventDefault();
+            if (event.nativeEvent.submitter?.id !== "save-profile") return;
+            const success = await onSubmit(event, {
+              image: draft.values.image || "",
+            });
             if (success) draft.clear();
           }}
         >
-          <div className="profile-edit-intro">
-            <h2>{founder ? "Your startup profile" : "Your mentor profile"}</h2>
-            <p>
-              Complete the required fields to appear in Matches. Fields marked
-              optional can wait.
-            </p>
-            {draft.dirty && (
-              <p className="draft-note" role="status">
-                Your draft is saved in this tab. Save your profile to publish
-                changes.
-              </p>
-            )}
+          <div className="profile-edit-main">
             <FormErrors scope="profile-form" />
-          </div>
-          <fieldset className="card panel profile-fieldset">
-            <legend>About you</legend>
-            <ProfileField
-              id="name"
-              label="Your name"
-              name="name"
-              value={profile.name || state.accountName}
-              autoComplete="name"
-              required
+            <ProfilePhoto
+              identity={state.accountId}
+              image={draft.values.image}
+              name={draft.values.name || state.accountName}
+              role={model.roleLabel()}
+              disabled={state.busy}
+              onReadingChange={setPhotoReading}
+              onChange={(image) => updateField("image", image)}
             />
-            <ProfileField
-              id="bio"
-              label="About me"
-              name="bio"
-              value={profile.bio}
-              multiline
-              required
-              maxLength={2000}
-              placeholder={
+            <EditSection
+              title="About you"
+              intro="The first thing people read on your profile."
+              disabled={state.busy}
+            >
+              <ProfileField
+                id="name"
+                label="Your name"
+                name="name"
+                value={profile.name || state.accountName}
+                autoComplete="name"
+                required
+              />
+              <ProfileField
+                id="bio"
+                label="About me"
+                name="bio"
+                value={profile.bio}
+                multiline
+                required
+                maxLength={2000}
+                placeholder={
+                  founder
+                    ? "What are you building, and who does it help?"
+                    : "What experience and perspective can you share with founders?"
+                }
+                hint={
+                  founder
+                    ? "Introduce your startup, who it serves and what you’re working on."
+                    : "Introduce your background and the kinds of challenges you help founders solve."
+                }
+              />
+            </EditSection>
+            <EditSection
+              title={founder ? "Startup details" : "Mentorship focus"}
+              intro={
                 founder
-                  ? "What are you building, and who does it help?"
-                  : "What experience and perspective can you share with founders?"
+                  ? "Helps mentors and founders see where your startup is today."
+                  : "Helps founders see where and how often you can help."
               }
-              hint={
-                founder
-                  ? "Introduce your startup, who it serves and what you’re working on."
-                  : "Introduce your background and the kinds of challenges you help founders solve."
-              }
-            />
-          </fieldset>
-          <fieldset className="card panel profile-fieldset">
-            <legend>{founder ? "Startup context" : "Mentorship focus"}</legend>
-            <div className="form-grid">
+              disabled={state.busy}
+            >
               {founder ? (
-                <>
+                <div className="form-grid profile-details-grid">
                   <ProfileField
                     id="industry"
                     label="Industry"
@@ -227,7 +375,7 @@ function ProfileContent() {
                   />
                   <div className="field">
                     <label htmlFor="profile-stage">Stage</label>
-                    <select
+                    <SelectField
                       id="profile-stage"
                       name="stage"
                       required
@@ -241,7 +389,7 @@ function ProfileContent() {
                           {stageLabel(value)}
                         </option>
                       ))}
-                    </select>
+                    </SelectField>
                   </div>
                   <ProfileField
                     id="size"
@@ -252,16 +400,17 @@ function ProfileContent() {
                     min="1"
                     value={profile.teamSize}
                   />
-                </>
+                </div>
               ) : (
-                <>
+                <div className="form-grid profile-focus-grid">
                   <ProfileField
                     id="expertise"
                     label="Expertise areas"
                     name="expertise"
                     required
                     value={profile.expertise}
-                    hint="For example: product strategy, fundraising or technical development."
+                    tags
+                    hint="Separate areas with commas, for example: product strategy, fundraising."
                   />
                   <ProfileField
                     id="availability"
@@ -279,87 +428,123 @@ function ProfileContent() {
                     value={profile.startups}
                     hint="Include relevant industries and startup stages."
                   />
-                </>
+                </div>
               )}
-            </div>
-          </fieldset>
-          <fieldset className="card panel profile-fieldset">
-            <legend>
-              {founder ? "Offers and requested help" : "Support you can offer"}
-            </legend>
-            <div className="form-grid">
-              <ProfileField
-                id="offer"
-                label="What I offer"
-                name="offer"
-                value={profile.offer}
-                multiline
-                required
-                maxLength={2000}
-                hint={
-                  founder
-                    ? "Skills, feedback or resources you can exchange."
-                    : "The practical guidance you can provide during a mentorship."
-                }
-              />
-              <ProfileField
-                id="need"
-                label="What I need"
-                name="need"
-                value={profile.need}
-                multiline
-                required
-                maxLength={2000}
-                hint={
-                  founder
-                    ? "Be specific about the help your startup needs now."
-                    : "What you need from founders, such as a project brief or focused questions."
-                }
-              />
-            </div>
-          </fieldset>
-          {!founder && (
-            <fieldset className="card panel profile-fieldset">
-              <legend>Relevant experience</legend>
-              <ProfileField
-                id="experience"
-                label="Past experience"
-                name="pastExperience"
-                value={profile.pastExperience}
-                multiline
-                maxLength={2000}
-                placeholder="Previous roles, startups advised, projects and lessons you can share."
-                hint="Optional. This appears on your mentor profile."
-              />
-            </fieldset>
-          )}
-          <details className="card panel optional-profile">
-            <summary>Optional collaboration preferences and tags</summary>
-            <p className="muted">
-              Add goals and preferences to help others understand a potential
-              collaboration.
-            </p>
-            <ProfileOptions profile={profile} founder={founder} />
-          </details>
-          <div className="profile-edit-actions">
-            <button className="btn primary" type="submit" disabled={state.busy}>
-              {state.busy && <span className="spinner" aria-hidden="true" />}
-              {state.busy ? "Saving profile…" : "Save profile"}
-            </button>
-            <button
-              className="btn"
-              type="button"
+            </EditSection>
+            <EditSection
+              title={
+                founder ? "Offers and requested help" : "Support you can offer"
+              }
+              intro={
+                founder
+                  ? "Used to suggest matches. Separate items with commas; each one appears as a tag on your profile."
+                  : "Used to suggest matches. Separate what you need with commas; each item appears as a tag."
+              }
               disabled={state.busy}
-              onClick={() => {
-                draft.clear();
-                onAction({ action: "cancel-profile-edit" });
-              }}
             >
-              Cancel
-            </button>
-            <span className="muted">
-              Changes appear on your profile after saving.
-            </span>
+              <div className="form-grid">
+                <ProfileField
+                  id="offer"
+                  label="What I offer"
+                  name="offer"
+                  value={profile.offer}
+                  multiline
+                  required
+                  maxLength={2000}
+                  tags={founder}
+                  hint={
+                    founder
+                      ? "Skills, feedback or resources you can exchange."
+                      : "The practical guidance you can provide during a mentorship."
+                  }
+                />
+                <ProfileField
+                  id="need"
+                  label="What I need"
+                  name="need"
+                  value={profile.need}
+                  multiline
+                  required
+                  maxLength={2000}
+                  tags
+                  hint={
+                    founder
+                      ? "Be specific about the help your startup needs now."
+                      : "What you need from founders, such as a project brief or focused questions."
+                  }
+                />
+              </div>
+            </EditSection>
+            {!founder && (
+              <EditSection
+                title="Relevant experience"
+                intro="Roles, startups and projects that shape your advice."
+                disabled={state.busy}
+              >
+                <ProfileField
+                  id="experience"
+                  label="Past experience"
+                  name="pastExperience"
+                  value={profile.pastExperience}
+                  multiline
+                  optional
+                  maxLength={2000}
+                  placeholder="Previous roles, startups advised, projects and lessons you can share."
+                  hint="This appears on your mentor profile."
+                />
+              </EditSection>
+            )}
+            <details className="card optional-profile">
+              <summary className="interactive-surface">
+                <span className="optional-profile-heading">
+                  <span className="optional-profile-title">
+                    Collaboration preferences and tags
+                  </span>
+                  <span className="optional-profile-meta">
+                    Optional · Goals, engagement preference and approved tags
+                    {optionalAdded > 0 && ` · ${optionalAdded} added`}
+                  </span>
+                </span>
+                <Icon name="chevron" />
+              </summary>
+              <div className="optional-profile-body">
+                <ProfileOptions
+                  profile={profile}
+                  founder={founder}
+                  onFieldChange={updateField}
+                />
+              </div>
+            </details>
+          </div>
+          <div className="profile-edit-aside">
+            <ProfileChecklist items={checklist} />
+            <div className="profile-edit-actions">
+              <button
+                id="save-profile"
+                className="btn primary"
+                type="submit"
+                disabled={state.busy || photoReading}
+              >
+                {state.busy && <span className="spinner" aria-hidden="true" />}
+                {state.busy ? "Saving profile…" : "Save profile"}
+              </button>
+              <button
+                className="btn"
+                type="button"
+                disabled={state.busy}
+                onClick={() => {
+                  draft.clear();
+                  onAction({ action: "cancel-profile-edit" });
+                }}
+              >
+                Cancel
+              </button>
+              <p className="profile-edit-status" role="status">
+                {draft.dirty
+                  ? "Unsaved changes are kept as a draft in this tab."
+                  : ""}
+              </p>
+            </div>
           </div>
         </form>
       ) : (
@@ -473,13 +658,13 @@ function ProfileContent() {
               <section className="card panel profile-section">
                 <h2>Account and community</h2>
                 <button
-                  className="link-btn"
+                  className="account-navigation-row interactive-surface"
                   onClick={() => onAction({ page: "settings" })}
                 >
                   Account settings and privacy <Icon name="arrow" />
                 </button>
                 <button
-                  className="link-btn"
+                  className="account-navigation-row interactive-surface"
                   onClick={() => onAction({ page: "notifications" })}
                 >
                   Updates <Icon name="arrow" />

@@ -1,3 +1,5 @@
+> Archived development record. For current behavior, setup and release evidence, use the [project README](../../README.md) and [documentation index](../README.md). Dates and results below describe earlier versions.
+
 # Synergy prototype review and delivery
 
 ## Functional prototype completion — October 20, 2026
@@ -18,7 +20,7 @@ This pass builds on the existing restrained teal interface. The main issues were
 - **Mobile:** moved global search behind an accessible button with focus management and Escape dismissal. Match descriptions and actions use the full row; buttons stay aligned on narrow phones. Mobile search and filter inputs use 16px text to avoid focus zoom.
 - **Forms and feedback:** added the demo password requirements beside the password field. Completed milestones and rooms use green, progress counts and target dates use neutral badges, and waiting/dispute states retain their distinct colors. The room stage exposes its current step to assistive technology. Existing inline errors, loading feedback, confirmations, and business rules remain in place.
 
-Validation: 8 unit tests and 16 browser tests pass, including a new mobile search/filter recovery flow. Production build and formatting checks pass. Responsive checks cover 320, 390, 768, 1024, and 1440px. The [current review gallery](artifacts/ui-review/index.html) contains desktop, tablet, and phone captures of authentication, both role dashboards, discovery, empty results, rooms, terms, milestones, chat, profiles, and validation feedback. No horizontal page overflow or browser exceptions were observed in the capture run. Browser checks use Chromium; this remains the existing in-memory prototype.
+Validation: 8 unit tests and 16 browser tests pass, including a new mobile search/filter recovery flow. Production build and formatting checks pass. Responsive checks cover 320, 390, 768, 1024, and 1440px. The [current review gallery](../../artifacts/ui-review/index.html) contains desktop, tablet, and phone captures of authentication, both role dashboards, discovery, empty results, rooms, terms, milestones, chat, profiles, and validation feedback. No horizontal page overflow or browser exceptions were observed in the capture run. Browser checks use Chromium; this remains the existing in-memory prototype.
 
 ## Earlier design refinement
 
@@ -30,7 +32,7 @@ The initial reference-led redesign below was subsequently refined into a quieter
 - Retained the Synergy mark, initials, navigation icons, bookmark/notification controls, rating stars, progress indicators, and confirmation checks because they identify people, actions, or state.
 - Applied the same treatment to sign-in, signup, onboarding, profiles, waiting introductions, and collaboration rooms, with stacked rows and accessible navigation on phones.
 
-Verification: all 8 unit tests and 15 browser tests passed after the presentation changes; build and formatting checks passed. A final pass captured 43 desktop, tablet, mobile, and onboarding views with no observed horizontal overflow or browser errors. Current screenshots and comparison captures are in the [design refinement gallery](artifacts/refinement/index.html). The original design audit and roadmap follow as the implementation history.
+Verification: all 8 unit tests and 15 browser tests passed after the presentation changes; build and formatting checks passed. A final pass captured 43 desktop, tablet, mobile, and onboarding views with no observed horizontal overflow or browser errors. Current screenshots and comparison captures are in the [design refinement gallery](../../artifacts/refinement/index.html). The original design audit and roadmap follow as the implementation history.
 
 ## Current condition
 
@@ -91,7 +93,7 @@ Results from this session:
 | Rendered inspection                 | 27 captured screens plus final visual corrections; no observed browser errors or viewport overflow. |
 | Production integrations / remote CI | Not available / not executed in this local session.                                                 |
 
-Visual evidence: [desktop before](artifacts/screenshots/before-desktop.png), [desktop after](artifacts/screenshots/dashboard-1440.png), [mobile before](artifacts/screenshots/before-mobile.png), [mobile after](artifacts/screenshots/dashboard-390.png). [Local screenshot gallery](artifacts/index.html) includes other workspace and auth views.
+Visual evidence: [desktop before](../../artifacts/screenshots/before-desktop.png), [desktop after](../../artifacts/screenshots/dashboard-1440.png), [mobile before](../../artifacts/screenshots/before-mobile.png), [mobile after](../../artifacts/screenshots/dashboard-390.png). [Local screenshot gallery](../../artifacts/index.html) includes other workspace and auth views.
 
 Use the scripts in README. Browser checks cover both roles, history, invalid URLs, missing/cross-role rooms, sign-out, search and filters, saving, introductions, edited/locked terms, literal chat text, evidence, blocked/completed launches, local reviews, inline validation, onboarding, scheduling, drawer keyboard focus, and viewport overflow.
 

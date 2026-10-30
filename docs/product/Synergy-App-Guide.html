@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Synergy Application Guide</title>
+<style>
+  :root{color-scheme:light;font-family:Calibri,Arial,sans-serif;color:#20252b;background:#edf0f3;line-height:1.65}
+  *{box-sizing:border-box}body{margin:0}main{max-width:960px;margin:36px auto;background:white;padding:64px 76px;box-shadow:0 6px 35px #1a253014}
+  h1,h2,h3{color:#000;line-height:1.2;break-after:avoid}h1{font-size:42px;margin:12px 0 20px;letter-spacing:-1px}h2{font-size:27px;margin:48px 0 16px}h3{font-size:19px;margin:28px 0 10px}
+  p{margin:0 0 14px}li{margin:5px 0}ul,ol{padding-left:24px;margin:10px 0 20px}a{color:#245478;text-underline-offset:3px}.meta{font-size:14px;color:#5b626a}.lead{font-size:21px;line-height:1.5}.subtitle{font-size:23px;color:#404851;margin-bottom:25px}.toc{columns:2;column-gap:36px;padding-left:20px}.toc li{break-inside:avoid;margin-bottom:10px}
+  table{border-collapse:collapse;width:100%;margin:18px 0 24px;font-size:15px;line-height:1.45}th,td{border:1px solid #d9d9d9;text-align:left;vertical-align:middle;padding:12px 14px}th{background:#e8edf2;color:#000}tbody tr:nth-child(even){background:#f8fafb}thead{display:table-header-group}tr{break-inside:avoid}code{font-family:Consolas,monospace;font-size:.9em;overflow-wrap:anywhere}pre{font-family:Consolas,monospace;font-size:14px;white-space:pre-wrap;line-height:1.6;margin:15px 0 24px}section{scroll-margin-top:28px}.sources{font-size:14px}.sources li{margin:8px 0}footer{font-size:13px;color:#626970;margin-top:48px}
+  @media(max-width:700px){main{margin:0;padding:30px 24px}h1{font-size:34px}.toc{columns:1}table{font-size:13px}th,td{padding:8px}h2{font-size:24px}}
+  @media print{@page{size:A4;margin:19mm 18mm}body{background:white;font-size:10.5pt;line-height:1.5}main{margin:0;padding:0;max-width:none;box-shadow:none}h1{font-size:30pt}h2{font-size:19pt;margin-top:24pt}h3{font-size:13pt;margin-top:16pt}.lead{font-size:14pt}.subtitle{font-size:17pt}table{font-size:9pt}th,td{padding:7pt}a{color:inherit;text-decoration:none}p{orphans:3;widows:3}.toc{columns:2}footer{font-size:9pt}}
+</style>
+</head>
+<body><main>
+<header>
+<p class="meta">APPLICATION GUIDE &nbsp; | &nbsp; 30 October 2026</p>
+<h1>Synergy Application Guide</h1>
+<p class="subtitle">Features workflows and technical structure</p>
+<p class="lead">Synergy helps early-stage founders find complementary startup partners and mentors, then turn those connections into completed collaborations through a shared workspace.</p>
+<p>This guide explains the current application for users, project reviewers and maintainers. It covers what each area does, how people move from a match to a completed engagement, how the matching engine works, and how the app stores and protects shared work.</p>
+<p>Synergy currently runs as a local-first React and Node.js prototype. Its default sign-in is simulated, while a separate local account mode supports real two-person collaboration. Shared agreements, milestone confirmations and private reviews are central to how the app works.</p>
+</header>
+<nav aria-label="Document contents">
+<h2>Contents</h2>
+<ol class="toc">
+<li><a href="#purpose">Purpose and users</a></li>
+<li><a href="#access">Getting started and profiles</a></li>
+<li><a href="#workspace">The main workspace</a></li>
+<li><a href="#matching">How matching works</a></li>
+<li><a href="#introductions">Introductions and rooms</a></li>
+<li><a href="#execution">Managing shared work</a></li>
+<li><a href="#trust">Reviews trust and moderation</a></li>
+<li><a href="#privacy">Settings and account controls</a></li>
+<li><a href="#examples">Example journeys</a></li>
+<li><a href="#technical">Technical structure and operations</a></li>
+<li><a href="#scope">Current scope and limitations</a></li>
+<li><a href="#reference">Source reference and glossary</a></li>
+</ol></nav>
+
+<section id="purpose"><h2>1 Purpose and users</h2>
+<p>Founders often need resources they do not have: product feedback, beta testers, distribution, technical support or experienced advice. Finding someone is only the first step. A useful connection also needs a clear agreement, owners, deadlines and a way to establish that the work was completed.</p>
+<p>Synergy connects discovery with execution. Profiles describe what a person or startup offers and needs. Matches help users identify a useful counterpart. Accepted introductions create rooms where both participants agree on terms, communicate, organize tasks, provide evidence and confirm progress.</p>
+<table><thead><tr><th scope="col">User</th><th scope="col">Typical purpose</th><th scope="col">Main activities</th></tr></thead><tbody>
+<tr><td>Startup founder</td><td>Find a startup partner or mentor</td><td>Describe offers and needs, browse matches, send introductions and complete exchanges or mentorships.</td></tr>
+<tr><td>Mentor</td><td>Help startups with a defined challenge</td><td>Describe expertise and availability, review startup needs, agree on goals and organize guidance and follow-up.</td></tr>
+<tr><td>Moderator</td><td>Maintain the workspace and handle concerns</td><td>Review reports, disputes and affiliation requests; manage vocabulary, templates and matching settings.</td></tr>
+</tbody></table>
+<p>Accounts can support founder and mentor profiles. The active profile determines the relevant matches, rooms and profile information. Switching profiles is confirmed in Settings, and each role keeps its own draft profile.</p></section>
+
+<section id="access"><h2>2 Getting started and profiles</h2>
+<h3>Default prototype sign in</h3>
+<p>With <code>SYNERGY_DEMO_MODE=true</code>, enter any non-empty email and password, select Founder or Mentor in the Prototype role dropdown, and sign in. These values simulate entry and do not need to be real credentials. Each entry creates a separate preview account with editable sample profiles.</p>
+<p>The preview directory contains 24 fictional collaborators: 14 startups and 10 mentors. Preview accounts cannot discover or connect with one another. A pending outgoing introduction to a verified fictional fixture can expose <strong>Simulate acceptance</strong>, which creates a room for exploration. That action does not simulate the partner's later agreement, milestone confirmations or review.</p>
+<h3>Local account mode</h3>
+<p>Set <code>SYNERGY_DEMO_MODE=false</code> and restart the server to use local signup and password sign-in. For a complete reciprocal demonstration, create two local accounts in separate browser tabs, finish their profiles, and operate each side of the collaboration. Local passwords are salted and hashed with scrypt. This mode does not enable an external identity provider.</p>
+<p>Sessions belong to a browser tab and survive a refresh. A server restart ends sessions. Signing out leaves the account and its saved work in storage; it does not reset the workspace.</p>
+<h3>Profile information</h3>
+<p>A founder profile includes an introduction, what the startup offers and needs, its industry, stage and team size. A mentor profile includes an introduction, offers and needs, expertise, availability and the kinds of startups the mentor wants to help. Additional context can include experience, goals, engagement preferences, audience size and standardized offer or need tags.</p>
+<p>The completion indicator measures whether the role's core fields have content. It is a completeness measure, rather than a quality rating or identity verification. Clear, specific needs and offers give the matching engine more useful inputs.</p>
+<p>Profile viewing and editing use separate layouts. Edits remain drafts in the current tab until <strong>Save profile</strong> succeeds. Typing, leaving a field or pressing Enter in a text field does not publish changes. Cancel restores the published profile. Successful sign-out clears this tab's drafts.</p>
+<p>Profile photos accept JPEG, PNG or WebP up to 5 MB. Users can preview, replace or remove a photo before saving. The server validates the image, strips metadata and stores a bounded WebP version. Corrupt, animated and over-40-megapixel images are rejected.</p></section>
+
+<section id="workspace"><h2>3 The main workspace</h2>
+<table><thead><tr><th scope="col">Area</th><th scope="col">What it helps the user do</th></tr></thead><tbody>
+<tr><td>Home</td><td>Find the next useful action, review activity and return to ongoing collaborations. Mentor Home prioritizes requests, sessions, active mentees and assigned preparation or follow-up.</td></tr>
+<tr><td>Matches</td><td>Browse Suggested, Browse all and Saved profiles; apply filters; inspect fit; save a collaborator or send an introduction.</td></tr>
+<tr><td>Introductions</td><td>Manage incoming and outgoing connection requests and respond to pending introductions.</td></tr>
+<tr><td>Rooms</td><td>Access shared collaboration workspaces and review their status and progress.</td></tr>
+<tr><td>Calendar</td><td>See sessions and deadlines across active collaborations in Month or Agenda view.</td></tr>
+<tr><td>Updates</td><td>Review unread activity, suggestions and reminders, with All and Unread filtering.</td></tr>
+<tr><td>Settings</td><td>Choose appearance, switch active profile, manage blocked collaborators, export data and access account controls.</td></tr>
+<tr><td>Moderation</td><td>Access administrator tools when the signed-in local account has moderator permission.</td></tr>
+</tbody></table>
+<p>Match details lead with the person's identity, relevant support and collaboration actions. The numerical fit breakdown is available on demand. The header also provides an Updates preview that uses the same notification rows as the full Updates page.</p></section>
+
+<section id="matching"><h2>4 How matching works</h2>
+<p>Matching estimates how well profiles complement one another. Startup exchanges consider both directions: what your startup needs from the other startup and what that startup needs from you. Mentorship compares the founder's needs with the mentor's offers and expertise.</p>
+<p>The current engine is rule-based. It normalizes Unicode text, compares word coverage and maps a small set of related terms, such as testing and beta, to shared concepts. It does not call an AI model or infer a person's abilities beyond the supplied profile information.</p>
+<table><thead><tr><th scope="col">Factor</th><th scope="col">Meaning</th><th scope="col">Startup exchange</th><th scope="col">Mentorship</th></tr></thead><tbody>
+<tr><td>Need fit</td><td>How well needs are covered by the counterpart's offers</td><td>50%</td><td>35%</td></tr>
+<tr><td>Expertise fit</td><td>How well mentor expertise covers founder needs</td><td>0%</td><td>25%</td></tr>
+<tr><td>Industry fit</td><td>Overlap in industry context or the mentor's startup interests</td><td>20%</td><td>15%</td></tr>
+<tr><td>Stage or size fit</td><td>Stage compatibility and available team or audience size context</td><td>15%</td><td>10%</td></tr>
+<tr><td>Goal fit</td><td>Shared goal wording and compatible engagement preferences</td><td>15%</td><td>15%</td></tr>
+</tbody></table>
+<p>These are the default weights; moderators can manage versioned settings. The app multiplies each factor by its weight, adds the results and rounds to a percentage-style score. For startup need fit, the geometric mean of the two directional coverage values reduces the score when only one side benefits. Co-marketing-related size comparisons use audience size when supplied; other startup comparisons use team size.</p>
+<p>Missing information earns no positive signal for the missing input. A low score can therefore reflect an incomplete profile as well as poor alignment. The score is a provisional estimate of profile fit, rather than a probability of success, a verification badge or a guarantee of a useful relationship.</p>
+<h3>Finding and saving people</h3>
+<p>Suggested surfaces eligible profiles with at least 30% fit. Browse all also includes weak and zero-fit profiles. Saved keeps bookmarked profiles available without sending an introduction. Existing active collaborations and account eligibility rules also affect what is shown.</p>
+<p>Filters support text search, collaborator type, industry, engagement and minimum fit. Minimum fit accepts whole percentages from 0 to 100; an empty field or Reset removes that minimum. Applying filters narrows the current list without changing anyone's score or overriding visibility and blocking rules.</p>
+<p>The fit explanation includes factor scores, missing inputs and directional coverage. Matching algorithm and weight versions are recorded, and rooms retain matching snapshots so outcomes can be compared with the configuration used when a collaboration began.</p></section>
+
+<section id="introductions"><h2>5 Introductions and rooms</h2>
+<p>A saved profile is a bookmark. An introduction is a request to collaborate. Users send an introduction from Matches, and the other participant accepts it to create a shared room. Founder pairs can choose a Beta Testing Exchange or Co-Marketing Swap; founder and mentor connections use Mentorship.</p>
+<p>Introductions remain separate from active rooms so people can review a request before committing to a workspace. The preview-only simulated acceptance action is restricted on the server to eligible fictional profiles. Repeating it reuses the same room, and it cannot accept real participants' requests on their behalf.</p>
+<table><thead><tr><th scope="col">Stage</th><th scope="col">Meaning</th></tr></thead><tbody>
+<tr><td>Matched</td><td>The introduction has been accepted and the shared room exists.</td></tr>
+<tr><td>Terms agreed</td><td>The agreement confirmation step. The interface identifies whose confirmation is still needed.</td></tr>
+<tr><td>In progress</td><td>Both collaborators have agreed to terms and are carrying out the work.</td></tr>
+<tr><td>Launched or Completed</td><td>The collaboration has passed the completion requirements. Mentorship uses Completed; exchanges use Launched.</td></tr>
+<tr><td>Reviewed</td><td>Both private reviews have been submitted and released.</td></tr>
+<tr><td>Closed</td><td>The unfinished collaboration has ended. Shared records remain accessible to participants.</td></tr>
+</tbody></table>
+<p>A room has Terms, Milestones, Task board and Chat tabs. Mentorship also has Schedule. Room progress is based on milestones confirmed by both people.</p></section>
+
+<section id="execution"><h2>6 Managing shared work</h2>
+<h3>Terms and expectations</h3>
+<p>Terms record the shared goal, scope and deliverables, timeline, commitment and compensation or exchange expectations. Both people should understand what will be delivered and how success will be assessed before beginning.</p>
+<p>A local terms draft must be saved to share it. Both participants confirm the agreement. If another participant changes the saved terms while a user is editing, the interface preserves the draft and asks the user to review the newer version. This protects shared work from stale edits.</p>
+<h3>Engagement templates</h3>
+<p>Templates supply the starting milestone checklist and evidence requirements. The current templates are:</p>
+<ul>
+<li><strong>Beta Testing Exchange:</strong> Scope defined, Testers assigned, Testing round, Feedback submitted and Issues reviewed. Testing round and Feedback submitted require evidence.</li>
+<li><strong>Co-Marketing Swap:</strong> Audience aligned, Campaign assets ready, Campaign launched, Results shared and Next steps agreed. Campaign launched and Results shared require evidence.</li>
+<li><strong>Mentorship:</strong> Goals defined, Session scheduled, Guidance delivered, Follow-up actions logged and Progress reflected on together. Guidance delivered requires evidence.</li>
+</ul>
+<p>The mentorship reflection is a shared discussion about progress. It is separate from the private review submitted after completion. Rooms record the template version used for their engagement.</p>
+<h3>Milestones evidence and revisions</h3>
+<p>Each person confirms milestones independently. One confirmation produces a waiting state; the milestone is complete only when both participants confirm it. If a milestone requires evidence, the room must also contain the required evidence record.</p>
+<p>Evidence can include a recorded link or explanation and supported file attachments. Shared files accept PDF, PNG, JPEG, WebP and UTF-8 text, with a 5 MB limit per file and a 50 MB upload allowance per account. Downloads require an authenticated session and appropriate room access. Uploads are not antivirus-scanned.</p>
+<p>Changes to milestone scope use a revision proposal that the counterpart must review. Disputed work can be flagged for resolution. Open disputes and unresolved revision proposals prevent completion; checking a milestone is not a way to bypass these requirements.</p>
+<h3>Task board and chat</h3>
+<p>The board breaks work into cards with owners, priorities, milestone links and due dates. Move cards between To do, In progress and Done by dragging them or using the status menu. A completed card records task progress; it does not confirm a milestone for either participant.</p>
+<p>Chat keeps the room's discussion with its agreement and work history. Participants can use it to clarify scope, arrange availability, share a meeting link and discuss evidence. Changes synchronize automatically with the other account through periodic API refreshes.</p>
+<h3>Mentorship scheduling and the calendar</h3>
+<p>The Schedule tab and the session milestone open the same planner. Select a date, time and duration, optionally create a weekly series, review it, and save. The planner does not check scheduling conflicts or connect to an external calendar or video service; participants agree on availability and a meeting link in Chat.</p>
+<p>The workspace Calendar combines active-room sessions, open task deadlines and unconfirmed milestone deadlines. It supports Month and Agenda views, collaboration filtering and selected-day details. Sessions display in the viewer's device timezone. Task dates stay on their assigned date, while milestone deadlines retain their UTC date.</p>
+<p>New schedules use the device timezone. Editing a saved series preserves its original timezone so a collaborator in another location does not accidentally shift the series.</p>
+<h3>Completing the engagement</h3>
+<p>Before <strong>Mark as launched</strong> or <strong>Complete mentorship</strong> can succeed, both people must agree to terms, both must confirm every milestone, required evidence must be present, and open disputes or revision proposals must be resolved. Mentorship must also have its session scheduled. The app reports blockers when these conditions are not satisfied.</p></section>
+
+<section id="trust"><h2>7 Reviews trust and moderation</h2>
+<p>After completion, each participant submits a rating from one to five stars and can add written feedback. Optional questions ask whether the match was useful and whether the shared goal was achieved, partly achieved or not achieved.</p>
+<p>The counterpart's feedback stays hidden until both reviews have been submitted. Once both are available, reviews are released and the collaboration enters Reviewed. This reduces the opportunity to tailor a rating in response to the other person's feedback, although it does not guarantee unbiased reviews.</p>
+<p>Trust history includes completed engagements, released reviews, distinct reviewers, average rating, closed collaborations and follow-through. The aggregate average uses one rating per distinct partner account to limit repeated-partner inflation. An active engagement without an update for more than 14 days is counted as stalled. New accounts may have no rating or outcome history.</p>
+<p>Users can report a collaborator from match details or a room. A report requires a reason and accepts optional details. It records authenticated reporter and reported-profile identifiers for the moderator queue. Reporting does not automatically block a person; blocking is a separate confirmed action.</p>
+<p>Moderator privileges are limited to local password accounts listed in <code>SYNERGY_ADMIN_EMAILS</code>. Preview accounts do not receive them. Moderators can review reports and disputes, suspend accounts, review affiliation evidence and vocabulary proposals, manage reusable engagement templates and adjust matching weights. Decisions require a reason and are audited. Matching outcome summaries help moderators inspect results across algorithm versions and score ranges.</p></section>
+
+<section id="privacy"><h2>8 Settings and account controls</h2>
+<p>Settings includes Light and Dark appearance, active-profile switching, blocking and data export. Light is the first-visit default. An explicit appearance choice is saved in browser local storage and applied before the main interface renders.</p>
+<p>The collapsed Danger zone contains visibility, session management and account deletion. These controls have different effects:</p>
+<ul>
+<li><strong>Pause visibility:</strong> removes the profile from discovery and pauses pending introductions while keeping existing rooms accessible.</li>
+<li><strong>Block a collaborator:</strong> withdraws introductions, closes unfinished rooms and prevents further chat between those participants.</li>
+<li><strong>Manage sessions:</strong> revokes selected sessions or other sessions through the account controls.</li>
+<li><strong>Export data:</strong> provides an account data export for the user.</li>
+<li><strong>Delete account:</strong> removes private account details, revokes sessions and anonymizes names in shared history. Agreements, evidence, messages and released reviews remain available to collaborators. Backup retention follows the operator's policy.</li>
+</ul>
+<p>Voluntary sign-out requires confirmation. If the request fails, the current session and drafts remain available and the dialog supports retrying. A preview account has no user-facing password; deletion requires the current session and typing DELETE.</p>
+<p>The API enforces account ownership and room membership. Profile photos are served only to the owner, eligible viewers or existing collaborators, and replaced photos are no longer served. These access checks do not imply end-to-end encryption.</p></section>
+
+<section id="examples"><h2>9 Example journeys</h2>
+<h3>A founder arranges a beta exchange</h3>
+<ol>
+<li>A founder completes a profile explaining the product, what the team can offer and the testing help it needs.</li>
+<li>The founder checks Matches, opens a candidate's details and reviews both directions of need and offer coverage.</li>
+<li>The founder sends a Beta Testing Exchange introduction. The counterpart accepts and a room opens.</li>
+<li>Both agree on scope, testers, timing and the feedback deliverable in Terms.</li>
+<li>They create task cards, assign owners, set deadlines and discuss the testing process in Chat.</li>
+<li>They attach evidence for the testing round and submitted feedback, then independently confirm each milestone.</li>
+<li>After resolving any blockers, they mark the exchange as launched and submit their private reviews. Both reviews are released together.</li>
+</ol>
+<h3>A mentor guides a startup</h3>
+<ol>
+<li>A mentor describes expertise, available support and the startups they want to help.</li>
+<li>The mentor reviews startup needs in Matches or responds to an incoming introduction.</li>
+<li>In the mentorship room, both agree on one clear challenge, a useful outcome, preparation and time commitment.</li>
+<li>They schedule a session or weekly series, then arrange the meeting link in Chat.</li>
+<li>The mentor records guidance evidence, both log follow-up actions, and they reflect on progress together.</li>
+<li>Both confirm every milestone, complete the mentorship, and submit separate private reviews.</li>
+</ol>
+<p>These journeys require both participants' actions. For a demonstration of the full lifecycle, use two local accounts rather than relying on a fictional preview partner.</p></section>
+
+<section id="technical"><h2>10 Technical structure and operations</h2>
+<h3>Application architecture</h3>
+<p>The browser interface uses React 19, with Vite 8 for development and builds. Shared UI state, validation, routing and API synchronization live under <code>src/state/</code>. Domain rules and selectors live under <code>src/data/</code>, while screens and reusable controls are in <code>src/pages/</code> and <code>src/components/</code>.</p>
+<p>The Node.js backend provides the local JSON API, sessions, matching, account rules, rooms, files and moderation. Node.js 24 or later is required because storage uses its built-in SQLite module. The browser polls for shared updates approximately every 1.5 seconds; this is periodic synchronization rather than an external real-time messaging service.</p>
+<table><thead><tr><th scope="col">Source area</th><th scope="col">Responsibility</th></tr></thead><tbody>
+<tr><td><code>server/workspace.js</code></td><td>Account workspace, matching, introductions, shared rooms and sessions.</td></tr>
+<tr><td><code>server/api.js</code></td><td>Local API routes and integration with Vite.</td></tr>
+<tr><td><code>server/features.js</code></td><td>Collaboration lifecycle, moderation and in-app notifications.</td></tr>
+<tr><td><code>server/accounts.js</code></td><td>Visibility, blocking, exports, session controls and deletion.</td></tr>
+<tr><td><code>server/storage.js</code></td><td>Transactional SQLite and explicit JSON compatibility.</td></tr>
+<tr><td><code>server/files.js</code></td><td>Shared uploads and profile image handling.</td></tr>
+<tr><td><code>server/operations.js</code> and <code>server/backup.js</code></td><td>Storage readiness, snapshots and backup verification.</td></tr>
+<tr><td><code>server/start.js</code></td><td>Server for the built application.</td></tr>
+</tbody></table>
+<h3>Running the app</h3>
+<p>From the repository root, install dependencies and start the development server:</p>
+<pre>npm install
+npm run dev</pre>
+<p>Vite normally serves the app at <code>http://localhost:5173</code> and runs the API in the same process. For the built version:</p>
+<pre>npm run build
+npm start</pre>
+<p>The built app normally uses <code>http://localhost:4173</code>. On Windows, use <code>npm.cmd</code> or <code>npx.cmd</code> when PowerShell script execution is restricted. The optional <code>.env</code> file controls demo mode, the data location, moderator emails, host, port and backup configuration.</p>
+<h3>Storage hosting and recovery</h3>
+<p>New workspaces use transactional SQLite with write-ahead logging at <code>.data/synergy.sqlite</code>. Uploads live beside the database in <code>uploads/</code>. Explicit JSON data paths remain supported. When an empty default database opens, a neighboring legacy <code>synergy.json</code> can be imported once while preserving the original.</p>
+<p>Run a single application writer per database and use persistent storage for hosting. Serving only the frontend build directory cannot provide the API or preserve shared work. The repository includes a Render configuration for a Node service and persistent disk; hosting must be provisioned separately.</p>
+<p>The health endpoint <code>/api/health</code> checks database integrity, a write probe and at least 20 MB of free disk. Its readiness result is cached for 30 seconds and it returns HTTP 503 when unavailable.</p>
+<p>Use <code>npm run backup -- /absolute/backup/directory</code> to create a consistent snapshot outside the data directory. The backup records the database snapshot and referenced uploads with SHA-256 checksums. Verify it with <code>node server/backup.js --verify /absolute/backup/snapshot</code>. Copying an active SQLite database file by itself is insufficient because recent commits can remain in WAL journals.</p>
+<p>Optional scheduled backups use <code>SYNERGY_BACKUP_DIR</code> and <code>SYNERGY_BACKUP_INTERVAL_HOURS</code>, which defaults to 24 hours. Failed scheduled backups retry after 15 minutes. The operator configures retention and off-site storage. Restore a verified database snapshot and its uploads together into a separate data directory, with the server stopped, then start one writer and check the restored records and downloads.</p>
+<h3>Verification tools</h3>
+<p>The repository includes Node unit and backend tests, Playwright browser tests, formatting checks, reference checks and a production build. The manual test runthrough covers role previews, local account workflows, moderation and account controls. Relevant commands are <code>npm run test:unit</code>, <code>npm run test:e2e</code>, <code>npm run check:references</code>, <code>npm run check:format</code> and <code>npm run build</code>. Browser tests require the Playwright browser installations.</p></section>
+
+<section id="scope"><h2>11 Current scope and limitations</h2>
+<p>The current app provides local profile editing, explainable matching, introductions, shared rooms, terms, milestones, evidence, task boards, mentorship scheduling, calendar views, in-app updates, blind reviews and moderation.</p>
+<p>The original product brief also describes ideas that are not active in this implementation. External email delivery, email verification, password recovery, email changes, email digests and AI profile drafting have been removed. Local tag suggestions use rules; the current matching engine is also rule-based. The Supabase migration document is a future plan, not the deployed storage architecture.</p>
+<p>Scheduling does not connect to outside calendars or check conflicts. Synergy does not host video calls, and its terms do not implement payment processing. Participants arrange meeting access and any compensation separately. Fictional preview partners cannot provide the reciprocal actions required to finish a real engagement.</p>
+<p>Changes are synchronized by polling, so the other tab may take a short time to update. Sessions end when the server restarts. Persistent storage, backups, retention and restore drills remain hosting responsibilities. These constraints matter when planning a demonstration or deciding what further work is needed for wider deployment.</p></section>
+
+<section id="reference"><h2>12 Source reference and glossary</h2>
+<p>The following repository files provide the primary reference points for this guide. Paths are relative to the project root.</p>
+<ul class="sources">
+<li><code>README.md</code> and <code>docs/README.md</code> describe current behavior and distinguish active documentation from historical proposals.</li>
+<li><code>docs/operations/DEPLOYMENT.md</code> and <code>.env.example</code> describe configuration, hosting, storage, backups and recovery.</li>
+<li><code>server/workspace.js</code> and <code>src/data/matching.js</code> define the matching algorithm and default weights.</li>
+<li><code>src/data/engagement-templates.json</code>, <code>src/data/selectors.js</code> and <code>src/data/collaboration.js</code> define milestone templates, completion requirements and trust summaries.</li>
+<li><code>src/pages/</code>, <code>src/components/</code> and <code>src/state/</code> implement the screens, controls and synchronization described here.</li>
+<li><code>docs/testing/TEST-CASE-RUNTHROUGH.md</code> provides the manual verification walkthrough.</li>
+</ul>
+<table><thead><tr><th scope="col">Term</th><th scope="col">Meaning in Synergy</th></tr></thead><tbody>
+<tr><td>Match</td><td>A potential collaborator with an estimated profile-fit score.</td></tr>
+<tr><td>Introduction</td><td>A request to begin a collaboration.</td></tr>
+<tr><td>Room</td><td>The workspace shared by two participants after an introduction is accepted.</td></tr>
+<tr><td>Milestone</td><td>An agreed checkpoint requiring each participant's confirmation.</td></tr>
+<tr><td>Task</td><td>A smaller assigned work item tracked separately from milestone confirmation.</td></tr>
+<tr><td>Evidence</td><td>A recorded explanation, link or supported file documenting milestone work.</td></tr>
+<tr><td>Blind review</td><td>Feedback hidden from the counterpart until both reviews are submitted.</td></tr>
+<tr><td>Preview account</td><td>A demonstration account created through simulated sign-in.</td></tr>
+</tbody></table>
+</section>
+<footer>Synergy Application Guide &nbsp; | &nbsp; 30 October 2026</footer>
+</main></body></html>

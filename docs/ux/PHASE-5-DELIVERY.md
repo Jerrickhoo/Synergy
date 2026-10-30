@@ -1,0 +1,34 @@
+# Phase 5 — Mentor experience
+
+Completed October 30, 2026, following [Phase 4](PHASE-4-DELIVERY.md) and the mentor decisions in the [workflow review](PHASE-0-REVIEW.md).
+
+## Delivered
+
+| Area                  | Result                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mentor Home           | Requests needing response, upcoming sessions and distinct active mentees replace the generic room/saved-match metrics. A next action leads to a request, agreement, scheduling, assigned task, confirmation or private review. Sessions and preparation/follow-up sit together on desktop and stack on mobile. Each mentee shows the agreed goal and shared progress. Empty states offer profile setup or startup discovery. |
+| Discovery             | Mentor cards lead with startup needs and goals. Sector/stage information remains available, with complete needs, strengths, goals and fit details on the profile. Mentor introductions offer mentorship only; the server rejects exchange types.                                                                                                                                                                             |
+| Introduction brief    | Startup introductions show sector, current needs and goals before accepting, declining or withdrawing. The brief explicitly identifies its source as the current profile; no personal request message is invented. Mentor introductions show offered guidance and availability.                                                                                                                                              |
+| Mentorship room       | A shared focus panel shows the saved goal/scope and whether both parties agreed. Founder preparation emphasizes questions; mentor preparation emphasizes guidance. Task board copy identifies shared preparation/follow-up. The agreement uses “Mentoring arrangement” with compensation guidance.                                                                                                                           |
+| Completion            | Mentorship uses Completed / Complete mentorship instead of Launched. Every milestone still requires both participants' confirmations, required evidence, a schedule, and no open dispute/proposal. Either participant can finish once these gates pass. The existing `launched` storage status and API action remain compatible.                                                                                             |
+| Reflection and review | Built-in mentorship template v2 calls the last milestone “Progress reflected on together.” A shared explanation distinguishes this reflection from the separate private review. Existing room snapshots and moderator templates are retained. Reviews release only after both participants submit.                                                                                                                           |
+| Other surfaces        | Existing role-specific Profile, Calendar and Schedule patterns are retained. Matches, room navigation and profile next steps use appropriate mentoring language. Onboarding/signup and Settings retain the shared account controls and mentor-specific profile fields.                                                                                                                                                       |
+| Prototype scope       | Login and README now explicitly describe role previews as sample-profile browsing. Preview accounts remain isolated from one another. Reciprocal demonstrations use separate local password accounts with prototype mode disabled.                                                                                                                                                                                           |
+
+## Verification and evidence
+
+The release review in [Phase 6](PHASE-6-DELIVERY.md) covers both initiation directions, separate browser sessions, shared state, scheduling, tasks, evidence, completion gates and blind reviews. A selector test covers role isolation, closed/completed rooms, task ownership and schedule requirements for completion.
+
+Review uses isolated test databases and `.data/ux-phase56-review.sqlite`; the working database was not reset. No external provider, capacity model, verified availability, private notes or new session states were introduced.
+
+Compare the [original mentor Home](../../output/playwright/phase0/mentor-home-desktop.png) with [current Home](../../output/playwright/phase6/chromium-mentor-home-1440.png) and [mobile Home](../../output/playwright/phase6/chromium-mentor-home-390.png). Other captures include [request](../../output/playwright/phase6/chromium-mentor-request-1440.png), [room](../../output/playwright/phase6/chromium-mentorship-goals-1440.png), [mobile room](../../output/playwright/phase6/chromium-mentorship-goals-390.png), [review](../../output/playwright/phase6/chromium-mentorship-reviewed-1440.png), [empty mentor Home](../../output/playwright/phase5/mentor-empty-390.png), [long request](../../output/playwright/phase5/mentor-long-request-390.png), and [long match details](../../output/playwright/phase5/long-match-details-390.png). Captures and CLI fixture scripts are ignored local review artifacts.
+
+## Implementation locations
+
+- `src/components/MentorHome.jsx`, `src/data/mentorship.js`: mentor priorities and destinations, using existing permissions and records.
+- `src/components/Introductions.jsx`, `MatchCard.jsx`, `src/pages/DiscoverPage.jsx`, `MatchDetailPage.jsx`: startup briefs and needs-first discovery.
+- `src/pages/RoomDetailPage.jsx`, `RoomsPage.jsx`, `src/components/TermsPanel.jsx`, `TaskBoard.jsx`, `MilestonesPanel.jsx`: shared focus, preparation and completion language.
+- `src/data/model.js`, `engagement-templates.json`, `src/state/transitions.js`: contextual completion labels and template v2.
+- `src/mentorship.css`, `src/shared-ui.css`: responsive grouping and long-name wrapping.
+
+Restart an existing backend to load the new default template and completion feedback. Existing agreements keep their saved milestone content.

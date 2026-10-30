@@ -1,4 +1,5 @@
-﻿import { useState } from "react";
+import SelectField from "../components/SelectField.jsx";
+import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import { activeRooms } from "../data/selectors.js";
 import {
@@ -117,7 +118,7 @@ function CalendarContent() {
         </div>
         <div className="field calendar-collaboration-filter">
           <label htmlFor="calendar-collaboration">Collaboration</label>
-          <select
+          <SelectField
             id="calendar-collaboration"
             aria-label="Filter calendar by collaboration"
             value={effectiveFilter}
@@ -129,7 +130,7 @@ function CalendarContent() {
                 {partnerName(room)} · {room.engagementType || "Collaboration"}
               </option>
             ))}
-          </select>
+          </SelectField>
         </div>
       </div>
       <div className={`calendar-layout calendar-view-${view}`}>
@@ -250,7 +251,6 @@ function CalendarContent() {
                 ))
               ) : (
                 <div className="agenda-empty">
-                  <Icon name="calendar" />
                   <h3>No events on this day</h3>
                   <p>
                     Select another date or add a session or deadline in a

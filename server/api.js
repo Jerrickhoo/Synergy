@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { createWorkspace, WorkspaceError } from "./workspace.js";
 import { encode } from "../src/state/serialization.js";
 import { configuration } from "./config.js";
-import { readBody, inspectFile } from "./files.js";
+import { readBody, inspectFile, inspectAvatar } from "./files.js";
 
 export function createApi({
   config = configuration(),
@@ -33,6 +33,21 @@ export function createApi({
         return send(health.ok ? 200 : 503, health);
       }
       const fileRoute = /^\/api\/files\/([0-9a-f-]{36})$/.exec(url.pathname);
+      const avatarRoute = /^\/api\/avatars\/([0-9a-f-]{36})$/.exec(
+        url.pathname,
+      );
+      if (req.method === "GET" && avatarRoute) {
+        const metadata = workspace.avatarFor(token, avatarRoute[1]);
+        let bytes;
+        try {
+          bytes = readFileSync(join(uploads, metadata.id));
+        } catch {
+          throw new WorkspaceError("Profile photo unavailable.", 404);
+        }
+        res.setHeader("Content-Type", "image/webp");
+        res.setHeader("Content-Security-Policy", "default-src 'none'");
+        return res.end(bytes);
+      }
       if (req.method === "GET" && fileRoute) {
         const metadata = workspace.fileFor(token, fileRoute[1]);
         let bytes;
@@ -115,7 +130,12 @@ export function createApi({
       }
       if (!req.headers["content-type"]?.startsWith("application/json"))
         return send(415, { error: "Send JSON data." });
-      const body = (await readBody(req, 65536)).toString("utf8");
+      const body = (
+        await readBody(
+          req,
+          url.pathname === "/api/profile" ? 7 * 1024 * 1024 : 65536,
+        )
+      ).toString("utf8");
       let input;
       try {
         input = JSON.parse(body || "{}");
@@ -176,6 +196,37 @@ export function createApi({
       if (url.pathname === "/api/logout") {
         workspace.logout(token);
         return send(200, { ok: true });
+      }
+      if (url.pathname === "/api/profile") {
+        workspace.authorizeProfile(token, input);
+        if (!input.values?.image?.startsWith("data:"))
+          return send(200, workspace.act(token, input));
+        const bytes = await inspectAvatar(input.values.image);
+        // Authentication/ownership is checked again after asynchronous decoding.
+        workspace.authorizeProfile(token, input, bytes.length);
+        const metadata = {
+          id: randomUUID(),
+          name: "profile.webp",
+          type: "image/webp",
+          size: bytes.length,
+        };
+        mkdirSync(uploads, { recursive: true });
+        const destination = join(uploads, metadata.id);
+        writeFileSync(destination, bytes, { flag: "wx", mode: 0o600 });
+        try {
+          const result = workspace.saveProfile(token, input, metadata);
+          if (result.state.formErrors) unlinkSync(destination);
+          return send(200, result);
+        } catch (error) {
+          try {
+            // A response/notification write can fail after the profile commit.
+            // Keep bytes when the committed profile already references them.
+            if (!workspace.avatarStored(metadata.id)) unlinkSync(destination);
+          } catch {
+            /* Preserve the original error. */
+          }
+          throw error;
+        }
       }
       if (url.pathname === "/api/action")
         return send(200, workspace.act(token, input));

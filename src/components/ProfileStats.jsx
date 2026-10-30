@@ -2,6 +2,10 @@ import { useApp } from "../state/AppContext.jsx";
 import { profileCompleteness } from "../data/selectors.js";
 export default function ProfileStats() {
   const { state } = useApp();
+  const completeness = profileCompleteness(
+    state.profiles[state.role],
+    state.role,
+  );
   const history = state.trustHistoryByRole[state.role];
   const average = state.trustSummary
     ? (state.trustSummary.averageRating ?? "—")
@@ -25,10 +29,18 @@ export default function ProfileStats() {
         <span>Collaborations</span>
       </div>
       <div className="profile-stat">
-        <strong>
-          {profileCompleteness(state.profiles[state.role], state.role)}%
-        </strong>
-        <span>Profile complete</span>
+        <div
+          className="profile-completion-ring"
+          role="progressbar"
+          aria-label="Profile complete"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={completeness}
+          style={{ "--completion": completeness }}
+        >
+          <strong aria-hidden="true">{completeness}%</strong>
+        </div>
+        <span aria-hidden="true">Profile complete</span>
       </div>
     </div>
   );

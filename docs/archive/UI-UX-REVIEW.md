@@ -1,3 +1,5 @@
+> Archived development record. For current behavior, setup and release evidence, use the [project README](../../README.md) and [documentation index](../README.md). Dates and results below describe earlier versions.
+
 # UI and UX review
 
 Reviewed and improved on October 25, 2026.
@@ -34,10 +36,10 @@ These findings come from source inspection, browser interaction, visual review a
 
 Screenshots are local review artifacts in `output/playwright/`:
 
-- [Home before](output/playwright/before-home.png)
-- [Home after, desktop](output/playwright/after-home-desktop.png)
-- [Home after, mobile](output/playwright/after-home-mobile.png)
-- [Rooms after, mobile](output/playwright/after-rooms-mobile.png)
-- [Populated matches, mobile](output/playwright/after-matches-mobile.png)
+- [Home before](../../output/playwright/before-home.png)
+- [Home after, desktop](../../output/playwright/after-home-desktop.png)
+- [Home after, mobile](../../output/playwright/after-home-mobile.png)
+- [Rooms after, mobile](../../output/playwright/after-rooms-mobile.png)
+- [Populated matches, mobile](../../output/playwright/after-matches-mobile.png)
 
 The changes build on the workspace's existing uncommitted work. Existing backend behavior and account data were preserved.

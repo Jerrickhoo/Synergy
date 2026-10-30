@@ -1,3 +1,4 @@
+import SelectField from "./SelectField.jsx";
 import { useRef, useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import { terminalStatuses } from "../data/collaboration.js";
@@ -63,8 +64,16 @@ export default function TaskBoard({ room, partner }) {
     <section className="task-workspace" aria-label="Collaboration task board">
       <div className="tool-heading">
         <div>
-          <span className="eyebrow">A little progress, every day</span>
-          <h2>Make room for your next big idea.</h2>
+          <span className="eyebrow">
+            {room.type === "mentorship"
+              ? "Shared mentoring actions"
+              : "A little progress, every day"}
+          </span>
+          <h2>
+            {room.type === "mentorship"
+              ? "Prepare, follow up and keep moving."
+              : "Make room for your next big idea."}
+          </h2>
           <p className="muted">
             Break shared milestones into small, actionable tasks.
           </p>
@@ -162,7 +171,7 @@ export default function TaskBoard({ room, partner }) {
           <div className="task-fields">
             <div className="field">
               <label htmlFor="task-status">Status</label>
-              <select
+              <SelectField
                 id="task-status"
                 name="status"
                 defaultValue={editor.status}
@@ -172,11 +181,11 @@ export default function TaskBoard({ room, partner }) {
                     {label}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             </div>
             <div className="field">
               <label htmlFor="task-owner">Owner</label>
-              <select
+              <SelectField
                 id="task-owner"
                 name="assignee"
                 defaultValue={editor.assignee || ""}
@@ -188,11 +197,11 @@ export default function TaskBoard({ room, partner }) {
                 <option value={room.partnerAccountId}>
                   {partner?.name || "Collaborator"}
                 </option>
-              </select>
+              </SelectField>
             </div>
             <div className="field">
               <label htmlFor="task-priority">Priority</label>
-              <select
+              <SelectField
                 id="task-priority"
                 name="priority"
                 defaultValue={editor.priority}
@@ -200,7 +209,7 @@ export default function TaskBoard({ room, partner }) {
                 <option value="low">Low</option>
                 <option value="normal">Normal</option>
                 <option value="high">High</option>
-              </select>
+              </SelectField>
             </div>
             <div className="field">
               <label htmlFor="task-due">Due date</label>
@@ -214,7 +223,7 @@ export default function TaskBoard({ room, partner }) {
           </div>
           <div className="field">
             <label htmlFor="task-milestone">Linked milestone</label>
-            <select
+            <SelectField
               id="task-milestone"
               name="milestoneId"
               defaultValue={editor.milestoneId || ""}
@@ -225,7 +234,7 @@ export default function TaskBoard({ room, partner }) {
                   {item.title}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
           <div className="task-editor-actions">
             <button className="btn primary" disabled={state.busy || closed}>
@@ -360,7 +369,7 @@ export default function TaskBoard({ room, partner }) {
                       </div>
                       <label className="task-move">
                         <span className="sr-only">Move {task.title}</span>
-                        <select
+                        <SelectField
                           aria-label={`Status of ${task.title}`}
                           value={status}
                           disabled={closed || state.busy}
@@ -375,7 +384,7 @@ export default function TaskBoard({ room, partner }) {
                               {name}
                             </option>
                           ))}
-                        </select>
+                        </SelectField>
                       </label>
                     </article>
                   );

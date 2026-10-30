@@ -1,18 +1,29 @@
 import { useId, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Icon from "./Icon.jsx";
+import { lockDocumentScroll } from "../state/scroll-lock.js";
 
-export default function Overlay({ id, title, onClose, children, footer }) {
+export default function Overlay({
+  id,
+  title,
+  titleIcon,
+  onClose,
+  children,
+  footer,
+  initialFocusSelector,
+  busy = false,
+}) {
   const titleId = useId();
   const ref = useRef(null);
   useLayoutEffect(() => {
     const dialog = ref.current;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlock = lockDocumentScroll();
     dialog.showModal();
+    if (initialFocusSelector)
+      dialog.querySelector(initialFocusSelector)?.focus();
     return () => {
       dialog.close();
-      document.body.style.overflow = previousOverflow;
+      unlock();
     };
   }, []);
 
@@ -28,7 +39,9 @@ export default function Overlay({ id, title, onClose, children, footer }) {
           ...ref.current.querySelectorAll(
             'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
           ),
-        ].filter((control) => control.getClientRects().length);
+        ].filter(
+          (control) => control.tabIndex >= 0 && control.getClientRects().length,
+        );
         const first = controls[0];
         const last = controls.at(-1);
         if (event.shiftKey && document.activeElement === first) {
@@ -41,7 +54,7 @@ export default function Overlay({ id, title, onClose, children, footer }) {
       }}
       onCancel={(event) => {
         event.preventDefault();
-        onClose();
+        if (!busy) onClose();
       }}
       onClick={(event) => {
         if (event.target !== event.currentTarget) return;
@@ -52,15 +65,19 @@ export default function Overlay({ id, title, onClose, children, footer }) {
           event.clientY < bounds.top ||
           event.clientY > bounds.bottom
         )
-          onClose();
+          if (!busy) onClose();
       }}
     >
       <div className="discovery-overlay-header">
-        <h2 id={titleId}>{title}</h2>
+        <h2 id={titleId}>
+          {titleIcon}
+          {title}
+        </h2>
         <button
           className="icon-btn"
           aria-label="Close dialog"
-          autoFocus
+          autoFocus={!initialFocusSelector}
+          disabled={busy}
           onClick={onClose}
         >
           <Icon name="close" />

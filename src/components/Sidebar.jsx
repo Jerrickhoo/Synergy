@@ -2,6 +2,7 @@ import NavButton from "./NavButton.jsx";
 import Brand from "./Brand.jsx";
 import Icon from "./Icon.jsx";
 import { useApp } from "../state/AppContext.jsx";
+import Avatar from "./Avatar.jsx";
 
 export const navigation = [
   ["home", "Home", "home"],
@@ -57,14 +58,18 @@ export default function Sidebar() {
         ))}
       </nav>
       <div className="user-mini">
-        <div className="avatar">{model.roleInitials()}</div>
+        <Avatar
+          image={state.profiles[state.role].image}
+          name={model.roleName()}
+          identity={state.accountId}
+        />
         <div className="user-mini-copy">
           <div className="user-mini-name">{model.roleName()}</div>
           <div className="user-mini-role">{model.roleLabel()}</div>
           <button
             className="link-btn"
             disabled={state.busy}
-            onClick={() => onAction({ action: "sign-out" })}
+            onClick={(event) => onAction({ action: "request-sign-out" }, event)}
           >
             Sign out
           </button>

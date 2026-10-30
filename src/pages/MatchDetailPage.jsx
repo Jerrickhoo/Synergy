@@ -1,4 +1,5 @@
-﻿import BlockCollaborator from "../components/BlockCollaborator.jsx";
+import SelectField from "../components/SelectField.jsx";
+import BlockCollaborator from "../components/BlockCollaborator.jsx";
 import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Avatar from "../components/Avatar.jsx";
@@ -6,6 +7,8 @@ import Tags from "../components/Tags.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import TrustSummary from "../components/TrustSummary.jsx";
 import Icon from "../components/Icon.jsx";
+import SimulateAcceptance from "../components/SimulateAcceptance.jsx";
+import ReportCollaborator from "../components/ReportCollaborator.jsx";
 import {
   fitFactors,
   fitSummary,
@@ -58,7 +61,7 @@ function MatchDetail() {
             <Avatar
               image={person.image}
               name={person.name}
-              initials={person.initials}
+              identity={person.accountId || person.id}
               color={person.color}
               size={64}
             />
@@ -123,7 +126,7 @@ function MatchDetail() {
           {!existingRoom && !incoming && !interested && (
             <div className="field">
               <label htmlFor="introduction-type">Collaboration type</label>
-              <select
+              <SelectField
                 id="introduction-type"
                 value={engagementType || model.roomTypeForPerson(person)}
                 onChange={(event) => setEngagementType(event.target.value)}
@@ -136,7 +139,7 @@ function MatchDetail() {
                     <option value="marketing">Co-Marketing Swap</option>
                   </>
                 )}
-              </select>
+              </SelectField>
               <p className="field-help">
                 Your collaborator reviews this type before accepting.
               </p>
@@ -186,6 +189,9 @@ function MatchDetail() {
             </button>
           )}
           {interested && !incoming && !existingRoom && (
+            <SimulateAcceptance person={person} />
+          )}
+          {interested && !incoming && !existingRoom && (
             <button
               className="btn full"
               disabled={state.busy}
@@ -197,19 +203,36 @@ function MatchDetail() {
             </button>
           )}
           <button
-            className="btn full"
+            className={`btn full ${model.savedMatches().has(person.id) ? "is-saved" : ""}`}
             aria-pressed={model.savedMatches().has(person.id)}
             disabled={state.busy}
             data-action="save"
             data-id={person.id}
             onClick={() => onAction({ action: "save", id: person.id })}
           >
+            <svg
+              viewBox="0 0 24 24"
+              fill={
+                model.savedMatches().has(person.id) ? "currentColor" : "none"
+              }
+              stroke="currentColor"
+              strokeWidth="1.75"
+              aria-hidden="true"
+            >
+              <path d="M6 4.75A1.75 1.75 0 0 1 7.75 3h8.5A1.75 1.75 0 0 1 18 4.75V21l-6-3.5L6 21z" />
+            </svg>
             {model.savedMatches().has(person.id)
               ? "Saved for later"
               : "Save for later"}
           </button>
           <details className="match-safety">
             <summary>Safety and privacy</summary>
+            <p className="field-help">
+              Send a private report for moderator review, or block further
+              contact. Blocking withdraws introductions and closes unfinished
+              rooms.
+            </p>
+            <ReportCollaborator person={person} />
             <BlockCollaborator person={person} />
           </details>
         </aside>
@@ -240,7 +263,9 @@ function MatchDetail() {
                 <h3>
                   {mentor
                     ? "What they need from founders"
-                    : "Can offer in return"}
+                    : state.role === "mentor"
+                      ? "Startup strengths"
+                      : "Can offer in return"}
                 </h3>
                 {(mentor ? person.need : person.offer)?.length ? (
                   <Tags values={mentor ? person.need : person.offer} />

@@ -1,3 +1,4 @@
+import ReportCollaborator from "../components/ReportCollaborator.jsx";
 import NextStep from "../components/NextStep.jsx";
 import ChatPanel from "../components/ChatPanel.jsx";
 import MilestonesPanel from "../components/MilestonesPanel.jsx";
@@ -15,12 +16,12 @@ export default function RoomDetailPage() {
   const {
     allPeople,
     roleName,
-    roleInitials,
     currentAgreement,
     activeRoom,
     roomStatusLabel,
   } = model;
   const room = activeRoom();
+  const mentoring = room.type === "mentorship";
   const agreement = currentAgreement();
   const partner = allPeople().find((person) => person.id === room.partnerId);
   const stage =
@@ -36,7 +37,7 @@ export default function RoomDetailPage() {
     "Matched",
     "Terms agreed",
     "In progress",
-    "Launched",
+    mentoring ? "Completed" : "Launched",
     "Reviewed",
   ];
   const tab = state.roomTab;
@@ -96,7 +97,11 @@ export default function RoomDetailPage() {
     <div className="page page-enter">
       <PageHeader
         title={roomTitle}
-        intro="Plan your work, share progress, and move this collaboration forward."
+        intro={
+          mentoring
+            ? "Agree goals, prepare together, share guidance and record next steps."
+            : "Plan your work, share progress, and move this collaboration forward."
+        }
         actions={
           <>
             <button
@@ -111,7 +116,7 @@ export default function RoomDetailPage() {
                 )
               }
             >
-              ← All deal rooms
+              ← All rooms
             </button>
             <button
               className="link-btn"
@@ -126,7 +131,9 @@ export default function RoomDetailPage() {
       <section className="room-banner">
         <div className="room-partners">
           <Avatar
-            initials={roleInitials()}
+            identity={state.accountId}
+            image={state.profiles[state.role].image}
+            name={roleName()}
             color={state.role === "founder" ? "" : "blue"}
           />
           <strong>{roleName()}</strong>
@@ -134,7 +141,7 @@ export default function RoomDetailPage() {
             <Icon name="arrow" />
           </span>
           <Avatar
-            initials={partner?.initials || "?"}
+            identity={partner?.accountId || room.partnerId}
             image={partner?.image}
             name={partner?.name}
             color={partner?.color || ""}
@@ -151,6 +158,7 @@ export default function RoomDetailPage() {
             room.status,
             partner?.name || room.partnerId,
             agreement.confirmedByMe,
+            room.type,
           )}
         </span>
       </section>
@@ -166,7 +174,10 @@ export default function RoomDetailPage() {
       )}
       {"\n          "}
       {room.status !== "cancelled" && (
-        <div className="stage-line" aria-label="Deal room progress">
+        <div
+          className="stage-line"
+          aria-label={mentoring ? "Mentorship progress" : "Deal room progress"}
+        >
           {labels.map((label, index) => (
             <Fragment key={index}>
               <div
@@ -192,7 +203,7 @@ export default function RoomDetailPage() {
         className="tabs room-tabs"
         ref={tabsRef}
         role="tablist"
-        aria-label="Deal room sections"
+        aria-label={mentoring ? "Mentorship sections" : "Deal room sections"}
       >
         {[
           ["terms", "Terms"],
@@ -228,6 +239,48 @@ export default function RoomDetailPage() {
         ))}
       </div>
       {"\n          "}
+      {mentoring && (
+        <section
+          className="card panel mentorship-brief section-gap"
+          aria-labelledby="mentoring-goal"
+        >
+          <div>
+            <p className="section-eyebrow">
+              {agreement.partnerLocked ? "Agreed focus" : "Proposed focus"}
+            </p>
+            <h2 id="mentoring-goal">
+              {agreement.draft.goal || "Define your mentoring goal"}
+            </h2>
+            <p>
+              {agreement.draft.scope ||
+                "Choose one startup challenge and describe what useful guidance would achieve."}
+            </p>
+            <span className="muted">
+              {agreement.partnerLocked
+                ? "Confirmed by both collaborators"
+                : "Draft · both collaborators must agree before work begins"}
+            </span>
+          </div>
+          <div>
+            <h3>
+              {state.role === "mentor"
+                ? "Prepare your guidance"
+                : "Prepare your questions"}
+            </h3>
+            <p>
+              {state.role === "mentor"
+                ? "Review the startup’s context and questions in Chat. Use the shared task board for preparation and follow-up owners."
+                : "Share the challenge, useful links and questions in Chat. Record preparation and next steps on the shared task board."}
+            </p>
+            <button
+              className="link-btn"
+              onClick={() => onAction({ action: "room-tab", tab: "tasks" })}
+            >
+              View shared actions →
+            </button>
+          </div>
+        </section>
+      )}
       <div
         id="room-tab-panel"
         role="tabpanel"
@@ -261,31 +314,11 @@ export default function RoomDetailPage() {
         </details>
       )}
       {state.reportOpen && (
-        <section className="card panel section-gap">
-          <h2>Report a concern</h2>
-          <p className="muted">
-            Describe the issue. A workspace moderator can review the report and
-            resolve a dispute or close the room.
-          </p>
-          <form
-            id="report-form"
-            className="grid section-gap"
-            onSubmit={onSubmit}
-          >
-            <div className="field">
-              <label htmlFor="report-reason">What happened?</label>
-              <textarea
-                id="report-reason"
-                name="reason"
-                required
-                maxLength={3000}
-              />
-            </div>
-            <button className="btn primary" type="submit" disabled={state.busy}>
-              Submit report
-            </button>
-          </form>
-        </section>
+        <ReportCollaborator
+          person={partner}
+          initialOpen
+          onClose={() => onAction({ action: "report" })}
+        />
       )}
     </div>
   );

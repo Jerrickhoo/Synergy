@@ -38,7 +38,7 @@ export default function ChatPanel({ room }) {
                 <Avatar
                   image={partner?.image}
                   name={message.name}
-                  initials={message.initials}
+                  identity={partner?.accountId || room.partnerId}
                   color="coral"
                 />
               ) : (
@@ -55,7 +55,11 @@ export default function ChatPanel({ room }) {
                 {message.text}
               </div>
               {message.who === "me" ? (
-                <Avatar initials={message.initials} />
+                <Avatar
+                  image={state.profiles[state.role].image}
+                  name={message.name}
+                  identity={state.accountId}
+                />
               ) : (
                 ""
               )}

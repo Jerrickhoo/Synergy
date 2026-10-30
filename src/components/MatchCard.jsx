@@ -5,6 +5,7 @@ import Tags from "./Tags.jsx";
 import Icon from "./Icon.jsx";
 import { useState } from "react";
 import Overlay from "./Overlay.jsx";
+import { stageLabel } from "../data/profile-presentation.js";
 
 export default function MatchCard({ person, large = false }) {
   const { state, model, onAction } = useApp();
@@ -13,7 +14,8 @@ export default function MatchCard({ person, large = false }) {
   const [fitOpen, setFitOpen] = useState(false);
   const existingRoom = model.existingRoomFor(state.role, person.id);
   const incoming = state.incomingByRole[state.role].has(person.id);
-  const offers = person.offer || [];
+  const mentoring = state.role === "mentor";
+  const offers = (mentoring ? person.need : person.offer) || [];
 
   return (
     <article
@@ -24,7 +26,7 @@ export default function MatchCard({ person, large = false }) {
         <Avatar
           image={person.image}
           name={person.name}
-          initials={person.initials}
+          identity={person.accountId || person.id}
           color={person.color}
         />
         <div className="preview-identity">
@@ -32,12 +34,13 @@ export default function MatchCard({ person, large = false }) {
           <h3 id={`match-name-${person.id}`}>{person.name}</h3>
         </div>
         <button
-          className="bookmark-btn"
+          className={`bookmark-btn ${saved ? "is-saved" : ""}`}
           type="button"
           data-action="save"
           data-id={person.id}
           aria-label={saved ? "Remove from saved matches" : "Save match"}
           aria-pressed={saved}
+          disabled={state.busy}
           title={saved ? "Remove from saved matches" : "Save for later"}
           onClick={(event) =>
             onAction({ action: "save", id: person.id }, event)
@@ -56,11 +59,25 @@ export default function MatchCard({ person, large = false }) {
           </svg>
         </button>
       </div>
-      <p className="preview-sector">{person.sector}</p>
+      <p className="preview-sector">
+        {[
+          person.sector,
+          ...(mentoring
+            ? [
+                person.stage && stageLabel(person.stage),
+                person.teamSize && `Team of ${person.teamSize}`,
+              ]
+            : []),
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      </p>
       <p className="preview-summary">{person.summary}</p>
       {offers.length > 0 && (
         <div className="preview-offers">
-          <span className="match-chip-label">Can help with</span>
+          <span className="match-chip-label">
+            {mentoring ? "Needs guidance with" : "Can help with"}
+          </span>
           <Tags values={offers.slice(0, 3)} color="green" />
           {offers.length > 3 && (
             <span className="preview-more">
@@ -69,9 +86,14 @@ export default function MatchCard({ person, large = false }) {
           )}
         </div>
       )}
+      {mentoring && person.goals && (
+        <p className="preview-goal">
+          <strong>Startup goal:</strong> {person.goals}
+        </p>
+      )}
       <div className="preview-footer">
         <button
-          className="preview-fit"
+          className="preview-fit interactive-surface"
           aria-haspopup="dialog"
           aria-expanded={fitOpen}
           aria-controls={`match-why-${person.id}`}
@@ -101,16 +123,18 @@ export default function MatchCard({ person, large = false }) {
           View match <Icon name="arrow" />
         </button>
       </div>
-      {(existingRoom || incoming || interested) && (
-        <p className="preview-connection">
+      <p className="preview-connection">
+        {(existingRoom || incoming || interested) && (
           <Icon name={incoming ? "inbox" : "check"} />
-          {existingRoom
-            ? "You already have a room together"
-            : incoming
-              ? "Introduction received · View match to respond"
-              : "Introduction sent"}
-        </p>
-      )}
+        )}
+        {existingRoom
+          ? "You already have a room together"
+          : incoming
+            ? "Introduction received · View match to respond"
+            : interested
+              ? "Introduction sent"
+              : ""}
+      </p>
       {fitOpen && (
         <Overlay
           id={`match-why-${person.id}`}

@@ -1,3 +1,4 @@
+import { selectValue, confirmSignOut } from "./ui-helpers.js";
 import { test, expect } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
@@ -152,7 +153,7 @@ async function navigate(page, name) {
   }
 }
 
-async function fillProfile(page) {
+async function fillProfile(page, { stage = "idea" } = {}) {
   await page.getByLabel("Your name").fill("Alex Rivera");
   await page
     .getByLabel("About me")
@@ -160,7 +161,8 @@ async function fillProfile(page) {
   await page.getByLabel("What I offer").fill("Product design and research");
   await page.getByLabel("What I need").fill("Feedback from early users");
   await page.getByLabel("Industry", { exact: true }).fill("Community tools");
-  await page.getByLabel("Stage", { exact: true }).selectOption("idea");
+  if (stage !== null)
+    await selectValue(page.getByLabel("Stage", { exact: true }), stage);
   await page.getByLabel("Team size").fill("1");
 }
 
@@ -213,7 +215,9 @@ test("fresh workspace has one setup action and no sample records", async ({
     page.getByRole("heading", { name: "No rooms yet" }),
   ).toBeVisible();
   await navigate(page, "Profile");
-  await expect(page.getByText("0% complete", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("progressbar", { name: "Profile complete", exact: true }),
+  ).toHaveAttribute("aria-valuenow", "0");
   await expect(
     page
       .getByRole("region", { name: "Collaboration history", exact: true })
@@ -241,7 +245,9 @@ test("blank profile fields, validation, saving and cancel work with user details
     await expect(page.getByLabel(name, { exact: true })).toHaveValue("");
   }
   await expect(page.getByLabel("Your name")).toHaveValue("Test User");
-  await expect(page.getByLabel("Stage", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("Stage", { exact: true })).toHaveText(
+    "Choose a stage",
+  );
   await fillProfile(page);
   await page.getByLabel("About me").fill("   ");
   await page.getByRole("button", { name: "Save profile", exact: true }).click();
@@ -253,7 +259,9 @@ test("blank profile fields, validation, saving and cancel work with user details
     .getByLabel("About me")
     .fill("Building a tool to help local communities.");
   await page.getByRole("button", { name: "Save profile", exact: true }).click();
-  await expect(page.getByText("100% complete", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("progressbar", { name: "Profile complete", exact: true }),
+  ).toHaveAttribute("aria-valuenow", "100");
   await expect(page.locator(".toast-success")).toContainText(
     "Your profile has been updated.",
   );
@@ -271,11 +279,54 @@ test("blank profile fields, validation, saving and cancel work with user details
     page.getByRole("heading", { name: "Welcome, Alex" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Find collaborators" }),
+    page.getByRole("heading", { name: "Find your next collaborator" }),
   ).toBeVisible();
   await expect(
     page.getByText("You updated your profile.", { exact: true }),
   ).toBeVisible();
+});
+
+test("custom profile selects retain native required validation and failed-save drafts", async ({
+  page,
+}) => {
+  await signIn(page);
+  await page
+    .getByRole("button", { name: "Set up your profile", exact: true })
+    .click();
+  await fillProfile(page, { stage: null });
+  let profileSaves = 0;
+  page.on("request", (request) => {
+    if (
+      request.url().endsWith("/api/profile") &&
+      request.postDataJSON()?.form === "profile-form"
+    )
+      profileSaves++;
+  });
+  await page.getByRole("button", { name: "Save profile", exact: true }).click();
+  const stage = page.getByRole("combobox", { name: "Stage", exact: true });
+  await expect(stage).toBeFocused();
+  await expect(stage).toHaveAttribute("aria-invalid", "true");
+  await expect(
+    page.getByText("Stage is required.", { exact: true }),
+  ).toBeVisible();
+  expect(profileSaves).toBe(0);
+  await selectValue(stage, "idea");
+  await page.getByRole("button", { name: "Save profile", exact: true }).click();
+  await expect(
+    page.getByRole("progressbar", { name: "Profile complete", exact: true }),
+  ).toHaveAttribute("aria-valuenow", "100");
+  await page.getByRole("button", { name: "Edit profile", exact: true }).click();
+  await selectValue(stage, "growth");
+  await page.route("**/api/profile", (route) => route.abort());
+  await page.getByRole("button", { name: "Save profile", exact: true }).click();
+  await expect(
+    page.getByText(/We couldn't confirm this change was saved/),
+  ).toBeVisible();
+  await expect(stage).toHaveAttribute("value", "growth");
+  await page.unroute("**/api/profile");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Edit profile", exact: true }).click();
+  await expect(stage).toHaveAttribute("value", "idea");
 });
 
 for (const role of ["founder", "mentor"]) {
@@ -291,7 +342,7 @@ for (const role of ["founder", "mentor"]) {
       .getByLabel("Email", { exact: true })
       .fill(`jamie-${role}@example.com`);
     await page.getByLabel("Password", { exact: true }).fill("testpassword");
-    await page.locator("#signup-role").selectOption(role);
+    await selectValue(page.locator("#signup-role"), role);
     await page
       .getByRole("button", { name: "Create account", exact: true })
       .click();
@@ -327,6 +378,7 @@ test("signing in with another email clears the previous local account", async ({
     .locator(".user-mini")
     .getByRole("button", { name: "Sign out" })
     .click();
+  await confirmSignOut(page);
   await signIn(page, "new@example.com");
   await page
     .getByRole("button", { name: "Set up your profile", exact: true })

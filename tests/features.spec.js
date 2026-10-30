@@ -1,3 +1,4 @@
+import { selectValue, confirmSignOut } from "./ui-helpers.js";
 import { test, expect } from "@playwright/test";
 import { decode } from "../src/state/serialization.js";
 import AxeBuilder from "@axe-core/playwright";
@@ -14,6 +15,326 @@ const profile = {
   offerTags: "Technical Development",
   needTags: "Beta Testers",
 };
+
+test("voluntary sign-out preserves drafts on cancel and confirms once across desktop and mobile", async ({
+  page,
+  request,
+}) => {
+  const u = await user(request, "LogoutDraft");
+  await act(request, u, { form: "profile-form", values: profile });
+  await open(page, u, "profile");
+  await page
+    .locator(".user-mini")
+    .getByRole("button", { name: "Sign out", exact: true })
+    .click();
+  await expect(page.locator("#sign-out-dialog .sign-out-warning")).toHaveCount(
+    0,
+  );
+  await page.getByRole("button", { name: "Keep working", exact: true }).click();
+  await page.getByRole("button", { name: "Edit profile", exact: true }).click();
+  await page
+    .getByLabel("About me", { exact: true })
+    .fill("Keep my unsaved profile draft");
+  await selectValue(page.getByLabel("Stage", { exact: true }), "growth");
+  let logouts = 0;
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/logout")) logouts++;
+  });
+  const prompt = page.getByRole("dialog", {
+    name: "Sign out of Synergy?",
+    exact: true,
+  });
+  await page
+    .locator(".user-mini")
+    .getByRole("button", { name: "Sign out", exact: true })
+    .click();
+  await expect(
+    prompt.getByRole("button", { name: "Keep working", exact: true }),
+  ).toBeFocused();
+  await expect(
+    prompt.getByText("You have unsaved drafts", { exact: true }),
+  ).toBeVisible();
+  await page.evaluate(() => (document.documentElement.dataset.theme = "dark"));
+  await expect(prompt).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(prompt).toHaveCSS("color", "rgb(28, 48, 46)");
+  await page.evaluate(() => (document.documentElement.dataset.theme = "light"));
+  await prompt
+    .getByRole("button", { name: "Keep working", exact: true })
+    .click();
+  await expect(page.getByLabel("About me", { exact: true })).toHaveValue(
+    "Keep my unsaved profile draft",
+  );
+  await expect(page.getByLabel("Stage", { exact: true })).toHaveAttribute(
+    "value",
+    "growth",
+  );
+  expect(logouts).toBe(0);
+  await page
+    .locator(".user-mini")
+    .getByRole("button", { name: "Sign out", exact: true })
+    .click();
+  await page.keyboard.press("Escape");
+  await expect(prompt).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page
+    .getByRole("button", { name: "Open navigation", exact: true })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Workspace navigation", exact: true })
+    .getByRole("button", { name: "Sign out", exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "Workspace navigation", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    prompt.getByRole("button", { name: "Keep working", exact: true }),
+  ).toBeFocused();
+  await page.setViewportSize({ width: 320, height: 640 });
+  const dialogBounds = await prompt.boundingBox();
+  expect(dialogBounds.x).toBeGreaterThanOrEqual(0);
+  expect(dialogBounds.x + dialogBounds.width).toBeLessThanOrEqual(320);
+  expect(
+    await prompt.evaluate((dialog) => dialog.scrollWidth <= dialog.clientWidth),
+  ).toBe(true);
+  await prompt
+    .getByRole("button", { name: "Keep working", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Open navigation", exact: true }),
+  ).toBeFocused();
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe("");
+  expect(logouts).toBe(0);
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.locator(".tablet-signout").click();
+  await page.route("**/api/logout", (route) => route.abort());
+  await prompt
+    .getByRole("button", { name: "Sign out", exact: true })
+    .dblclick();
+  await expect(prompt.getByRole("alert")).toContainText(
+    "Your session and drafts are preserved",
+  );
+  await expect(prompt).toBeVisible();
+  await page.unroute("**/api/logout");
+  await prompt.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Sign in to Synergy", exact: true }),
+  ).toBeVisible();
+  expect(logouts).toBe(2);
+  expect(
+    await page.evaluate(() => sessionStorage.getItem("synergy-session")),
+  ).toBeNull();
+  expect(
+    await page.evaluate(
+      () =>
+        Object.keys(sessionStorage).filter((key) =>
+          key.startsWith("synergy-draft:"),
+        ).length,
+    ),
+  ).toBe(0);
+});
+
+test("Settings role switching restores custom-select drafts and community disclosures retain input", async ({
+  page,
+  request,
+}) => {
+  const u = await user(request, "RoleDraft");
+  await act(request, u, { form: "profile-form", values: profile });
+  await act(request, u, {
+    role: "mentor",
+    form: "profile-form",
+    values: {
+      bio: "Product mentor",
+      offer: "Product strategy",
+      need: "Focused questions",
+      expertise: "Product",
+      availability: "Monthly",
+      startups: "Early teams",
+    },
+  });
+  await act(request, u, { action: "choose-role", roleChoice: "founder" });
+  await open(page, u, "profile");
+  await expect(
+    page.getByRole("progressbar", { name: "Profile complete", exact: true }),
+  ).toHaveCount(1);
+  await expect(page.getByLabel("I'm here as a", { exact: true })).toHaveCount(
+    0,
+  );
+  await page.getByRole("button", { name: "Edit profile", exact: true }).click();
+  await page
+    .getByLabel("About me", { exact: true })
+    .fill("Founder draft across role changes");
+  await selectValue(page.getByLabel("Stage", { exact: true }), "growth");
+  await page.goto("/#/settings");
+  await selectValue(
+    page.getByRole("combobox", { name: "Active profile", exact: true }),
+    "mentor",
+  );
+  await page
+    .getByRole("dialog", { name: "Switch active profile?" })
+    .getByRole("button", { name: "Switch profile", exact: true })
+    .click();
+  await expect(
+    page.getByRole("combobox", { name: "Active profile", exact: true }),
+  ).toHaveText("Mentor");
+  await page.goto("/#/profile");
+  await page.getByRole("button", { name: "Edit profile", exact: true }).click();
+  await expect(page.getByLabel("About me", { exact: true })).toHaveValue(
+    "Product mentor",
+  );
+  await page
+    .getByLabel("Past experience", { exact: true })
+    .fill("Separate mentor draft");
+  await page.goto("/#/settings");
+  await selectValue(
+    page.getByRole("combobox", { name: "Active profile", exact: true }),
+    "founder",
+  );
+  await page
+    .getByRole("dialog", { name: "Switch active profile?" })
+    .getByRole("button", { name: "Switch profile", exact: true })
+    .click();
+  await expect(
+    page.getByRole("combobox", { name: "Active profile", exact: true }),
+  ).toHaveText("Startup founder");
+  await page.goto("/#/profile");
+  await page.getByRole("button", { name: "Edit profile", exact: true }).click();
+  await expect(page.getByLabel("About me", { exact: true })).toHaveValue(
+    "Founder draft across role changes",
+  );
+  await expect(page.getByLabel("Stage", { exact: true })).toHaveAttribute(
+    "value",
+    "growth",
+  );
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(
+    page.getByRole("progressbar", { name: "Profile complete", exact: true }),
+  ).toHaveAttribute("aria-valuenow", "100");
+  const summary = page.getByText(
+    "Affiliation verification and community tags",
+    { exact: true },
+  );
+  await summary.click();
+  const organization =
+    "A fictional organization with a long name for wrapping and retained form values";
+  await page
+    .getByLabel("Organization or program", { exact: true })
+    .fill(organization);
+  await page
+    .getByLabel("Affiliation evidence", { exact: true })
+    .fill("Public roster available for moderator review");
+  await page
+    .getByLabel("Proposed tag", { exact: true })
+    .fill("Accessibility Research");
+  await summary.click();
+  await summary.click();
+  await expect(
+    page.getByLabel("Organization or program", { exact: true }),
+  ).toHaveValue(organization);
+  await expect(page.getByLabel("Proposed tag", { exact: true })).toHaveValue(
+    "Accessibility Research",
+  );
+  await expect(
+    page.getByRole("button", {
+      name: "Request affiliation verification",
+      exact: true,
+    }),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "Propose tag", exact: true }),
+  ).toBeEnabled();
+  await expect(page.locator(".community-accordion")).toHaveAttribute(
+    "open",
+    "",
+  );
+});
+
+test("notification preview remains below the header with reachable overflow and coordinated popovers", async ({
+  page,
+  request,
+}) => {
+  const u = await user(request, "PreviewBounds");
+  await act(request, u, { form: "profile-form", values: profile });
+  const peer = await user(request, "PreviewMatch");
+  await act(request, peer, {
+    form: "profile-form",
+    values: { ...profile, offer: profile.need, need: profile.offer },
+  });
+  await page.route("**/api/state**", async (route) => {
+    const url = new URL(route.request().url());
+    url.searchParams.delete("since");
+    const response = await route.fetch({ url: url.href });
+    const body = await response.json();
+    if (body.state)
+      body.state.notifications = Array.from({ length: 24 }, (_, index) => ({
+        id: `preview-${index}`,
+        kind: "session",
+        text: `Session preparation ${index + 1}: review a long fictional collaboration brief and record the next steps for mentoring and follow-up.`,
+        timestamp: new Date(Date.now() - index * 60000).toISOString(),
+        sessionAt: "2026-11-03T02:00:00.000Z",
+        read: index % 2 === 0,
+      }));
+    await route.fulfill({ response, json: body });
+  });
+  await open(page, u, "matches");
+  for (const width of [1440, 1024, 768, 390, 360]) {
+    await page.setViewportSize({ width, height: 844 });
+    const bell = page.getByRole("button", { name: /^Notifications/ });
+    await bell.click();
+    const panel = page.getByRole("region", {
+      name: "Notifications",
+      exact: true,
+    });
+    await expect(panel).toBeVisible();
+    // Use the finished entrance state when comparing geometry.
+    await expect
+      .poll(async () => panel.evaluate((el) => getComputedStyle(el).transform))
+      .toBe("none");
+    const header = await page.locator(".topbar").boundingBox();
+    const bounds = await panel.boundingBox();
+    expect(bounds.y).toBeGreaterThanOrEqual(header.y + header.height + 7);
+    expect(bounds.x).toBeGreaterThanOrEqual(11);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width - 11);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(844 - 11);
+    const body = panel.getByRole("region", {
+      name: "Recent updates",
+      exact: true,
+    });
+    expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(
+      true,
+    );
+    await body.focus();
+    await page.keyboard.press("End");
+    await expect(
+      panel.getByRole("button", { name: "View all updates and preferences" }),
+    ).toBeInViewport();
+    await page.keyboard.press("Escape");
+    await expect(bell).toBeFocused();
+    await expect(panel).toHaveCount(0);
+  }
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.getByRole("button", { name: /^Notifications/ }).click();
+  await expect(page.locator("#notification-panel")).toHaveCSS(
+    "animation-name",
+    "none",
+  );
+  await page
+    .getByRole("button", { name: "View all updates and preferences" })
+    .click();
+  await expect(page.locator("#notification-panel")).toHaveCount(0);
+  await expect(page.locator(".updates-page .update-row")).toHaveCount(24);
+  await page.getByRole("button", { name: "Unread (12)", exact: true }).click();
+  await expect(page.locator(".updates-page .update-row")).toHaveCount(12);
+  await page.goto("/#/matches");
+  const sort = page.getByRole("combobox", { name: "Sort by", exact: true });
+  await sort.click();
+  await page.getByRole("button", { name: /^Notifications/ }).click();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(page.locator("#notification-panel")).toBeVisible();
+  await sort.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#notification-panel")).toHaveCount(0);
+  await expect(page.getByRole("listbox")).toBeVisible();
+});
 async function post(request, path, data, token) {
   const response = await request.post(`/api/${path}`, {
     data,
@@ -377,8 +698,8 @@ test("weekly mentorship rescheduling and notification read state work on mobile"
   await page
     .getByLabel("Or choose another time", { exact: true })
     .fill("10:00");
-  await page.getByLabel("Session duration", { exact: true }).selectOption("45");
-  await page.getByLabel("Repeat", { exact: true }).selectOption("3");
+  await selectValue(page.getByLabel("Session duration", { exact: true }), "45");
+  await selectValue(page.getByLabel("Repeat", { exact: true }), "3");
   await page
     .getByRole("button", { name: "Review schedule", exact: true })
     .click();
@@ -475,8 +796,8 @@ test("verified moderators review reports, tags and affiliations while ordinary a
     }),
   });
   await report.locator("summary").first().click();
-  await report.getByLabel("Decision", { exact: true }).selectOption("resolved");
-  await report.getByLabel("Resolution action").selectOption("resolve-disputes");
+  await selectValue(report.getByLabel("Decision", { exact: true }), "resolved");
+  await selectValue(report.getByLabel("Resolution action"), "resolve-disputes");
   await report
     .getByLabel("Reason / resolution")
     .fill("Reviewed evidence; both sides should confirm again");
@@ -659,30 +980,84 @@ test("account settings support visibility, private exports, session revocation a
   const u = await user(request, "Settings");
   await act(request, u, { form: "profile-form", values: profile });
   await open(page, u, "settings");
-  await page.getByLabel("Show my completed profiles in Matches").uncheck();
+  await page.locator("#danger-zone > summary").click();
+  await page
+    .getByRole("button", { name: "Pause discovery", exact: true })
+    .click();
+  const pause = page.getByRole("dialog", {
+    name: "Pause discovery?",
+    exact: true,
+  });
+  await expect(pause).toContainText(
+    "all pending introductions will be withdrawn",
+  );
+  await pause.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(
-    page.getByLabel("Show my completed profiles in Matches"),
-  ).not.toBeChecked();
+    page.getByText("Your completed profiles are visible in Matches.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Pause discovery", exact: true })
+    .click();
+  await pause
+    .getByRole("button", { name: "Pause discovery", exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      "Discovery is paused. Both profiles are hidden from Matches.",
+      { exact: true },
+    ),
+  ).toBeVisible();
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download my data" }).click();
   expect((await download).suggestedFilename()).toBe("synergy-account.json");
+  await page.getByRole("button", { name: "Sign out other sessions" }).click();
   await page
     .getByLabel("Current password", { exact: true })
-    .nth(0)
     .fill("private-password");
-  await page.getByRole("button", { name: "Sign out other sessions" }).click();
+  await page
+    .getByRole("button", { name: "Confirm session sign-out", exact: true })
+    .click();
   await expect(page.locator(".toast")).toContainText(
     "Account settings updated",
   );
   await page.getByText("Delete my account", { exact: true }).click();
-  await page.locator("#delete-password").fill("private-password");
+  const deletion = page.getByRole("dialog", {
+    name: "Delete your account?",
+    exact: true,
+  });
+  await expect(
+    deletion.getByRole("button", { name: "Cancel", exact: true }),
+  ).toBeFocused();
+  await page.locator("#delete-password").fill("wrong-password");
+  await page.getByLabel("Type DELETE to confirm").fill("delete");
+  let deleteRequests = 0;
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/account/delete")) deleteRequests++;
+  });
+  await deletion
+    .getByRole("button", { name: "Permanently delete account" })
+    .click();
+  expect(deleteRequests).toBe(0);
   await page.getByLabel("Type DELETE to confirm").fill("DELETE");
+  await deletion
+    .getByRole("button", { name: "Permanently delete account" })
+    .click();
+  await expect(deletion.getByRole("alert")).toContainText(
+    "password is incorrect",
+  );
+  await expect(deletion).toBeVisible();
+  await page.locator("#delete-password").fill("private-password");
   await page
     .getByRole("button", { name: "Permanently delete account" })
     .click();
   await expect(
     page.getByRole("heading", { name: "Sign in to Synergy", exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("dialog", { name: "Sign out of Synergy?", exact: true }),
+  ).toHaveCount(0);
 });
 
 test("mobile discovery keeps the first action visible and lets partners agree on a collaboration type", async ({
@@ -704,7 +1079,7 @@ test("mobile discovery keeps the first action visible and lets partners agree on
   const view = page.getByRole("button", { name: "View match", exact: true });
   await expect(view).toBeInViewport();
   await view.click();
-  await page.getByLabel("Collaboration type").selectOption("marketing");
+  await selectValue(page.getByLabel("Collaboration type"), "marketing");
   await page
     .getByRole("button", { name: "Express interest", exact: true })
     .click();
@@ -747,6 +1122,7 @@ test("keyboard navigation and accessibility checks cover login, discovery, setti
   await expect(page.getByRole("tab", { name: /Saved/ })).toBeFocused();
   await check();
   await page.goto("/#/settings");
+  await page.locator("#danger-zone > summary").click();
   await expect(
     page.getByRole("heading", { name: "Profile visibility" }),
   ).toBeVisible();

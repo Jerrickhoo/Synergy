@@ -1,18 +1,20 @@
 # Synergy UX improvement roadmap
 
-Prepared October 29, 2026. Status: implementation in progress.
+Prepared October 29, 2026. Status: completed October 30, 2026 for the local prototype.
 
-Progress: **Phases 0–4 completed October 29, 2026.** See the [workflow review](docs/ux/PHASE-0-REVIEW.md), [visual reference](docs/ux/visual-reference.html), [Phase 1 delivery and verification](docs/ux/PHASE-1-DELIVERY.md), [Phase 2 delivery and verification](docs/ux/PHASE-2-DELIVERY.md), [Phase 3 delivery and verification](docs/ux/PHASE-3-DELIVERY.md), and [Phase 4 delivery and verification](docs/ux/PHASE-4-DELIVERY.md). Phases 5–6 remain planned.
+Progress: **Phases 0–6 completed.** Phases 0–4 were delivered October 29; Phases 5–6 were delivered October 30, 2026. See the [workflow review](PHASE-0-REVIEW.md), [visual reference](visual-reference.html), [Phase 1 delivery](PHASE-1-DELIVERY.md), [Phase 2 delivery](PHASE-2-DELIVERY.md), [Phase 3 delivery](PHASE-3-DELIVERY.md), [Phase 4 delivery](PHASE-4-DELIVERY.md), [Phase 5 mentor implementation](PHASE-5-DELIVERY.md), and [Phase 6 acceptance checklist and verification](PHASE-6-DELIVERY.md).
 
 ## Outcome and scope
 
 Make Synergy easier to understand at first glance, more consistent across screens, and appropriate for both founders and mentors. This plan covers all 18 feedback items, including the workflow review of the mentor side.
 
-The original roadmap was based on source review. Phase 0 added browser baselines and a reciprocal founder/mentor walkthrough; Phase 1 implemented the shared UI changes; Phase 2 implemented discovery improvements, image avatars, and a varied demo directory; Phase 3 reorganized Match details, role-specific profiles, and Updates with stable event timing; Phase 4 delivered the calendar overview and a shared session planner with timezone-safe recurring schedules. Existing uncommitted work has been preserved. The specifications below remain the reference for subsequent phases.
+The original roadmap was based on source review. Phase 0 added browser baselines and a reciprocal founder/mentor walkthrough; Phase 1 implemented the shared UI changes; Phase 2 implemented discovery improvements, image avatars, and a varied demo directory; Phase 3 reorganized Match details, role-specific profiles, and Updates with stable event timing; Phase 4 delivered the calendar overview and a shared session planner with timezone-safe recurring schedules. Phase 5 delivered mentor priorities, startup briefs and mentorship completion language. Phase 6 verified both reciprocal journeys, accessibility, responsive layouts, directory behavior and outage recovery. Existing workspace data was preserved. The specifications below retain the delivery scope and original estimates; completion evidence is in the linked reports.
 
 Recommended sequence: review mentor workflows and establish visual rules; fix shared controls and feedback; improve discovery with realistic data; redesign details, profiles and updates; improve calendar and scheduling; complete mentor-specific workflows; verify both roles end to end.
 
-## What the code establishes
+## Baseline findings before implementation
+
+The following findings describe the original starting point. Current implementation and acceptance evidence are mapped in the [October 30 completion audit](ROADMAP-COMPLETION-AUDIT.md).
 
 | Finding                                                                                                                  | Implementation consequence                                                                            |
 | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
@@ -140,7 +142,7 @@ Primary files: `CalendarPage.jsx`, `WorkspaceCalendar.jsx`, `SchedulePanel.jsx`,
 
 ### Phase 5 — mentor experience rework
 
-**F18 — Make mentorship a coherent role-specific workflow.** The following is the proposed direction, to be validated in Phase 0.
+**F18 — Make mentorship a coherent role-specific workflow.** Delivered using the direction selected in Phase 0; see the [Phase 5 report](PHASE-5-DELIVERY.md).
 
 | Area            | Proposed mentor behavior                                                                              | Acceptance                                                                                               |
 | --------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |

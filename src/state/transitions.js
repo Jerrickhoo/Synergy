@@ -3,6 +3,7 @@ import { readField } from "./fields.js";
 import { profileOptions } from "../data/collaboration.js";
 import { errorTitle, publishToast } from "./feedback.js";
 import { weeklySchedules } from "../data/planning.js";
+import { normalizeProfile } from "../data/profile-content.js";
 import {
   launchBlockers,
   profileKeys,
@@ -228,7 +229,9 @@ export function transition(state, payload) {
     if (payload.form === "review-form") {
       if (!["launched", "reviewed"].includes(activeRoom().status)) {
         toast(
-          "Launch the completed collaboration before reviewing it.",
+          activeRoom().type === "mentorship"
+            ? "Complete the mentorship before reviewing it."
+            : "Launch the completed collaboration before reviewing it.",
           "error",
         );
         return;
@@ -248,6 +251,7 @@ export function transition(state, payload) {
       return;
     }
     if (payload.form === "profile-form") {
+      payload.values = normalizeProfile(payload.values);
       if (
         invalid("profile-form", {
           ...validateProfile(payload.values, state.role),
@@ -745,9 +749,13 @@ export function transition(state, payload) {
     state.rating = 0;
     state.page = "review";
     state.confirmation =
-      "Your collaboration is marked as launched. Share a private review when you’re ready.";
+      activeRoom().type === "mentorship"
+        ? "Your mentorship is complete. Share a private review when you’re ready."
+        : "Your collaboration is marked as launched. Share a private review when you’re ready.";
     record(
-      "You marked the completed collaboration as launched.",
+      activeRoom().type === "mentorship"
+        ? "You completed the mentorship after both collaborators confirmed every milestone."
+        : "You marked the completed collaboration as launched.",
       activeRoom().id,
     );
   } else if (action === "partner-review") {

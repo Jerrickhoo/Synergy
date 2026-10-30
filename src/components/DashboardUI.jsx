@@ -95,7 +95,7 @@ export function RecommendationCard({ person, compact = false }) {
         <Avatar
           image={person.image}
           name={person.name}
-          initials={person.initials}
+          identity={person.accountId || person.id}
           color={person.color}
         />
         <div className="recommendation-copy">
@@ -117,7 +117,7 @@ export function RecommendationCard({ person, compact = false }) {
       <Avatar
         image={person.image}
         name={person.name}
-        initials={person.initials}
+        identity={person.accountId || person.id}
         color={person.color}
       />
       <div className="featured-copy">

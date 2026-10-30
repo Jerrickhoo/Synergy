@@ -1,3 +1,9 @@
+export function validMinimumFit(value) {
+  return (
+    value === "" ||
+    (/^\d+$/.test(String(value)) && Number(value) >= 0 && Number(value) <= 100)
+  );
+}
 export function filterPeople(people, filters) {
   return people.filter((person) => {
     const haystack = [
@@ -29,9 +35,9 @@ export const pageLabel = (page) =>
     waiting: "Introductions",
     notifications: "Updates",
     moderation: "Moderation",
-    rooms: "Deal rooms",
+    rooms: "Rooms",
     calendar: "Calendar",
-    "room-detail": "Deal room",
+    "room-detail": "Room",
     "match-detail": "Match details",
     review: "Review",
     profile: "Profile",

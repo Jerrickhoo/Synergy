@@ -1,3 +1,4 @@
+import SelectField from "./SelectField.jsx";
 import { useApp } from "../state/AppContext.jsx";
 
 export default function MilestoneRevision({ id, item, closed }) {
@@ -26,7 +27,7 @@ export default function MilestoneRevision({ id, item, closed }) {
             >
               <input type="hidden" name="proposalId" value={proposal.id} />
               <label htmlFor={`decision-${id}`}>Revision decision</label>
-              <select name="decision" id={`decision-${id}`}>
+              <SelectField name="decision" id={`decision-${id}`}>
                 {mine ? (
                   <option value="withdraw">Withdraw my proposal</option>
                 ) : (
@@ -37,7 +38,7 @@ export default function MilestoneRevision({ id, item, closed }) {
                     <option value="reject">Reject proposal</option>
                   </>
                 )}
-              </select>
+              </SelectField>
               <button className="btn small" disabled={state.busy}>
                 Save revision decision
               </button>

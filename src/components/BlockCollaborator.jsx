@@ -2,7 +2,7 @@ import { useApp } from "../state/AppContext.jsx";
 export default function BlockCollaborator({ person }) {
   const { state, integrationRequest, onAction } = useApp();
   return (
-    <details className="section-gap">
+    <details className="block-collaborator">
       <summary>Block this collaborator</summary>
       <p>
         Block {person.name} from discovery and further chat. Pending

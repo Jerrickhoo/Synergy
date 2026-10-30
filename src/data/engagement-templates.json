@@ -2,7 +2,7 @@
   "mentorship": {
     "id": "mentorship",
     "name": "Mentorship",
-    "version": 1,
+    "version": 2,
     "milestones": [
       {
         "id": "goals",
@@ -30,8 +30,8 @@
       },
       {
         "id": "reviewed",
-        "title": "Engagement reviewed",
-        "description": "Reflect on progress and what comes next.",
+        "title": "Progress reflected on together",
+        "description": "Discuss progress and what comes next. This shared reflection is separate from the private review after completion.",
         "evidence": false
       }
     ]

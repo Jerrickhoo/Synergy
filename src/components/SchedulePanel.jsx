@@ -1,4 +1,5 @@
-﻿import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import SelectField from "./SelectField.jsx";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import { terminalStatuses } from "../data/collaboration.js";
 import { scheduleInstant } from "../data/selectors.js";
@@ -296,7 +297,7 @@ function SessionPlanner({ room, partner }) {
               <div className="session-preferences">
                 <div className="field">
                   <label htmlFor="booking-duration">Session duration</label>
-                  <select
+                  <SelectField
                     id="booking-duration"
                     {...errorProps("durationMinutes")}
                     name="durationMinutes"
@@ -311,11 +312,11 @@ function SessionPlanner({ room, partner }) {
                         {value} minutes
                       </option>
                     ))}
-                  </select>
+                  </SelectField>
                 </div>
                 <div className="field">
                   <label htmlFor="booking-repeat">Repeat</label>
-                  <select
+                  <SelectField
                     id="booking-repeat"
                     {...errorProps("count")}
                     name="count"
@@ -331,7 +332,7 @@ function SessionPlanner({ room, partner }) {
                         </option>
                       ),
                     )}
-                  </select>
+                  </SelectField>
                 </div>
               </div>
               <button

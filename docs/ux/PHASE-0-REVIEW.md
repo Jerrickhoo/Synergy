@@ -1,10 +1,10 @@
 # Phase 0 — workflow and visual review
 
-Completed October 29, 2026. Scope: current local working tree and the feedback in [the roadmap](../../UX-IMPROVEMENT-ROADMAP.md).
+Completed October 29, 2026. Scope: current local working tree and the feedback in [the roadmap](UX-IMPROVEMENT-ROADMAP.md).
 
 ## Review method and evidence
 
-Reviewed both Founder and Mentor previews in a real Chromium browser, including desktop (1440 × 1000) and mobile (390 × 844) baselines for Matches, Profile, Updates, Calendar, Settings, Introductions, and Rooms. Captured the login and founder match-details baseline. Browser artifacts live in [`output/playwright/phase0`](../../output/playwright/phase0/).
+Reviewed both Founder and Mentor previews in a real Chromium browser, including desktop (1440 × 1000) and mobile (390 × 844) baselines for Matches, Profile, Updates, Calendar, Settings, Introductions, and Rooms. Captured the login and founder match-details baseline. Browser artifacts live in [`output/playwright/phase0`](../../output/playwright/phase0).
 
 The full reciprocal walkthrough used two disposable local password accounts, because preview accounts are deliberately excluded from one another's directories. Accounts and completed profiles were initialized through the normal API; the introduction, acceptance, terms, scheduling, evidence, milestone confirmations, completion, and private reviews were exercised through the interface. The two accounts each submitted their own confirmations and reviews. The review database is `.data/ux-phase01-review.sqlite`; existing workspace data was not reset.
 

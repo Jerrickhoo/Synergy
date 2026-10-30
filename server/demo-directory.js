@@ -97,7 +97,7 @@ export const legacyDemoProfiles = [
   },
 ];
 
-export const demoDirectoryVersion = 2;
+export const demoDirectoryVersion = 3;
 const startup = (
   id,
   name,
@@ -192,6 +192,8 @@ export const demoProfiles = [
     "Consumer, EdTech, pre-seed, seed",
     "Grow a community through useful partnerships",
     "Community builder helping founders run focused growth experiments.",
+    "Monthly sessions",
+    "amara",
   ),
   mentor(
     "lina-reyes",
@@ -200,6 +202,8 @@ export const demoProfiles = [
     "HealthTech, seed, growth",
     "Plan clinical validation studies",
     "Health product advisor working on clinical evidence and responsible pilots.",
+    "Monthly sessions",
+    "lina",
   ),
   mentor(
     "noah-tan",
@@ -208,6 +212,8 @@ export const demoProfiles = [
     "Logistics, seed, growth",
     "Reduce spoilage in refrigerated deliveries",
     "Operations mentor focused on refrigerated distribution and delivery routes.",
+    "Monthly sessions",
+    "noah",
   ),
   mentor(
     "sofia-mendez",
@@ -216,6 +222,8 @@ export const demoProfiles = [
     "AgriTech, idea, seed",
     "Design practical agricultural field trials",
     "Agricultural researcher helping teams plan useful field experiments.",
+    "Monthly sessions",
+    "sofia",
   ),
   mentor(
     "kai-chen",
@@ -225,6 +233,7 @@ export const demoProfiles = [
     "Validate accessible onboarding",
     "Inclusive design mentor working with student teams and accessible learning tools.",
     "Weekly sessions",
+    "kai",
   ),
   mentor(
     "elena-rossi",

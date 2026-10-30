@@ -1,3 +1,4 @@
+import { profileEntries } from "./profile-content.js";
 export const stageLabel = (stage) =>
   ({ idea: "Idea", "pre-seed": "Pre-seed", seed: "Seed", growth: "Growth" })[
     stage
@@ -8,11 +9,7 @@ export const preferenceLabel = (value) =>
     ongoing: "Ongoing collaborations",
     either: "Open to one-off or ongoing collaborations",
   })[value] || "Preference not added yet";
-export const profileTags = (value) =>
-  String(value || "")
-    .split(/[,;\n]/)
-    .map((part) => part.trim())
-    .filter(Boolean);
+export const profileTags = profileEntries;
 export function fitFactors(person, factors) {
   return factors.map(([label, index]) => {
     const missing = person.why?.[index] === "Missing inputs";

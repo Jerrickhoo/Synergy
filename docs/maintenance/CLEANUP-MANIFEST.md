@@ -1,0 +1,63 @@
+# Repository cleanup manifest
+
+Inventoried in phase A and organized in phase E on October 30, 2026. Scope: UX16 of the [post-test polish roadmap](../ux/POST-TEST-POLISH-ROADMAP.md). The incoming working tree at HEAD `841532fecc1f9839b2abdb2fb73d6279f6ab8dad` was already modified; no reset, checkout, staging or commit was performed. Local account data, uploads, environment files and existing review evidence were preserved.
+
+## Moves and reference checks
+
+These old/new paths were recorded in the local move plan before the moves. Files retain their original names except the opaque flow-image filename. Useful content was retained; no reference document or runtime asset was discarded.
+
+| Old path                        | New path                                          | Content review / reason                                                                                                                                                                                     | References updated                                                                                         |
+| ------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `DEPLOYMENT.md`                 | `docs/operations/DEPLOYMENT.md`                   | Current Node/SQLite, hosting, health, backup and recovery guide.                                                                                                                                            | README, archived QA/readiness links and package formatting commands. Commands still run from project root. |
+| `AUDIT.md`                      | `docs/archive/AUDIT.md`                           | Dated implementation and usability history, including the earlier in-memory/JSON designs.                                                                                                                   | README, package scripts and relative local gallery link.                                                   |
+| `QA-REPORT.md`                  | `docs/archive/QA-REPORT.md`                       | Historical verification, concurrency and provider-integration records; unique results retained.                                                                                                             | README, readiness links, package scripts and deployment links.                                             |
+| `STAKEHOLDER-READINESS.md`      | `docs/archive/STAKEHOLDER-READINESS.md`           | Dated product assessment and original-brief provenance.                                                                                                                                                     | QA/deployment links rebased; current-document banner added.                                                |
+| `UI-UX-REVIEW.md`               | `docs/archive/UI-UX-REVIEW.md`                    | October 25 findings, changed behavior and local evidence references.                                                                                                                                        | Local evidence paths rebased; archive banner added.                                                        |
+| `SUPABASE-MIGRATION-ROADMAP.md` | `docs/architecture/SUPABASE-MIGRATION-ROADMAP.md` | Separate proposed architecture plan with useful rollout/rollback detail; not delivered by this work.                                                                                                        | Source-file links rebased, index added; historical baseline identified.                                    |
+| `UX-IMPROVEMENT-ROADMAP.md`     | `docs/ux/UX-IMPROVEMENT-ROADMAP.md`               | Completed numbered-phase history, distinct from polish A–F.                                                                                                                                                 | Phase 0/6, completion audit, post-test roadmap and its own delivery links updated.                         |
+| `Synergy.md`                    | `docs/product/Synergy.md`                         | Original product brief: complement-based matching, workflows and originally proposed external services.                                                                                                     | Documentation index and stakeholder provenance. Original prose preserved.                                  |
+| `Synergy.pdf`                   | `docs/product/Synergy.pdf`                        | Ten-page course project with Western Visayas research, persona, proposed solutions and concept/prototype material. It is not a duplicate of the Markdown brief. Extracted text reviewed and cover rendered. | New product index entry; binary retained byte-for-byte.                                                    |
+| `image-1792306373076.png`       | `docs/product/references/original-user-flow.png`  | Visually reviewed original Founder/Mentor flow diagram, including historical AI/verification steps. Unique design provenance.                                                                               | New descriptive product index entry; binary retained byte-for-byte.                                        |
+
+Archive banners distinguish historical claims from current behavior without rewriting old results. Source-path strings in dated inventories are historical descriptions, not active imports. Markdown links now resolve relative to each document's new location. Public brand reference-sheet links were checked and retained.
+
+## CSS removals and ownership
+
+Usage evidence: `rg` over all `src` JSX finds a single `<select>`, inside `SelectField.jsx`. All 27 inventoried visible consumers use the custom trigger/options. `.select-field select.select-field-native` is explicitly `display:none`; native control decoration cannot affect a visible control. Native FormData, reset and validation code is retained.
+
+Removed **17 obsolete CSS blocks**, plus two native-select branches of shared selector lists and the outdated native-picker comment:
+
+| File                     | Removed selectors / reason                                                                                                                                                                                                                                             |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/discovery.css`      | `.discovery-page .advanced-filters select`, `.discovery-sort select` and its 420px variant: pre-migration native sizing.                                                                                                                                               |
+| `src/match-overlays.css` | `.overlay-filters select` and its 420px variant: pre-migration dialog native sizing.                                                                                                                                                                                   |
+| `src/planning.css`       | `.task-move select`, `.calendar-collaboration-filter select` and mobile variant; remove native branch from `.session-times input, .session-times select`. Custom control sizing is already shared; input width remains.                                                |
+| `src/styles.css`         | `.prototype-role-control select`: former native preview-role decoration.                                                                                                                                                                                               |
+| `src/shared-ui.css`      | Native single-select decoration, hover, disabled, invalid/focus, option/optgroup, mobile and native-only forced-colors blocks; remove native branch from shared input/textarea focus. Keep all custom-control, keyboard focus, reduced-motion and forced-colors rules. |
+
+Notification positioning/overflow was already consolidated in phase C. Its remaining responsive and accessibility variants were reviewed and retained. Fit hover and account-row hover use `interactive-surface`; no further competing hover rules were found that warranted deletion. Generic base form resets remain. No unused-component, public-asset or dependency deletion was supported by the inventory, so none was performed. Import order is unchanged and documented in [source/style ownership](SOURCE-LAYOUT.md).
+
+## Retained and generated paths
+
+| Paths                                                                                        | Disposition / evidence                                                                                                                                                         |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/`, `server/`, `tests/`, `public/`, manifests/lockfile/configuration, `.github/`         | Active source, scripts, imports, runtime/public assets and CI/Render references retained. Lockfile/dependencies unchanged.                                                     |
+| Root README, app entry, `.env.example`, Render/Vite/Playwright and Git configuration         | Root essentials retained. README links the categorized documentation index.                                                                                                    |
+| Existing `docs/ux/PHASE-*`, polish baselines/delivery, completion audit and visual reference | Linked delivery history retained with repaired roadmap links. Earlier baseline/path inventories remain dated snapshots.                                                        |
+| `dist/`, `node_modules/`                                                                     | Ignored, reproducible build/install output. No directory pruning; builds regenerate `dist/`.                                                                                   |
+| `output/`, `artifacts/`, `.playwright-cli/`, `test-results/`, `playwright-report/`           | Ignored local QA evidence retained. Test commands may regenerate their own reports; no cleanup deletion. Optional evidence links are counted separately by reference checking. |
+| `.data/`, uploads, backups and `.env*`                                                       | Protected operational state. No reset, deletion or source-copy inclusion. Manual E–F review uses `.data/polish-ef-review.sqlite`; suites use generated isolated databases.     |
+| `.git/`, `.gitignore`, `.gitattributes`                                                      | History and ignore/line-ending policy retained.                                                                                                                                |
+
+## Restoration and verification
+
+Reverse any move by moving the new path back to its old path, then rebasing affected links and npm formatting paths. Reverse CSS removals from the incoming copy, not from HEAD, because HEAD predates other in-progress polish. A local ignored backup at `output/playwright/polish-ef/incoming-source.zip`, SHA-256 inventory, incoming status, move map and removed-selector inventory preserve the exact incoming source for this session. This backup excludes ignored/private operational files.
+
+Binary preservation checks:
+
+- PDF SHA-256: `5f6741eaa88fdcfe1e237717419d133e48687e7f64db9eaa855c7435961cd245`.
+- Original user-flow PNG SHA-256: `62329cab2ceaa9c9a5ce680b4be13182bde7d8c0e56a86d941a911ab59e40d70`.
+
+Every incoming file is checked at its retained or moved path; changes outside the documented E–F allowlist must be zero. New documentation, the reference-check script and CI step are attributable to this phase.
+
+Run `npm run check:references`, formatting, unit tests, the existing full browser suite and the production build. CI uses the same updated paths. The [E–F delivery report](../ux/POST-TEST-POLISH-EF-DELIVERY.md) records final outcomes, responsive/accessibility evidence, clean-source installation and remaining verification limits.

@@ -4,6 +4,7 @@ import Brand from "./Brand.jsx";
 import Icon from "./Icon.jsx";
 import NavButton from "./NavButton.jsx";
 import { navigation, workspaceNavigation } from "./Sidebar.jsx";
+import { lockDocumentScroll } from "../state/scroll-lock.js";
 export default function MobileMenu() {
   const { state, onAction } = useApp();
   const ref = useRef(null);
@@ -13,13 +14,14 @@ export default function MobileMenu() {
     if (!state.moreOpen) return;
     const opener = document.getElementById("navigation-toggle");
     const openedPage = state.page;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlock = lockDocumentScroll();
     ref.current?.querySelector("button")?.focus();
     return () => {
-      document.body.style.overflow = previousOverflow;
+      unlock();
       if (currentPage.current === openedPage)
-        queueMicrotask(() => opener?.focus());
+        queueMicrotask(() => {
+          if (!document.querySelector("dialog[open]")) opener?.focus();
+        });
     };
   }, [state.moreOpen]);
   if (!state.moreOpen) return null;
@@ -85,7 +87,7 @@ export default function MobileMenu() {
         <button
           className="btn full"
           disabled={state.busy}
-          onClick={() => onAction({ action: "sign-out" })}
+          onClick={(event) => onAction({ action: "request-sign-out" }, event)}
         >
           Sign out
         </button>

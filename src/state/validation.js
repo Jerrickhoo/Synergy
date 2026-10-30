@@ -1,5 +1,6 @@
 import { profileKeys, scheduleInstant } from "../data/selectors.js";
 import { weeklySchedules } from "../data/planning.js";
+import { normalizeProfile } from "../data/profile-content.js";
 
 export const stages = ["idea", "pre-seed", "seed", "growth"];
 export const cleanValues = (values) =>
@@ -38,6 +39,7 @@ export function requiredFields(values, keys) {
   );
 }
 export function validateProfile(profile, role) {
+  profile = normalizeProfile(profile);
   const errors = requiredFields(profile, profileKeys(role));
   if (String(profile.pastExperience || "").length > 2000)
     errors.pastExperience =

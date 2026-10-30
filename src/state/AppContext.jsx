@@ -58,6 +58,7 @@ const remoteActions = new Set([
   "interest",
   "cancel-interest",
   "accept-interest",
+  "simulate-acceptance",
   "decline-interest",
   "lock-terms",
   "accept-terms",
@@ -128,9 +129,12 @@ const reducer = (state, payload) =>
           if (payload.command.action === "choose-role")
             draft.role = payload.state.role;
           if (
-            ["interest", "accept-interest", "launch-room"].includes(
-              payload.command.action,
-            )
+            [
+              "interest",
+              "accept-interest",
+              "simulate-acceptance",
+              "launch-room",
+            ].includes(payload.command.action)
           ) {
             draft.page = payload.state.page;
             draft.activeRoomId = payload.state.activeRoomId;
@@ -154,12 +158,16 @@ const reducer = (state, payload) =>
         });
         draft.formErrors = payload.fields
           ? { scope: payload.scope, fields: payload.fields }
-          : null;
+          : payload.scope === "profile-form"
+            ? { scope: payload.scope, fields: { _request: payload.message } }
+            : null;
       }
     } else if (payload.action === "connection-error") {
       if (!draft.connectionError) connectionInterrupted(draft);
     } else if (payload.action === "connection-restored") {
       connectionRestored(draft);
+    } else if (payload.action === "clear-form-errors") {
+      if (draft.formErrors?.scope === payload.scope) draft.formErrors = null;
     } else if (payload.action === "clear-field-error") {
       if (draft.formErrors?.scope === payload.scope) {
         delete draft.formErrors.fields[payload.field];
@@ -169,6 +177,7 @@ const reducer = (state, payload) =>
     } else if (payload.action === "signed-out") {
       Object.assign(draft, createInitialState(), {
         restoring: false,
+        busy: false,
         integrations: draft.integrations,
       });
       if (payload.message)
@@ -190,6 +199,9 @@ const reducer = (state, payload) =>
 
 export function AppProvider({ children }) {
   const [restoreTick, setRestoreTick] = useState(0);
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
+  const signOutReturn = useRef(null);
   const token = useRef(sessionStorage.getItem("synergy-session"));
   const revision = useRef(-1);
   const refreshKey = useRef("");
@@ -202,6 +214,9 @@ export function AppProvider({ children }) {
     return initial;
   });
   const model = useMemo(() => createModel(state), [state]);
+  useEffect(() => {
+    if (!state.authenticated) setSignOutOpen(false);
+  }, [state.authenticated]);
   const dismissToast = useCallback(
     () => dispatch({ action: "clear-toast" }),
     [],
@@ -432,7 +447,10 @@ export function AppProvider({ children }) {
         );
         acceptSession(result);
       } else {
-        const result = await request("action", payload);
+        const result = await request(
+          command.form === "profile-form" ? "profile" : "action",
+          payload,
+        );
         revision.current = result.revision;
         dispatch({ action: "remote", state: result.state, command: payload });
         return !result.state.formErrors;
@@ -454,6 +472,28 @@ export function AppProvider({ children }) {
   }
   async function onAction(payload, event) {
     event?.preventDefault();
+    if (payload.action === "request-sign-out") {
+      if (pending.current || !state.authenticated) return;
+      signOutReturn.current = event?.currentTarget || document.activeElement;
+      dispatch({ action: "close-overlays" });
+      setSignOutError("");
+      setSignOutOpen(true);
+      return;
+    }
+    if (payload.action === "cancel-sign-out") {
+      if (pending.current) return;
+      setSignOutOpen(false);
+      requestAnimationFrame(() => {
+        const opener = signOutReturn.current;
+        const available = opener?.isConnected && opener.getClientRects().length;
+        (available
+          ? opener
+          : document.getElementById("navigation-toggle") ||
+            document.querySelector(".account-button")
+        )?.focus();
+      });
+      return;
+    }
     if (payload.action === "enter-demo") {
       if (pending.current) return;
       pending.current = true;
@@ -470,10 +510,19 @@ export function AppProvider({ children }) {
     }
     if (payload.action === "sign-out") {
       if (pending.current) return;
+      pending.current = true;
+      dispatch({ action: "request-status", busy: true });
       try {
         await request("logout", {});
-      } catch {
-        /* Local sign-out remains possible offline. */
+      } catch (error) {
+        if (error.status !== 401) {
+          setSignOutError(
+            "Could not sign out. Your session and drafts are preserved. Try again.",
+          );
+          pending.current = false;
+          dispatch({ action: "request-status", busy: false });
+          return false;
+        }
       }
       try {
         for (const key of Object.keys(sessionStorage))
@@ -485,6 +534,8 @@ export function AppProvider({ children }) {
       token.current = null;
       sessionStorage.removeItem("synergy-session");
       revision.current = -1;
+      pending.current = false;
+      setSignOutOpen(false);
       dispatch({ action: "signed-out" });
       return;
     }
@@ -504,13 +555,13 @@ export function AppProvider({ children }) {
     if (remoteActions.has(payload.action)) return send(payload);
     dispatch(payload);
   }
-  async function onSubmit(event) {
+  async function onSubmit(event, extraValues = {}) {
     event.preventDefault();
     const form = event.currentTarget;
     const success = await send({
       form: form.dataset.form || form.id,
       id: form.dataset.id,
-      values: Object.fromEntries(new FormData(form)),
+      values: { ...Object.fromEntries(new FormData(form)), ...extraValues },
     });
     if (success && ["login-form", "signup-form"].includes(form.id))
       form.reset();
@@ -535,7 +586,10 @@ export function AppProvider({ children }) {
       fields: formValidation(form),
       message: "Review the highlighted details and try again.",
     });
-    firstInvalid.focus();
+    (firstInvalid.dataset.selectTrigger
+      ? document.getElementById(firstInvalid.dataset.selectTrigger)
+      : firstInvalid
+    )?.focus();
   }
   function onFormInput(event) {
     if (!state.formErrors) return;
@@ -675,6 +729,8 @@ export function AppProvider({ children }) {
       value={{
         retryRestore: () => setRestoreTick((value) => value + 1),
         state,
+        signOutOpen,
+        signOutError,
         notify,
         dismissToast,
         onInvalid,

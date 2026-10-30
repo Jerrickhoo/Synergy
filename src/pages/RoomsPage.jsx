@@ -1,3 +1,4 @@
+import SelectField from "../components/SelectField.jsx";
 import { Fragment, useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Avatar from "../components/Avatar.jsx";
@@ -30,8 +31,9 @@ export default function RoomsPage() {
         <section className="card clean-empty-state">
           <h2>No rooms yet</h2>
           <p>
-            A shared room starts when you and a collaborator both agree to
-            connect.
+            {state.role === "mentor"
+              ? "Connect with a founder to agree goals, schedule sessions and record shared follow-up."
+              : "A shared room starts when you and a collaborator both agree to connect."}
           </p>
           <button
             className="btn primary"
@@ -56,7 +58,7 @@ export default function RoomsPage() {
         </p>
         <div className="field">
           <label htmlFor="room-filter">Show rooms</label>
-          <select
+          <SelectField
             id="room-filter"
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
@@ -65,7 +67,7 @@ export default function RoomsPage() {
             <option value="active">In progress</option>
             <option value="completed">Completed</option>
             <option value="closed">Closed</option>
-          </select>
+          </SelectField>
         </div>
       </div>
       {!visibleRooms.length && (
@@ -89,7 +91,7 @@ export default function RoomsPage() {
                   <Avatar
                     image={partner?.image}
                     name={partner?.name}
-                    initials={partner?.initials || "?"}
+                    identity={partner?.accountId || room.partnerId}
                     color={partner?.color || ""}
                   />
                   <div>
@@ -110,6 +112,7 @@ export default function RoomsPage() {
                       room.status,
                       partner?.name || room.partnerId,
                       room.terms.confirmedByMe,
+                      room.type,
                     )}
                   </span>
                 </div>
@@ -150,7 +153,9 @@ export default function RoomsPage() {
                       )
                     }
                   >
-                    Open deal room
+                    {room.type === "mentorship"
+                      ? "Open mentorship"
+                      : "Open deal room"}
                   </button>
                 </div>
               </article>

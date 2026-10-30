@@ -61,6 +61,7 @@ export function formValidation(form) {
         const label =
           input.labels?.[0]?.textContent.trim() ||
           input.getAttribute("aria-label") ||
+          input.dataset.validationLabel ||
           "This field";
         const validity = input.validity;
         const message = validity.valueMissing

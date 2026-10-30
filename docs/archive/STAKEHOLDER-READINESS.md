@@ -1,3 +1,5 @@
+> Archived development record. For current behavior, setup and release evidence, use the [project README](../../README.md) and [documentation index](../README.md). Dates and results below describe earlier versions.
+
 # Prototype cleanup ? October 29, 2026
 
 The current app uses simulated sign-in accepting any non-empty credentials, with a founder/mentor dropdown at the bottom right with no third-party API keys. External email, verification, recovery, digests and AI drafting have been removed. The welcome screen and settings contain no unavailable-service prompts. README.md and DEPLOYMENT.md describe the current prototype; the assessments below are historical and their email-activation requirements no longer apply.
@@ -6,7 +8,7 @@ The current app uses simulated sign-in accepting any non-empty credentials, with
 
 # Current local prototype status - October 25, 2026
 
-The review defects and prototype improvements have been implemented. See [QA-REPORT.md](QA-REPORT.md) for current verification and [DEPLOYMENT.md](DEPLOYMENT.md) for updated Node.js 24+, SQLite, backup and activation instructions. The user confirmed this is local prototype code with no live app. No deployment or provider activation was performed. The October 20 assessment below is historical and its implementation limitations should not be treated as current.
+The review defects and prototype improvements have been implemented. See [QA-REPORT.md](QA-REPORT.md) for current verification and [DEPLOYMENT.md](../operations/DEPLOYMENT.md) for updated Node.js 24+, SQLite, backup and activation instructions. The user confirmed this is local prototype code with no live app. No deployment or provider activation was performed. The October 20 assessment below is historical and its implementation limitations should not be treated as current.
 
 ---
 
@@ -35,7 +37,7 @@ Backend tests also cover private binary uploads, unauthorized access, evidence v
 
 Screens inspected include mobile login, mobile scheduling/revisions, public trust details, desktop discovery and terms, mobile chat and completed reviews. Browser layout regressions cover 360, 768, 1024 and 1440 px. This review used Windows and Chromium; Safari, Firefox, real phones, screen readers and production load were not verified.
 
-Fresh built-app evidence: [journey results](artifacts/readiness-20261020/results.json), [discovery](artifacts/readiness-20261020/matches-desktop.png), [terms](artifacts/readiness-20261020/terms-desktop.png), [mobile chat](artifacts/readiness-20261020/chat-mobile.png), [reviews](artifacts/readiness-20261020/reviews-desktop.png). These files are local ignored artifacts; attach selected screenshots separately if sharing this report outside the repository.
+Fresh built-app evidence: [journey results](../../artifacts/readiness-20261020/results.json), [discovery](../../artifacts/readiness-20261020/matches-desktop.png), [terms](../../artifacts/readiness-20261020/terms-desktop.png), [mobile chat](../../artifacts/readiness-20261020/chat-mobile.png), [reviews](../../artifacts/readiness-20261020/reviews-desktop.png). These files are local ignored artifacts; attach selected screenshots separately if sharing this report outside the repository.
 
 ## Conditions before sending a self-service link
 

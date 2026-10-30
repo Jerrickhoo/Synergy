@@ -22,6 +22,7 @@ import NotificationsPage from "./pages/NotificationsPage.jsx";
 import ModerationPage from "./pages/ModerationPage.jsx";
 import CalendarPage from "./pages/CalendarPage.jsx";
 import Icon from "./components/Icon.jsx";
+import SignOutDialog from "./components/SignOutDialog.jsx";
 
 const pages = {
   calendar: CalendarPage,
@@ -162,6 +163,7 @@ export default function App() {
           {!authPage && <MobileMenu />}
         </>
       )}
+      <SignOutDialog />
       <Toast />
       {state.busy && (
         <div className="saving-indicator" role="status">

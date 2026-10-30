@@ -1,4 +1,5 @@
-﻿import { useApp } from "../state/AppContext.jsx";
+import SelectField from "../components/SelectField.jsx";
+import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import Icon from "../components/Icon.jsx";
 
@@ -80,22 +81,22 @@ export default function ReviewPage() {
             </div>
             <div className="field">
               <label htmlFor="match-useful">Was this a useful match?</label>
-              <select id="match-useful" name="useful">
+              <SelectField id="match-useful" name="useful">
                 <option value="">Prefer not to answer</option>
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
-              </select>
+              </SelectField>
             </div>
             <div className="field">
               <label htmlFor="goal-outcome">
                 Did you achieve your shared goal?
               </label>
-              <select id="goal-outcome" name="goalOutcome">
+              <SelectField id="goal-outcome" name="goalOutcome">
                 <option value="">Prefer not to answer</option>
                 <option value="achieved">Achieved</option>
                 <option value="partial">Partly achieved</option>
                 <option value="not-achieved">Not achieved</option>
-              </select>
+              </SelectField>
               <p className="muted">
                 Optional feedback helps evaluate matching. Answers stay private
                 until both reviews are submitted; moderators see aggregate

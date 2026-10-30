@@ -135,7 +135,7 @@ export function createModel(state) {
     const room = state.rooms[state.activeRoomId];
     return room?.role === state.role ? room : null;
   };
-  const roomStatusLabel = (status, partnerName, confirmedByMe = true) =>
+  const roomStatusLabel = (status, partnerName, confirmedByMe = true, type) =>
     status === "terms"
       ? confirmedByMe
         ? `Waiting for ${partnerName || "your partner"} to confirm`
@@ -143,7 +143,7 @@ export function createModel(state) {
       : {
           matched: "Matched",
           "in-progress": "In progress",
-          launched: "Launched",
+          launched: type === "mentorship" ? "Completed" : "Launched",
           reviewed: "Reviewed",
           cancelled: "Closed",
         }[status];

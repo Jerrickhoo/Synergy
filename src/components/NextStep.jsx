@@ -14,7 +14,7 @@ export default function NextStep() {
     "room-detail": {
       title: "Milestones",
       text:
-        state.roomTab === "terms"
+        state.roomTab === "terms" && !agreement?.partnerLocked
           ? "Both collaborators must accept the terms before starting."
           : "Review the agreed work and confirm completed milestones.",
       button:
@@ -34,8 +34,14 @@ export default function NextStep() {
       },
     },
     profile: {
-      title: "Find collaborators",
-      text: "Browse founders and mentors by skills and needs",
+      title:
+        state.role === "mentor"
+          ? "Find startups to support"
+          : "Find collaborators",
+      text:
+        state.role === "mentor"
+          ? "Browse startup needs and find where your expertise applies"
+          : "Browse founders and mentors by skills and needs",
       button: "Explore matches",
       action: {
         page: "discover",

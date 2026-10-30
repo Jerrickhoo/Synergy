@@ -1,5 +1,7 @@
 import { useApp } from "../state/AppContext.jsx";
 import Avatar from "./Avatar.jsx";
+import SimulateAcceptance from "./SimulateAcceptance.jsx";
+import { stageLabel } from "../data/profile-presentation.js";
 
 export default function Introductions({ compact = false }) {
   const { state, model, onAction } = useApp();
@@ -29,8 +31,10 @@ export default function Introductions({ compact = false }) {
       <h2>Your introductions</h2>
       {!people.length && (
         <p className="muted">
-          No pending introductions. Explore Matches to find your next
-          collaborator.
+          No pending introductions. Explore Matches to{" "}
+          {state.role === "mentor"
+            ? "find a startup to support."
+            : "find your next collaborator."}
         </p>
       )}
       {people.map((person) => (
@@ -38,7 +42,7 @@ export default function Introductions({ compact = false }) {
           <Avatar
             image={person.image}
             name={person.name}
-            initials={person.initials}
+            identity={person.accountId || person.id}
             color={person.color}
           />
           <div className="introduction-copy">
@@ -49,8 +53,51 @@ export default function Introductions({ compact = false }) {
                 : "Waiting for their response"}{" "}
               · {person.engagement}
             </p>
+            {person.kind === "Startup" ? (
+              <div className="introduction-brief">
+                <p>
+                  {[
+                    person.sector,
+                    person.stage && stageLabel(person.stage),
+                    person.teamSize && `Team of ${person.teamSize}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+                <p>
+                  <strong>
+                    {state.role === "mentor"
+                      ? "Needs guidance with"
+                      : "Looking for"}
+                    :
+                  </strong>{" "}
+                  {person.need?.join(", ") || "Discuss their needs together."}
+                </p>
+                <p>
+                  <strong>Startup goal:</strong>{" "}
+                  {person.goals || "Agree on a focused goal after connecting."}
+                </p>
+                <small>
+                  From their current profile. View profile for full context.
+                </small>
+              </div>
+            ) : (
+              <div className="introduction-brief">
+                <p>
+                  <strong>Can guide you with:</strong>{" "}
+                  {person.offer?.join(", ") ||
+                    "Discuss their expertise together."}
+                </p>
+                {person.availability && (
+                  <p>
+                    <strong>Availability:</strong> {person.availability}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <div className="introduction-actions">
+            {!incoming.has(person.id) && <SimulateAcceptance person={person} />}
             <button
               className="btn small"
               onClick={() =>

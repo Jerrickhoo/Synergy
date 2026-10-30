@@ -1,3 +1,4 @@
+import SelectField from "../components/SelectField.jsx";
 import FormErrors from "../components/FormErrors.jsx";
 import { useApp } from "../state/AppContext.jsx";
 import { useState } from "react";
@@ -79,10 +80,10 @@ export default function SignupPage() {
             </div>
             <div className="field">
               <label htmlFor="signup-role">I'm here as a</label>
-              <select id="signup-role" name="role" defaultValue="founder">
+              <SelectField id="signup-role" name="role" defaultValue="founder">
                 <option value="founder">Startup founder</option>
                 <option value="mentor">Mentor</option>
-              </select>
+              </SelectField>
             </div>
             <button className="btn primary" type="submit" disabled={state.busy}>
               {state.busy ? "Creating account…" : "Create account"}

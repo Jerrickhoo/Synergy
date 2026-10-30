@@ -1,0 +1,140 @@
+/* Semantic colors used by all feature styles. Light is always the initial mode. */
+:root {
+  color-scheme: light;
+  --brand: #00726f;
+  --brand-dark: #004543;
+  --sidebar: var(--brand-dark);
+  --sidebar-deep: var(--brand-dark);
+  --ink: #1c2b23;
+  --muted: #4f6056;
+  --line: #c8d2cc;
+  --paper: #ffffff;
+  --canvas: #f2f4f1;
+  --surface-soft: #eaf0eb;
+  --green: var(--brand);
+  --green-dark: var(--brand-dark);
+  --green-soft: #e3f1f0;
+  --accent-solid: var(--brand);
+  --accent-hover: var(--brand-dark);
+  --on-accent: #ffffff;
+  --control-border: #7b9896;
+  --control-focus: var(--brand);
+  --surface-hover: #e3f1f0;
+  --surface-hover-border: #7b9896;
+  --surface-hover-shadow: 0 0 0 3px #00726f0a;
+  --overlay-shadow: 0 8px 28px #102a2420;
+  --danger-text: #9b332c;
+  --danger-soft: #fff0ee;
+  --danger-border: #b6635c;
+  --danger-solid: #9b332c;
+  --warning-text: #765019;
+  --warning-soft: #f8efd9;
+  --warning-border: #a58445;
+  --warning-solid: #795718;
+  --info-text: #305d87;
+  --info-soft: #e8f1fb;
+  --info-border: #6689aa;
+  --info-solid: #305d87;
+  --purple-text: #6b477e;
+  --purple-soft: #f0e9f6;
+  --purple-border: #9975af;
+  --purple-solid: #6b477e;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e6efe9;
+  --muted: #b3c3b9;
+  --line: #50685b;
+  --paper: #1b2a22;
+  --canvas: #111b17;
+  --surface-soft: #263a2f;
+  --green: #91d8d4;
+  --green-dark: #b0e7e3;
+  --green-soft: #1d4240;
+  --control-border: #718d8b;
+  --control-focus: #91d8d4;
+  --surface-hover: #294b48;
+  --surface-hover-border: #86aeab;
+  --surface-hover-shadow: 0 0 0 3px #b0e7e310;
+  --overlay-shadow: 0 12px 36px #00000060;
+  --danger-text: #ffb6ad;
+  --danger-soft: #452a29;
+  --danger-border: #b8766e;
+  --danger-solid: #9b3932;
+  --warning-text: #f0cf8d;
+  --warning-soft: #3d3422;
+  --warning-border: #a58a56;
+  --warning-solid: #795718;
+  --info-text: #b2d5fa;
+  --info-soft: #253b50;
+  --info-border: #789bbd;
+  --info-solid: #386592;
+  --purple-text: #dfc1f5;
+  --purple-soft: #3b2e47;
+  --purple-border: #a98bbd;
+  --purple-solid: #74528d;
+}
+.btn.primary,
+.login-submit,
+.calendar-day.selected .calendar-day-number {
+  background: var(--accent-solid);
+  border-color: var(--accent-solid);
+  color: var(--on-accent);
+}
+.btn.primary:hover:not(:disabled),
+.login-submit:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--on-accent);
+}
+button:disabled,
+input:disabled,
+textarea:disabled {
+  background: var(--surface-soft);
+  border-color: var(--line);
+  color: var(--muted);
+}
+:focus-visible {
+  outline-color: var(--control-focus);
+}
+.toast {
+  --toast-color: var(--green-dark);
+  --toast-soft: var(--green-soft);
+}
+.toast-error {
+  --toast-color: var(--danger-text);
+  --toast-soft: var(--danger-soft);
+}
+.toast-info {
+  --toast-color: var(--info-text);
+  --toast-soft: var(--info-soft);
+}
+.nav-count,
+.nav-btn.active .nav-count {
+  color: #1c2b23;
+}
+[data-theme="dark"] .app:not(.onboarding) #main-content {
+  background-image:
+    radial-gradient(circle, #a5dfbc0d 0.8px, transparent 1px),
+    linear-gradient(145deg, var(--canvas), var(--sidebar));
+}
+[data-theme="dark"] .login-artwork {
+  opacity: 0.16;
+}
+[data-theme="dark"] .brand-name {
+  color: var(--ink);
+}
+[data-theme="dark"] .sidebar .brand-name,
+[data-theme="dark"] .drawer-head .brand-name {
+  color: #ffffff;
+}
+.filter-toggle svg circle {
+  fill: var(--paper);
+}
+@media (forced-colors: active) {
+  :root {
+    --control-focus: Highlight;
+    --control-border: ButtonText;
+    --line: CanvasText;
+  }
+}

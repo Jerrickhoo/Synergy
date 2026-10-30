@@ -1,4 +1,5 @@
 import { terminalStatuses } from "./collaboration.js";
+import { normalizeProfile } from "./profile-content.js";
 export const profileFieldNames = {
   bio: "an introduction",
   offer: "what you offer",
@@ -16,6 +17,7 @@ export const profileKeys = (role) =>
     : ["bio", "offer", "need", "expertise", "availability", "startups"];
 
 export function profileCompleteness(profile, role) {
+  profile = normalizeProfile(profile);
   const keys = profileKeys(role);
   return Math.round(
     (keys.filter((key) => String(profile[key] || "").trim()).length /
@@ -98,10 +100,10 @@ export function launchBlockers(room) {
     reasons.push("Add evidence for each required milestone.");
   if (items.some((item) => item.disputed))
     reasons.push(
-      "Both collaborators must resolve open disputes before launch.",
+      "Both collaborators must resolve open disputes before completion.",
     );
   if (items.some((item) => item.proposal))
-    reasons.push("Resolve proposed milestone revisions before launch.");
+    reasons.push("Resolve proposed milestone revisions before completion.");
   if (room.type === "mentorship" && !room.milestones.session?.schedule)
     reasons.push("Schedule the mentorship session.");
   return reasons;
