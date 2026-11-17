@@ -181,6 +181,7 @@ export function transition(state, payload) {
       industry: "all",
       score: "0",
       engagement: "all",
+      availableNow: false,
     };
     state.matchTab = "browse";
     state.page = "discover";
@@ -503,6 +504,7 @@ export function transition(state, payload) {
       industry: "all",
       score: "0",
       engagement: "all",
+      availableNow: false,
     };
   } else if (action === "match-tab") {
     state.matchTab = payload.tab || "suggested";

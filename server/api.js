@@ -243,6 +243,7 @@ export function createApi({
             ? error.message
             : "Could not save the workspace. Please try again.",
         fields: error.fields,
+        ...(error instanceof WorkspaceError ? error.data : undefined),
       });
     }
   };

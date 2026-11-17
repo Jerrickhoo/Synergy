@@ -40,6 +40,12 @@ export async function user(
   });
   result.role = role;
   await command(request, result, { form: "profile-form", values: profile });
+  // New mentors accept the guidelines before taking requests.
+  if (role === "mentor")
+    await command(request, result, {
+      form: "accept-guidelines",
+      values: { version: 1 },
+    });
   return result;
 }
 export async function getState(request, u) {

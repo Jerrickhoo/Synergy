@@ -252,6 +252,12 @@
 .factor-goal {
   --factor: var(--factor-goal);
 }
+.factor-availability {
+  --factor: var(--factor-availability);
+}
+.factor-format {
+  --factor: var(--factor-format);
+}
 
 .score-guide-switch {
   display: inline-flex;

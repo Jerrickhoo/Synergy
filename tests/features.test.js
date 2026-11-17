@@ -196,7 +196,7 @@ test("matching captures fixed versioned scores and counts rooms once with blind 
   const { workspace: w, a, b, admin, act, pair, complete } = fixture(t);
   const id = pair();
   const snapshot = w.get(a.token).state.rooms[id].matchingSnapshot;
-  const values = { version: 1 };
+  const values = { version: defaultMatching.version };
   for (const kind of ["founder", "mentor"])
     defaultMatching[kind].forEach((weight, index) => {
       values[`${kind}-${index}`] = weight * 100;
@@ -208,7 +208,10 @@ test("matching captures fixed versioned scores and counts rooms once with blind 
     /moderator/i,
   );
   act(admin, { form: "matching-config", values });
-  assert.equal(w.get(a.token).state.matchingConfig.version, 2);
+  assert.equal(
+    w.get(a.token).state.matchingConfig.version,
+    defaultMatching.version + 1,
+  );
   assert.deepEqual(w.get(a.token).state.rooms[id].matchingSnapshot, snapshot);
   assert.throws(
     () => act(admin, { form: "matching-config", values }),
@@ -218,7 +221,11 @@ test("matching captures fixed versioned scores and counts rooms once with blind 
     () =>
       act(admin, {
         form: "matching-config",
-        values: { ...values, version: 2, "founder-0": 90 },
+        values: {
+          ...values,
+          version: defaultMatching.version + 1,
+          "founder-0": 90,
+        },
       }),
     /total 100/,
   );
@@ -241,7 +248,10 @@ test("matching captures fixed versioned scores and counts rooms once with blind 
   assert.equal(report.cohorts[0].goalsAchieved, 1);
   assert.equal(w.get(a.token).state.moderation, undefined);
   const second = pair();
-  assert.equal(w.get(a.token).state.rooms[second].matchingSnapshot.version, 2);
+  assert.equal(
+    w.get(a.token).state.rooms[second].matchingSnapshot.version,
+    defaultMatching.version + 1,
+  );
   assert.equal(
     w.get(admin.token).state.moderation.matchingReport.totalRooms,
     2,
@@ -406,6 +416,13 @@ function fixture(t, options = {}) {
       ...command,
     });
   for (const u of [a, b, c]) act(u, { form: "profile-form", values: profile });
+  // New mentors must accept the guidelines before taking requests (Phase 1).
+  for (const u of [a, b, c])
+    act(u, {
+      role: "mentor",
+      form: "accept-guidelines",
+      values: { version: 1 },
+    });
   const pair = () => {
     act(a, { action: "interest", id: `${b.state.accountId}:founder` });
     return act(b, {

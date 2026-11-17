@@ -8,13 +8,12 @@ export const profileFieldNames = {
   stage: "your startup stage",
   teamSize: "your team size",
   expertise: "your expertise",
-  availability: "your availability",
   startups: "the startups you want to help",
 };
 export const profileKeys = (role) =>
   role === "founder"
     ? ["bio", "offer", "need", "industry", "stage", "teamSize"]
-    : ["bio", "offer", "need", "expertise", "availability", "startups"];
+    : ["bio", "offer", "need", "expertise", "startups"];
 
 export function profileCompleteness(profile, role) {
   profile = normalizeProfile(profile);

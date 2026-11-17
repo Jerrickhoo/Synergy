@@ -7,6 +7,7 @@ import Tags from "./Tags.jsx";
 import Icon from "./Icon.jsx";
 import { useState } from "react";
 import Overlay from "./Overlay.jsx";
+import { unavailableText } from "../data/mentor-rules.js";
 import {
   matchReason,
   stageLabel,
@@ -183,6 +184,11 @@ export default function MatchCard({ person, large = false }) {
           <span className="visually-hidden">: {person.name}</span>
         </button>
       </div>
+      {mentor && !mentoring && person.available === false && !existingRoom && (
+        <p className="match-unavailable">
+          {unavailableText(person.reason, person.name)}
+        </p>
+      )}
       {connection && (
         <p className="preview-connection">
           <Icon name={incoming ? "inbox" : "check"} />

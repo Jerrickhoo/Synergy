@@ -642,6 +642,50 @@ Run account closure, blocking, suspension and deletion after the main lifecycle.
 
 **Expected:** Controls have meaningful names and visible focus. Dropdown keyboard operations match pointer selection without accidental changes on cancellation. Dialog content and actions remain reachable, errors identify fields, and motion/contrast preferences preserve usability.
 
+## 11A. Mentor capacity, conflicts and guidelines
+
+Run these as a mentor (R-MENTOR) with a second founder account. Mentor settings are in **Settings → Mentoring**.
+
+### TC-61 - Accept the mentor guidelines
+
+1. Create a new mentor account and complete the profile. Do not open Settings yet.
+2. As a founder, find that mentor in **Matches → Browse all** and open the match.
+3. As the mentor, open **Settings → Mentoring**, read the guidelines and select **Accept guidelines**.
+4. As the founder, reload the match.
+
+**Expected:** Before acceptance the founder sees "can take requests once they accept the mentor guidelines", the send button is disabled and a direct request is refused with the same reason. Mentor Home shows a banner with the action. After acceptance the mentor is available and the banner is gone. A mentor who existed before this release instead sees an "accept by {date}" banner for 14 days and stays available during that time.
+
+### TC-62 - Set capacity and formats
+
+1. In Mentoring, set mentees to 1, hours to 6, and keep only Quick Ask and Single Session. Save.
+2. Try 11 mentees, 0 hours, a response time of 4 days and no formats.
+3. Accept one session request from a founder, then ask as a second founder.
+
+**Expected:** Valid settings save and show "You're using N of 1 mentee slots and X of 6 hours this month". Each invalid value is rejected beside its field. At the mentee limit the second founder cannot request a Single Session and sees the reason with up to three similar available mentors, but a Quick Ask is still possible when the mentor offers it and has async room and hours.
+
+### TC-63 - Pause Mode
+
+1. As a founder, send a request to the mentor. As the mentor, turn on **Pause new requests** with a resume date.
+2. As the founder, open Updates, Introductions and the mentor's match page.
+3. As the mentor, turn Pause Mode off. Repeat with a resume date that passes.
+
+**Expected:** The pending request leaves the mentor's inbox and the founder's history records it as returned, with similar mentors to ask and a notification. The mentor stays visible in Discover with "Not taking requests" and no send button. Current mentees and rooms are unaffected. Pause Mode ends by itself on the resume date. A past or same-day resume date is rejected.
+
+### TC-64 - Conflicts of interest
+
+1. As the mentor, add a conflict with the same company name as a founder's startup (try different capitalisation and a trailing "Inc"). Check each founder's Matches.
+2. Remove it, then add an investor conflict in the founder's industry.
+3. Choose **I have no conflicts** with and without a listed conflict.
+
+**Expected:** A matching company hides the pair from both sides, and a direct request is refused. An industry-only match keeps the pair visible and shows the mentor a "Possible conflict" warning. The conflict list is never visible to founders. "No conflicts" is only accepted when the list is empty.
+
+### TC-65 - Available now filter and score factors
+
+1. As a founder, open **Filters** and choose **Available now**.
+2. Open **Why this match?** on a mentor card and the **How the score works** guide.
+
+**Expected:** Only mentors who can take a request now are listed, and the filter counts in the Filters badge. Mentor scores show Availability fit and Format fit, and the guide lists both with weights that total 100%.
+
 ## 12. Optional engineering checks
 
 Manual UI checks do not fully establish API authorization, stale-version enforcement, storage transactions or backup integrity. The repository's automated tests cover additional cases in these areas. Run the checks below when doing a release/regression pass; do not mark manual cases passed solely because automation passed.
@@ -655,11 +699,11 @@ npm.cmd run test:e2e
 npm.cmd run build
 ```
 
-The browser suite uses isolated generated databases and ports 5181-5184. It includes local-account browser projects and a separate prototype project. Existing tests in [app.spec.js](../../tests/app.spec.js), [prototype.spec.js](../../tests/prototype.spec.js), [features.spec.js](../../tests/features.spec.js) and [mentorship.spec.js](../../tests/mentorship.spec.js) provide executable workflow references. Backend coverage includes [reliability.test.js](../../tests/reliability.test.js), [features.test.js](../../tests/features.test.js) and [integrations.test.js](../../tests/integrations.test.js).
+The browser suite uses isolated generated databases and ports 5181-5184. It includes local-account browser projects and a separate prototype project. Existing tests in [app.spec.js](../../tests/app.spec.js), [prototype.spec.js](../../tests/prototype.spec.js), [features.spec.js](../../tests/features.spec.js), [mentorship.spec.js](../../tests/mentorship.spec.js) and [mentor-capacity.spec.js](../../tests/mentor-capacity.spec.js) provide executable workflow references. Backend coverage includes [reliability.test.js](../../tests/reliability.test.js), [features.test.js](../../tests/features.test.js) and [integrations.test.js](../../tests/integrations.test.js).
 
 For an operator rehearsal, follow [Deployment, storage and recovery](../operations/DEPLOYMENT.md) using disposable database/upload copies. Verify backup creation, integrity checks and restore in a separate workspace before comparing saved records and downloads. Do not restore over the main test run or a real workspace.
 
-Email delivery, email verification/recovery/change, email digests, AI profile drafting, external calendar synchronization and automatic availability/conflict checking are outside this prototype. Their absence is expected.
+Email delivery, email verification/recovery/change, email digests, AI profile drafting, external calendar synchronization and automatic scheduling-conflict checking are outside this prototype. Their absence is expected.
 
 ## 13. Finish the run
 

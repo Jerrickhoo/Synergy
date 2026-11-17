@@ -64,6 +64,7 @@ export const profileOptions = [
   "audienceSize",
   "offerTags",
   "needTags",
+  "topics",
 ];
 export const defaultVocabulary = [
   "Beta Testers",

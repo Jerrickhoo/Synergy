@@ -62,6 +62,13 @@ function fixture(t, options = {}) {
       form: "profile-form",
       values: role === "mentor" ? mentor : founder,
     });
+    // New mentors accept the guidelines before taking requests (Phase 1).
+    if (role === "mentor")
+      w.act(u.token, {
+        role,
+        form: "accept-guidelines",
+        values: { version: 1 },
+      });
     return u;
   };
   const a = user("Founder"),

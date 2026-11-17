@@ -52,7 +52,7 @@ const terms = {
   compensation: "Mutual feedback",
 };
 function signup(workspace, name, role = "founder") {
-  return workspace.login(
+  const user = workspace.login(
     {
       firstName: name,
       lastName: "Tester",
@@ -62,6 +62,14 @@ function signup(workspace, name, role = "founder") {
     },
     true,
   );
+  // New mentors accept the guidelines before taking requests (Phase 1).
+  if (role === "mentor")
+    workspace.act(user.token, {
+      role,
+      form: "accept-guidelines",
+      values: { version: 1 },
+    });
+  return user;
 }
 const act = (workspace, user, command) =>
   workspace.act(user.token, {
@@ -144,7 +152,7 @@ test("profile changes recompute transparent scores and role-specific directories
   assert.ok(
     workspace.get(a.token).state.directory.mentors[0].score < before.score,
   );
-  assert.ok(scoreProfile(founder, mentor, true).why.length === 5);
+  assert.ok(scoreProfile(founder, mentor, true).why.length === 7);
 });
 
 test("a failed disk write rolls back workspace changes", (t) => {

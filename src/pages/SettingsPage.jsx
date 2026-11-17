@@ -6,6 +6,7 @@ import Overlay from "../components/Overlay.jsx";
 import FormErrors from "../components/FormErrors.jsx";
 import Icon from "../components/Icon.jsx";
 import { readTheme, applyTheme, themeKey } from "../state/theme.js";
+import MentoringSettings from "../components/MentoringSettings.jsx";
 
 export default function SettingsPage() {
   const { state, integrationRequest, onAction, notify, onSubmit } = useApp();
@@ -143,8 +144,13 @@ export default function SettingsPage() {
     <div className="page settings-page page-enter">
       <PageHeader
         title="Account settings"
-        intro="Control your visibility, account access and personal data."
+        intro={
+          state.role === "mentor"
+            ? "Set your mentoring limits, then control visibility, account access and personal data."
+            : "Control your visibility, account access and personal data."
+        }
       />
+      {state.role === "mentor" && <MentoringSettings />}
       <section className="card panel settings-section appearance-settings">
         <h2>Appearance</h2>
         <p>Choose Light or Dark for this browser. Light is the default.</p>

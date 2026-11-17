@@ -1,5 +1,6 @@
 import defaultTemplates from "./engagement-templates.json" with { type: "json" };
 import { terminalStatuses } from "./collaboration.js";
+import { mentorDefaults } from "./mentor-rules.js";
 export function createModel(state) {
   const people = state.directory;
   const allPeople = () => [
@@ -172,10 +173,16 @@ export function createModel(state) {
       ["Industry Fit", 2],
       ["Stage/Size Fit", 3],
       ["Goal Fit", 4],
+      ["Availability Fit", 5],
+      ["Format Fit", 6],
     ];
+    // Availability and Format Fit are scored only for mentors.
+    const scored = factors.filter(
+      ([, index]) => index < (person.factorScores?.length ?? 5),
+    );
     return person.kind === "Mentor" || state.role === "mentor"
-      ? factors
-      : factors.filter(([, index]) => index !== 1);
+      ? scored
+      : scored.filter(([, index]) => index !== 1);
   };
   const roleLabel = () =>
     state.role === "founder" ? "Startup founder" : "Mentor";
@@ -266,6 +273,7 @@ export function createInitialState() {
         expertise: "",
         availability: "",
         startups: "",
+        ...mentorDefaults(),
       },
     },
     directory: {
@@ -282,6 +290,7 @@ export function createInitialState() {
       industry: "all",
       score: "0",
       engagement: "all",
+      availableNow: false,
     },
     profileEditing: false,
     onboarding: {

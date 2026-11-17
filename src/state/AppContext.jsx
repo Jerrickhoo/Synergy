@@ -57,6 +57,7 @@ const dataKeys = [
   "profileWentLive",
   "verification",
   "myTagProposals",
+  "mentorUsage",
 ];
 const remoteActions = new Set([
   "choose-role",

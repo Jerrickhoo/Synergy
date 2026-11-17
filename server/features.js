@@ -21,7 +21,33 @@ export const defaultPreferences = {
 import { scheduleInstant } from "../src/data/selectors.js";
 import { roomProgress } from "../src/data/selectors.js";
 import defaultTemplates from "../src/data/engagement-templates.json" with { type: "json" };
-import { defaultMatching, matchingReport } from "../src/data/matching.js";
+import {
+  defaultMatching,
+  matchingReport,
+  weightCount,
+} from "../src/data/matching.js";
+import {
+  capacityLimits,
+  conflictRelations,
+  guidelinesStatus,
+  mentorConfig,
+  ownUnavailableText,
+  responseDayOptions,
+  validTimeZone,
+} from "../src/data/mentor-rules.js";
+import {
+  mentorFormatIds,
+  normalizeOfferedFormats,
+} from "../src/data/mentor-formats.js";
+import { profileCompleteness } from "../src/data/selectors.js";
+
+// Mentoring settings forms (roadmap Phase 1). Only the mentor role can use them.
+const mentoringForms = new Set([
+  "mentor-capacity",
+  "set-mentor-pause",
+  "mentor-conflicts",
+  "accept-guidelines",
+]);
 
 export function createFeatures({
   getDb,
@@ -37,6 +63,8 @@ export function createFeatures({
   displayName = (account) => account.state.accountName,
   simulatePartner = () => {},
   advanceRoom,
+  keepHistory = () => {},
+  similarMentors = () => [],
 }) {
   const now = () => options.now?.() ?? Date.now();
   const db = () => getDb();
@@ -79,6 +107,59 @@ export function createFeatures({
           null,
           "match",
           person.id,
+        );
+    }
+    if (
+      state.role === "mentor" &&
+      profileCompleteness(state.profiles.mentor, "mentor") === 100
+    ) {
+      const mentor = state.profiles.mentor;
+      const guidelines = guidelinesStatus(mentor, time);
+      const version = mentorConfig.guidelinesVersion;
+      const settingsLink = { page: "settings" };
+      if (guidelines.status !== "accepted") {
+        const until = guidelines.graceUntil
+          ? new Date(guidelines.graceUntil).toLocaleDateString("en", {
+              day: "numeric",
+              month: "short",
+            })
+          : "";
+        add(
+          `guidelines-required:${version}`,
+          guidelines.status === "grace"
+            ? `Accept the mentor guidelines by ${until} to keep receiving requests.`
+            : "Accept the mentor guidelines to start receiving requests.",
+          null,
+          "guidelines-required",
+          null,
+          settingsLink,
+        );
+        if (
+          guidelines.status === "grace" &&
+          Date.parse(guidelines.graceUntil) - time <= 3 * 86400000
+        )
+          add(
+            `guidelines-required:${version}:ending`,
+            `3 days or less left to accept the mentor guidelines. Requests stop after ${until} until you do.`,
+            null,
+            "guidelines-required",
+            null,
+            settingsLink,
+          );
+      }
+      const usage = state.mentorUsage;
+      if (
+        ["mentee-limit", "async-limit", "hours-limit"].includes(usage?.reason)
+      )
+        add(
+          `capacity:${usage.reason}:${new Date(time).toISOString().slice(0, 7)}`,
+          usage.reason === "mentee-limit"
+            ? `You've reached ${usage.activeMentees} of ${usage.capacity.maxMentees} mentees. New session requests are paused until a slot opens.`
+            : ownUnavailableText(usage.reason),
+          null,
+          "capacity",
+          null,
+          settingsLink,
         );
     }
     for (const room of Object.values(state.rooms).filter(
@@ -423,7 +504,173 @@ export function createFeatures({
     "send-back",
     "cycle-details",
     "cycle-review",
+    ...mentoringForms,
   ]);
+  // Returns every pending request to a mentor who turned on Pause Mode. The
+  // founder keeps a "returned" history entry with similar available mentors,
+  // and the return never counts against the mentor's response rate.
+  function returnPendingRequests(account, state) {
+    const mentorId = `${account.id}:mentor`;
+    const mentorName = displayName(account, "mentor");
+    // Alternatives are worked out before anything changes, so a save during
+    // those reads can never store a half-returned request.
+    const pending = [...state.incomingByRole.mentor].map((id) => {
+      const [otherId, otherRole] = id.split(":");
+      const other = accountById(otherId);
+      const alternatives = other
+        ? similarMentors(prepare(other, otherRole), mentorId)
+        : [];
+      return { id, other, otherRole, alternatives };
+    });
+    for (const { id, other, otherRole, alternatives } of pending) {
+      const meta = state.introductionMetaByRole?.mentor?.[id];
+      state.incomingByRole.mentor.delete(id);
+      delete state.introductionMetaByRole?.mentor?.[id];
+      delete state.introductionTypesByRole?.mentor?.[id];
+      keepHistory(state, "mentor", {
+        id,
+        name: meta?.name || "Founder",
+        status: "returned",
+        reason: "mentor-paused",
+        direction: "received",
+      });
+      if (!other) continue;
+      other.state.waitingByRole[otherRole]?.delete(mentorId);
+      other.state.interestByRole[otherRole]?.delete(mentorId);
+      delete other.state.introductionMetaByRole?.[otherRole]?.[mentorId];
+      delete other.state.introductionTypesByRole?.[otherRole]?.[mentorId];
+      keepHistory(other.state, otherRole, {
+        id: mentorId,
+        name: mentorName,
+        status: "returned",
+        reason: "mentor-paused",
+        direction: "sent",
+        alternatives,
+      });
+      const names = alternatives.map((item) => item.name);
+      event(
+        other,
+        otherRole,
+        `${mentorName} paused new mentoring requests, so your request was returned.${names.length ? ` You could ask ${names.join(", ").replace(/, ([^,]*)$/, " or $1")} instead.` : ""}`,
+        undefined,
+        { kind: "confirmation", page: "discover" },
+      );
+    }
+    return pending.length;
+  }
+  function mentoringSettings(account, state, input, values, text) {
+    if (state.role !== "mentor")
+      fail("Switch to your mentor profile to change mentoring settings.");
+    const mentor = state.profiles.mentor;
+    const stamp = new Date(now()).toISOString();
+    if (input.form === "accept-guidelines") {
+      if (Number(values.version) !== mentorConfig.guidelinesVersion)
+        fail(
+          "The guidelines have been updated. Refresh to read the latest version.",
+          409,
+        );
+      mentor.guidelinesVersion = mentorConfig.guidelinesVersion;
+      mentor.guidelinesAcceptedAt = stamp;
+      state.toast = "Mentor guidelines accepted.";
+    } else if (input.form === "set-mentor-pause") {
+      const paused = values.paused === "on";
+      const until = text("pausedUntil");
+      const today = new Intl.DateTimeFormat("en-CA", {
+        timeZone: validTimeZone(mentor.timeZone) ? mentor.timeZone : "UTC",
+      }).format(now());
+      if (
+        paused &&
+        until &&
+        (!/^\d{4}-\d{2}-\d{2}$/.test(until) ||
+          Number.isNaN(Date.parse(until)) ||
+          until <= today)
+      )
+        fail("Choose a resume date after today, or leave it empty.", 400, {
+          pausedUntil: "Choose a date after today.",
+        });
+      if (paused && !mentor.paused) {
+        Object.assign(mentor, {
+          paused: true,
+          pausedAt: stamp,
+          pausedUntil: until || null,
+        });
+        const returned = returnPendingRequests(account, state);
+        state.toast = `Pause Mode is on. Your current mentees are not affected.${returned ? ` ${returned} pending ${returned === 1 ? "request was" : "requests were"} returned to founders with other mentors to ask.` : ""}`;
+      } else if (paused) {
+        mentor.pausedUntil = until || null;
+        state.toast = until
+          ? "Resume date saved."
+          : "Resume date removed. Pause Mode stays on until you turn it off.";
+      } else {
+        const wasPaused = mentor.paused;
+        Object.assign(mentor, {
+          paused: false,
+          pausedAt: null,
+          pausedUntil: null,
+        });
+        state.toast = wasPaused
+          ? "Pause Mode is off. Founders can send you requests again."
+          : "Pause Mode is off.";
+      }
+    } else if (input.form === "mentor-capacity") {
+      const errors = {};
+      const capacity = {};
+      for (const [key, [min, max]] of Object.entries(capacityLimits)) {
+        const value = Number(values[key]);
+        if (!Number.isInteger(value) || value < min || value > max)
+          errors[key] = `Choose a whole number from ${min} to ${max}.`;
+        capacity[key] = value;
+      }
+      capacity.responseDays = Number(values.responseDays);
+      if (!responseDayOptions.includes(capacity.responseDays))
+        errors.responseDays = "Choose 1, 2, 3, 5 or 7 days.";
+      const formats = normalizeOfferedFormats(
+        mentorFormatIds.filter((id) => values[`format-${id}`] === "on"),
+      );
+      if (!formats.length) errors.formats = "Offer at least one format.";
+      const timeZone = text("timeZone");
+      if (!validTimeZone(timeZone))
+        errors.timeZone = "Choose a valid time zone.";
+      if (Object.keys(errors).length)
+        fail("Check your mentoring settings.", 400, errors);
+      Object.assign(mentor, { capacity, formats, timeZone });
+      state.toast = "Mentoring settings saved.";
+    } else {
+      const op = text("op");
+      mentor.conflicts ||= [];
+      if (op === "add") {
+        const company = text("company").slice(0, 100);
+        const relation = text("relation");
+        const industry = text("industry").slice(0, 60);
+        const errors = {};
+        if (company.length < 2) errors.company = "Enter the company name.";
+        if (!conflictRelations.some(([value]) => value === relation))
+          errors.relation = "Choose how you're connected.";
+        if (Object.keys(errors).length)
+          fail("Check the conflict details.", 400, errors);
+        if (mentor.conflicts.length >= 50)
+          fail("You can list up to 50 conflicts.");
+        mentor.conflicts.push({
+          id: randomUUID(),
+          company,
+          relation,
+          industry,
+        });
+        mentor.noConflicts = false;
+        state.toast = `${company} added to your conflicts of interest.`;
+      } else if (op === "remove") {
+        const item = mentor.conflicts.find((entry) => entry.id === text("id"));
+        if (!item) fail("This conflict is no longer listed.", 404);
+        mentor.conflicts = mentor.conflicts.filter((entry) => entry !== item);
+        state.toast = `${item.company} removed from your conflicts of interest.`;
+      } else if (op === "none") {
+        if (mentor.conflicts.length)
+          fail("Remove your listed conflicts before confirming you have none.");
+        mentor.noConflicts = true;
+        state.toast = "Saved: you have no conflicts of interest.";
+      } else fail("This action is unavailable.");
+    }
+  }
   function act(token, input) {
     const account = authenticate(token);
     if (!["founder", "mentor"].includes(input.role))
@@ -495,7 +742,9 @@ export function createFeatures({
     state.toastTitle = "";
     state.formErrors = null;
     state.confirmation = "";
-    if (input.action === "undo-launch") {
+    if (mentoringForms.has(input.form)) {
+      mentoringSettings(account, state, input, values, text);
+    } else if (input.action === "undo-launch") {
       if (
         room.status !== "launched" ||
         !room.launchedAt ||
@@ -622,7 +871,7 @@ export function createFeatures({
           fail("Matching weights changed. Refresh before saving.", 409);
         const config = { version: current.version + 1 };
         for (const kind of ["founder", "mentor"]) {
-          const weights = Array.from({ length: 5 }, (_, i) =>
+          const weights = Array.from({ length: weightCount[kind] }, (_, i) =>
             Number(values[`${kind}-${i}`]),
           );
           if (

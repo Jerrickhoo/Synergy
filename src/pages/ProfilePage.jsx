@@ -17,6 +17,7 @@ import {
   preferenceLabel,
 } from "../data/profile-presentation.js";
 import ProfileStats from "../components/ProfileStats.jsx";
+import { availabilityLine } from "../data/mentor-rules.js";
 import ProfileOptions, { TagPicker } from "../components/ProfileOptions.jsx";
 import ProfileAssistant from "../components/ProfileAssistant.jsx";
 import Verification from "../components/Verification.jsx";
@@ -111,7 +112,6 @@ const requiredFields = [
   ["stage", "Stage", "profile-stage"],
   ["teamSize", "Team size", "profile-size"],
   ["expertise", "Expertise areas", "profile-expertise"],
-  ["availability", "Availability", "profile-availability"],
   ["startups", "Startups I want to help", "profile-startups"],
   ["offer", "What I offer", "profile-offer"],
   ["need", "What I need", "profile-need"],
@@ -455,14 +455,21 @@ function ProfileContent() {
                     tags
                     hint="Separate areas with commas, for example: product strategy, fundraising."
                   />
-                  <ProfileField
-                    id="availability"
-                    label="Availability"
-                    name="availability"
-                    required
-                    value={profile.availability}
-                    hint="Describe a cadence you can offer. Agree on exact times together."
-                  />
+                  <div className="field">
+                    <strong>Availability</strong>
+                    <p className="field-help">
+                      {state.mentorUsage
+                        ? availabilityLine(state.mentorUsage)
+                        : "Set in Mentoring settings."}{" "}
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={() => onAction({ page: "settings" })}
+                      >
+                        Change in Settings
+                      </button>
+                    </p>
+                  </div>
                   <ProfileField
                     id="startups"
                     label="Startups I want to help"
@@ -517,6 +524,16 @@ function ProfileContent() {
                   }
                 />
               </div>
+              {!founder && (
+                <TagPicker
+                  name="topics"
+                  label="Standard tags for your expertise"
+                  help="Founders find you by these tags. Pick the ones you can help with."
+                  value={profile.topics}
+                  vocabulary={state.vocabulary || []}
+                  onChange={updateField}
+                />
+              )}
               <TagPicker
                 name="offerTags"
                 label="Standard tags for what you offer"
@@ -615,7 +632,9 @@ function ProfileContent() {
               {!founder && (
                 <ProfileSection title="Expertise and support">
                   <TagValue
-                    value={profile.expertise}
+                    value={[profile.expertise, profile.topics]
+                      .filter(Boolean)
+                      .join(", ")}
                     empty="Add your areas of expertise to help founders find you."
                   />
                   <div className="profile-section-block">
@@ -699,7 +718,11 @@ function ProfileContent() {
                 ) : (
                   <>
                     <h3>Availability</h3>
-                    <TextValue value={profile.availability} />
+                    <p>
+                      {state.mentorUsage
+                        ? availabilityLine(state.mentorUsage)
+                        : "Not set yet."}
+                    </p>
                     <div className="profile-section-block">
                       <h3>Startups I want to help</h3>
                       <TextValue value={profile.startups} />

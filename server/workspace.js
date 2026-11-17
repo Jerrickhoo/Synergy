@@ -14,6 +14,7 @@ import {
   profileCompleteness,
   roomProgress,
   launchBlockers,
+  scheduleInstant,
 } from "../src/data/selectors.js";
 import { validateCredentials, cleanValues } from "../src/state/validation.js";
 import { transition } from "../src/state/transitions.js";
@@ -29,8 +30,23 @@ import {
   moderationDueAt,
   resolveCycleDecisions,
 } from "../src/data/collaboration.js";
-import { defaultMatching } from "../src/data/matching.js";
+import {
+  defaultMatching,
+  migrateMatchingConfig,
+} from "../src/data/matching.js";
 import { normalizeProfile } from "../src/data/profile-content.js";
+import {
+  availabilityFit,
+  availabilityLine,
+  backfillMentorProfile,
+  capacityUsage,
+  conflictWith,
+  formatFit,
+  mentorConfig,
+  ownUnavailableText,
+  unavailableText,
+} from "../src/data/mentor-rules.js";
+import { normalizeOfferedFormats } from "../src/data/mentor-formats.js";
 import {
   demoProfiles,
   legacyDemoProfiles,
@@ -38,14 +54,17 @@ import {
 } from "./demo-directory.js";
 
 export class WorkspaceError extends Error {
-  constructor(message, status = 400, fields) {
+  // `data` adds machine-readable details to the response, such as the reason a
+  // mentor is unavailable and similar mentors to ask instead.
+  constructor(message, status = 400, fields, data) {
     super(message);
     this.status = status;
     this.fields = fields;
+    this.data = data;
   }
 }
-const fail = (message, status, fields) => {
-  throw new WorkspaceError(message, status, fields);
+const fail = (message, status, fields, data) => {
+  throw new WorkspaceError(message, status, fields, data);
 };
 const clone = (value) => decode(encode(value));
 const roles = ["founder", "mentor"];
@@ -98,7 +117,17 @@ const overlap = (left, right) => {
     : 0;
 };
 const sharedOverlap = (a, b) => (overlap(a, b) + overlap(b, a)) / 2;
-export function scoreProfile(mine, theirs, mentor, config = defaultMatching) {
+// `mentorFit` carries the scored mentor's Availability Fit and Format Fit
+// (0–1) from their live capacity; left out, both count as full. Pass `null`
+// when the scored profile is a founder seen by a mentor: those two factors
+// describe mentors only, so they are left out and the other weights rescaled.
+export function scoreProfile(
+  mine,
+  theirs,
+  mentor,
+  config = defaultMatching,
+  mentorFit = { availability: 1, format: 1 },
+) {
   mine = normalizeProfile(mine);
   theirs = normalizeProfile(theirs);
   mine = {
@@ -146,10 +175,14 @@ export function scoreProfile(mine, theirs, mentor, config = defaultMatching) {
     : Math.sqrt(forward * reverse);
   const expertise = mentor
     ? Math.max(
-        overlap(founder.need, mentorProfile.expertise || mentorProfile.offer),
+        overlap(
+          founder.need,
+          `${mentorProfile.expertise || ""} ${mentorProfile.topics || ""}`.trim() ||
+            mentorProfile.offer,
+        ),
         covered(
           founder.need,
-          `${mentorProfile.expertise || ""} ${mentorProfile.offer}`,
+          `${mentorProfile.expertise || ""} ${mentorProfile.topics || ""} ${mentorProfile.offer}`,
         ).ratio,
       )
     : 0;
@@ -204,6 +237,8 @@ export function scoreProfile(mine, theirs, mentor, config = defaultMatching) {
     : 0;
   const goal = preference === null ? goalWords : (goalWords + preference) / 2;
   const factors = [need, expertise, industry, stage, goal];
+  const fitApplies = mentor && mentorFit !== null;
+  if (fitApplies) factors.push(mentorFit.availability, mentorFit.format);
   const missing = [
     mentor
       ? !founder.need?.trim() || !mentorProfile.offer?.trim()
@@ -219,15 +254,21 @@ export function scoreProfile(mine, theirs, mentor, config = defaultMatching) {
       ? !founder.stage || !mentorProfile.startups
       : !stageKnown && sizeFit === null,
     !explicitGoals && preference === null,
+    false,
+    false,
   ];
   const weights = config[mentor ? "mentor" : "founder"];
+  const usedWeight = weights
+    .slice(0, factors.length)
+    .reduce((sum, weight) => sum + weight, 0);
   const weighted = Math.round(
-    100 * factors.reduce((sum, value, i) => sum + value * weights[i], 0),
+    (100 * factors.reduce((sum, value, i) => sum + value * weights[i], 0)) /
+      (usedWeight || 1),
   );
   const mentorTags = mentor
     ? covered(
         founder.need,
-        `${mentorProfile.expertise || ""} ${mentorProfile.offer}`,
+        `${mentorProfile.expertise || ""} ${mentorProfile.topics || ""} ${mentorProfile.offer}`,
       ).shared
     : [];
   return {
@@ -280,6 +321,18 @@ export function scoreProfile(mine, theirs, mentor, config = defaultMatching) {
             ? `${audienceGap}. A swap more than 10 times uneven is limited to 40% overall.`
             : `Stage and ${marketing ? "audience" : "team"} size; size ratio ${Math.round(sizeFit * 100)}%.`,
       `${explicitGoals ? "Stated goal overlap" : "Stated goals missing; no goal overlap assumed"}${preference === null ? "; engagement preference not provided by both" : "; engagement preferences included"}.`,
+      ...(fitApplies
+        ? [
+            mentorFit.availability === 1
+              ? "The mentor can take a new request now."
+              : mentorFit.availability > 0
+                ? "The mentor has hours left but no free slot right now."
+                : "The mentor is paused, out of hours or not yet taking requests.",
+            mentorFit.format === 1
+              ? "The mentor offers a format that's open now."
+              : "None of the mentor's formats is open now.",
+          ]
+        : []),
     ],
   };
 }
@@ -309,7 +362,35 @@ export function createWorkspace(file, options = {}) {
   };
 
   let migrated = false;
+  // Phase 1 mentoring: the release time starts the guidelines grace period for
+  // mentors who existed before it. Mentors who join later get no grace.
+  db.mentorRules ||= {};
+  if (!db.mentorRules.phase1At) {
+    db.mentorRules.phase1At = new Date(now()).toISOString();
+    migrated = true;
+  }
+  const guidelinesGraceUntil = new Date(
+    Date.parse(db.mentorRules.phase1At) +
+      mentorConfig.guidelinesGraceDays * 86400000,
+  ).toISOString();
+  const backfillMentor = (profile) =>
+    backfillMentorProfile(profile, {
+      topics: canonicalTags(profile?.expertise).join(", "),
+      graceUntil: String(profile?.expertise || profile?.offer || "").trim()
+        ? guidelinesGraceUntil
+        : null,
+    });
+  const matching = migrateMatchingConfig(db.matchingConfig);
+  if (matching !== db.matchingConfig) {
+    db.matchingConfig = matching;
+    migrated = true;
+  }
   for (const account of Object.values(db.accounts)) {
+    if (backfillMentor(account.state.profiles.mentor)) migrated = true;
+    // A sample's stored baseline is migrated the same way, so an untouched
+    // sample still matches it and is refreshed to the new fixture below.
+    if (account.demoFixture?.snapshot?.profile?.expertise !== undefined)
+      backfillMentor(account.demoFixture.snapshot.profile);
     for (const room of Object.values(account.state.rooms)) {
       if (ongoingMentorship(room) && room.terms.partnerLocked && !room.cycle) {
         ensureCycle(room, now());
@@ -436,6 +517,33 @@ export function createWorkspace(file, options = {}) {
     let changed = false;
     const time = now();
     const state = account.state;
+    // Pause Mode ends by itself at the start of the chosen resume date, in the
+    // mentor's own time zone.
+    const mentor = state.profiles.mentor;
+    if (
+      mentor?.paused &&
+      mentor.pausedUntil &&
+      time >=
+        scheduleInstant({
+          date: mentor.pausedUntil,
+          time: "00:00",
+          timeZone: mentor.timeZone || "Asia/Manila",
+        }).getTime()
+    ) {
+      Object.assign(mentor, {
+        paused: false,
+        pausedAt: null,
+        pausedUntil: null,
+      });
+      event(
+        account,
+        "mentor",
+        "Pause Mode ended as planned. Founders can send you requests again.",
+        undefined,
+        { kind: "mentoring" },
+      );
+      changed = true;
+    }
     for (const role of roles) {
       const meta = state.introductionMetaByRole?.[role] || {};
       for (const [id, item] of Object.entries(meta)) {
@@ -508,9 +616,70 @@ export function createWorkspace(file, options = {}) {
     }
     return changed;
   }
+  const mentorUsage = (mentorState) => capacityUsage(mentorState, now());
+  // Conflict of interest between a mentor account and a founder account.
+  const pairConflict = (mentorAccount, founderAccount) =>
+    conflictWith(
+      mentorAccount.state.profiles.mentor,
+      founderAccount.state.profiles.founder,
+      {
+        ownStartup: mentorAccount.state.profiles.founder?.startupName || "",
+        sameAccount: mentorAccount.id === founderAccount.id,
+      },
+    );
+  // Available mentors most similar to the founder's needs, for every place a
+  // request can't go ahead (paused, full, conflict).
+  function similarMentors(
+    viewerState,
+    excludeId,
+    n = mentorConfig.alternativesCount,
+  ) {
+    return viewerState.directory.mentors
+      .filter((item) => item.id !== excludeId && item.available)
+      .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+      .slice(0, n)
+      .map(({ id, name, score }) => ({ id, name, score }));
+  }
+  // Sending or accepting a mentorship introduction needs a mentor who can take
+  // it now and no blocking conflict. The server checks this on every path, so
+  // a direct request from a shared link is held to the same rule.
+  function mentorGate(account, state, person, other) {
+    const mentorIsMe = state.role === "mentor" && person.role === "founder";
+    const mentorIsThem = state.role === "founder" && person.role === "mentor";
+    if (!mentorIsMe && !mentorIsThem) return;
+    const [mentorAccount, founderAccount] = mentorIsMe
+      ? [account, other]
+      : [other, account];
+    if (pairConflict(mentorAccount, founderAccount)?.level === "block")
+      fail(
+        "A conflict of interest prevents this introduction.",
+        409,
+        undefined,
+        {
+          reason: "conflict",
+          alternatives: mentorIsThem ? similarMentors(state, person.id) : [],
+        },
+      );
+    const usage = mentorUsage(mentorIsMe ? state : mentorAccount.state);
+    if (usage.available) return;
+    if (mentorIsMe)
+      fail(ownUnavailableText(usage.reason), 409, undefined, {
+        reason: usage.reason,
+      });
+    fail(
+      `${unavailableText(usage.reason, person.name)} Try one of the suggested mentors instead.`,
+      409,
+      undefined,
+      { reason: usage.reason, alternatives: similarMentors(state, person.id) },
+    );
+  }
   function person(account, role, viewer) {
     const profile = normalizeProfile(account.state.profiles[role]);
     const mine = viewer.profiles[viewer.role];
+    const mentorPair = role === "mentor" || viewer.role === "mentor";
+    // Availability and Format Fit describe the mentor being scored. A mentor
+    // browsing founders isn't scored on their own capacity.
+    const usage = role === "mentor" ? mentorUsage(account.state) : null;
     const marketing = [
       [mine.offer, profile.need],
       [profile.offer, mine.need],
@@ -542,7 +711,24 @@ export function createWorkspace(file, options = {}) {
       teamSize: profile.teamSize || "",
       audienceSize: profile.audienceSize || "",
       stage: profile.stage || "",
-      availability: profile.availability || "",
+      // Structured capacity replaces the old free-text availability. The
+      // mentor's conflict list is never exposed.
+      availability:
+        role === "mentor"
+          ? availabilityLine(usage)
+          : profile.availability || "",
+      ...(role === "mentor" && {
+        available: usage.available,
+        availableFormats: usage.availableFormats,
+        formatReasons: usage.formatReasons,
+        openSlots: usage.openSlots,
+        hoursLeftThisMonth: usage.hoursLeft,
+        formats: normalizeOfferedFormats(profile.formats),
+        responseDays: usage.capacity.responseDays,
+        reason: usage.reason,
+        paused: usage.paused,
+        topics: profile.topics || "",
+      }),
       pastExperience: role === "mentor" ? profile.pastExperience || "" : "",
       expertise: role === "mentor" ? profile.expertise || "" : "",
       startups: role === "mentor" ? profile.startups || "" : "",
@@ -569,8 +755,13 @@ export function createWorkspace(file, options = {}) {
       ...scoreProfile(
         viewer.profiles[viewer.role],
         profile,
-        role === "mentor" || viewer.role === "mentor",
+        mentorPair,
         db.matchingConfig || defaultMatching,
+        usage
+          ? { availability: availabilityFit(usage), format: formatFit(usage) }
+          : mentorPair
+            ? null
+            : undefined,
       ),
     };
   }
@@ -592,6 +783,9 @@ export function createWorkspace(file, options = {}) {
     state.introductionMetaByRole ||= { founder: {}, mentor: {} };
     state.introHistoryByRole ||= { founder: [], mentor: [] };
     state.verification = account.affiliation?.status || "none";
+    // The mentor's own capacity, computed on the server and only shown by the
+    // client (Settings, Home and Profile).
+    state.mentorUsage = capacityUsage(state, now());
     state.directory = createInitialState().directory;
     for (const other of Object.values(db.accounts)) {
       if (
@@ -609,7 +803,18 @@ export function createWorkspace(file, options = {}) {
           profileCompleteness(other.state.profiles[otherRole], otherRole) < 100
         )
           continue;
+        // A blocking conflict hides the pair from each other in both
+        // directions, so neither can find or request the other.
+        const conflict =
+          state.role === "founder" && otherRole === "mentor"
+            ? pairConflict(other, account)
+            : state.role === "mentor" && otherRole === "founder"
+              ? pairConflict(account, other)
+              : null;
+        if (conflict?.level === "block") continue;
         const item = person(other, otherRole, state);
+        if (conflict?.level === "warn" && state.role === "mentor")
+          item.conflictWarning = conflict.text;
         item.canSimulateAcceptance = Boolean(
           options.demoMode &&
           account.demo &&
@@ -862,6 +1067,8 @@ export function createWorkspace(file, options = {}) {
     displayName,
     simulatePartner: (...args) => simulatePartner(...args),
     advanceRoom,
+    keepHistory,
+    similarMentors: (...args) => similarMentors(...args),
   });
 
   function advanceRoom(account, state, room) {
@@ -1482,6 +1689,11 @@ export function createWorkspace(file, options = {}) {
         !state.incomingByRole[state.role].has(person.id)
       )
         fail("This introduction is no longer pending.");
+      if (
+        ["interest", "accept-interest"].includes(input.action) &&
+        permittedTypes.includes("mentorship")
+      )
+        mentorGate(account, state, person, other);
       if (input.action === "interest" || input.action === "accept-interest") {
         if (state.incomingByRole[state.role].has(person.id)) {
           if (
@@ -1685,7 +1897,7 @@ export function createWorkspace(file, options = {}) {
           image !== account.state.profiles[state.role].image
         )
           fail("Upload your own profile photo using Save profile.", 403);
-        for (const key of ["offerTags", "needTags"]) {
+        for (const key of ["offerTags", "needTags", "topics"]) {
           const selected = tags(payload.values[key]);
           if (selected.some((tag) => !features.vocabulary().includes(tag)))
             fail("Choose approved tags or propose a new tag for review.");
@@ -1870,6 +2082,11 @@ export function createWorkspace(file, options = {}) {
         availability: "Monthly sessions",
         startups: "Idea and pre-seed teams",
         image: "/demo/avatars/david.svg",
+        noConflicts: true,
+        // The guided preview starts ready to mentor. Real mentors accept the
+        // guidelines themselves from Settings.
+        guidelinesVersion: mentorConfig.guidelinesVersion,
+        guidelinesAcceptedAt: new Date(now()).toISOString(),
       });
       db.accounts[account.id] = account;
       save();

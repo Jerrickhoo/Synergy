@@ -1,4 +1,5 @@
 import { selectValue, confirmSignOut } from "./ui-helpers.js";
+import { defaultMatching } from "../src/data/matching.js";
 import { test, expect } from "@playwright/test";
 import { decode } from "../src/state/serialization.js";
 import AxeBuilder from "@axe-core/playwright";
@@ -419,6 +420,12 @@ async function pair(request, mentor = false) {
         }
       : { ...profile, offer: "Beta testers", need: "Technical development" },
   });
+  // New mentors accept the guidelines before taking requests.
+  if (mentor)
+    await act(request, b, {
+      form: "accept-guidelines",
+      values: { version: 1 },
+    });
   await act(request, a, {
     action: "interest",
     id: `${b.state.accountId}:${b.role}`,
@@ -532,7 +539,9 @@ test("moderators edit reusable templates and versioned matching weights", async 
     page.getByText("Student beta collaboration · Version 3", { exact: true }),
   ).toBeVisible();
   await page
-    .getByText("Edit matching weights · Version 1", { exact: true })
+    .getByText(`Edit matching weights · Version ${defaultMatching.version}`, {
+      exact: true,
+    })
     .click();
   await page.locator("#weight-founder-0").fill("60");
   await page.locator("#weight-founder-2").fill("10");
@@ -540,7 +549,10 @@ test("moderators edit reusable templates and versioned matching weights", async 
     .getByRole("button", { name: "Save matching weights", exact: true })
     .click();
   await expect(
-    page.getByText("Edit matching weights · Version 2", { exact: true }),
+    page.getByText(
+      `Edit matching weights · Version ${defaultMatching.version + 1}`,
+      { exact: true },
+    ),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Matching evaluation", exact: true }),
@@ -559,7 +571,7 @@ test("moderators edit reusable templates and versioned matching weights", async 
       [`evidence-${item.id}`]: item.evidence ? "on" : "",
     });
   await act(request, admin, { form: "engagement-template", values });
-  const weights = { version: 2 };
+  const weights = { version: defaultMatching.version + 1 };
   for (const kind of ["founder", "mentor"])
     initial.matchingConfig[kind].forEach((weight, index) => {
       weights[`${kind}-${index}`] = weight * 100;

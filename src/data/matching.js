@@ -1,7 +1,9 @@
+// Mentor matching adds Availability Fit and Format Fit (roadmap Phase 1), so
+// mentor weights have 7 entries and founder weights keep 5.
 export const defaultMatching = {
-  version: 1,
+  version: 2,
   founder: [0.5, 0, 0.2, 0.15, 0.15],
-  mentor: [0.35, 0.25, 0.15, 0.1, 0.15],
+  mentor: [0.315, 0.225, 0.135, 0.09, 0.135, 0.05, 0.05],
 };
 export const factorNames = [
   "Need fit",
@@ -9,7 +11,28 @@ export const factorNames = [
   "Industry fit",
   "Stage/size fit",
   "Goal fit",
+  "Availability fit",
+  "Format fit",
 ];
+export const weightCount = { founder: 5, mentor: 7 };
+
+// Saved configs from before Phase 1 have 5 mentor weights. They keep their
+// relative balance at 90% and the two new factors get 5% each, as a new
+// version so earlier room scores stay attributable to the old one. The new
+// factors stay small so availability reorders relevant mentors but never
+// lifts an unrelated one into suggestions.
+export function migrateMatchingConfig(config) {
+  if (!config || config.mentor?.length !== 5) return config;
+  const mentor = [
+    ...config.mentor.map((weight) => Math.round(weight * 0.9 * 10000) / 10000),
+    0.05,
+    0.05,
+  ];
+  mentor[0] =
+    Math.round((mentor[0] + 1 - mentor.reduce((a, b) => a + b, 0)) * 10000) /
+    10000;
+  return { ...config, version: config.version + 1, mentor };
+}
 
 // One observation per shared room, including closed and unfinished engagements.
 // Only mutually released reviews contribute feedback; old rooms are unscored.

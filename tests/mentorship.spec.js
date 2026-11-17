@@ -50,6 +50,14 @@ async function account(request, role) {
     },
     u.token,
   );
+  // New mentors accept the guidelines before taking requests.
+  if (role === "mentor")
+    await post(
+      request,
+      "action",
+      { role, form: "accept-guidelines", values: { version: 1 } },
+      u.token,
+    );
   return u;
 }
 async function open(page, u, path = "") {

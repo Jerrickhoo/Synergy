@@ -1,4 +1,5 @@
 import test from "node:test";
+import { mentorDefaults } from "../src/data/mentor-rules.js";
 import assert from "node:assert/strict";
 import { createInitialState, createModel } from "../src/data/model.js";
 import { createSeededState } from "./fixtures.js";
@@ -77,8 +78,12 @@ test("a fresh account contains no fabricated identity or workspace records", () 
   for (const role of ["founder", "mentor"]) {
     state.role = role;
     assert.equal(profileCompleteness(state.profiles[role], role), 0);
+    // Mentoring settings start at their defaults; no profile text is filled in.
+    const settings = Object.keys(mentorDefaults());
     assert.ok(
-      Object.values(state.profiles[role]).every((value) => value === ""),
+      Object.entries(state.profiles[role])
+        .filter(([key]) => !settings.includes(key))
+        .every(([, value]) => value === ""),
     );
     assert.equal(model.matches().length, 0);
     assert.equal(model.browsePeople().length, 0);

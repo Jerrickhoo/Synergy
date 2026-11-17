@@ -28,6 +28,8 @@ export function filterPeople(people, filters) {
         (person.engagementTypes || [person.engagement]).includes(
           filters.engagement,
         )) &&
+      // "Available now" keeps only mentors who can take a request right now.
+      (!filters.availableNow || person.available === true) &&
       person.score >= Number(filters.score)
     );
   });

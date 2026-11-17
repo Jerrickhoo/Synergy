@@ -49,7 +49,11 @@ const factorPhrase = {
   2: "industry",
   3: "stage and size",
   4: "collaboration goals",
+  // Mentor-only factors (Phase 1). They describe capacity, not profile fit.
+  5: "current availability",
+  6: "the formats open now",
 };
+const profileFactorCount = 5;
 // Lead with the exchange, then name any weak factor plainly (I-10).
 export function fitSummary(person, factors) {
   const rows = fitFactors(person, factors);
@@ -67,7 +71,13 @@ export function fitSummary(person, factors) {
           ? "Your needs and their offers overlap."
           : "Neither profile clearly offers what the other needs.";
   const strong = rows
-    .filter((row) => row.index !== 0 && row.score !== null && row.score >= 65)
+    .filter(
+      (row) =>
+        row.index !== 0 &&
+        row.index < profileFactorCount &&
+        row.score !== null &&
+        row.score >= 65,
+    )
     .map((row) => factorPhrase[row.index]);
   const weak = rows
     .filter((row) => row.score !== null && row.score < 30)
@@ -95,7 +105,7 @@ export function matchReason(person) {
   if (youGet.length) return `Offers what you need: ${youGet.join(", ")}`;
   const best = (person.why || [])
     .map((label, index) => [label, index])
-    .find(([label]) => label === "Strong");
+    .find(([label, index]) => label === "Strong" && index < profileFactorCount);
   return best
     ? best[1] === 0
       ? "Strong needs and offers fit"

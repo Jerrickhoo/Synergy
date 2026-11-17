@@ -112,6 +112,17 @@ export function normalizeMentorFormats(values) {
   return mentorFormatIds.filter((id) => wanted.has(id));
 }
 
+// The formats a mentor offers, each with its price. Accepts the object form
+// ({ id, price }) or a plain list of ids, and a plain id gets price 0. Prices
+// are always 0 in v1, whatever is stored or sent.
+export function normalizeOfferedFormats(values) {
+  const list = Array.isArray(values) ? values : [];
+  const ids = normalizeMentorFormats(
+    list.map((item) => (item && typeof item === "object" ? item.id : item)),
+  );
+  return ids.map((id) => ({ id, price: 0 }));
+}
+
 export function canUpgrade(from, to) {
   return Boolean(
     mentorFormat(from)?.upgradeTo.includes(normalizeMentorFormat(to)),

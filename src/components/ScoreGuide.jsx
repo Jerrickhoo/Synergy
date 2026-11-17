@@ -53,6 +53,18 @@ const factors = [
     name: "Goal fit",
     text: "Your stated goals and how you like to work agree. Blank answers add nothing.",
   },
+  {
+    key: "availability",
+    icon: "clock",
+    name: "Availability fit",
+    text: "Mentors only: whether the mentor can take a new request now, within the limits they set.",
+  },
+  {
+    key: "format",
+    icon: "rooms",
+    name: "Format fit",
+    text: "Mentors only: whether the mentor offers a way to help, such as a quick ask or a session, that's open now.",
+  },
 ];
 
 export default function ScoreGuide({ role }) {
@@ -62,15 +74,15 @@ export default function ScoreGuide({ role }) {
   // animates the change instead of popping rows in and out.
   const shown = factors.map((factor, index) => ({
     ...factor,
-    weight: Math.round(weights[index] * 100),
+    weight: Math.round((weights[index] || 0) * 1000) / 10,
   }));
   const counted = shown.filter((factor) => factor.weight > 0);
 
   return (
     <div className="score-guide-body">
       <p className="score-guide-lead">
-        Every match gets a score out of 100, built from up to five signals in
-        your profiles.
+        Every match gets a score out of 100, built from signals in your profiles
+        and, for mentors, whether they can take a request now.
       </p>
 
       {role !== "mentor" && (

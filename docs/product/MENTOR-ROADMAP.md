@@ -273,11 +273,11 @@ Add an "Available now" filter (`DiscoverPage.jsx`) for founders. It shows only m
 
 ### Done when
 
-- [ ] A mentor at the mentee limit can still receive Quick Asks if they offer them and have async slots and hours.
+- [x] A mentor at the mentee limit can still receive Quick Asks if they offer them and have async slots and hours.
 - [ ] Pausing returns every pending request with alternatives, and the response rate is unchanged.
-- [ ] A founder whose startup matches a disclosed conflict cannot see or request that mentor, by any path.
+- [x] A founder whose startup matches a disclosed conflict cannot see or request that mentor, by any path.
 - [ ] A "both" user never sees themselves in Matches.
-- [ ] Existing mentors are migrated, and the migration runs twice without changes.
+- [x] Existing mentors are migrated, and the migration runs twice without changes.
 
 ## Phase 2 — Structured requests and the Requests Inbox
 

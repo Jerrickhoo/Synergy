@@ -115,6 +115,8 @@
   --factor-industry: #305d87;
   --factor-stage: #795718;
   --factor-goal: #8f3866;
+  --factor-availability: #2f6b4f;
+  --factor-format: #4f5b93;
   --on-factor: #ffffff;
 }
 /*
@@ -173,6 +175,8 @@
   --factor-industry: #a6cbef;
   --factor-stage: #e2c27e;
   --factor-goal: #ecaacb;
+  --factor-availability: #9fd9b4;
+  --factor-format: #b8c0f0;
   --on-factor: #0e1514;
 }
 

@@ -21,6 +21,7 @@ export default function DiscoverPage() {
     state.matchFilters.industry !== "all",
     Number(state.matchFilters.score) > 0,
     state.matchFilters.engagement !== "all",
+    state.matchFilters.availableNow,
   ].filter(Boolean).length;
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState(state.matchFilters);
@@ -238,6 +239,7 @@ export default function DiscoverPage() {
                         industry: "all",
                         score: "0",
                         engagement: "all",
+                        availableNow: false,
                       });
                     }}
                   >
@@ -253,6 +255,7 @@ export default function DiscoverPage() {
                         "industry",
                         "score",
                         "engagement",
+                        "availableNow",
                       ])
                         onFilter(key, draftFilters[key]);
                       setFiltersOpen(false);
@@ -267,6 +270,21 @@ export default function DiscoverPage() {
                 Narrow your search to the people you want to work with.
               </p>
               <div className="overlay-filters">
+                {state.role === "founder" && (
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(draftFilters.availableNow)}
+                      onChange={(event) =>
+                        updateDraft("availableNow", event.target.checked)
+                      }
+                    />
+                    Available now
+                    <span className="field-help">
+                      Only mentors who can take a request today
+                    </span>
+                  </label>
+                )}
                 <div className="field">
                   <label htmlFor="type-filter">Type</label>
                   <SelectField

@@ -350,7 +350,6 @@ for (const role of ["founder", "mentor"]) {
     await expect(page.getByLabel("About me")).toHaveValue("");
     if (role === "mentor") {
       await expect(page.getByLabel("Expertise areas")).toHaveValue("");
-      await expect(page.getByLabel("Availability")).toHaveValue("");
       await expect(page.getByLabel("Startups I want to help")).toHaveValue("");
     } else
       await expect(page.getByLabel("Industry", { exact: true })).toHaveValue(

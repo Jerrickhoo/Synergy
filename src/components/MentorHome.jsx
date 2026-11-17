@@ -10,12 +10,39 @@ import {
   scheduleInstant,
 } from "../data/selectors.js";
 import { mentorshipActions } from "../data/mentorship.js";
+import { ownUnavailableText } from "../data/mentor-rules.js";
 
 export default function MentorHome() {
   const { state, model, onAction } = useApp();
   const rooms = activeRooms(state).filter((room) => room.type === "mentorship");
   const sessions = upcomingSessions(state);
   const actions = mentorshipActions(state);
+  // Banners appear only when something needs doing (roadmap Phase 5 adds the
+  // approval banner once Phase 6 ships).
+  const usage = state.mentorUsage;
+  const banners = [];
+  if (usage?.guidelines.status !== "accepted" && usage) {
+    const until = usage.guidelines.graceUntil
+      ? new Date(usage.guidelines.graceUntil).toLocaleDateString("en", {
+          day: "numeric",
+          month: "short",
+        })
+      : "";
+    banners.push({
+      key: "guidelines",
+      text:
+        usage.guidelines.status === "grace"
+          ? `Accept the mentor guidelines by ${until} to keep receiving requests.`
+          : ownUnavailableText("guidelines"),
+      action: "Read and accept",
+    });
+  }
+  if (usage?.paused)
+    banners.push({
+      key: "paused",
+      text: `Pause Mode is on${usage.pausedUntil ? " until " + new Date(usage.pausedUntil + "T12:00:00Z").toLocaleDateString("en", { day: "numeric", month: "short" }) : ""}. Founders can't send you requests, and your current mentees are not affected.`,
+      action: "Change in Settings",
+    });
   const partner = (room) =>
     model.allPeople().find((p) => p.id === room.partnerId);
   const open = (room, tab = "milestones") =>
@@ -32,6 +59,17 @@ export default function MentorHome() {
   return (
     <div className="page simple-home mentor-home page-enter">
       <HomeWelcome />
+      {banners.map((banner) => (
+        <div className="mentoring-banner" role="status" key={banner.key}>
+          <p>{banner.text}</p>
+          <button
+            className="btn small"
+            onClick={() => onAction({ page: "settings" })}
+          >
+            {banner.action}
+          </button>
+        </div>
+      ))}
       <HomeMetrics />
       <Introductions compact />
       <div className="simple-home-grid section-gap">

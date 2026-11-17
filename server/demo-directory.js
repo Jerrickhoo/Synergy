@@ -1,4 +1,6 @@
 // Fictional collaborators for prototype workspaces. Scores use the normal matcher.
+import { mentorDefaults } from "../src/data/mentor-rules.js";
+import { canonicalTags } from "../src/data/collaboration.js";
 export const legacyDemoProfiles = [
   {
     id: "david-park",
@@ -97,7 +99,7 @@ export const legacyDemoProfiles = [
   },
 ];
 
-export const demoDirectoryVersion = 3;
+export const demoDirectoryVersion = 4;
 const startup = (
   id,
   name,
@@ -161,7 +163,7 @@ const images = {
   greenplate: "greenplate",
 };
 
-export const demoProfiles = [
+const baseDemoProfiles = [
   ...legacyDemoProfiles.map((sample) => ({
     ...sample,
     profile: {
@@ -374,6 +376,46 @@ export const demoProfiles = [
     "ongoing",
   ),
 ];
+
+// Sample mentors carry the Phase 1 mentoring settings with accepted guidelines,
+// and a few vary them so Discover shows real availability states.
+const demoMentoring = {
+  "priya-shah": { paused: true, pausedAt: "2026-11-01T00:00:00.000Z" },
+  "rafael-lim": {
+    formats: [
+      { id: "quick-ask", price: 0 },
+      { id: "doc-review", price: 0 },
+      { id: "single-session", price: 0 },
+    ],
+  },
+  "isabel-cruz": {
+    formats: [
+      { id: "quick-ask", price: 0 },
+      { id: "single-session", price: 0 },
+      { id: "ongoing-advisory", price: 0 },
+    ],
+  },
+};
+export const demoProfiles = baseDemoProfiles.map((sample) =>
+  sample.role === "mentor"
+    ? {
+        ...sample,
+        profile: {
+          ...sample.profile,
+          ...mentorDefaults(),
+          formats: [
+            { id: "single-session", price: 0 },
+            { id: "ongoing-advisory", price: 0 },
+          ],
+          topics: canonicalTags(sample.profile.expertise).join(", "),
+          noConflicts: true,
+          guidelinesVersion: 1,
+          guidelinesAcceptedAt: "2026-11-01T00:00:00.000Z",
+          ...demoMentoring[sample.id],
+        },
+      }
+    : sample,
+);
 
 // Viewer inputs are reproducible reference scenarios, not extra directory accounts.
 // Scores and suggestion counts are always derived by the real matcher.

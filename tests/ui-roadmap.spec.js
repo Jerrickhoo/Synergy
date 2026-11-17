@@ -40,6 +40,12 @@ async function account(request, role, prefix = "Roadmap") {
   expect(response.ok()).toBeTruthy();
   const user = decode(await response.text());
   await action(request, user, { form: "profile-form", values: profiles[role] });
+  // New mentors accept the guidelines before taking requests.
+  if (role === "mentor")
+    await action(request, user, {
+      form: "accept-guidelines",
+      values: { version: 1 },
+    });
   return user;
 }
 async function action(request, user, command) {

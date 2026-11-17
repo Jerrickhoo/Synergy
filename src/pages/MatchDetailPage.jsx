@@ -13,6 +13,7 @@ import Icon from "../components/Icon.jsx";
 import SimulateAcceptance from "../components/SimulateAcceptance.jsx";
 import ReportCollaborator from "../components/ReportCollaborator.jsx";
 import defaultTemplates from "../data/engagement-templates.json" with { type: "json" };
+import { ownUnavailableText, unavailableText } from "../data/mentor-rules.js";
 import {
   fitFactors,
   fitSummary,
@@ -76,6 +77,23 @@ function MatchDetail() {
   const swapWithoutAudience = chosenType === "marketing" && !(myAudience > 0);
   const youGet = person.exchange?.youGet || [];
   const theyGet = person.exchange?.theyGet || [];
+  // A mentor who can't take requests (paused, full, guidelines) blocks sending
+  // here, and a mentor whose own limits are full can't accept. The server
+  // enforces both; this explains why and offers similar mentors.
+  const mentorUnavailable =
+    state.role === "founder" && mentor && person.available === false;
+  const ownUnavailable =
+    state.role === "mentor" &&
+    state.mentorUsage &&
+    !state.mentorUsage.available;
+  const startBlocked =
+    !existingRoom && !interested && (mentorUnavailable || ownUnavailable);
+  const alternatives = mentorUnavailable
+    ? model.people.mentors
+        .filter((item) => item.id !== person.id && item.available)
+        .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+        .slice(0, 3)
+    : [];
   return (
     <div className="page match-detail-page page-enter">
       <button
@@ -188,6 +206,49 @@ function MatchDetail() {
           {incoming && meta?.note && (
             <blockquote className="intro-note">“{meta.note}”</blockquote>
           )}
+          {startBlocked && (
+            <div className="mentoring-banner" role="status">
+              <p>
+                {mentorUnavailable
+                  ? unavailableText(person.reason, person.name)
+                  : ownUnavailableText(state.mentorUsage.reason)}
+              </p>
+              {ownUnavailable && (
+                <button
+                  className="btn small"
+                  onClick={() => onAction({ page: "settings" })}
+                >
+                  Open mentoring settings
+                </button>
+              )}
+            </div>
+          )}
+          {alternatives.length > 0 && !existingRoom && (
+            <div className="mentoring-alternatives">
+              <h3>Ask one of these mentors instead</h3>
+              <ul>
+                {alternatives.map((item) => (
+                  <li key={item.id}>
+                    <span>
+                      <strong>{item.name}</strong>
+                      <span className="muted">
+                        {item.score}% fit · {item.availability}
+                      </span>
+                    </span>
+                    <button
+                      className="btn small"
+                      onClick={() =>
+                        onAction({ action: "match-detail", id: item.id })
+                      }
+                    >
+                      View match
+                      <span className="visually-hidden">: {item.name}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {!existingRoom && !interested && (
             <div className="field">
               <label htmlFor="introduction-type">
@@ -252,6 +313,7 @@ function MatchDetail() {
             data-id={person.id}
             disabled={
               state.busy ||
+              startBlocked ||
               (!existingRoom && verificationRequired(state)) ||
               (interested && !existingRoom && !incoming)
             }

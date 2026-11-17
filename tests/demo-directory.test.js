@@ -1,4 +1,5 @@
 import test from "node:test";
+import { availabilityFit, formatFit } from "../src/data/mentor-rules.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -86,6 +87,11 @@ test("reference viewers get many, few, no, and sparse mentor suggestions using r
           scenario.profile,
           fixture.profile,
           scenario.role === "mentor" || p.role === "mentor",
+          undefined,
+          // Mentor scores include their live Availability and Format Fit.
+          p.role === "mentor"
+            ? { availability: availabilityFit(p), format: formatFit(p) }
+            : null,
         ).score,
       );
       assert.equal(p.image, fixture.profile.image || "");

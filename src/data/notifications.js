@@ -5,15 +5,32 @@ const kinds = {
   "review-release": ["Reviews are in", "star"],
   confirmation: ["Needs your reply", "check"],
   reminder: ["Reminder", "clock"],
+  "guidelines-required": ["Mentor guidelines", "check"],
+  capacity: ["Mentoring capacity", "clock"],
+  mentoring: ["Mentoring", "bell"],
 };
 // Items that ask the founder to do something, shown first on Updates.
 export const needsAction = (item) =>
   !item.self &&
-  ["confirmation", "review", "reminder"].includes(item.kind) &&
+  ["confirmation", "review", "reminder", "guidelines-required"].includes(
+    item.kind,
+  ) &&
   !item.read;
 export const notificationKind = (kind) =>
   kinds[kind] || ["Workspace update", "bell"];
 export function notificationDestination(item, state, people) {
+  if (item.page === "settings")
+    return {
+      label: "Open mentoring settings",
+      context: "Settings",
+      command: { page: "settings" },
+    };
+  if (item.page === "discover")
+    return {
+      label: "Find another mentor",
+      context: "Matches",
+      command: { page: "discover" },
+    };
   if (item.roomId) {
     const room = state.rooms[item.roomId];
     if (room?.role === state.role) {

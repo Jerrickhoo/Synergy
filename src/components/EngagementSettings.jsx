@@ -1,5 +1,5 @@
 import { useApp } from "../state/AppContext.jsx";
-import { factorNames } from "../data/matching.js";
+import { factorNames, weightCount } from "../data/matching.js";
 
 export default function EngagementSettings() {
   const { state, onSubmit } = useApp();
@@ -165,7 +165,7 @@ export default function EngagementSettings() {
                 <legend>
                   {kind === "mentor" ? "Mentorship" : "Founder collaboration"}
                 </legend>
-                {factorNames.map((name, i) => (
+                {factorNames.slice(0, weightCount[kind]).map((name, i) => (
                   <div className="field" key={name}>
                     <label htmlFor={`weight-${kind}-${i}`}>{name} (%)</label>
                     <input
