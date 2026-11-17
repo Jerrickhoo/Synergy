@@ -34,6 +34,7 @@ The updated Synergy spec (Nov 9, 2026) treats mentors as a separate product: str
 | Platform fee (v1.1) | 15% of the price. The founder pays the listed price. The mentor receives 85%. Synergy pays the provider's processing fees out of its 15%. |
 | Payment provider (v1.1) | A marketplace product where **the provider holds funds and pays out to verified sub-accounts**, so Synergy never holds client money: Xendit xenPlatform first choice, PayMongo as fallback. Built behind an adapter, with a simulated provider first. |
 | Refunds and disputes (v1.1) | See P1 "Refunds, reschedules and disputes". |
+| Email provider (Phase 8) | Brevo, for transactional email, behind `EMAIL_PROVIDER=brevo`. The stub sender stays the default for the demo and tests. |
 | Business model | v1 is free for everyone, to build mentor supply and trust data. v1.1 brings the 15% fee on paid sessions. Partner programmes (accelerators and universities paying for cohorts) come after v1.1 (see Future). |
 
 ## Principles that apply to every phase
@@ -232,7 +233,7 @@ Pause Mode is separate from the account-wide "Pause discovery". It stops new req
 
 - The guidelines text lives in `docs/product/MENTOR-GUIDELINES.md` and in `src/data/mentor-guidelines.js` as `{ version, sections[] }`. Version 1 covers: keep founders' information confidential, no equity or payment requests (v1), show up to booked sessions or cancel at least 24 hours ahead, disclose conflicts, give honest and specific feedback, and report misconduct.
 - New action `accept-guidelines {version}` stores `guidelinesAcceptedAt` and `guidelinesVersion`.
-- **Existing mentors** get a grace period of `guidelinesGraceDays` (14) from the day Phase 1 ships. They see a banner on Home ("Accept the mentor guidelines by 2 Dec to keep receiving requests"). After the grace period they stay visible but `available` is false with `reason: "guidelines"` until they accept.
+- **Existing mentors** get a grace period of `guidelinesGraceDays` (14) from the day Phase 1 ships. They see a banner on Home ("Accept the mentor guidelines by {grace end date} to keep receiving requests", where the date is the release date plus `guidelinesGraceDays`). After the grace period they stay visible but `available` is false with `reason: "guidelines"` until they accept.
 - When `guidelinesVersion` in config is raised, the same 14-day grace applies to everyone.
 - **Mentors who sign up after Phase 1 ships** get no grace period. Until they accept, `available` is false with `reason: "guidelines"`, and Home shows "Accept the mentor guidelines to start receiving requests" with the accept action. Until Phase 6 ships, this is the only step a new mentor must complete before taking requests. From Phase 6 it is part of signup.
 
@@ -421,13 +422,13 @@ Add `similarMentors(founder, excludeId, n)` to `server/workspace.js`. It returns
 
 Change the mentorship entry in `engagement-templates.json` from v3 to v4. It becomes one template per format, with milestones taken from `mentor-formats.js`:
 
-| Format           | Milestones (* = needs evidence or mutual confirmation)                                   |
+| Format           | Milestones (\* = needs evidence or mutual confirmation)                                   |
 | ---------------- | ---------------------------------------------------------------------------------------- |
-| Quick Ask        | question → answer* → marked helpful                                                      |
-| Doc/Pitch Review | doc uploaded → review delivered* → revisions logged                                      |
-| Single Session   | goal confirmed → session held* → action items logged → follow-up*                        |
-| Office Hours     | slot booked → session held* → action items logged                                        |
-| Ongoing Advisory | goals defined → check-ins* (reuses the existing `cycle`) → progress reviewed* → reviewed |
+| Quick Ask        | question → answer\* → marked helpful                                                      |
+| Doc/Pitch Review | doc uploaded → review delivered\* → revisions logged                                      |
+| Single Session   | goal confirmed → session held\* → action items logged → follow-up\*                        |
+| Office Hours     | slot booked → session held\* → action items logged                                        |
+| Ongoing Advisory | goals defined → check-ins\* (reuses the existing `cycle`) → progress reviewed\* → reviewed |
 
 **Migration of existing rooms:** `one-off` becomes `single-session`, and `ongoing` becomes `ongoing-advisory`. `ongoingMentorship()` (`collaboration.js`) checks `format === "ongoing-advisory"`. Completed milestones map to the new ids by position. Existing rooms are free (`price: 0`).
 
@@ -791,7 +792,8 @@ This is what turns the MVP into something real users can rely on.
 
 ### Email delivery
 
-- Replace `stubSender` in `server/delivery.js` with a real sender behind `EMAIL_PROVIDER` and its keys in `server/config.js` and `.env.example`. Keep the stub as the default for the demo and tests.
+- Replace `stubSender` in `server/delivery.js` with a Brevo sender using Brevo's transactional email API. It is selected by `EMAIL_PROVIDER=brevo`, with `BREVO_API_KEY` and `EMAIL_FROM` in `server/config.js` and `.env.example`. Production keys live only in the host's secret store. Keep the stub as the default for the demo and tests.
+- The sending domain is verified in Brevo (SPF, DKIM and DMARC) before the first real email. Brevo's bounce and unsubscribe webhooks update each account's email status, so Synergy stops emailing addresses that bounce or unsubscribe.
 - Emails go out for: the request digest or instant requests, `accepted`, `session-reminder` (24 h), `attendance-needed`, `followup-due`, `mentor-approved` and `guidelines-required`. Each email has an unsubscribe link per kind.
 - Emails never include request content, only "Maria sent you a mentorship request" and a link.
 
