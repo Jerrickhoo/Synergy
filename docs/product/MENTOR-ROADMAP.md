@@ -114,6 +114,10 @@ export const mentorConfig = {
   followupAfterDays: 14,
   followupRemindDays: [14, 17, 21],
   followupOverdueDays: 21,
+  // Ongoing Advisory
+  cycleWeeks: 8,                 // replaces the hard-coded 8 weeks in ensureCycle
+  checkInsPerCycle: 4,           // one every 2 weeks; fixed when each cycle starts
+  checkInMinutes: 45,
   // Reviews and impact
   reviewWindowDays: 14,
   minDataPoints: 3,              // a stat or rating shows only from this many data points
@@ -192,7 +196,7 @@ This is the rule that every later phase follows. It lives in one function, `capa
 | Doc/Pitch Review | No | Yes, from accept until review delivered | `effortMinutes` (60), in the month accepted |
 | Single Session | Yes, from accept until "Session held" is resolved | No | the session's `durationMinutes` (default 60), in the month it is scheduled |
 | Office Hours | Yes, from booking until "Session held" is resolved | No | the slot's `durationMinutes`, in the month of the slot |
-| Ongoing Advisory | Yes, for the whole engagement | No | each check-in's `durationMinutes`, in the month it is scheduled |
+| Ongoing Advisory | Yes, from accept until the engagement ends (Phase 3, "Ending an engagement") | No | the cycle's planned minutes (`checkInsPerCycle` × `checkInMinutes`), **reserved at accept** and at each new cycle, spread over the months the check-ins fall in |
 
 - A format is **available** only if the mentor is not paused, has accepted the current guidelines, and has room in the slot type and the hours that format needs. `availableFormats[]` lists them.
 - `available` is true when at least one format is available.
@@ -517,9 +521,24 @@ The claims then decide the outcome. "Silent" means no report within `attendanceA
 - **Accepting re-checks the mentor's capacity** for the new format, exactly like Phase 2 accept. If it doesn't fit, the mentor sees the reason and the proposal stays open for `upgradeProposalDays` (7).
 - On success the template switches, `ensureCycle` starts for Ongoing Advisory, and history is kept. There is no new request.
 
+### Ongoing Advisory check-ins
+
+- A cycle lasts `cycleWeeks` (8) and has `checkInsPerCycle` (4) check-ins of `checkInMinutes` (45), one every 2 weeks. `ensureCycle` reads these from `mentorConfig` instead of its hard-coded 8 weeks.
+- At "Goals Defined", the founder proposes a regular time (weekday and time, in their time zone) and the mentor confirms it (`confirm-check-in-time`). That creates the cycle's check-ins as normal `schedules[]` entries, with the same attendance, reschedule and cancellation rules as any session.
+- Capacity: the cycle's planned minutes are reserved at accept, and again when a cycle continues. They are spread over the months the check-ins fall in, so a mentor can't overbook before the check-ins are on the calendar. Accepting, upgrading or continuing is refused if the reservation doesn't fit.
+- The number of check-ins is fixed when each cycle starts. A missed or cancelled check-in can be rescheduled within the same cycle, but no extra check-ins are added. The stage line shows held check-ins against that number ("2 of 4").
+
+### Ending an engagement
+
+- **One-off formats** (Quick Ask, Doc/Pitch Review, Single Session, Office Hours) end on their own when the review is done or its window closes. The room becomes read-only.
+- **Ongoing Advisory** ends when either side chooses Finish at the end of a cycle (the existing `resolveCycleDecisions`), or when either side uses **End mentorship** (`end-mentorship {reason}`) at any time. Ending early cancels the remaining check-ins under the normal cancellation rules (late if a check-in is less than `lateNoticeHours` away) and opens the cycle review straight away.
+- Either side can end an engagement on its own: v1 is volunteer work, so no agreement is needed. Moderators can close any room. The existing `close-room` action does this for mentorship rooms, and behaves the same as End mentorship.
+- When an engagement ends, the mentee slot and any reserved hours not yet used are freed straight away. Minutes already used still count for their month.
+- The other side is notified with the reason. Ending early is not counted against either side's trust, except for any late cancellations it causes.
+
 ### Mentor admin limit
 
-Remove the generic Deal Room pieces from mentorship rooms: the per-milestone dispute flag, the evidence requirement on non-* milestones, the Terms tab and the "Launched" wording. Disagreements go through the attendance dispute only. The rule "the mentor's only required admin is to confirm the goal, report attendance and rate" is checked by a unit test that lists every action the mentor must take to finish each format.
+Remove the generic Deal Room pieces from mentorship rooms: the per-milestone dispute flag, the evidence requirement on non-* milestones, the Terms tab and the "Launched" wording. Disagreements go through the attendance dispute only. The rule "the mentor's only required admin is to confirm the goal (and, for Ongoing Advisory, the check-in time), report attendance and rate" is checked by a unit test that lists every action the mentor must take to finish each format.
 
 ### Notifications added in this phase
 
@@ -531,6 +550,8 @@ Remove the generic Deal Room pieces from mentorship rooms: the per-milestone dis
 - `followup-due` (founder): days 14, 17 and 21
 - `followup-update` (mentor): "Maria tested your pricing advice — here's what happened"
 - `upgrade-proposed`, `upgrade-accepted` and `upgrade-declined`
+- `check-in-time` (mentor): the founder proposed a regular check-in time
+- `engagement-ended` (partner): with the reason
 
 ### Done when
 
@@ -540,6 +561,8 @@ Remove the generic Deal Room pieces from mentorship rooms: the per-milestone dis
 - [ ] An overdue follow-up limits the founder to 1 pending request, and submitting lifts it.
 - [ ] An upgrade that would go over capacity is refused with a reason.
 - [ ] The unit test for the mentor admin limit passes for all five formats.
+- [ ] Accepting Ongoing Advisory reserves the cycle's minutes, and is refused when they don't fit.
+- [ ] Ending an Ongoing Advisory early cancels the remaining check-ins and frees the slot and unused hours at once.
 
 ## Phase 4 — Office Hours and Calendar
 
@@ -727,6 +750,19 @@ In v1 no payment of any kind is allowed between founders and mentors (spec §9).
 - `flaggedMessageLimit` (3) flagged messages from one account within `flaggedMessageWindowDays` (30) put the account in the moderation queue automatically.
 - Sharing contact details in general is not flagged. Only payment and equity asks are.
 
+### Suspending a mentor
+
+- New admin-only actions `suspend-mentor {reason, until?}` and `reinstate-mentor`, in `ModerationPage.jsx`. Both are logged with who, when and why. A suspension with no `until` is a permanent removal.
+- Suspension is always a moderator's decision, usually after a report. Nothing triggers it automatically.
+- While suspended:
+  - the mentor is hidden from Discover and Matches, and `available` is false with `reason: "suspended"`
+  - pending requests are returned to founders with alternatives, with no effect on the response rate
+  - future booked sessions are cancelled and counted as mentor cancellations, and each founder is offered alternatives
+  - active rooms close, and their founders are told to find another mentor, with alternatives
+- The mentor is told the reason and, for a timed suspension, the end date. They can appeal once through the existing `report-form`.
+- `sweep()` lifts a timed suspension on `until`. Reinstating does not reopen closed rooms.
+- Notifications: `mentor-suspended` and `mentor-reinstated` (mentor), `mentor-unavailable` (affected founders, with alternatives). None are batched into the digest.
+
 ### Ratings
 
 Inflation flagging reuses `ratingPattern` (`trustSummary`) and puts flags in the moderation queue. Examples: only 5-star ratings exchanged between the same two accounts, or reviews submitted within seconds of the window opening.
@@ -740,6 +776,7 @@ Confidentiality and block/report reuse the existing `report-form` and blocked co
 - [ ] Each flagged phrase in a fixture list is caught, and a list of normal sentences produces no flags.
 - [ ] A second no-show within 90 days applies the limit, and an admin can lift it.
 - [ ] Blocking from a request card works and returns the request.
+- [ ] Suspending a mentor hides them, returns their requests, cancels their booked sessions and closes their rooms, with every affected founder notified.
 
 ## Phase 8 — Notification delivery, admin settings and launch readiness
 
@@ -872,7 +909,7 @@ payment: {
 | --- | --- |
 | Single Session, Office Hours | When the session `outcome` becomes `held` (Phase 3 attendance, including the 72-hour automatic confirmation) |
 | Quick Ask, Doc/Pitch Review | When the founder marks the answer Helpful, or automatically `asyncAutoCompleteDays` (5) after delivery if the founder hasn't rated it. When the founder marks it Not helpful, the payment stays held for another `asyncAutoCompleteDays` (5), during which the founder can open a dispute. If no dispute is opened, it is then released. |
-| Ongoing Advisory | Priced per 8-week cycle and charged when each cycle starts (in `ensureCycle`, and on Continue in `resolveCycleDecisions`, which shows the current price before the founder chooses Continue). The cycle amount is split evenly across the cycle's planned check-ins and released per check-in with outcome `held`. Anything left is released `cycleRemainderReleaseDays` (7) after the cycle ends, unless a dispute is open. Choosing Finish stops further charges. |
+| Ongoing Advisory | Priced per 8-week cycle and charged when each cycle starts (in `ensureCycle`, and on Continue in `resolveCycleDecisions`, which shows the current price before the founder chooses Continue). The cycle amount is split evenly across the cycle's `checkInsPerCycle` check-ins (fixed when the cycle starts) and released per check-in with outcome `held`. Anything left is released `cycleRemainderReleaseDays` (7) after the cycle ends, unless a dispute is open. Choosing Finish stops further charges. |
 
 ### Refunds, reschedules and disputes
 
@@ -880,6 +917,7 @@ payment: {
 | --- | --- |
 | Mentor no-show (`no-show-mentor`) | Full refund to the founder |
 | Both sides missed (`no-show-both`) | Full refund to the founder. The mentor did not deliver the session. |
+| Ongoing Advisory ended early (End mentorship, close or suspension) | The share for check-ins not held is refunded to the founder, except check-ins the founder cancelled late, which the mentor is paid for |
 | Mentor cancels, at any time | Full refund |
 | Mentor never delivers a Quick Ask or Doc Review within `responseDays` after payment | Full refund, and the room closes |
 | Founder cancels 24 hours or more before the session | Full refund |
