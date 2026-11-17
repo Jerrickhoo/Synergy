@@ -394,7 +394,18 @@ Change the mentorship entry in `engagement-templates.json` from v3 to v4. It bec
 
 ### Stage line
 
-`RoomDetailPage.jsx` shows the mentorship stages: Requested → Accepted → Goal Confirmed → Session Held → Follow-up → Reviewed. Quick Ask and Doc Review use Requested → Accepted → Delivered → Reviewed. The stages come from a new `mentorshipStage(room)` in `src/data/mentorship.js`, which replaces the generic `roomStatusLabel` for mentorship. `RoomsPage` and `NowBar` use the same helper. The function takes an optional `payment` state, unused in v1, so v1.1 can add "Awaiting payment" without changing callers.
+`RoomDetailPage.jsx` shows one stage line per format, following its milestones:
+
+| Format | Stages |
+| --- | --- |
+| Quick Ask, Doc/Pitch Review | Requested → Accepted → Delivered → Reviewed |
+| Single Session | Requested → Accepted → Goal Confirmed → Session Held → Follow-up → Reviewed |
+| Office Hours | Booked → Session Held → Reviewed. There is no accept step and no follow-up. |
+| Ongoing Advisory | Requested → Accepted → Goals Defined → Check-ins (e.g. "2 of 4") → Progress Reviewed → Reviewed. Each new cycle restarts at Check-ins. |
+
+A room upgraded to another format (see "Upgrade") keeps its history and continues at the new format's first stage after Accepted, so it never shows Requested again.
+
+The stages come from a new `mentorshipStage(room)` in `src/data/mentorship.js`, which replaces the generic `roomStatusLabel` for mentorship. `RoomsPage` and `NowBar` use the same helper. The function takes an optional `payment` state, unused in v1, so v1.1 can add "Awaiting payment" without changing callers.
 
 ### Room contents (mentorship tabs)
 
@@ -415,7 +426,7 @@ attendance: {                     // keyed by ROLE, not me/partner, so mirroring
   founder: null | "held" | "partner-absent" | "i-missed",
   at: { mentor: null, founder: null },
 },
-outcome: null | "held" | "no-show-mentor" | "no-show-founder" | "disputed",
+outcome: null | "held" | "no-show-mentor" | "no-show-founder" | "no-show-both" | "disputed",
 reschedules: { mentor: 0, founder: 0 },
 cancelledBy: null, cancelledAt: null, lateCancel: false,
 ```
@@ -440,9 +451,10 @@ The claims then decide the outcome. "Silent" means no report within `attendanceA
 | One side says the other missed, and the other is silent | The accused side's no-show. The accused side has 72 h from that report to answer "held", which makes it `disputed`. |
 | One says held and the other names someone as missing | `disputed` |
 | Each says the other missed | `disputed` |
+| Each admits it missed (both report `i-missed`) | `no-show-both`. Final. It counts as a no-show for each side. |
 
 - `sweep()` applies the 72-hour rules.
-- `disputed` goes to the moderation queue (`ModerationPage.jsx`) as a "Session dispute" with both statements. The moderator chooses `held`, `no-show-mentor` or `no-show-founder` (`resolve-session-dispute`, admin only). In v1 this affects only trust stats. In v1.1 it also decides the money.
+- `disputed` goes to the moderation queue (`ModerationPage.jsx`) as a "Session dispute" with both statements. The moderator chooses `held`, `no-show-mentor`, `no-show-founder` or `no-show-both` (`resolve-session-dispute`, admin only). In v1 this affects only trust stats. In v1.1 it also decides the money.
 - The "Session held" milestone completes when `outcome` is `held`. A no-show outcome offers "Reschedule" or "Close room".
 
 ### Reschedules and cancellations
@@ -562,7 +574,7 @@ Add `src/pages/ImpactPage.jsx` (`#/impact`) and public profile sections. Stats c
 | Follow-through rate | Action items marked Done ÷ action items with a submitted follow-up |
 | Response rate | (Accepted + declined + referred) ÷ (all requests − returns caused by Pause Mode or blocking) |
 | Average response time | Median hours from `sentAt` to the mentor's response |
-| No-show rate | `no-show-mentor` outcomes ÷ resolved sessions (shown to the mentor and to admins; publicly only as "Reliable" when below 5%) |
+| No-show rate | `no-show-mentor` and `no-show-both` outcomes ÷ resolved sessions (shown to the mentor and to admins; publicly only as "Reliable" when below 5%) |
 | Late cancellations | Count in the last 90 days (mentor and admins only) |
 | Testimonials | Opt-in: a new review field `testimonial` plus `testimonialPublic`, shown only when both the author and the mentor agree |
 | Follow-up highlights | The latest 3 founder outcomes the founder marked shareable |
@@ -788,7 +800,7 @@ All amounts are integers in centavos. `split(price, rate)` returns `{ amount: pr
 - Accepting reserves the mentor's capacity, so a slot can't be taken twice.
 - The founder has `paymentWindowHours` (48) to pay, with a reminder 12 hours before the end. If they don't pay, `sweep()` closes the room as `cancelled` with the reason `payment-lapsed`, frees the capacity and notifies both sides.
 - A lapsed payment counts like a late cancellation in the founder's trust. Two lapses in 90 days apply the founder no-show limit from Phase 7.
-- `mentorshipStage` shows "Awaiting payment" between Accepted and Goal Confirmed.
+- `mentorshipStage` shows "Awaiting payment" right after Accepted, or after Booked for Office Hours.
 - Free formats skip all of this and work exactly as in v1.
 
 ### Payment record
@@ -815,7 +827,7 @@ payment: {
 | Format | Release |
 | --- | --- |
 | Single Session, Office Hours | When the session `outcome` becomes `held` (Phase 3 attendance, including the 72-hour automatic confirmation) |
-| Quick Ask, Doc/Pitch Review | When the founder marks the answer Helpful or Not helpful, or automatically `asyncAutoCompleteDays` (5) after delivery. "Not helpful" still releases the payment, but the founder can open a dispute within those 5 days. |
+| Quick Ask, Doc/Pitch Review | When the founder marks the answer Helpful, or automatically `asyncAutoCompleteDays` (5) after delivery if the founder hasn't rated it. When the founder marks it Not helpful, the payment stays held for another `asyncAutoCompleteDays` (5), during which the founder can open a dispute. If no dispute is opened, it is then released. |
 | Ongoing Advisory | Priced per 8-week cycle and charged when each cycle starts (in `ensureCycle`, and on Continue in `resolveCycleDecisions`, which shows the current price before the founder chooses Continue). The cycle amount is split evenly across the cycle's planned check-ins and released per check-in with outcome `held`. Anything left is released `cycleRemainderReleaseDays` (7) after the cycle ends, unless a dispute is open. Choosing Finish stops further charges. |
 
 ### Refunds, reschedules and disputes
@@ -823,6 +835,7 @@ payment: {
 | Situation | Result |
 | --- | --- |
 | Mentor no-show (`no-show-mentor`) | Full refund to the founder |
+| Both sides missed (`no-show-both`) | Full refund to the founder. The mentor did not deliver the session. |
 | Mentor cancels, at any time | Full refund |
 | Mentor never delivers a Quick Ask or Doc Review within `responseDays` after payment | Full refund, and the room closes |
 | Founder cancels 24 hours or more before the session | Full refund |
