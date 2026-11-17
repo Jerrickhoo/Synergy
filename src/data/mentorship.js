@@ -31,10 +31,10 @@ export function mentorshipActions(state, now = Date.now()) {
         dueDate: task.dueDate,
       });
     }
-    if (!launchBlockers(room).length)
+    if (room.cycle?.phase === "review")
       actions.push({
         priority: 2,
-        text: "Complete your mentorship",
+        text: `Review mentorship cycle ${room.cycle.number}`,
         roomId: room.id,
         tab: "milestones",
       });

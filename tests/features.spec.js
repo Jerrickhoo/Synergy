@@ -209,35 +209,34 @@ test("Settings role switching restores custom-select drafts and community disclo
   await expect(
     page.getByRole("progressbar", { name: "Profile complete", exact: true }),
   ).toHaveAttribute("aria-valuenow", "100");
-  const summary = page.getByText(
-    "Affiliation verification and community tags",
-    { exact: true },
-  );
-  await summary.click();
+  const summary = page.getByText("Standard tags", { exact: true });
   const organization =
     "A fictional organization with a long name for wrapping and retained form values";
+  // Verification is always visible; only the tag proposal collapses.
   await page
-    .getByLabel("Organization or program", { exact: true })
+    .getByLabel("Organization, program or referrer", {
+      exact: true,
+    })
     .fill(organization);
   await page
-    .getByLabel("Affiliation evidence", { exact: true })
+    .getByLabel("How can we confirm it?", { exact: true })
     .fill("Public roster available for moderator review");
+  await summary.click();
   await page
     .getByLabel("Proposed tag", { exact: true })
     .fill("Accessibility Research");
   await summary.click();
   await summary.click();
   await expect(
-    page.getByLabel("Organization or program", { exact: true }),
+    page.getByLabel("Organization, program or referrer", {
+      exact: true,
+    }),
   ).toHaveValue(organization);
   await expect(page.getByLabel("Proposed tag", { exact: true })).toHaveValue(
     "Accessibility Research",
   );
   await expect(
-    page.getByRole("button", {
-      name: "Request affiliation verification",
-      exact: true,
-    }),
+    page.getByRole("button", { name: "Request verification", exact: true }),
   ).toBeEnabled();
   await expect(
     page.getByRole("button", { name: "Propose tag", exact: true }),
@@ -305,7 +304,7 @@ test("notification preview remains below the header with reachable overflow and 
     await body.focus();
     await page.keyboard.press("End");
     await expect(
-      panel.getByRole("button", { name: "View all updates and preferences" }),
+      panel.getByRole("button", { name: "View all updates" }),
     ).toBeInViewport();
     await page.keyboard.press("Escape");
     await expect(bell).toBeFocused();
@@ -317,9 +316,7 @@ test("notification preview remains below the header with reachable overflow and 
     "animation-name",
     "none",
   );
-  await page
-    .getByRole("button", { name: "View all updates and preferences" })
-    .click();
+  await page.getByRole("button", { name: "View all updates" }).click();
   await expect(page.locator("#notification-panel")).toHaveCount(0);
   await expect(page.locator(".updates-page .update-row")).toHaveCount(24);
   await page.getByRole("button", { name: "Unread (12)", exact: true }).click();
@@ -457,8 +454,9 @@ test("partners revise milestone scope with approval and preserve evidence", asyn
   const milestone = page.locator(".milestone").filter({
     has: page.locator(".milestone-title", { hasText: "Testing round" }),
   });
+  await milestone.getByText(/^More/).click();
   await milestone
-    .getByText("Propose title or scope revision", { exact: true })
+    .getByText("Propose a change to this milestone", { exact: true })
     .click();
   await milestone
     .getByLabel("Milestone title", { exact: true })
@@ -473,7 +471,7 @@ test("partners revise milestone scope with approval and preserve evidence", asyn
     milestone.getByText("Proposed milestone revision"),
   ).toBeVisible();
   await expect(
-    milestone.getByRole("button", { name: "Confirm yours" }),
+    milestone.getByRole("button", { name: "Mark as done" }),
   ).toBeDisabled();
   const partnerPage = await page.context().newPage();
   await open(partnerPage, b, `rooms/${id}`);
@@ -515,7 +513,7 @@ test("moderators edit reusable templates and versioned matching weights", async 
   const initial = (await state(request, admin)).state;
   await open(page, admin, "moderation");
   await page
-    .getByText("Beta Testing Exchange · Version 1", { exact: true })
+    .getByText("Beta Testing Exchange · Version 2", { exact: true })
     .click();
   const form = page
     .locator('form[data-form="engagement-template"]')
@@ -531,7 +529,7 @@ test("moderators edit reusable templates and versioned matching weights", async 
     .getByRole("button", { name: "Save template", exact: true })
     .click();
   await expect(
-    page.getByText("Student beta collaboration · Version 2", { exact: true }),
+    page.getByText("Student beta collaboration · Version 3", { exact: true }),
   ).toBeVisible();
   await page
     .getByText("Edit matching weights · Version 1", { exact: true })
@@ -553,7 +551,7 @@ test("moderators edit reusable templates and versioned matching weights", async 
   ).toBe("Agree student test scope");
   await capture(page, "templates-matching-settings-desktop");
   const template = initial.engagementTemplates.beta;
-  const values = { type: "beta", version: 2, name: template.name };
+  const values = { type: "beta", version: 3, name: template.name };
   for (const item of template.milestones)
     Object.assign(values, {
       [`title-${item.id}`]: item.title,
@@ -631,31 +629,38 @@ test("partners request revised terms, set due dates, close a room and reconnect 
   });
   await open(page, b, `rooms/${id}`);
   await page
-    .getByRole("button", { name: "Request changes / reopen terms" })
+    .getByText("Propose changes to these terms", { exact: true })
+    .click();
+  await page.getByRole("button", { name: "Send change request" }).click();
+  // The terms stay agreed until the partner accepts the request.
+  await expect(page.getByLabel("Shared goal", { exact: true })).toBeDisabled();
+  const requester = await context.newPage();
+  await open(requester, a, `rooms/${id}`);
+  await requester
+    .getByRole("button", { name: "Agree to reopen terms" })
     .click();
   await expect(page.getByLabel("Shared goal", { exact: true })).toBeEnabled();
   await page
     .getByLabel("Shared goal", { exact: true })
     .fill("Revised onboarding outcome");
-  await page.getByRole("button", { name: "Lock terms & start" }).click();
+  await page.getByRole("button", { name: /^Send for / }).click();
   const other = await context.newPage();
   await open(other, a, `rooms/${id}`);
-  await other.getByRole("button", { name: "Accept shared terms" }).click();
-  await expect(
-    page.getByText("Confirmed by both", { exact: true }),
-  ).toBeVisible();
+  await other.getByRole("button", { name: "Accept these terms" }).click();
+  await requester.close();
+  await expect(page.getByText("Agreed by both", { exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Milestones", exact: true }).click();
   const scope = page.locator(".milestone").filter({
     has: page.locator(".milestone-title", { hasText: "Scope defined" }),
   });
-  await scope.getByText("Set due date", { exact: true }).click();
-  await scope.getByLabel("Due date (UTC)").fill("2025-01-01");
-  await scope.getByRole("button", { name: "Save due date" }).click();
-  await expect(
-    scope.getByText("Due 2025-01-01 (UTC)", { exact: true }),
-  ).toBeVisible();
-  await page.getByText("Close this collaboration", { exact: true }).click();
-  await page.getByLabel("Reason for closing").fill("Changing priorities");
+  await scope.getByText(/^More/).click();
+  await scope.getByLabel("Due date", { exact: true }).fill("2025-01-01");
+  await scope.getByRole("button", { name: "Save date and owner" }).click();
+  await expect(scope.getByText(/^Due .*2025/)).toBeVisible();
+  await page.getByText("More", { exact: true }).first().click();
+  await page.getByRole("button", { name: "Close this collaboration" }).click();
+  await selectValue(page.getByLabel("Why are you closing it?"), "other");
+  await page.getByLabel(/^Details/).fill("Changing priorities");
   await page
     .getByRole("button", { name: "Close collaboration", exact: true })
     .click();
@@ -672,7 +677,7 @@ test("partners request revised terms, set due dates, close a room and reconnect 
     )
     .click();
   await page
-    .getByRole("button", { name: "Express interest", exact: true })
+    .getByRole("button", { name: "Send introduction", exact: true })
     .click();
   const next = await act(request, a, {
     action: "accept-interest",
@@ -718,9 +723,7 @@ test("weekly mentorship rescheduling and notification read state work on mobile"
   ).toBe(45);
   await page.getByRole("tab", { name: "Milestones", exact: true }).click();
   await expect(page.getByText(/2035-04-15 · 10:00/)).toBeVisible();
-  await page
-    .getByRole("button", { name: "Reschedule session", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Reschedule", exact: true }).click();
   await page.getByLabel("Session date", { exact: true }).fill("2035-04-02");
   await page
     .getByLabel("Or choose another time", { exact: true })
@@ -742,6 +745,11 @@ test("weekly mentorship rescheduling and notification read state work on mobile"
     ),
   ).toBe(true);
   await capture(page, "fixed-scheduling-mobile");
+  await act(request, b, {
+    action: "confirm-milestone",
+    activeRoomId: id,
+    id: "goals",
+  });
   await page.goto("/#/updates");
   await page
     .getByRole("button", { name: "Mark all as read", exact: true })
@@ -886,9 +894,9 @@ test("prospective partners see public trust only after both blind reviews are su
     activeRoomId: id,
     values: { rating: "5" },
   });
-  await expect(trust).toContainText("4/5 from 1 distinct collaborators");
+  await expect(trust).toContainText("4/5 from 1 review");
   await trust
-    .getByText("Completed engagement history (1)", { exact: true })
+    .getByText("Completed collaboration history (1)", { exact: true })
     .click();
   await expect(trust).toContainText("Beta Testing Exchange");
   await capture(page, "fixed-public-trust-desktop");
@@ -900,9 +908,7 @@ test("temporary restore failures preserve a valid session and allow retry", asyn
 }) => {
   const u = await user(request, "Restore");
   await open(page, u);
-  await expect(
-    page.getByRole("heading", { name: "Welcome, Restore" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /, Restore$/ })).toBeVisible();
   await page.route("**/api/state*", (route) =>
     route.fulfill({
       status: 503,
@@ -921,9 +927,7 @@ test("temporary restore failures preserve a valid session and allow retry", asyn
   ).toBe(true);
   await page.unroute("**/api/state*");
   await page.getByRole("button", { name: "Retry opening workspace" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Welcome, Restore" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /, Restore$/ })).toBeVisible();
 });
 
 test("shared terms preserve dirty drafts through remote edits and navigation", async ({
@@ -973,7 +977,7 @@ test("shared terms preserve dirty drafts through remote edits and navigation", a
   );
 });
 
-test("account settings support visibility, private exports, session revocation and deletion", async ({
+test("account settings support visibility, session revocation and deletion", async ({
   page,
   request,
 }) => {
@@ -1009,9 +1013,6 @@ test("account settings support visibility, private exports, session revocation a
       { exact: true },
     ),
   ).toBeVisible();
-  const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download my data" }).click();
-  expect((await download).suggestedFilename()).toBe("synergy-account.json");
   await page.getByRole("button", { name: "Sign out other sessions" }).click();
   await page
     .getByLabel("Current password", { exact: true })
@@ -1076,12 +1077,12 @@ test("mobile discovery keeps the first action visible and lets partners agree on
   await page
     .getByLabel("Search matches", { exact: true })
     .fill("MobilePartner");
-  const view = page.getByRole("button", { name: "View match", exact: true });
+  const view = page.getByRole("button", { name: /^View match/ });
   await expect(view).toBeInViewport();
   await view.click();
   await selectValue(page.getByLabel("Collaboration type"), "marketing");
   await page
-    .getByRole("button", { name: "Express interest", exact: true })
+    .getByRole("button", { name: "Send introduction", exact: true })
     .click();
   const accepted = await act(request, b, {
     action: "accept-interest",

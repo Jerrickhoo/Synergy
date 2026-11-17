@@ -2,7 +2,25 @@
   "mentorship": {
     "id": "mentorship",
     "name": "Mentorship",
-    "version": 2,
+    "version": 3,
+    "fields": [
+      {
+        "id": "format",
+        "label": "Mentorship format",
+        "type": "select",
+        "options": [
+          ["one-off", "One-off session"],
+          ["ongoing", "Ongoing check-ins"]
+        ],
+        "help": "One-off ends after the guidance is delivered. Ongoing repeats check-ins until you both choose to finish."
+      },
+      {
+        "id": "cadence",
+        "label": "Session cadence",
+        "type": "text",
+        "placeholder": "For example: one 45-minute call, or every two weeks"
+      }
+    ],
     "milestones": [
       {
         "id": "goals",
@@ -12,14 +30,14 @@
       },
       {
         "id": "session",
-        "title": "Session scheduled",
-        "description": "Book the first guidance session together.",
+        "title": "Sessions scheduled",
+        "description": "Book the agreed guidance session or recurring check-ins together.",
         "evidence": false
       },
       {
         "id": "guidance",
         "title": "Guidance delivered",
-        "description": "Share practical product guidance and key takeaways.",
+        "description": "Share the agreed guidance and key takeaways.",
         "evidence": true
       },
       {
@@ -39,67 +57,106 @@
   "marketing": {
     "id": "marketing",
     "name": "Co-Marketing Swap",
-    "version": 1,
+    "version": 2,
+    "fields": [
+      {
+        "id": "audiences",
+        "label": "Audience sizes",
+        "type": "text",
+        "placeholder": "For example: ours 45,000 subscribers · theirs 50,000",
+        "help": "Swaps more than 10 times uneven are flagged in matching. Record any agreed adjustment here."
+      },
+      {
+        "id": "sendDate",
+        "label": "Send date",
+        "type": "date"
+      },
+      {
+        "id": "assetDeadline",
+        "label": "Assets due",
+        "type": "date"
+      }
+    ],
     "milestones": [
       {
-        "id": "audience",
-        "title": "Audience aligned",
-        "description": "Agree on the student audiences each team wants to reach.",
-        "evidence": false
-      },
-      {
         "id": "assets",
-        "title": "Campaign assets ready",
-        "description": "Prepare newsletter and social campaign materials.",
+        "title": "Assets shared",
+        "description": "Share the copy, images and links each side will promote.",
         "evidence": false
       },
       {
-        "id": "launch",
-        "title": "Campaign launched",
-        "description": "Publish the cross-promotion across both channels.",
-        "evidence": true
+        "id": "draft",
+        "title": "Draft approved",
+        "description": "Each side approves how it will be presented to the other’s audience.",
+        "evidence": false
+      },
+      {
+        "id": "send",
+        "title": "Send date locked",
+        "description": "Confirm the agreed send dates for both audiences.",
+        "evidence": false
+      },
+      {
+        "id": "swap",
+        "title": "Swap executed",
+        "description": "Both promotions go out as agreed.",
+        "evidence": false
       },
       {
         "id": "results",
-        "title": "Results shared",
-        "description": "Compare reach, clicks, and sign-ups together.",
+        "title": "Results reported",
+        "description": "Share reach, clicks and sign-ups from each send.",
         "evidence": true
-      },
-      {
-        "id": "followup",
-        "title": "Next steps agreed",
-        "description": "Capture what to repeat in the next campaign.",
-        "evidence": false
       }
     ]
   },
   "beta": {
     "id": "beta",
     "name": "Beta Testing Exchange",
-    "version": 1,
+    "version": 2,
+    "fields": [
+      {
+        "id": "testerCount",
+        "label": "Number of testers",
+        "type": "number",
+        "placeholder": "50"
+      },
+      {
+        "id": "testWindow",
+        "label": "Testing window",
+        "type": "text",
+        "placeholder": "For example: 10–24 November"
+      },
+      {
+        "id": "feedbackMethod",
+        "label": "How feedback is collected",
+        "type": "text",
+        "placeholder": "For example: a shared form"
+      }
+    ],
     "milestones": [
       {
         "id": "scope",
         "title": "Scope defined",
-        "description": "Both teams agreed on what success looks like.",
+        "description": "Confirm what will be tested and what success looks like.",
         "evidence": false
       },
       {
         "id": "testers",
         "title": "Testers assigned",
-        "description": "Invite the agreed group of users to the beta.",
+        "description": "Invite the agreed number of testers.",
         "evidence": false
       },
       {
         "id": "testing",
         "title": "Testing round",
-        "description": "Two-week product testing window.",
+        "description": "Run the agreed testing window.",
         "evidence": true
       },
       {
         "id": "feedback",
         "title": "Feedback submitted",
-        "description": "Collect feedback in the shared form.",
+        "description": "Collect feedback using the agreed method.",
         "evidence": true
       },
       {

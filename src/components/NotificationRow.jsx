@@ -4,6 +4,7 @@ import Icon from "./Icon.jsx";
 import {
   notificationKind,
   notificationDestination,
+  needsAction,
   relativeTime,
 } from "../data/notifications.js";
 
@@ -22,57 +23,68 @@ export default function NotificationRow({ item, now, compact = false }) {
   const destination = notificationDestination(item, state, model.rolePeople());
   const date = new Date(Date.parse(item.timestamp));
   const validDate = Number.isFinite(date.getTime());
+  const actionable = destination.command || !item.read;
   return (
     <article
-      className={`notification-entry update-row ${item.read ? "read" : "unread"} ${compact ? "update-compact" : ""}`}
+      className={`notification-entry update-row ${item.read ? "read" : "unread"} ${needsAction(item) ? "update-urgent" : ""} ${compact ? "update-compact" : ""}`}
     >
-      <span className="update-icon">
+      <span className="update-icon" aria-hidden="true">
         <Icon name={icon} />
       </span>
       <div className="update-content">
         <div className="update-meta">
-          <span>{kind}</span>
-          <span className="update-read-state">
-            {!item.read && <i aria-hidden="true" />}
-            {item.read ? "Read" : "Unread"}
-          </span>
-        </div>
-        <p className="update-title">{item.text}</p>
-        {destination.context && (
-          <p className="update-context">{destination.context}</p>
-        )}
-        {item.dueAt && (
-          <p className="update-context">
-            Due{" "}
-            {new Date(item.dueAt).toLocaleDateString(undefined, {
-              timeZone: "UTC",
-            })}{" "}
-            (UTC)
-          </p>
-        )}
-        {item.sessionAt && (
-          <p className="update-context">
-            Session:{" "}
-            {new Date(item.sessionAt).toLocaleString(undefined, {
-              timeZoneName: "short",
-            })}
-          </p>
-        )}
-        <div className="update-footer">
+          <span className="update-kind">{kind}</span>
           <time
             dateTime={validDate ? date.toISOString() : undefined}
             title={validDate ? date.toLocaleString() : undefined}
           >
             {relativeTime(item.timestamp, now)}
           </time>
+          <span className="update-read-state">
+            {!item.read && <i aria-hidden="true" />}
+            <span className="visually-hidden">
+              {item.read ? "Read" : "Unread"}
+            </span>
+          </span>
+        </div>
+        <p className="update-title">{item.text}</p>
+        {(destination.context || item.dueAt || item.sessionAt) && (
+          <p className="update-context">
+            {[
+              destination.context,
+              item.dueAt &&
+                `Due ${new Date(item.dueAt).toLocaleDateString(undefined, {
+                  timeZone: "UTC",
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                })}`,
+              item.sessionAt &&
+                `Session ${new Date(item.sessionAt).toLocaleString(undefined, {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  timeZoneName: "short",
+                })}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        )}
+        {actionable && (
           <div className="update-actions">
             {destination.command && (
               <button
                 className="btn primary small"
-                onClick={() => {
+                onClick={async () => {
                   if (state.notificationOpen)
                     onAction({ action: "toggle-notifications" });
-                  onAction(destination.command);
+                  await onAction(destination.command);
+                  // Opening an update counts as reading it.
+                  if (!item.read)
+                    onAction({ action: "read-notifications", id: item.id });
                 }}
               >
                 {destination.label}
@@ -90,7 +102,7 @@ export default function NotificationRow({ item, now, compact = false }) {
               </button>
             )}
           </div>
-        </div>
+        )}
       </div>
     </article>
   );

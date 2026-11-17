@@ -2,6 +2,7 @@ import { useApp } from "../state/AppContext.jsx";
 import HomeWelcome from "./HomeWelcome.jsx";
 import HomeMetrics from "./HomeMetrics.jsx";
 import Avatar from "./Avatar.jsx";
+import Icon from "./Icon.jsx";
 import Introductions from "./Introductions.jsx";
 import {
   activeRooms,
@@ -74,7 +75,7 @@ export default function MentorHome() {
             className="link-btn"
             onClick={() => onAction({ page: "calendar" })}
           >
-            Open calendar →
+            Open calendar <Icon name="arrow" />
           </button>
         </section>
         <section className="card panel" aria-labelledby="mentor-followup">
@@ -131,6 +132,17 @@ export default function MentorHome() {
                   <span className="muted">
                     {room.progress}% of milestones confirmed by both
                   </span>
+                  {room.cycle && (
+                    <p>
+                      Cycle {room.cycle.number} · Next session:{" "}
+                      {sessions.find((item) => item.room.id === room.id)
+                        ? scheduleInstant(
+                            sessions.find((item) => item.room.id === room.id)
+                              .schedule,
+                          ).toLocaleString()
+                        : "not scheduled"}
+                    </p>
+                  )}
                 </div>
               </div>
               <button

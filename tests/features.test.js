@@ -137,8 +137,8 @@ test("workspace templates are versioned, moderator-only and copied into future r
     w.get(a.token).state.rooms[newRoom].milestones.scope.title,
     "Agree test scope",
   );
-  assert.equal(w.get(a.token).state.rooms[newRoom].template.version, 2);
-  assert.equal(w.get(a.token).state.rooms[oldRoom].template.version, 1);
+  assert.equal(w.get(a.token).state.rooms[newRoom].template.version, 3);
+  assert.equal(w.get(a.token).state.rooms[oldRoom].template.version, 2);
   const loaded = createWorkspace(file).login({
     email: "alex@example.com",
     password: "private-password",
@@ -149,7 +149,7 @@ test("workspace templates are versioned, moderator-only and copied into future r
   );
 });
 
-test("pending scope changes block launch and terminal rooms reject further revisions", (t) => {
+test("pending scope changes block automatic launch and terminal rooms reject further revisions", (t) => {
   const { workspace: w, a, b, act, pair, agree } = fixture(t);
   const id = pair();
   agree(id);
@@ -164,7 +164,8 @@ test("pending scope changes block launch and terminal rooms reject further revis
         values: { attachment: "Completed work" },
       });
     for (const u of [a, b])
-      act(u, { action: "confirm-milestone", activeRoomId: id, id: key });
+      if (!(key === "issues" && u === b))
+        act(u, { action: "confirm-milestone", activeRoomId: id, id: key });
   }
   const command = {
     form: "milestone-proposal",
@@ -186,7 +187,8 @@ test("pending scope changes block launch and terminal rooms reject further revis
     id: "scope",
     values: { proposalId, decision: "reject" },
   });
-  act(a, { action: "launch-room", activeRoomId: id });
+  act(b, { action: "confirm-milestone", activeRoomId: id, id: "issues" });
+  assert.equal(w.get(a.token).state.rooms[id].status, "launched");
   assert.throws(() => act(a, command), /cannot be changed/);
 });
 
@@ -466,6 +468,14 @@ test("terms can reopen safely, revoke confirmations, close with a reason, and pr
     /unavailable/,
   );
   act(b, { action: "reopen-terms", activeRoomId: id });
+  // A change request keeps the agreement and confirmations until accepted.
+  assert.equal(w.get(a.token).state.rooms[id].terms.locked, true);
+  assert.equal(w.get(a.token).state.rooms[id].milestones.scope.me, true);
+  assert.throws(
+    () => act(b, { action: "accept-reopen", activeRoomId: id }),
+    /collaborator must agree/,
+  );
+  act(a, { action: "accept-reopen", activeRoomId: id });
   for (const u of [a, b]) {
     const r = w.get(u.token).state.rooms[id];
     assert.equal(r.terms.locked, false);
@@ -567,7 +577,12 @@ test("moderators verify affiliations, approve vocabulary, resolve disputes and e
   const { workspace: w, a, b, c, admin, act, pair, agree } = fixture(t);
   const id = pair();
   agree(id);
-  act(a, { action: "dispute", activeRoomId: id, id: "scope" });
+  act(a, {
+    action: "dispute",
+    activeRoomId: id,
+    id: "scope",
+    values: { reason: "Scope is incomplete" },
+  });
   act(a, {
     form: "report-form",
     activeRoomId: id,

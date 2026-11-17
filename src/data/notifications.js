@@ -2,9 +2,15 @@ const kinds = {
   match: ["Match suggestion", "spark"],
   activity: ["Collaboration activity", "handshake"],
   review: ["Review requested", "star"],
-  confirmation: ["Confirmation needed", "check"],
+  "review-release": ["Reviews are in", "star"],
+  confirmation: ["Needs your reply", "check"],
   reminder: ["Reminder", "clock"],
 };
+// Items that ask the founder to do something, shown first on Updates.
+export const needsAction = (item) =>
+  !item.self &&
+  ["confirmation", "review", "reminder"].includes(item.kind) &&
+  !item.read;
 export const notificationKind = (kind) =>
   kinds[kind] || ["Workspace update", "bell"];
 export function notificationDestination(item, state, people) {
@@ -12,21 +18,29 @@ export function notificationDestination(item, state, people) {
     const room = state.rooms[item.roomId];
     if (room?.role === state.role) {
       const partner = people.find((p) => p.id === room.partnerId);
+      const reviewLink =
+        item.review || ["review", "review-release"].includes(item.kind);
       return {
-        label: item.kind === "review" ? "Write a review" : "Open room",
+        label:
+          item.kind === "review-release" ||
+          (item.review && room.status === "reviewed")
+            ? "Read feedback"
+            : item.kind === "review"
+              ? "Write a review"
+              : "Open Deal Room",
         context: partner
           ? `With ${partner.name}`
           : room.engagementType || "Collaboration",
         command: {
           action: "open-room",
           id: room.id,
-          tab: item.tab || "terms",
-          review: item.kind === "review",
+          tab: item.tab,
+          review: reviewLink,
         },
       };
     }
     return {
-      label: "View rooms",
+      label: "View Deal Rooms",
       context: "This room is no longer available.",
       command: { page: "rooms" },
     };

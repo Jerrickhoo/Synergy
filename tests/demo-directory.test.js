@@ -180,9 +180,24 @@ for (const extension of ["json", "sqlite"]) {
     assert.deepEqual(updated.state.rooms, david.state.rooms);
     assert.deepEqual(updated.state.savedByRole, david.state.savedByRole);
     assert.deepEqual(updated.state.incomingByRole, david.state.incomingByRole);
-    assert.deepEqual(refreshed.accounts[isabel.id], isabel);
-    assert.deepEqual(refreshed.accounts[priya.id], priya);
-    assert.deepEqual(refreshed.accounts.ordinary, db.accounts.ordinary);
+    const legacyPreferences = {
+      match: true,
+      activity: true,
+      reminders: true,
+      digest: "off",
+    };
+    assert.deepEqual(refreshed.accounts[isabel.id], {
+      ...isabel,
+      notificationPreferences: legacyPreferences,
+    });
+    assert.deepEqual(refreshed.accounts[priya.id], {
+      ...priya,
+      notificationPreferences: legacyPreferences,
+    });
+    assert.deepEqual(refreshed.accounts.ordinary, {
+      ...db.accounts.ordinary,
+      notificationPreferences: legacyPreferences,
+    });
     createWorkspace(file, { demoMode: true }).close();
     assert.deepEqual(
       readWorkspaceSnapshot(file),

@@ -117,6 +117,10 @@ export function createModel(state) {
         name: (state.engagementTemplates || defaultTemplates)[type]?.name,
         version:
           (state.engagementTemplates || defaultTemplates)[type]?.version || 1,
+        fields:
+          (state.engagementTemplates || defaultTemplates)[type]?.fields ||
+          defaultTemplates[type]?.fields ||
+          [],
       },
       milestones: roomMilestones(type, seeded),
       messages: [],

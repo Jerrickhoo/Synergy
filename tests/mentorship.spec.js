@@ -88,11 +88,11 @@ async function checkLayout(page, name, testInfo, axe = true) {
       document.activeElement?.blur();
       window.scrollTo(0, 0);
     });
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth,
-      ),
-    ).toBe(true);
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      )
+      .toBe(true);
     await page.screenshot({
       path: `output/playwright/phase6/${testInfo.project.name}-${name}-${width}.png`,
       fullPage: true,
@@ -145,15 +145,11 @@ for (const initiator of ["founder", "mentor"]) {
         .filter({ hasText: receiver.name });
       if (initiator === "mentor")
         await expect(card).toContainText("Needs guidance with");
-      await card
-        .getByRole("button", { name: "Save match", exact: true })
-        .click();
+      await card.getByRole("button", { name: /^Save (?!for later)/ }).click();
       await expect(
-        card.getByRole("button", { name: "Remove from saved matches" }),
+        card.getByRole("button", { name: /^Remove .* from saved matches$/ }),
       ).toHaveAttribute("aria-pressed", "true");
-      await card
-        .getByRole("button", { name: "View match", exact: true })
-        .click();
+      await card.getByRole("button", { name: /^View match/ }).click();
       await page
         .getByRole("combobox", { name: "Collaboration type", exact: true })
         .click();
@@ -164,10 +160,10 @@ for (const initiator of ["founder", "mentor"]) {
         .getByRole("option", { name: "Mentorship", exact: true })
         .click();
       await page
-        .getByRole("button", { name: "Express interest", exact: true })
+        .getByRole("button", { name: "Send introduction", exact: true })
         .click();
       await expect(
-        page.getByRole("button", { name: "Withdraw", exact: true }),
+        page.getByRole("button", { name: /^Withdraw/ }),
       ).toBeVisible();
       const intro = other
         .locator(".introduction-row")
@@ -177,9 +173,7 @@ for (const initiator of ["founder", "mentor"]) {
         await expect(intro).toContainText("Product feedback");
         await checkLayout(other, "mentor-request", testInfo);
       }
-      await intro
-        .getByRole("button", { name: "Accept introduction", exact: true })
-        .click();
+      await intro.getByRole("button", { name: /^Accept introduction/ }).click();
       await expect(
         other.getByRole("heading", {
           name: "Mentorship Engagement",
@@ -203,15 +197,15 @@ for (const initiator of ["founder", "mentor"]) {
         .fill("Voluntary guidance");
       await page
         .getByRole("button", {
-          name: "Confirm mentoring agreement",
+          name: /^Send for /,
           exact: true,
         })
         .click();
       await other
-        .getByRole("button", { name: "Accept shared terms", exact: true })
+        .getByRole("button", { name: "Accept these terms", exact: true })
         .click();
       await expect(
-        page.getByText("Confirmed by both", { exact: true }),
+        page.getByText("Agreed by both", { exact: true }),
       ).toBeVisible();
       if (initiator === "mentor")
         await checkLayout(page, "mentorship-goals", testInfo);
@@ -233,7 +227,10 @@ for (const initiator of ["founder", "mentor"]) {
       await expect(
         page.getByText("Your session schedule is saved.", { exact: true }),
       ).toBeVisible();
-      await page.getByRole("tab", { name: "Task board", exact: true }).click();
+      await page.getByRole("tab", { name: "Milestones", exact: true }).click();
+      await page
+        .getByText("Task board · optional room tool", { exact: true })
+        .click();
       await page
         .getByRole("button", { name: "+ Add task", exact: true })
         .click();
@@ -241,7 +238,7 @@ for (const initiator of ["founder", "mentor"]) {
         .getByLabel("Task title", { exact: true })
         .fill("Prepare mentoring feedback");
       await selectValue(
-        page.getByLabel("Owner", { exact: true }),
+        page.locator(".task-editor").getByLabel("Owner", { exact: true }),
         mentor.state.accountId,
       );
       await page
@@ -251,7 +248,7 @@ for (const initiator of ["founder", "mentor"]) {
       await mentorPage.goto("/#/");
       await expect(
         mentorPage.getByRole("region", { name: "Mentoring overview" }),
-      ).toContainText("Active rooms");
+      ).toContainText("Active Deal Rooms");
       await expect(
         mentorPage
           .getByText("Prepare mentoring feedback", { exact: true })
@@ -265,43 +262,42 @@ for (const initiator of ["founder", "mentor"]) {
       }
       await expect(
         page.getByRole("button", { name: "Complete mentorship", exact: true }),
-      ).toBeDisabled();
+      ).toHaveCount(0);
       const guidance = page.locator(".milestone").filter({
         has: page.locator(".milestone-title", {
           hasText: "Guidance delivered",
         }),
       });
       await guidance
-        .getByRole("button", { name: "Attach evidence", exact: true })
+        .getByRole("button", { name: "Attach proof", exact: true })
         .click();
       await guidance
-        .getByLabel("Or add an evidence description or link")
+        .getByLabel("Or add a link or description")
         .fill(
           "Discussed the onboarding flow and recorded three recommendations",
         );
       await guidance
-        .getByRole("button", { name: "Attach", exact: true })
+        .getByRole("button", { name: "Add proof", exact: true })
         .click();
       // Each participant independently confirms what happened in this walkthrough.
       for (const p of [page, other]) {
         const buttons = p.getByRole("button", {
-          name: "Confirm yours",
-          exact: true,
+          name: /^Mark as done/,
         });
         await expect(buttons).toHaveCount(5);
         for (let i = 0; i < 5; i++) await buttons.first().click();
       }
       await expect(
-        page.getByRole("button", { name: "Complete mentorship", exact: true }),
-      ).toBeEnabled();
+        other.getByRole("heading", { name: "How did it go?" }),
+      ).toBeVisible();
       await page
-        .getByRole("button", { name: "Complete mentorship", exact: true })
+        .getByRole("button", { name: "View your review", exact: true })
         .click();
       await expect(
         page.getByRole("heading", { name: "How did it go?" }),
       ).toBeVisible();
       await expect(
-        other.getByText("Mentorship completed", { exact: true }),
+        other.getByRole("button", { name: "Undo completion", exact: true }),
       ).toBeVisible();
       await page.getByRole("radio", { name: "4 stars", exact: true }).check();
       await page
@@ -309,9 +305,6 @@ for (const initiator of ["founder", "mentor"]) {
         .fill("Private mentoring feedback from first reviewer");
       await page
         .getByRole("button", { name: "Submit private review", exact: true })
-        .click();
-      await other
-        .getByRole("button", { name: "View your review", exact: true })
         .click();
       await expect(
         other.getByText("Private mentoring feedback from first reviewer", {
@@ -391,15 +384,15 @@ test("mentor requests can be withdrawn and declined, remain consistent after ref
     );
     await open(other, founder, "waiting");
     await page
-      .getByRole("button", { name: "Express interest", exact: true })
+      .getByRole("button", { name: "Send introduction", exact: true })
       .click();
     await checkLayout(page, "long-startup-request", testInfo);
     await expect(
-      other.getByRole("button", { name: "Accept introduction", exact: true }),
+      other.getByRole("button", { name: /^Accept introduction/ }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Withdraw", exact: true }).click();
+    await page.getByRole("button", { name: /^Withdraw/ }).click();
     await expect(
-      other.getByRole("button", { name: "Accept introduction", exact: true }),
+      other.getByRole("button", { name: /^Accept introduction/ }),
     ).toHaveCount(0);
     await other.reload();
     await expect(other.getByText(/No pending introductions/)).toBeVisible();
@@ -407,14 +400,18 @@ test("mentor requests can be withdrawn and declined, remain consistent after ref
       `/#/matches/${encodeURIComponent(`${founder.state.accountId}:founder`)}`,
     );
     await page
-      .getByRole("button", { name: "Express interest", exact: true })
+      .getByRole("button", { name: "Send introduction", exact: true })
       .click();
-    await other.getByRole("button", { name: "Decline", exact: true }).click();
-    await expect(
-      page.getByRole("button", { name: "Withdraw", exact: true }),
-    ).toHaveCount(0);
+    await other.getByRole("button", { name: /^Decline/ }).click();
+    await other
+      .getByRole("dialog")
+      .getByRole("button", { name: "Decline introduction", exact: true })
+      .click();
+    await expect(page.getByRole("button", { name: /^Withdraw/ })).toHaveCount(
+      0,
+    );
     await page.reload();
-    await expect(page.getByText(/No pending introductions/)).toBeVisible();
+    await expect(page.getByText(/No pending requests/)).toBeVisible();
     expect(Object.keys((await state(request, mentor)).rooms)).toHaveLength(0);
     expect(Object.keys((await state(request, founder)).rooms)).toHaveLength(0);
   } finally {
@@ -485,4 +482,64 @@ test("mentor profile retains an interrupted save through repeated polling outage
   await expect(page.locator(".workspace-connection")).toHaveCount(0, {
     timeout: 10000,
   });
+});
+
+test("mentors navigate by requests, mentees and calendar while founders keep matches", async ({
+  page,
+  request,
+  browser,
+}, testInfo) => {
+  const mentor = await account(request, "mentor");
+  const founder = await account(request, "founder");
+  await open(page, mentor);
+  const main = page.getByRole("navigation", { name: "Main navigation" });
+  for (const name of ["Home", "Requests", "Mentees", "Calendar"])
+    await expect(main.getByRole("button", { name, exact: true })).toBeVisible();
+  for (const name of ["Matches", "Introductions", "Deal Rooms"])
+    await expect(main.getByRole("button", { name, exact: true })).toHaveCount(
+      0,
+    );
+  await main.getByRole("button", { name: "Requests", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Requests" }),
+  ).toBeVisible();
+  await expect(page.getByText(/No pending requests/)).toBeVisible();
+  await page.getByRole("button", { name: "Browse startups" }).click();
+  await expect(page).toHaveURL(/#\/matches$/);
+  await main.getByRole("button", { name: "Mentees", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Mentees" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Review requests" }).click();
+  await expect(page).toHaveURL(/#\/waiting$/);
+  await checkLayout(page, "mentor-requests", testInfo);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page
+    .getByRole("button", { name: "Open navigation", exact: true })
+    .click();
+  const menu = page.getByRole("navigation", { name: "Mobile navigation" });
+  await expect(
+    menu.getByRole("button", { name: "Calendar", exact: true }),
+  ).toBeVisible();
+  await expect(
+    menu.getByRole("button", { name: "Matches", exact: true }),
+  ).toHaveCount(0);
+
+  const founderContext = await browser.newContext();
+  const founderPage = await founderContext.newPage();
+  try {
+    await open(founderPage, founder);
+    const founderNav = founderPage.getByRole("navigation", {
+      name: "Main navigation",
+    });
+    for (const name of ["Matches", "Introductions", "Deal Rooms"])
+      await expect(
+        founderNav.getByRole("button", { name, exact: true }),
+      ).toBeVisible();
+    await expect(
+      founderNav.getByRole("button", { name: "Requests", exact: true }),
+    ).toHaveCount(0);
+  } finally {
+    await founderContext.close();
+  }
 });

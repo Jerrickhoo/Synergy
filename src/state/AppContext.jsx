@@ -51,6 +51,12 @@ const dataKeys = [
   "engagementTemplates",
   "matchingConfig",
   "introductionTypesByRole",
+  "introductionMetaByRole",
+  "introHistoryByRole",
+  "bothRoles",
+  "profileWentLive",
+  "verification",
+  "myTagProposals",
 ];
 const remoteActions = new Set([
   "choose-role",
@@ -67,7 +73,15 @@ const remoteActions = new Set([
   "resolve-dispute",
   "launch-room",
   "reopen-terms",
+  "accept-reopen",
+  "decline-reopen",
   "read-notifications",
+  "withdraw-dispute",
+  "escalate-dispute",
+  "send-back",
+  "nudge-partner",
+  "undo-launch",
+  "cycle-decision",
 ]);
 const reducer = (state, payload) =>
   produce(state, (draft) => {
@@ -123,11 +137,14 @@ const reducer = (state, payload) =>
           });
         draft.confirmation = payload.state.confirmation;
         if (!payload.state.formErrors) {
-          if (payload.command.form === "profile-form")
+          if (payload.command.form === "profile-form") {
             draft.profileEditing = false;
+          }
           if (payload.command.form === "report-form") draft.reportOpen = false;
-          if (payload.command.action === "choose-role")
+          if (payload.command.action === "choose-role") {
             draft.role = payload.state.role;
+            if (payload.command.goHome) draft.page = "home";
+          }
           if (
             [
               "interest",
@@ -141,6 +158,23 @@ const reducer = (state, payload) =>
             draft.activeWaitingMatch = payload.state.activeWaitingMatch;
             draft.roomTab = "terms";
             draft.rating = 0;
+          }
+          if (
+            payload.state.rooms[payload.command.activeRoomId]?.status ===
+              "launched" &&
+            previousRooms[payload.command.activeRoomId]?.status !==
+              "launched" &&
+            ["confirm-milestone", "cycle-decision"].includes(
+              payload.command.action,
+            )
+          ) {
+            draft.page = "review";
+            draft.activeRoomId = payload.command.activeRoomId;
+            draft.rating = 0;
+          }
+          if (payload.command.action === "undo-launch") {
+            draft.page = "room-detail";
+            draft.roomTab = "milestones";
           }
         }
       }
@@ -418,9 +452,16 @@ export function AppProvider({ children }) {
     state.routePath,
   ]);
 
-  async function send(command) {
+  async function send(command, trigger) {
     if (pending.current) return false;
     pending.current = true;
+    // The button that started the request shows its own spinner until done.
+    const control =
+      trigger instanceof HTMLButtonElement &&
+      !trigger.classList.contains("login-submit")
+        ? trigger
+        : null;
+    control?.setAttribute("data-pending", "");
     dispatch({ action: "request-status", busy: true });
     const payload = {
       ...command,
@@ -467,6 +508,7 @@ export function AppProvider({ children }) {
       return false;
     } finally {
       pending.current = false;
+      control?.removeAttribute("data-pending");
       dispatch({ action: "request-status", busy: false });
     }
   }
@@ -552,17 +594,32 @@ export function AppProvider({ children }) {
       dispatch({ action: "match-detail", id: payload.id });
       return;
     }
-    if (remoteActions.has(payload.action)) return send(payload);
+    if (payload.action === "open-verification") {
+      dispatch({ page: "profile" });
+      requestAnimationFrame(() => {
+        const section = document.getElementById("verification");
+        section?.scrollIntoView({ block: "start" });
+        section?.querySelector("h2")?.setAttribute("tabindex", "-1");
+        section?.querySelector("h2")?.focus({ preventScroll: true });
+      });
+      return;
+    }
+    if (remoteActions.has(payload.action))
+      return send(payload, event?.currentTarget);
     dispatch(payload);
   }
   async function onSubmit(event, extraValues = {}) {
     event.preventDefault();
     const form = event.currentTarget;
-    const success = await send({
-      form: form.dataset.form || form.id,
-      id: form.dataset.id,
-      values: { ...Object.fromEntries(new FormData(form)), ...extraValues },
-    });
+    const success = await send(
+      {
+        form: form.dataset.form || form.id,
+        id: form.dataset.id,
+        values: { ...Object.fromEntries(new FormData(form)), ...extraValues },
+      },
+      event.nativeEvent?.submitter ||
+        form.querySelector('button[type="submit"], button:not([type])'),
+    );
     if (success && ["login-form", "signup-form"].includes(form.id))
       form.reset();
     if (success && form.id === "chat-form") form.reset();
@@ -604,7 +661,15 @@ export function AppProvider({ children }) {
       state.formErrors.scope === scope &&
       state.formErrors.fields[fieldName(input)]
     )
-      dispatch({ action: "clear-field-error", scope, field: fieldName(input) });
+      // Defer until the input's own change handler has committed. Clearing the
+      // error during the same event made controlled fields drop that input.
+      setTimeout(() =>
+        dispatch({
+          action: "clear-field-error",
+          scope,
+          field: fieldName(input),
+        }),
+      );
   }
   async function integrationRequest(path, body) {
     if (body === undefined) return request(path);
@@ -642,7 +707,7 @@ export function AppProvider({ children }) {
         action: "request-error",
         message: "Choose a file smaller than 5 MB.",
       });
-      return;
+      return "Choose a file smaller than 5 MB.";
     }
     pending.current = true;
     dispatch({ action: "request-status", busy: true });
@@ -674,6 +739,7 @@ export function AppProvider({ children }) {
         },
       });
       form.reset();
+      return true;
     } catch (error) {
       dispatch({
         action: "request-error",
@@ -681,6 +747,8 @@ export function AppProvider({ children }) {
           error.message || "Could not upload the file. Please try again.",
         connectionIssue: error.connectionIssue,
       });
+      // The caller also shows this next to the file field.
+      return error.message || "Could not upload the file. Please try again.";
     } finally {
       pending.current = false;
       dispatch({ action: "request-status", busy: false });

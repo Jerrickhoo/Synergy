@@ -11,8 +11,27 @@ export default function SignupPage() {
         <div className="card panel">
           <h1 tabIndex="-1">Create your account</h1>
           <p className="panel-subtitle">
-            Choose your role, then complete your profile to find collaborators.
+            Find the startup or mentor who fills your gap, then finish the work
+            together.
           </p>
+          <ol className="signup-steps" aria-label="How Synergy works">
+            <li>
+              <strong>Tell us what you need</strong>
+              <span>
+                Describe it in your own words. We suggest the details.
+              </span>
+            </li>
+            <li>
+              <strong>Match with a partner</strong>
+              <span>Every match explains what each side gets.</span>
+            </li>
+            <li>
+              <strong>Finish in a Deal Room</strong>
+              <span>
+                Agree terms, confirm milestones together, then review.
+              </span>
+            </li>
+          </ol>
           <form
             id="signup-form"
             className="grid section-gap"
@@ -83,7 +102,12 @@ export default function SignupPage() {
               <SelectField id="signup-role" name="role" defaultValue="founder">
                 <option value="founder">Startup founder</option>
                 <option value="mentor">Mentor</option>
+                <option value="both">Both: founder and mentor</option>
               </SelectField>
+              <span className="field-help">
+                Choosing both gives you two profiles. Switch between them at any
+                time.
+              </span>
             </div>
             <button className="btn primary" type="submit" disabled={state.busy}>
               {state.busy ? "Creating account…" : "Create account"}

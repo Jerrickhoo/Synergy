@@ -1,70 +1,50 @@
 import { useApp } from "../state/AppContext.jsx";
 import Icon from "./Icon.jsx";
 import FormErrors from "./FormErrors.jsx";
+
+const tagStatus = {
+  pending: "Waiting for review",
+  approved: "Approved",
+  rejected: "Not added",
+};
+
 export default function CommunityRequests() {
   const { state, onSubmit } = useApp();
+  const mine = state.myTagProposals || [];
   return (
-    <details className="card community-accordion section-gap">
+    <details
+      className="card community-accordion section-gap"
+      open={mine.some((tag) => tag.status === "pending") || undefined}
+    >
       <summary className="interactive-surface">
-        <span>Affiliation verification and community tags</span>
+        <span>Standard tags</span>
         <Icon name="chevron" />
       </summary>
       <div className="community-accordion-body">
-        {!state.integrations?.moderation && (
-          <p className="muted">
-            A workspace owner must configure moderator access before pending
-            requests can be reviewed.
-          </p>
-        )}
-        <section aria-labelledby="affiliation-heading">
-          <h3 id="affiliation-heading">Affiliation verification</h3>
-          <p>
-            A moderator checks your organization or program evidence before
-            awarding an affiliation badge. Email verification alone does not
-            establish affiliation.
-          </p>
-          {state.affiliation && (
-            <p role="status">
-              {state.affiliation.organization}: {state.affiliation.status}
-              {state.affiliation.note && ` · ${state.affiliation.note}`}
-            </p>
-          )}
-          <form
-            data-form="affiliation-request"
-            className="grid"
-            onSubmit={onSubmit}
-          >
-            <FormErrors scope="affiliation-request" />
-            <div className="field">
-              <label htmlFor="affiliation-org">Organization or program</label>
-              <input
-                id="affiliation-org"
-                name="organization"
-                required
-                maxLength={150}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="affiliation-evidence">Affiliation evidence</label>
-              <textarea
-                id="affiliation-evidence"
-                name="evidence"
-                required
-                maxLength={3000}
-                placeholder="Provide a public roster link or describe how the moderator can verify your affiliation."
-              />
-            </div>
-            <button className="btn" disabled={state.busy}>
-              Request affiliation verification
-            </button>
-          </form>
-        </section>
         <section aria-labelledby="community-tags-heading">
-          <h3 id="community-tags-heading">Community tags</h3>
+          <h3 id="community-tags-heading">Propose a new tag</h3>
           <p>
-            Approved tags: {(state.vocabulary || []).join(", ")}. New tags are
-            reviewed before joining the shared vocabulary.
+            Approved tags: {(state.vocabulary || []).join(", ")}. If none fits,
+            propose one. A moderator reviews it before it joins the shared list,
+            and you are told the outcome.
           </p>
+          {mine.length > 0 && (
+            <ul className="tag-proposals" aria-label="Your proposed tags">
+              {mine.map((tag) => (
+                <li key={tag.id}>
+                  <strong>{tag.label}</strong>
+                  <span
+                    className={`status ${tag.status === "approved" ? "green" : ""}`}
+                  >
+                    {tagStatus[tag.status] || tag.status}
+                  </span>
+                  {tag.note && tag.status !== "pending" && (
+                    <span className="muted">{tag.note}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
           <form data-form="tag-proposal" className="grid" onSubmit={onSubmit}>
             <FormErrors scope="tag-proposal" />
             <div className="field">

@@ -11,6 +11,9 @@ export function filterPeople(people, filters) {
       person.kind,
       person.sector,
       person.summary,
+      person.founderName,
+      person.goals,
+      person.expertise,
       ...person.offer,
       ...person.need,
     ]
@@ -22,26 +25,35 @@ export function filterPeople(people, filters) {
       (filters.industry === "all" ||
         person.sector.toLowerCase().includes(filters.industry.toLowerCase())) &&
       (filters.engagement === "all" ||
-        person.engagement === filters.engagement) &&
+        (person.engagementTypes || [person.engagement]).includes(
+          filters.engagement,
+        )) &&
       person.score >= Number(filters.score)
     );
   });
 }
-export const pageLabel = (page) =>
-  ({
+const mentorPageLabels = {
+  waiting: "Requests",
+  rooms: "Mentees",
+  "room-detail": "Mentorship Room",
+};
+export const pageLabel = (page, role) =>
+  (role === "mentor" && mentorPageLabels[page]) ||
+  {
     settings: "Account settings",
     home: "Home",
     discover: "Matches",
     waiting: "Introductions",
     notifications: "Updates",
     moderation: "Moderation",
-    rooms: "Rooms",
+    rooms: "Deal Rooms",
     calendar: "Calendar",
-    "room-detail": "Room",
+    "room-detail": "Deal Room",
     "match-detail": "Match details",
     review: "Review",
     profile: "Profile",
     trust: "Trust history",
     onboarding: "Onboarding",
     signup: "Create account",
-  })[page] || "Workspace";
+  }[page] ||
+  "Workspace";

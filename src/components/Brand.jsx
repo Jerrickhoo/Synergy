@@ -6,7 +6,7 @@ export default function Brand({ compact = false }) {
       aria-label="Synergy"
     >
       <span className="brand-symbol" aria-hidden="true">
-        <img src="/brand/synergy-logo.svg" alt="" draggable="false" />
+        <img src="/brand/synergy-logo.png" alt="" draggable="false" />
       </span>
       <div aria-hidden="true">
         <span className="brand-name">Synergy</span>

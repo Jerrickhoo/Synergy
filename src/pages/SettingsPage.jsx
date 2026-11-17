@@ -8,7 +8,13 @@ import Icon from "../components/Icon.jsx";
 import { readTheme, applyTheme, themeKey } from "../state/theme.js";
 
 export default function SettingsPage() {
-  const { state, integrationRequest, onAction, notify } = useApp();
+  const { state, integrationRequest, onAction, notify, onSubmit } = useApp();
+  const prefs = state.notificationPreferences || {
+    match: true,
+    activity: true,
+    reminders: true,
+    digest: "weekly",
+  };
   const [settings, setSettings] = useState(null);
   const [error, setError] = useState("");
   const [dialog, setDialog] = useState(null);
@@ -128,21 +134,6 @@ export default function SettingsPage() {
       setWorking(false);
     }
   }
-  async function exportAccount() {
-    try {
-      const data = await integrationRequest("account/export");
-      const url = URL.createObjectURL(
-        new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
-      );
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "synergy-account.json";
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (error) {
-      setError(error.message);
-    }
-  }
   const titles = {
     pause: "Pause discovery?",
     sessions: "Sign out other sessions?",
@@ -179,6 +170,64 @@ export default function SettingsPage() {
             { value: "dark", label: "Dark" },
           ]}
         />
+      </section>
+      <section
+        className="card panel settings-section section-gap"
+        aria-labelledby="notification-settings"
+      >
+        <h2 id="notification-settings">Notifications</h2>
+        <button
+          type="button"
+          className="link-btn"
+          onClick={() => onAction({ page: "calendar" })}
+        >
+          View calendar
+        </button>
+        <p>
+          Choose what reaches your Updates and bell. Requests that need your
+          reply, such as terms to accept or a milestone to confirm, always show.
+        </p>
+        <form
+          data-form="notification-preferences"
+          className="grid notification-preferences"
+          key={JSON.stringify(prefs)}
+          onSubmit={(event) => onSubmit(event)}
+        >
+          <fieldset className="checkbox-group">
+            <legend>Send me</legend>
+            {[
+              ["match", "New match suggestions"],
+              ["activity", "Collaboration activity from partners"],
+              [
+                "reminders",
+                "Reminders about due dates, sessions and quiet deals",
+              ],
+            ].map(([key, label]) => (
+              <label className="checkbox-label" key={key}>
+                <input type="checkbox" name={key} defaultChecked={prefs[key]} />{" "}
+                {label}
+              </label>
+            ))}
+          </fieldset>
+          <SelectField
+            id="digest-frequency"
+            name="digest"
+            label="Digest"
+            defaultValue={prefs.digest}
+            options={[
+              { value: "off", label: "Off: show updates as they happen" },
+              { value: "daily", label: "Daily summary" },
+              { value: "weekly", label: "Weekly summary" },
+            ]}
+          />
+          <p className="field-help">
+            A digest collects match suggestions and partner activity into one
+            summary on Updates instead of separate alerts.
+          </p>
+          <button className="btn" disabled={state.busy}>
+            Save notification preferences
+          </button>
+        </form>
       </section>
       {error && (
         <div className="connection-banner" role="alert">
@@ -261,16 +310,6 @@ export default function SettingsPage() {
               Manage other sessions in Danger zone below. This tab stays signed
               in.
             </p>
-          </section>
-          <section className="card panel settings-section section-gap">
-            <h2>Your data</h2>
-            <p>
-              Download your profiles, shared workspace records and preferences.
-              Passwords and unreleased partner reviews are excluded.
-            </p>
-            <button className="btn" disabled={busy} onClick={exportAccount}>
-              Download my data
-            </button>
           </section>
           <details
             id="danger-zone"

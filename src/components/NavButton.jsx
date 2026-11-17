@@ -12,8 +12,8 @@ export default function NavButton({ page, children }) {
     <button
       className={`nav-btn${currentPage === page ? " active" : ""}`}
       data-page={page}
-      aria-label={page === "rooms" ? "Rooms" : pageLabel(page)}
-      title={pageLabel(page)}
+      aria-label={pageLabel(page, state.role)}
+      title={pageLabel(page, state.role)}
       aria-current={currentPage === page ? "page" : undefined}
       onClick={(event) => onAction({ page }, event)}
     >

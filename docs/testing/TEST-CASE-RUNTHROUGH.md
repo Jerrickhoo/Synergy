@@ -125,6 +125,15 @@ Copy the row for each case. Include the tested commit or working-tree version, t
 
 **Expected:** Navigation and refresh retain the correct authenticated account. Unavailable records and invalid routes have a safe fallback without a crash or invented room. Signed-out access requires sign-in.
 
+### TC-05a - Mentor navigation
+
+1. Sign in as a mentor. Check the sidebar and the mobile menu at 390px.
+2. Open Requests, then choose Browse startups.
+3. Open Mentees with no mentorships, then choose Review requests.
+4. Switch to a founder account and check the sidebar again.
+
+**Expected:** Mentors see Home, Requests, Mentees and Calendar, plus Updates and Settings. They do not see Matches, Introductions or Deal Rooms. Requests is titled "Requests" and says how many founders are waiting, or "No pending requests" when none are. Browse startups opens Matches. Mentees is titled "Mentees", and its empty state leads to Requests. Founders still see Matches, Introductions and Deal Rooms, and no Calendar item.
+
 ### TC-06 - Founder profile validation and save
 
 1. As A, open Profile and its edit action. Clear required inputs and try **Save profile**.
@@ -537,14 +546,6 @@ Run account closure, blocking, suspension and deletion after the main lifecycle.
 3. In Settings > Blocked collaborators, select **Unblock** for that person.
 
 **Expected:** Blocking hides both accounts from one another, withdraws introductions, closes unfinished collaborations and prevents further chat. Shared history remains. Unblocking does not reopen a closed collaboration or restore old introductions.
-
-### TC-50 - Export account data
-
-1. In Settings, select **Download my data** and inspect the downloaded JSON.
-2. Verify it includes the account's saved profiles and relevant workspace records.
-3. With only one review submitted in a separate completed room, export again.
-
-**Expected:** Export is usable and private to the requesting account. It excludes credentials, session tokens and unreleased partner feedback. It does not include unrelated accounts' private workspace records.
 
 ### TC-51 - Revoke other sessions
 

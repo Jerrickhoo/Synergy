@@ -1,78 +1,84 @@
 import { useApp } from "../state/AppContext.jsx";
 import HomeWelcome from "../components/HomeWelcome.jsx";
 import HomeMetrics from "../components/HomeMetrics.jsx";
-import { activeRooms, roleRooms } from "../data/selectors.js";
+import {
+  activeRooms,
+  roomNextAction,
+  milestoneDate,
+} from "../data/selectors.js";
+import { partnerName } from "../data/home.js";
 import { upcomingSessions, scheduleLabel } from "../data/selectors.js";
 import Introductions from "../components/Introductions.jsx";
 import MentorHome from "../components/MentorHome.jsx";
+import HomeTopMatches from "../components/HomeTopMatches.jsx";
+import Icon from "../components/Icon.jsx";
 
 export default function HomePage() {
   const { state, onAction } = useApp();
   if (state.role === "mentor") return <MentorHome />;
   const rooms = activeRooms(state);
-  const completedCount = roleRooms(state).filter((room) =>
-    ["launched", "reviewed"].includes(room.status),
-  ).length;
   const activity = state.activity
     .filter((item) => item.role === state.role)
     .slice(0, 3);
   return (
     <div className="page simple-home page-enter">
       <HomeWelcome />
+      {!rooms.length && <HomeTopMatches />}
       <HomeMetrics />
-      <div className="simple-home-grid">
-        <section className="card panel">
-          <h2>Your collaborations</h2>
-          <p className="muted">
-            {rooms.length
-              ? `${rooms.length} collaboration${rooms.length === 1 ? "" : "s"} in progress.`
-              : completedCount
-                ? `No collaborations in progress. ${completedCount} completed collaboration${completedCount === 1 ? "" : "s"}.`
-                : "No collaborations yet. When you and someone connect, your shared room will appear here."}
-          </p>
-          <button
-            className="link-btn"
-            onClick={() => onAction({ page: "rooms" })}
-          >
-            View rooms →
-          </button>
-        </section>
-        <section className="card panel">
-          <h2>Recent activity</h2>
-          {activity.length ? (
-            activity.map((item) => (
-              <p className="activity-entry" key={item.id}>
-                {item.text}
-              </p>
-            ))
-          ) : (
-            <p className="muted">No recent activity.</p>
-          )}
-          <button
-            className="link-btn"
-            onClick={() => onAction({ page: "notifications" })}
-          >
-            View all updates →
-          </button>
-        </section>
-      </div>
       <Introductions compact />
       {rooms.length > 0 && (
         <section className="card panel section-gap">
-          <h2>Active collaborations</h2>
-          {rooms.slice(0, 3).map((room) => (
-            <div className="collaboration-row" key={room.id}>
-              <span>
-                {room.engagementType} · {room.progress}% complete
-              </span>
-              <button
-                className="btn small"
-                onClick={() => onAction({ action: "open-room", id: room.id })}
-              >
-                Open room
-              </button>
-            </div>
-          ))}
+          <h2>Your deals</h2>
+          <ul className="deal-rows">
+            {rooms.slice(0, 5).map((room) => {
+              const name = partnerName(state, room);
+              const next = roomNextAction(room, name);
+              return (
+                <li className="deal-row" key={room.id}>
+                  <div>
+                    <strong>
+                      {room.engagementType} with {name}
+                    </strong>
+                    {room.cycle && (
+                      <span>
+                        Cycle {room.cycle.number} · Next session:{" "}
+                        {upcomingSessions(state).find(
+                          (item) => item.room.id === room.id,
+                        )
+                          ? scheduleLabel(
+                              upcomingSessions(state).find(
+                                (item) => item.room.id === room.id,
+                              ).schedule,
+                            )
+                          : "not scheduled"}
+                      </span>
+                    )}
+                    <span
+                      className={next.mine ? "deal-next mine" : "deal-next"}
+                    >
+                      {next.mine ? "Your turn: " : ""}
+                      {next.text.replace(/^Your turn: /, "")}
+                      {next.due ? ` · due ${milestoneDate(next.due)}` : ""}
+                    </span>
+                  </div>
+                  <button
+                    className={`btn small${next.mine ? " primary" : ""}`}
+                    onClick={() =>
+                      onAction({
+                        action: "open-room",
+                        id: room.id,
+                        tab: next.tab,
+                        review: next.review && next.mine,
+                      })
+                    }
+                  >
+                    {next.mine ? next.action || "Open" : "Open"}
+                    <span className="visually-hidden"> {name} Deal Room</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       )}
       {upcomingSessions(state).length > 0 && (
@@ -83,15 +89,45 @@ export default function HomePage() {
               className="collaboration-row"
               key={`${room.id}-${schedule.date}`}
             >
-              <span>{scheduleLabel(schedule)}</span>
+              <span>
+                {partnerName(state, room)} · {scheduleLabel(schedule)}
+              </span>
               <button
                 className="btn small"
-                onClick={() => onAction({ action: "open-room", id: room.id })}
+                onClick={() =>
+                  onAction({
+                    action: "open-room",
+                    id: room.id,
+                    tab: "schedule",
+                  })
+                }
               >
                 View session
               </button>
             </div>
           ))}
+          <button
+            className="link-btn"
+            onClick={() => onAction({ page: "calendar" })}
+          >
+            View calendar
+          </button>
+        </section>
+      )}
+      {activity.length > 0 && (
+        <section className="card panel section-gap">
+          <h2>Recent activity</h2>
+          {activity.map((item) => (
+            <p className="activity-entry" key={item.id}>
+              {item.text}
+            </p>
+          ))}
+          <button
+            className="link-btn"
+            onClick={() => onAction({ page: "notifications" })}
+          >
+            View all updates <Icon name="arrow" />
+          </button>
         </section>
       )}
     </div>

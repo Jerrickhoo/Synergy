@@ -1,3 +1,4 @@
+import { roomNextAction } from "../data/selectors.js";
 const paths = {
   home: "",
   discover: "matches",
@@ -69,7 +70,9 @@ export function applyRoute(state, route) {
   if (route.page === "match-detail") state.activeMatch = route.id;
   if (["room-detail", "review"].includes(route.page)) {
     state.activeRoomId = route.id;
-    state.roomTab = "terms";
+    const room = state.rooms?.[route.id];
+    state.roomTab =
+      (room?.role === state.role && roomNextAction(room).tab) || "terms";
   }
   state.routePath = route.path;
 }

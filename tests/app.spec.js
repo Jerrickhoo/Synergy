@@ -125,9 +125,7 @@ async function startSignIn(page, email = `account-${Date.now()}@example.com`) {
 
 async function signIn(page, email) {
   const address = await startSignIn(page, email);
-  await expect(
-    page.getByRole("heading", { name: "Welcome, Test" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /, Test$/ })).toBeVisible();
 }
 
 async function navigate(page, name) {
@@ -174,7 +172,7 @@ test("fresh workspace has one setup action and no sample records", async ({
     page.getByRole("button", { name: "Set up your profile", exact: true }),
   ).toHaveCount(1);
   await expect(
-    page.getByText("No collaborations yet.", { exact: false }),
+    page.getByText("Connect with someone to open a room", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByText(
@@ -210,9 +208,9 @@ test("fresh workspace has one setup action and no sample records", async ({
   await expect(page.getByLabel("Search matches", { exact: true })).toHaveCount(
     0,
   );
-  await navigate(page, "Rooms");
+  await navigate(page, "Deal Rooms");
   await expect(
-    page.getByRole("heading", { name: "No rooms yet" }),
+    page.getByRole("heading", { name: "No Deal Rooms yet" }),
   ).toBeVisible();
   await navigate(page, "Profile");
   await expect(
@@ -275,9 +273,7 @@ test("blank profile fields, validation, saving and cancel work with user details
     0,
   );
   await navigate(page, "Home");
-  await expect(
-    page.getByRole("heading", { name: "Welcome, Alex" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /, Alex$/ })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Find your next collaborator" }),
   ).toBeVisible();
@@ -346,9 +342,7 @@ for (const role of ["founder", "mentor"]) {
     await page
       .getByRole("button", { name: "Create account", exact: true })
       .click();
-    await expect(
-      page.getByRole("heading", { name: "Welcome, Jamie" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: /, Jamie$/ })).toBeVisible();
     await page
       .getByRole("button", { name: "Set up your profile", exact: true })
       .click();
@@ -392,14 +386,14 @@ test("browser navigation, unavailable rooms and saved session refresh remain saf
 }) => {
   await signIn(page);
   await navigate(page, "Matches");
-  await navigate(page, "Rooms");
+  await navigate(page, "Deal Rooms");
   await page.goBack();
   await expect(
     page.getByRole("heading", { name: "Matches", exact: true }),
   ).toBeVisible();
   await page.goForward();
   await expect(
-    page.getByRole("heading", { name: "Rooms", exact: true }),
+    page.getByRole("heading", { name: "Deal Rooms", exact: true }),
   ).toBeVisible();
   await page.goto("/#/rooms/founder-campus");
   await expect(
@@ -407,7 +401,7 @@ test("browser navigation, unavailable rooms and saved session refresh remain saf
   ).toBeVisible();
   await page.getByRole("button", { name: "View your rooms" }).click();
   await expect(
-    page.getByRole("heading", { name: "No rooms yet" }),
+    page.getByRole("heading", { name: "No Deal Rooms yet" }),
   ).toBeVisible();
   await page.goto("/#/unknown");
   await expect(
@@ -425,7 +419,7 @@ for (const width of [360, 768, 1024, 1440]) {
   }) => {
     await page.setViewportSize({ width, height: 900 });
     await signIn(page);
-    for (const name of ["Matches", "Rooms", "Profile", "Home"]) {
+    for (const name of ["Matches", "Deal Rooms", "Profile", "Home"]) {
       await navigate(page, name);
       await expect(page.locator("main h1")).toBeFocused();
       expect(

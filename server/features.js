@@ -1,10 +1,23 @@
 import { randomUUID } from "node:crypto";
 import {
+  closeCategories,
   defaultVocabulary,
+  reviewDeadline,
   suggestTags,
   terminalStatuses,
   trustSummary,
+  moderationDueAt,
+  ongoingMentorship,
+  ensureCycle,
+  resolveCycleDecisions,
 } from "../src/data/collaboration.js";
+import { enqueueDelivery } from "./delivery.js";
+export const defaultPreferences = {
+  match: true,
+  activity: true,
+  reminders: true,
+  digest: "weekly",
+};
 import { scheduleInstant } from "../src/data/selectors.js";
 import { roomProgress } from "../src/data/selectors.js";
 import defaultTemplates from "../src/data/engagement-templates.json" with { type: "json" };
@@ -21,7 +34,11 @@ export function createFeatures({
   options,
   fail,
   sessions,
+  displayName = (account) => account.state.accountName,
+  simulatePartner = () => {},
+  advanceRoom,
 }) {
+  const now = () => options.now?.() ?? Date.now();
   const db = () => getDb();
   const accountById = (id) =>
     Object.hasOwn(db().accounts, id) ? db().accounts[id] : null;
@@ -29,10 +46,15 @@ export function createFeatures({
     Boolean(options.adminEmails?.includes(account.email));
   const vocabulary = () =>
     [...new Set([...defaultVocabulary, ...(db().approvedTags || [])])].sort();
-  function notifications(account, state, now = Date.now()) {
+  function notifications(account, state, time = now()) {
     const items = state.activity
       .filter((item) => item.role === state.role)
-      .map((item) => ({ ...item, kind: "activity" }));
+      .map((item) => ({
+        ...item,
+        kind: item.kind || "activity",
+        self:
+          item.self ?? /^(You\b|Milestone due date updated)/.test(item.text),
+      }));
     const add = (id, text, roomId, kind, matchId, timing = {}) =>
       items.push({
         id,
@@ -42,7 +64,7 @@ export function createFeatures({
         matchId,
         timestamp:
           account.notificationCreatedAt?.[`${state.role}:${id}`] ||
-          new Date(now).toISOString(),
+          new Date(time).toISOString(),
         generated: true,
         ...timing,
         role: state.role,
@@ -50,9 +72,9 @@ export function createFeatures({
     for (const person of state.role === "mentor"
       ? state.directory.mentorStartups
       : [...state.directory.founders, ...state.directory.mentors]) {
-      if (person.score >= 60)
+      if (person.score >= 70)
         add(
-          `match:${person.id}:${person.score}`,
+          `match:${person.id}`,
           `${person.name} is a ${person.score}% profile fit.`,
           null,
           "match",
@@ -62,14 +84,42 @@ export function createFeatures({
     for (const room of Object.values(state.rooms).filter(
       (room) => room.role === state.role,
     )) {
-      if (room.status === "launched" && !room.review.me)
+      if (room.status === "launched" && !room.review.me) {
+        const deadline = reviewDeadline(room, options.reviewWindowMs);
+        const left = deadline ? Date.parse(deadline) - time : null;
         add(
           `review:${room.id}`,
-          "Your completed collaboration is ready for a review.",
+          `Your completed collaboration is ready for a review.${deadline ? ` Reviews close on ${new Date(deadline).toLocaleDateString("en", { day: "numeric", month: "short" })}.` : ""}`,
           room.id,
           "review",
         );
+        for (const day of [7, 12])
+          if (left !== null && left <= (14 - day) * 86400000 && left > 0)
+            add(
+              `review-remind:${room.id}:${day}`,
+              `Reminder: ${Math.ceil(left / 86400000)} days left to review your collaboration.`,
+              room.id,
+              "review",
+            );
+      }
       if (terminalStatuses.includes(room.status)) continue;
+      if (room.cycle?.phase === "review") {
+        const cycle = room.cycle;
+        if (
+          !cycle.reviews[account.id] ||
+          (cycle.reviews[room.partnerAccountId] && !cycle.decisions[account.id])
+        )
+          add(
+            `cycle:${room.id}:${cycle.number}:${cycle.reviews[account.id] ? "decision" : "review"}`,
+            cycle.reviews[account.id]
+              ? "Choose Continue or Finish for your mentorship cycle."
+              : "Your mentorship cycle is ready for a private review.",
+            room.id,
+            "confirmation",
+            null,
+            { tab: "milestones" },
+          );
+      }
       if (room.terms.locked && !room.terms.confirmedByMe)
         add(
           `terms:${room.id}:${room.terms.revision || 0}`,
@@ -97,11 +147,11 @@ export function createFeatures({
             { tab: "milestones" },
           );
         if (item.dueDate && !(item.me && item.partner)) {
-          const remaining = Date.parse(`${item.dueDate}T23:59:59Z`) - now;
-          if (remaining < 86400000)
+          const remaining = Date.parse(`${item.dueDate}T23:59:59Z`) - time;
+          if (remaining < 3 * 86400000)
             add(
-              `due:${room.id}:${id}:${item.dueDate}`,
-              `${item.title} is ${remaining < 0 ? "overdue" : "due within a day"} (${item.dueDate}, UTC).`,
+              `due:${room.id}:${id}:${item.dueDate}:${remaining < 0 ? "late" : remaining < 86400000 ? "1" : "3"}`,
+              `${item.title} is ${remaining < 0 ? "overdue" : remaining < 86400000 ? "due within a day" : "due within 3 days"}.`,
               room.id,
               "reminder",
               null,
@@ -110,7 +160,7 @@ export function createFeatures({
         }
         for (const schedule of item.schedules ||
           (item.schedule ? [item.schedule] : [])) {
-          const remaining = scheduleInstant(schedule).getTime() - now;
+          const remaining = scheduleInstant(schedule).getTime() - time;
           if (remaining > 0 && remaining <= 86400000)
             add(
               `session:${room.id}:${schedule.date}:${schedule.time}`,
@@ -126,9 +176,9 @@ export function createFeatures({
         }
       }
       if (
-        now -
+        time -
           Date.parse(
-            room.updatedAt || room.createdAt || new Date(now).toISOString(),
+            room.updatedAt || room.createdAt || new Date(time).toISOString(),
           ) >
         14 * 86400000
       )
@@ -139,9 +189,52 @@ export function createFeatures({
           "reminder",
         );
     }
+    // Introductions that need a reply expire after 14 days; remind at day 7.
+    for (const [id, meta] of Object.entries(
+      state.introductionMetaByRole?.[state.role] || {},
+    )) {
+      if (!state.incomingByRole[state.role].has(id)) continue;
+      const age = time - Date.parse(meta.sentAt || time);
+      if (age >= 7 * 86400000)
+        add(
+          `intro-remind:${id}:${meta.sentAt}`,
+          `${meta.name}'s introduction expires in ${Math.max(1, Math.ceil((14 * 86400000 - age) / 86400000))} days.`,
+          null,
+          "reminder",
+          id,
+        );
+    }
     const read = new Set(account.readNotifications || []);
+    const prefs = {
+      ...defaultPreferences,
+      ...(account.notificationPreferences || {}),
+    };
+    const category = (item) =>
+      item.kind === "match"
+        ? "match"
+        : item.kind === "reminder"
+          ? "reminders"
+          : ["confirmation", "review", "review-release"].includes(item.kind)
+            ? "action"
+            : "activity";
     return items
-      .map((item) => ({ ...item, read: read.has(item.id) }))
+      .map((item) => {
+        const group = category(item);
+        // Actions that need a reply are never muted or folded into a digest.
+        const muted = group !== "action" && prefs[group] === false;
+        const digested =
+          group !== "action" &&
+          !muted &&
+          prefs.digest !== "off" &&
+          group !== "reminders";
+        return {
+          ...item,
+          category: group,
+          muted,
+          digested,
+          read: read.has(item.id) || Boolean(item.self) || muted || digested,
+        };
+      })
       .sort(
         (a, b) =>
           (Date.parse(b.timestamp) || 0) - (Date.parse(a.timestamp) || 0),
@@ -159,6 +252,51 @@ export function createFeatures({
       account.notificationCreatedAt[key] = item.timestamp;
       changed = true;
     }
+    for (const item of state.notifications || []) {
+      if (item.self || item.muted || item.digested) continue;
+      changed =
+        enqueueDelivery(
+          db(),
+          {
+            key: `${account.id}:${state.role}:${item.id}`,
+            accountId: account.id,
+            kind: item.kind,
+            payload: {
+              text: item.text,
+              roomId: item.roomId,
+              matchId: item.matchId,
+            },
+          },
+          now(),
+        ) || changed;
+    }
+    const prefs = state.notificationPreferences;
+    if (prefs?.digest !== "off") {
+      const span = (prefs.digest === "daily" ? 1 : 7) * 86400000;
+      const period = Math.floor(now() / span);
+      const items = state.notifications.filter(
+        (item) => item.digested && now() - Date.parse(item.timestamp) <= span,
+      );
+      if (items.length)
+        changed =
+          enqueueDelivery(
+            db(),
+            {
+              key: `${account.id}:${state.role}:digest:${prefs.digest}:${period}`,
+              accountId: account.id,
+              kind: "digest",
+              payload: {
+                items: items.map(({ text, matchId, roomId }) => ({
+                  text,
+                  matchId,
+                  roomId,
+                })),
+              },
+              availableAt: new Date((period + 1) * span).toISOString(),
+            },
+            now(),
+          ) || changed;
+    }
     return changed;
   }
   function decorate(account, state) {
@@ -167,6 +305,13 @@ export function createFeatures({
     state.engagementTemplates = db().engagementTemplates || defaultTemplates;
     state.matchingConfig = db().matchingConfig || defaultMatching;
     state.notifications = notifications(account, state);
+    state.notificationPreferences = {
+      ...defaultPreferences,
+      ...(account.notificationPreferences || {}),
+    };
+    state.myTagProposals = (db().tagProposals || [])
+      .filter((tag) => tag.accountId === account.id)
+      .map(({ id, label, status, note }) => ({ id, label, status, note }));
     state.affiliation = account.affiliation || null;
     state.trustSummary = trustSummary(state.rooms, state.role);
     if (state.isAdmin)
@@ -175,8 +320,23 @@ export function createFeatures({
         reports: db().reports.map((report) => {
           const room =
             db().accounts[report.accountId]?.state.rooms[report.roomId];
+          const reporter = accountById(report.accountId);
+          const reported = accountById(report.reportedAccountId);
+          const roleOf = (profileId) =>
+            String(profileId || "").endsWith(":mentor") ? "mentor" : "founder";
           return {
             ...report,
+            dueAt: report.dueAt || moderationDueAt(report.timestamp),
+            overdue:
+              !["resolved", "dismissed"].includes(report.status) &&
+              now() >
+                Date.parse(report.dueAt || moderationDueAt(report.timestamp)),
+            reporterName: reporter
+              ? displayName(reporter, roleOf(report.reporterProfileId))
+              : "",
+            reportedName: reported
+              ? displayName(reported, roleOf(report.reportedProfileId))
+              : "",
             context: room
               ? {
                   type: room.engagementType,
@@ -194,13 +354,32 @@ export function createFeatures({
               : null,
           };
         }),
-        tags: db().tagProposals || [],
+        tags: (db().tagProposals || []).map((tag) => ({
+          ...tag,
+          dueAt: moderationDueAt(tag.createdAt),
+          overdue:
+            tag.status === "pending" &&
+            now() > Date.parse(moderationDueAt(tag.createdAt)),
+        })),
         affiliations: Object.values(db().accounts)
           .filter((a) => a.affiliation?.status === "pending")
           .map((a) => ({
             accountId: a.id,
             name: a.state.accountName,
             ...a.affiliation,
+            dueAt:
+              a.affiliation.dueAt ||
+              moderationDueAt(
+                a.affiliation.requestedAt || new Date(now()).toISOString(),
+              ),
+            overdue:
+              now() >
+              Date.parse(
+                a.affiliation.dueAt ||
+                  moderationDueAt(
+                    a.affiliation.requestedAt || new Date(now()).toISOString(),
+                  ),
+              ),
           })),
         accounts: Object.values(db().accounts).map((a) => ({
           id: a.id,
@@ -214,7 +393,19 @@ export function createFeatures({
     else delete state.moderation;
     return state;
   }
-  const actions = new Set(["reopen-terms", "close-room", "read-notifications"]);
+  const actions = new Set([
+    "reopen-terms",
+    "accept-reopen",
+    "decline-reopen",
+    "close-room",
+    "read-notifications",
+    "withdraw-dispute",
+    "escalate-dispute",
+    "send-back",
+    "nudge-partner",
+    "undo-launch",
+    "cycle-decision",
+  ]);
   const forms = new Set([
     "task-create",
     "task-update",
@@ -228,6 +419,10 @@ export function createFeatures({
     "milestone-decision",
     "engagement-template",
     "matching-config",
+    "notification-preferences",
+    "send-back",
+    "cycle-details",
+    "cycle-review",
   ]);
   function act(token, input) {
     const account = authenticate(token);
@@ -245,7 +440,19 @@ export function createFeatures({
         .slice(0, 3000);
     const room = state.rooms[input.activeRoomId];
     const roomAction =
-      ["reopen-terms", "close-room"].includes(input.action) ||
+      [
+        "reopen-terms",
+        "accept-reopen",
+        "decline-reopen",
+        "close-room",
+        "withdraw-dispute",
+        "escalate-dispute",
+        "send-back",
+        "nudge-partner",
+        "undo-launch",
+        "cycle-decision",
+      ].includes(input.action) ||
+      input.form === "send-back" ||
       [
         "task-create",
         "task-update",
@@ -254,17 +461,117 @@ export function createFeatures({
         "milestone-date",
         "milestone-proposal",
         "milestone-decision",
+        "cycle-details",
+        "cycle-review",
       ].includes(input.form);
     if (roomAction && (!room || room.role !== input.role))
       fail("This room is unavailable for your account and role.", 404);
-    if (roomAction && terminalStatuses.includes(room.status))
+    if (
+      roomAction &&
+      room.cycle?.phase === "review" &&
+      Object.keys(room.cycle.reviews).length &&
+      [
+        "reopen-terms",
+        "accept-reopen",
+        "send-back",
+        "withdraw-dispute",
+        "escalate-dispute",
+        "milestone-date",
+        "milestone-proposal",
+        "milestone-decision",
+      ].includes(input.action || input.form)
+    )
+      fail(
+        "Cycle work is locked after a private cycle review. Choose Continue or Finish after both reviews.",
+      );
+    if (
+      roomAction &&
+      terminalStatuses.includes(room.status) &&
+      input.action !== "undo-launch"
+    )
       fail("Completed or closed collaborations cannot be changed.");
     state.toast = "";
     state.toastType = "success";
     state.toastTitle = "";
     state.formErrors = null;
     state.confirmation = "";
-    if (["engagement-template", "matching-config"].includes(input.form)) {
+    if (input.action === "undo-launch") {
+      if (
+        room.status !== "launched" ||
+        !room.launchedAt ||
+        now() - Date.parse(room.launchedAt) >= 86400000 ||
+        room.review.me ||
+        room.review.partner
+      )
+        fail(
+          "Undo is available for 24 hours after completion, before either review is submitted.",
+        );
+      room.status = "in-progress";
+      delete room.launchedAt;
+      delete room.finishingCycles;
+      // Reopen the final confirmation so a later action can complete the room again.
+      const last = Object.values(room.milestones).at(-1);
+      last.me = last.partner = false;
+      if (room.cycle) {
+        room.cycle.phase = "active";
+        room.cycle.decisions = {};
+      }
+      state.toast = "Completion undone. Review the final milestone together.";
+    } else if (
+      ["cycle-details", "cycle-review", "cycle-decision"].includes(
+        input.form || input.action,
+      )
+    ) {
+      if (!ongoingMentorship(room) || !room.terms.partnerLocked)
+        fail("Agree ongoing mentorship terms first.");
+      const cycle = ensureCycle(room, now());
+      if (input.form === "cycle-details") {
+        if (Object.keys(cycle.reviews).length)
+          fail("Cycle details are locked after a review is submitted.");
+        if (cycle.phase === "review" && text("goals") !== cycle.goals)
+          fail("Cycle goals are locked during review.");
+        if (!text("goals")) fail("Add goals for this cycle.");
+        if (cycle.goals !== text("goals"))
+          for (const item of Object.values(room.milestones))
+            item.me = item.partner = false;
+        cycle.goals = text("goals");
+        cycle.summary = text("summary");
+        state.toast = "Cycle goals and check-in summary saved.";
+      } else if (input.form === "cycle-review") {
+        if (cycle.phase !== "review" || !cycle.summary)
+          fail(
+            "Complete the cycle milestones and add a check-in summary before reviewing.",
+          );
+        if (cycle.reviews[account.id])
+          fail("Your cycle review is already submitted.");
+        const rating = Number(values.rating);
+        if (![1, 2, 3, 4, 5].includes(rating))
+          fail("Choose a rating from 1 to 5.");
+        cycle.reviews[account.id] = {
+          rating,
+          note: text("note"),
+          at: new Date(now()).toISOString(),
+        };
+        state.toast =
+          "Private cycle review submitted. Feedback is released when both reviews are in.";
+      } else {
+        if (!cycle.reviews[account.id] || !cycle.reviews[room.partnerAccountId])
+          fail("Both private cycle reviews are needed before deciding.");
+        const decision = text("decision");
+        if (!["continue", "finish"].includes(decision))
+          fail("Choose Continue or Finish.");
+        cycle.decisions[account.id] = decision;
+        const result = resolveCycleDecisions(room, now());
+        if (result === "finish") advanceRoom(account, state, room);
+        else if (result === "continue")
+          state.toast = `Cycle ${room.cycle.number} started. Agree new goals and sessions.`;
+        else
+          state.toast =
+            "Decision saved. Waiting for your partner to choose Continue or Finish.";
+      }
+    } else if (
+      ["engagement-template", "matching-config"].includes(input.form)
+    ) {
       if (!isAdmin(account)) fail("Moderator access required.", 403);
       if (input.form === "engagement-template") {
         const id = text("type");
@@ -305,6 +612,7 @@ export function createFeatures({
           id,
           name,
           version: current.version + 1,
+          fields: current.fields || defaultTemplates[id]?.fields || [],
           milestones,
         };
         state.toast = "Template saved. New rooms will use this version.";
@@ -426,11 +734,33 @@ export function createFeatures({
       }
     } else if (input.action === "reopen-terms") {
       if (!room.terms.locked) fail("These terms are already a draft.");
+      if (room.terms.reopenRequest)
+        fail("A request to change the terms is already waiting.");
+      room.terms.reopenRequest = {
+        byAccountId: account.id,
+        at: new Date().toISOString(),
+        note: text("note").slice(0, 500),
+      };
+      state.toast =
+        "Change request sent. The current terms and confirmations stay in place until your collaborator agrees.";
+    } else if (input.action === "decline-reopen") {
+      if (!room.terms.reopenRequest) fail("There is no change request.");
+      const mine = room.terms.reopenRequest.byAccountId === account.id;
+      room.terms.reopenRequest = null;
+      state.toast = mine
+        ? "Change request withdrawn. The agreed terms stay in place."
+        : "Change request declined. The agreed terms stay in place.";
+    } else if (input.action === "accept-reopen") {
+      const request = room.terms.reopenRequest;
+      if (!request) fail("There is no change request.");
+      if (request.byAccountId === account.id)
+        fail("Your collaborator must agree to reopen the terms.", 403);
       room.terms = {
         ...room.terms,
         locked: false,
         partnerLocked: false,
         confirmedByMe: false,
+        reopenRequest: null,
         revision: (room.terms.revision || 0) + 1,
       };
       for (const item of Object.values(room.milestones))
@@ -440,12 +770,92 @@ export function createFeatures({
       state.toast =
         "Terms reopened. Both collaborators must accept the revised agreement and reconfirm the work.";
     } else if (input.action === "close-room" || input.form === "close-room") {
-      if (!text("reason"))
+      const category = Object.hasOwn(closeCategories, text("category"))
+        ? text("category")
+        : "other";
+      if (!text("reason") && category === "other")
         fail("Give a reason for closing this collaboration.");
       room.status = "cancelled";
       room.closedAt = new Date().toISOString();
-      room.closeReason = text("reason");
-      state.toast = "Collaboration closed. Its history remains available.";
+      room.closeReason = text("reason") || closeCategories[category];
+      room.closeCategory = category;
+      room.closedByAccountId = account.id;
+      state.toast =
+        category === "unresponsive"
+          ? "Collaboration closed. Because your partner stopped responding, this does not count against your follow-through."
+          : "Collaboration closed. Its history remains available.";
+    } else if (input.action === "withdraw-dispute") {
+      const item = room.milestones[input.id];
+      if (!item?.disputed) fail("This milestone has no open dispute.");
+      if (item.dispute?.byAccountId && item.dispute.byAccountId !== account.id)
+        fail("Only the person who raised the dispute can withdraw it.", 403);
+      Object.assign(item, {
+        disputed: false,
+        dispute: null,
+        resolvedByMe: false,
+        resolvedByPartner: false,
+      });
+      state.toast = `Dispute withdrawn. “${item.title}” is back in progress.`;
+    } else if (input.action === "escalate-dispute") {
+      const item = room.milestones[input.id];
+      if (!item?.disputed) fail("This milestone has no open dispute.");
+      if (item.dispute?.escalatedAt)
+        fail("This dispute is already with a moderator.");
+      item.dispute = {
+        ...(item.dispute || {}),
+        escalatedAt: new Date(now()).toISOString(),
+        dueAt: moderationDueAt(new Date(now()).toISOString()),
+      };
+      db().reports.push({
+        id: randomUUID(),
+        kind: "dispute",
+        dueAt: item.dispute.dueAt,
+        accountId: account.id,
+        reporterAccountId: account.id,
+        reporterProfileId: `${account.id}:${state.role}`,
+        reportedAccountId: room.partnerAccountId,
+        reportedProfileId: room.partnerId,
+        roomId: room.id,
+        milestoneId: input.id,
+        reason: `Milestone dispute: ${item.title}`,
+        details: [
+          item.dispute.reason,
+          item.dispute.outcome && `Wanted outcome: ${item.dispute.outcome}`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        timestamp: new Date(now()).toISOString(),
+        status: "open",
+      });
+      state.toast =
+        "Sent to a moderator. Moderators aim to decide within 3 business days: confirm the milestone, reopen it, or close the collaboration without penalty.";
+    } else if (input.action === "send-back" || input.form === "send-back") {
+      const item = room.milestones[input.id];
+      if (!item) fail("This milestone is unavailable.", 404);
+      if (!item.partner || item.me)
+        fail(
+          "Only a milestone your collaborator marked done can be sent back.",
+        );
+      const note = text("note");
+      if (!note) fail("Add a short note explaining what is still missing.");
+      item.partner = false;
+      room.progress = roomProgress(room);
+      room.messages.push({
+        who: "me",
+        name: displayName(account, state.role),
+        text: `Not done yet: “${item.title}”. ${note}`,
+        timestamp: new Date().toISOString(),
+      });
+      state.toast = `Sent back. “${item.title}” is in progress again, and your note is in Chat.`;
+    } else if (input.action === "nudge-partner") {
+      if (
+        room.lastNudgeAt &&
+        Date.now() - Date.parse(room.lastNudgeAt) < 86400000
+      )
+        fail("You can send one nudge a day.");
+      room.lastNudgeAt = new Date().toISOString();
+      state.toast =
+        "Nudge sent. Your collaborator was reminded that you are waiting.";
     } else if (
       ["task-create", "task-update", "task-delete"].includes(input.form)
     ) {
@@ -521,10 +931,39 @@ export function createFeatures({
           parsed.toISOString().slice(0, 10) !== date)
       )
         fail("Choose a valid milestone date.");
+      const owner = text("owner");
+      if (owner && !["me", "partner", "both"].includes(owner))
+        fail("Choose who owns this milestone.");
+      if ("owner" in values)
+        item.ownerAccountId =
+          owner === "me"
+            ? account.id
+            : owner === "partner"
+              ? room.partnerAccountId
+              : owner === "both"
+                ? "both"
+                : "";
+      const changed = (item.dueDate || "") !== date;
       item.dueDate = date;
-      item.me = item.partner = false;
+      // A new date changes what was agreed, so both reconfirm; owners do not.
+      if (changed) item.me = item.partner = false;
       room.progress = roomProgress(room);
-      state.toast = "Milestone due date updated. Dates use UTC.";
+      state.toast = changed
+        ? date
+          ? `Due date set for “${item.title}”: ${new Date(`${date}T12:00:00Z`).toLocaleDateString("en", { weekday: "short", day: "numeric", month: "short" })}. Your collaborator was notified.`
+          : `Due date removed from “${item.title}”.`
+        : `Milestone details updated for “${item.title}”.`;
+    } else if (input.form === "notification-preferences") {
+      const digest = text("digest");
+      if (!["off", "daily", "weekly"].includes(digest))
+        fail("Choose Off, Daily or Weekly.");
+      account.notificationPreferences = {
+        match: values.match === "on",
+        activity: values.activity === "on",
+        reminders: values.reminders === "on",
+        digest,
+      };
+      state.toast = "Notification preferences saved.";
     } else if (input.action === "read-notifications") {
       const ids = state.notifications
         .filter((item) => !input.id || item.id === input.id)
@@ -562,6 +1001,8 @@ export function createFeatures({
         organization: text("organization"),
         evidence: text("evidence"),
         status: "pending",
+        requestedAt: new Date(now()).toISOString(),
+        dueAt: moderationDueAt(new Date(now()).toISOString()),
       };
       state.toast = "Affiliation submitted for moderator verification.";
     } else if (input.form === "moderation") {
@@ -589,6 +1030,7 @@ export function createFeatures({
         report.updatedAt = new Date().toISOString();
         const owner = db().accounts[report.accountId];
         const affected = owner?.state.rooms[report.roomId];
+        const confirmedIds = [];
         if (affected && decision === "resolved") {
           if (
             values.remedy === "close" &&
@@ -598,6 +1040,33 @@ export function createFeatures({
             affected.closeReason = `Moderator resolution: ${note}`;
             affected.closedAt = report.updatedAt;
           } else if (
+            values.remedy === "confirm-milestone" &&
+            !terminalStatuses.includes(affected.status)
+          ) {
+            for (const [milestoneId, item] of Object.entries(
+              affected.milestones,
+            ))
+              if (item.disputed) {
+                confirmedIds.push(milestoneId);
+                Object.assign(item, {
+                  disputed: false,
+                  dispute: null,
+                  me: true,
+                  partner: true,
+                  resolvedByMe: false,
+                  resolvedByPartner: false,
+                });
+              }
+            affected.progress = roomProgress(affected);
+          } else if (
+            values.remedy === "close-without-penalty" &&
+            !terminalStatuses.includes(affected.status)
+          ) {
+            affected.status = "cancelled";
+            affected.closeReason = `Closed by a moderator without penalty: ${note}`;
+            affected.closeCategory = "moderator";
+            affected.closedAt = report.updatedAt;
+          } else if (
             values.remedy === "resolve-disputes" &&
             !terminalStatuses.includes(affected.status)
           ) {
@@ -605,6 +1074,7 @@ export function createFeatures({
               if (item.disputed)
                 Object.assign(item, {
                   disputed: false,
+                  dispute: null,
                   me: false,
                   partner: false,
                   resolvedByMe: false,
@@ -622,6 +1092,35 @@ export function createFeatures({
             `A moderator resolved a report: ${note}`,
           );
           owner.state = ownerState;
+          // The room sync clears confirmations when a dispute flag changes, so
+          // reapply the moderator's "confirmed" outcome on both copies.
+          for (const copy of [
+            ownerState.rooms[affected.id],
+            db().accounts[affected.partnerAccountId]?.state.rooms[affected.id],
+          ])
+            if (copy) {
+              for (const id of confirmedIds)
+                Object.assign(copy.milestones[id], { me: true, partner: true });
+              copy.progress = roomProgress(copy);
+            }
+          // A moderator may confirm the final disputed milestone.
+          const previousPhase = affected.cycle?.phase;
+          const completed = advanceRoom(owner, ownerState, affected);
+          if (completed || previousPhase !== affected.cycle?.phase) {
+            mirror(
+              owner,
+              ownerState,
+              affected,
+              completed
+                ? ownerState.confirmation
+                : "Your mentorship cycle is ready for a private review.",
+              {
+                kind: completed ? "review" : "confirmation",
+                review: completed,
+                tab: "milestones",
+              },
+            );
+          }
           if (
             affected.partnerAccountId === account.id &&
             owner.id !== account.id
@@ -648,6 +1147,15 @@ export function createFeatures({
         proposal.note = note;
         if (decision === "approved")
           (db().approvedTags ||= []).push(proposal.label);
+        const proposer = accountById(proposal.accountId);
+        if (proposer)
+          event(
+            proposer.id === account.id ? { state } : proposer,
+            proposer.state.role,
+            decision === "approved"
+              ? `Your tag “${proposal.label}” was approved and is now available.`
+              : `Your tag “${proposal.label}” was not added: ${note}`,
+          );
       } else if (kind === "affiliation") {
         const target = accountById(id);
         if (!target?.affiliation || target.affiliation.status !== "pending")
@@ -660,6 +1168,13 @@ export function createFeatures({
           note,
           reviewedAt: new Date().toISOString(),
         };
+        event(
+          target.id === account.id ? { state } : target,
+          target.state.role,
+          decision === "verified"
+            ? `You are verified through ${target.affiliation.organization}. The badge now shows on your profile and cards.`
+            : `Your verification request was not approved: ${note}`,
+        );
       } else if (kind === "account") {
         const target = accountById(id);
         if (
@@ -687,8 +1202,35 @@ export function createFeatures({
     }
     if (roomAction) {
       room.updatedAt = new Date().toISOString();
-      mirror(account, state, room, `${state.accountName}: ${state.toast}`);
-      event({ state }, state.role, state.toast, room.id);
+      const who = displayName(account, state.role);
+      const partnerText = {
+        "reopen-terms": `${who} asked to change the agreed terms. The current terms stay in place until you respond.`,
+        "accept-reopen": `${who} agreed to reopen the terms. Agree on revised terms together.`,
+        "decline-reopen": `${who} kept the agreed terms unchanged.`,
+        "close-room": `${who} closed this collaboration: ${room.closeReason}`,
+        "withdraw-dispute": `${who} withdrew the dispute.`,
+        "escalate-dispute": `${who} sent a milestone dispute to a moderator.`,
+        "send-back": `${who} marked a milestone as not done yet. See the note in Chat.`,
+        "nudge-partner": `${who} is waiting on you in your collaboration.`,
+        "milestone-date": state.toast.startsWith("Due date set")
+          ? `${who} ${state.toast.replace(/^Due date set for /, "set a due date for ").replace(/ Your collaborator was notified.$/, "")}`
+          : `${who}: ${state.toast}`,
+      }[input.action || input.form];
+      mirror(account, state, room, partnerText || `${who}: ${state.toast}`, {
+        kind: ["reopen-terms", "send-back", "nudge-partner"].includes(
+          input.action || input.form,
+        )
+          ? "confirmation"
+          : undefined,
+        tab:
+          input.action === "reopen-terms"
+            ? "terms"
+            : input.form === "send-back" || input.action === "send-back"
+              ? "chat"
+              : "milestones",
+      });
+      event({ state }, state.role, state.toast, room.id, { self: true });
+      simulatePartner(account, state, room);
     }
     state.directory = {
       founders: [],

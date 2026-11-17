@@ -93,7 +93,22 @@ export default function App() {
             </button>
           </>
         ) : (
-          <p role="status">Opening your saved workspace...</p>
+          <div className="session-skeleton">
+            <p className="visually-hidden" role="status">
+              Opening your saved workspace…
+            </p>
+            <span className="skeleton session-skeleton-sidebar" />
+            <div className="session-skeleton-main" aria-hidden="true">
+              <span className="skeleton" style={{ width: "40%", height: 32 }} />
+              <span className="skeleton" style={{ width: "60%", height: 16 }} />
+              <span className="skeleton" style={{ height: 112 }} />
+              <div className="session-skeleton-row">
+                <span className="skeleton" style={{ height: 88 }} />
+                <span className="skeleton" style={{ height: 88 }} />
+                <span className="skeleton" style={{ height: 88 }} />
+              </div>
+            </div>
+          </div>
         )}
       </main>
     );

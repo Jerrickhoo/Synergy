@@ -1,13 +1,17 @@
 import SelectField from "./SelectField.jsx";
 import { useApp } from "../state/AppContext.jsx";
 
-export default function MilestoneRevision({ id, item, closed }) {
+// part: "proposal" shows a pending revision, "form" the propose form and
+// history. Both by default.
+export default function MilestoneRevision({ id, item, closed, part = "all" }) {
+  const showProposal = part !== "form";
+  const showForm = part !== "proposal";
   const { state, onSubmit } = useApp();
   const proposal = item.proposal;
   const mine = proposal?.proposedBy === state.accountId;
   return (
     <>
-      {proposal && (
+      {showProposal && proposal && (
         <div className="revision-proposal section-gap" role="status">
           <h4>Proposed milestone revision</h4>
           <p>
@@ -46,9 +50,9 @@ export default function MilestoneRevision({ id, item, closed }) {
           )}
         </div>
       )}
-      {!closed && !proposal && (
+      {showForm && !closed && !proposal && (
         <details className="section-gap">
-          <summary>Propose title or scope revision</summary>
+          <summary>Propose a change to this milestone</summary>
           <form
             key={item.revision || 0}
             data-form="milestone-proposal"
@@ -79,7 +83,7 @@ export default function MilestoneRevision({ id, item, closed }) {
           </form>
         </details>
       )}
-      {item.revisions?.length > 0 && (
+      {showForm && item.revisions?.length > 0 && (
         <details className="section-gap">
           <summary>Revision history ({item.revisions.length})</summary>
           {item.revisions.map((revision) => (

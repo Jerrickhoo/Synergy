@@ -76,7 +76,9 @@ export default function NotificationPreview({ headerRef, actionsRef }) {
       window.visualViewport?.removeEventListener("scroll", position);
     };
   }, [headerRef, actionsRef]);
-  const activity = (state.notifications || []).slice(0, 6);
+  const activity = (state.notifications || [])
+    .filter((item) => !item.self && !item.muted)
+    .slice(0, 6);
   return createPortal(
     <section
       ref={ref}
@@ -127,7 +129,7 @@ export default function NotificationPreview({ headerRef, actionsRef }) {
           className="link-btn"
           onClick={() => onAction({ page: "notifications" })}
         >
-          View all updates and preferences <Icon name="arrow" />
+          View all updates <Icon name="arrow" />
         </button>
       </div>
     </section>,

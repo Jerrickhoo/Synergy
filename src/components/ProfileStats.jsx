@@ -17,16 +17,16 @@ export default function ProfileStats() {
   return (
     <div className="profile-stats">
       <div className="profile-stat">
-        <strong>{average}</strong>
+        <strong>{average === "—" ? "—" : `${average}/5`}</strong>
         <span>
           {average === "—"
             ? "No partner ratings yet"
-            : "Rating from distinct partners"}
+            : `Average from ${state.trustSummary?.distinctReviewers || 1} review${(state.trustSummary?.distinctReviewers || 1) === 1 ? "" : "s"}`}
         </span>
       </div>
       <div className="profile-stat">
         <strong>{state.trustSummary?.completed ?? history.length}</strong>
-        <span>Collaborations</span>
+        <span>Completed collaborations</span>
       </div>
       <div className="profile-stat">
         <div

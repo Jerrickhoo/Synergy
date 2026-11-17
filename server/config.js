@@ -11,6 +11,7 @@ export function configuration(env = process.env) {
   const config = {
     production,
     demoMode,
+    requireVerification: env.SYNERGY_REQUIRE_VERIFICATION === "true",
     file,
     backupDirectory: env.SYNERGY_BACKUP_DIR
       ? resolve(env.SYNERGY_BACKUP_DIR)

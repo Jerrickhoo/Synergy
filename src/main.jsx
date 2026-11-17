@@ -10,6 +10,7 @@ import "./shared-ui.css";
 import "./profile-pages.css";
 import "./mentorship.css";
 import "./theme.css";
+import "./founder-ux.css";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>

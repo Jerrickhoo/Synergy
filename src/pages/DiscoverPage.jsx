@@ -6,6 +6,7 @@ import MatchCard from "../components/MatchCard.jsx";
 import Icon from "../components/Icon.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import Overlay from "../components/Overlay.jsx";
+import ScoreGuide from "../components/ScoreGuide.jsx";
 import SelectField from "../components/SelectField.jsx";
 import { profileKeys, profileFieldNames } from "../data/selectors.js";
 export default function DiscoverPage() {
@@ -57,6 +58,9 @@ export default function DiscoverPage() {
     state.matchFilters.type !== "all" ||
     Boolean(state.matchFilters.search);
   const { suggestedMatches, browsePeople, rolePeople, savedMatches } = model;
+  const savedCount = rolePeople().filter((person) =>
+    savedMatches().has(person.id),
+  ).length;
   const available =
     state.matchTab === "browse"
       ? browsePeople()
@@ -78,6 +82,18 @@ export default function DiscoverPage() {
   const pageCount = Math.max(1, Math.ceil(list.length / 12));
   const currentPage = Math.min(page, pageCount);
   const visibleList = list.slice((currentPage - 1) * 12, currentPage * 12);
+  // Paging is at the bottom of the list, so bring the new page's first cards
+  // into view instead of leaving the reader at its end.
+  const goToPage = (next) => {
+    setPage(next);
+    const top = document.getElementById("discovery-list");
+    if (!top || top.getBoundingClientRect().top >= 0) return;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    top.scrollIntoView({
+      behavior: reduce ? "auto" : "smooth",
+      block: "start",
+    });
+  };
   const industries = [
     ...new Set(
       rolePeople()
@@ -108,8 +124,9 @@ export default function DiscoverPage() {
         <section className="card clean-empty-state">
           <h2>No matches yet</h2>
           <p>
-            Complete your profile and invite a collaborator. Completed profiles
-            will appear here.
+            {missing.length
+              ? "Complete your profile to appear in Matches, then invite a collaborator. Completed profiles appear here."
+              : "Your profile is live. No other completed profiles are available yet. Invite a collaborator, and they will appear here once their profile is complete."}
           </p>
           <InviteCollaborator />
           <button className="btn" onClick={() => onAction({ page: "profile" })}>
@@ -124,8 +141,8 @@ export default function DiscoverPage() {
         title="Matches"
         intro={
           state.role === "mentor"
-            ? "Explore startup needs, stages and goals to find where you can help."
-            : "Find the right people to build something together."
+            ? "Startups ranked by how well their needs fit your expertise."
+            : "Ranked by two-way fit: what you get and what they get."
         }
       />
       {profilePrompt}
@@ -158,16 +175,8 @@ export default function DiscoverPage() {
               tabIndex={state.matchTab === key ? 0 : -1}
             >
               {label}
-              {key === "saved" ? (
-                <span className="tag">
-                  {
-                    rolePeople().filter((person) =>
-                      savedMatches().has(person.id),
-                    ).length
-                  }
-                </span>
-              ) : (
-                ""
+              {key === "saved" && savedCount > 0 && (
+                <span className="tag">{savedCount}</span>
               )}
             </button>
           ))}
@@ -184,7 +193,7 @@ export default function DiscoverPage() {
               id="match-search"
               type="search"
               value={state.matchFilters.search}
-              placeholder="Search by name, skill, or industry"
+              placeholder="Search by name, skill, goal or industry"
               aria-label="Search matches"
               onChange={(event) => onFilter("search", event.target.value)}
             />
@@ -200,17 +209,7 @@ export default function DiscoverPage() {
               setFiltersOpen(true);
             }}
           >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              aria-hidden="true"
-            >
-              <path d="M4 7h16M4 17h16" />
-              <circle cx="9" cy="7" r="3" fill="white" />
-              <circle cx="15" cy="17" r="3" fill="white" />
-            </svg>
+            <Icon name="filter" />
             Filters
             {advancedCount > 0 && <span className="tag">{advancedCount}</span>}
           </button>
@@ -383,13 +382,6 @@ export default function DiscoverPage() {
                   {list.length}
                 </span>
               </h2>
-              <p className="panel-subtitle">
-                {state.matchTab === "suggested"
-                  ? "People whose skills and goals connect with yours."
-                  : state.matchTab === "saved"
-                    ? "Your shortlist, ready when you are."
-                    : "Explore the community and find your next collaborator."}
-              </p>
             </div>
             <div className="field discovery-sort">
               <SelectField
@@ -405,7 +397,11 @@ export default function DiscoverPage() {
               />
             </div>
           </div>
-          <div className="match-list" id="discovery-list">
+          <div
+            className="match-list"
+            id="discovery-list"
+            key={`${state.matchTab}:${currentPage}`}
+          >
             {list.length ? (
               visibleList.map((person) => (
                 <MatchCard key={person.id} person={person} large={true} />
@@ -456,7 +452,7 @@ export default function DiscoverPage() {
               <button
                 className="btn"
                 disabled={currentPage <= 1}
-                onClick={() => setPage((value) => value - 1)}
+                onClick={() => goToPage(currentPage - 1)}
               >
                 Previous
               </button>
@@ -466,7 +462,7 @@ export default function DiscoverPage() {
               <button
                 className="btn"
                 disabled={currentPage >= pageCount}
-                onClick={() => setPage((value) => value + 1)}
+                onClick={() => goToPage(currentPage + 1)}
               >
                 Next
               </button>
@@ -490,46 +486,7 @@ export default function DiscoverPage() {
               title="How the score works"
               onClose={() => setGuideOpen(false)}
             >
-              <p className="panel-subtitle">
-                Profile signals summarize where a collaboration may fit.
-              </p>
-              <ul>
-                <li>
-                  <strong>Need Fit</strong>
-                  <span>
-                    Both directions of need/offer coverage for exchanges;
-                    founder needs for mentorship.
-                  </span>
-                </li>
-                {state.role === "mentor" && (
-                  <li>
-                    <strong>Expertise Fit</strong>
-                    <span>Founder needs compared with mentor expertise.</span>
-                  </li>
-                )}
-                <li>
-                  <strong>Industry Fit</strong>
-                  <span>Relevant context and shared users.</span>
-                </li>
-                <li>
-                  <strong>Stage / Size Fit</strong>
-                  <span>
-                    Stage and team size, or audience size for co-marketing, when
-                    provided.
-                  </span>
-                </li>
-                <li>
-                  <strong>Goal Fit</strong>
-                  <span>
-                    Stated goals and engagement preferences. Missing inputs earn
-                    no positive fit.
-                  </span>
-                </li>
-              </ul>
-              <p className="score-guide-note">
-                Scores summarize profile signals. They are not a validated
-                probability of success.
-              </p>
+              <ScoreGuide role={state.role} />
             </Overlay>
           )}
         </aside>

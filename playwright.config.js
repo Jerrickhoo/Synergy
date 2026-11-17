@@ -25,19 +25,35 @@ export default defineConfig({
       use: { browserName: "chromium", baseURL: "http://127.0.0.1:5184" },
     },
   ],
-  webServer: ["chromium", "firefox", "webkit", "prototype"].map(
-    (browserName, index) => ({
+  webServer: [
+    ...["chromium", "firefox", "webkit", "prototype"].map(
+      (browserName, index) => ({
+        command: "node tests/browser-server.js",
+        url: `http://127.0.0.1:${5181 + index}`,
+        reuseExistingServer: false,
+        env: {
+          PORT: String(5181 + index),
+          SYNERGY_DEMO_MODE: browserName === "prototype" ? "true" : "false",
+          SYNERGY_DATA_FILE: resolve(
+            ".data",
+            `e2e-${browserName}-${randomUUID()}.sqlite`,
+          ),
+        },
+      }),
+    ),
+    {
       command: "node tests/browser-server.js",
-      url: `http://127.0.0.1:${5181 + index}`,
+      url: "http://127.0.0.1:5185",
       reuseExistingServer: false,
       env: {
-        PORT: String(5181 + index),
-        SYNERGY_DEMO_MODE: browserName === "prototype" ? "true" : "false",
+        PORT: "5185",
+        SYNERGY_DEMO_MODE: "false",
+        SYNERGY_REQUIRE_VERIFICATION: "true",
         SYNERGY_DATA_FILE: resolve(
           ".data",
-          `e2e-${browserName}-${randomUUID()}.sqlite`,
+          `e2e-verification-${randomUUID()}.sqlite`,
         ),
       },
-    }),
-  ),
+    },
+  ],
 });

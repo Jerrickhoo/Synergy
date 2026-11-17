@@ -194,7 +194,12 @@ test("confirmations and dispute resolutions apply only to the milestone content 
   assert.equal(item.me, false);
   assert.equal(item.partner, false);
   assert.ok(item.contentVersion > current);
-  act(a, { action: "dispute", activeRoomId, id: "testing" });
+  act(a, {
+    action: "dispute",
+    activeRoomId,
+    id: "testing",
+    values: { reason: "Testing did not run" },
+  });
   assert.throws(
     () =>
       act(b, {

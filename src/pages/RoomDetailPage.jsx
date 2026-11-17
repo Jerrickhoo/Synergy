@@ -1,29 +1,101 @@
 import ReportCollaborator from "../components/ReportCollaborator.jsx";
-import NextStep from "../components/NextStep.jsx";
 import ChatPanel from "../components/ChatPanel.jsx";
 import MilestonesPanel from "../components/MilestonesPanel.jsx";
 import TaskBoard from "../components/TaskBoard.jsx";
+import MentorshipCycle from "../components/MentorshipCycle.jsx";
 import SchedulePanel from "../components/SchedulePanel.jsx";
 import TermsPanel from "../components/TermsPanel.jsx";
-import { Fragment, useLayoutEffect, useRef } from "react";
+import CloseRoomDialog from "../components/CloseRoomDialog.jsx";
+import { Fragment, useLayoutEffect, useRef, useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Avatar from "../components/Avatar.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import Icon from "../components/Icon.jsx";
 import { terminalStatuses } from "../data/collaboration.js";
+import {
+  milestoneDate,
+  roomNextAction,
+  upcomingSessions,
+  scheduleLabel,
+} from "../data/selectors.js";
+
+function NowBar({ room, partnerName }) {
+  const { state, onAction } = useApp();
+  const next = roomNextAction(room, partnerName);
+  if (room.status === "cancelled") return null;
+  const done = Object.values(room.milestones).filter(
+    (item) => item.me && item.partner,
+  ).length;
+  const total = Object.keys(room.milestones).length;
+  const go = () => {
+    if (next.review) return onAction({ page: "review" });
+    onAction({ action: "room-tab", tab: next.tab || "milestones" });
+    if (next.milestoneId)
+      requestAnimationFrame(() =>
+        document
+          .getElementById(`milestone-${next.milestoneId}`)
+          ?.scrollIntoView({ block: "center" }),
+      );
+  };
+  return (
+    <section
+      className={`now-bar${next.mine ? " mine" : ""}`}
+      aria-label="What happens next"
+    >
+      <div className="now-copy">
+        <span className="section-eyebrow">
+          {next.done ? "Status" : next.mine ? "Your turn" : "Their turn"}
+        </span>
+        <strong>{next.text}</strong>
+        {(next.detail || next.due) && (
+          <span className="now-detail">
+            {next.detail}
+            {next.due ? ` Due ${milestoneDate(next.due)}.` : ""}
+          </span>
+        )}
+        <span className="now-progress">
+          {room.status === "reviewed"
+            ? "All stages complete"
+            : `${done} of ${total} milestones confirmed by both`}
+        </span>
+      </div>
+      <div className="now-actions">
+        {next.mine &&
+          !next.done &&
+          !(next.ready && state.roomTab === "milestones") && (
+            <button className="btn primary" disabled={state.busy} onClick={go}>
+              {next.action || "Open"}
+            </button>
+          )}
+        {next.done && next.review && (
+          <button className="btn" onClick={go}>
+            Read reviews
+          </button>
+        )}
+        {!next.mine && !next.done && room.status !== "launched" && (
+          <button
+            className="btn"
+            disabled={state.busy}
+            onClick={() => onAction({ action: "nudge-partner" })}
+          >
+            Send a nudge
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default function RoomDetailPage() {
-  const { state, model, onAction, onSubmit, onTabKeyDown } = useApp();
-  const {
-    allPeople,
-    roleName,
-    currentAgreement,
-    activeRoom,
-    roomStatusLabel,
-  } = model;
+  const { state, model, onAction, onTabKeyDown } = useApp();
+  const { allPeople, roleName, currentAgreement, activeRoom, roomStatusLabel } =
+    model;
   const room = activeRoom();
+  const [closing, setClosing] = useState(false);
   const mentoring = room.type === "mentorship";
   const agreement = currentAgreement();
   const partner = allPeople().find((person) => person.id === room.partnerId);
+  const partnerName = partner?.name || "your collaborator";
   const stage =
     {
       matched: 0,
@@ -33,14 +105,19 @@ export default function RoomDetailPage() {
       reviewed: 4,
     }[room.status] || 0;
   const milestones = Object.entries(room.milestones);
+  // "Terms agreed" is only true once both have accepted (D3).
   const labels = [
     "Matched",
-    "Terms agreed",
+    stage >= 2 ? "Terms agreed" : "Agreeing terms",
     "In progress",
     mentoring ? "Completed" : "Launched",
     "Reviewed",
   ];
-  const tab = state.roomTab;
+  const termsNote =
+    room.status === "terms"
+      ? `${agreement.confirmedByMe ? 1 : 0} of 2 accepted`
+      : "";
+  const tab = state.roomTab === "tasks" ? "milestones" : state.roomTab;
   const tabsRef = useRef(null);
   useLayoutEffect(() => {
     const tabs = tabsRef.current;
@@ -75,12 +152,22 @@ export default function RoomDetailPage() {
     );
   if (tab === "milestones")
     panel = (
-      <MilestonesPanel
-        room={room}
-        agreement={agreement}
-        partner={partner}
-        milestones={milestones}
-      />
+      <>
+        {room.cycle && <MentorshipCycle room={room} />}
+        <MilestonesPanel
+          room={room}
+          agreement={agreement}
+          partner={partner}
+          milestones={milestones}
+        />
+        <details
+          className="card panel section-gap"
+          open={state.roomTab === "tasks" || undefined}
+        >
+          <summary>Task board · optional room tool</summary>
+          <TaskBoard room={room} partner={partner} />
+        </details>
+      </>
     );
   if (tab === "chat")
     panel = (
@@ -93,15 +180,13 @@ export default function RoomDetailPage() {
     );
   const roomTitle =
     room.type === "mentorship" ? "Mentorship Engagement" : room.engagementType;
+  const prototypePartner =
+    state.integrations?.demoMode && state.integrations?.guest;
   return (
-    <div className="page page-enter">
+    <div className="page room-detail-page page-enter">
       <PageHeader
         title={roomTitle}
-        intro={
-          mentoring
-            ? "Agree goals, prepare together, share guidance and record next steps."
-            : "Plan your work, share progress, and move this collaboration forward."
-        }
+        intro={`With ${partnerName}${room.terms.draft.goal ? ` · ${room.terms.draft.goal}` : ""}`}
         actions={
           <>
             <button
@@ -116,18 +201,33 @@ export default function RoomDetailPage() {
                 )
               }
             >
-              ← All rooms
+              <Icon name="back" /> All Deal Rooms
             </button>
-            <button
-              className="link-btn"
-              onClick={() => onAction({ action: "report" })}
-            >
-              Report a concern
-            </button>
+            <details className="room-more">
+              <summary className="btn">More</summary>
+              <div className="room-more-menu">
+                <button
+                  className="link-btn"
+                  onClick={() => onAction({ action: "report" })}
+                >
+                  Report a concern
+                </button>
+                {!terminalStatuses.includes(room.status) && (
+                  <button className="link-btn" onClick={() => setClosing(true)}>
+                    Close this collaboration
+                  </button>
+                )}
+              </div>
+            </details>
           </>
         }
       />
-      {"\n          "}
+      {prototypePartner && (
+        <p className="prototype-note">
+          Prototype: {partnerName} is a fictional collaborator. They respond
+          automatically after your actions so you can try every stage.
+        </p>
+      )}
       <section className="room-banner">
         <div className="room-partners">
           <Avatar
@@ -146,7 +246,12 @@ export default function RoomDetailPage() {
             name={partner?.name}
             color={partner?.color || ""}
           />
-          <strong>{partner?.name || room.partnerId}</strong>
+          <strong>{partnerName}</strong>
+          {partner?.affiliation && (
+            <span className="badge-verified">
+              <Icon name="check" /> Verified
+            </span>
+          )}
         </div>
         <span
           className={
@@ -156,7 +261,7 @@ export default function RoomDetailPage() {
         >
           {roomStatusLabel(
             room.status,
-            partner?.name || room.partnerId,
+            partnerName,
             agreement.confirmedByMe,
             room.type,
           )}
@@ -172,15 +277,21 @@ export default function RoomDetailPage() {
           </p>
         </section>
       )}
-      {"\n          "}
       {room.status !== "cancelled" && (
-        <div
-          className="stage-line"
-          aria-label={mentoring ? "Mentorship progress" : "Deal room progress"}
-        >
-          {labels.map((label, index) => (
-            <Fragment key={index}>
-              <div
+        <>
+          <p className="stage-compact" aria-hidden="true">
+            Stage {stage + 1} of 5: {labels[stage]}
+            {termsNote ? ` · ${termsNote}` : ""}
+          </p>
+          <ol
+            className="stage-line"
+            aria-label={
+              mentoring ? "Mentorship progress" : "Deal Room progress"
+            }
+          >
+            {labels.map((label, index) => (
+              <li
+                key={index}
                 aria-current={index === stage ? "step" : undefined}
                 className={
                   "stage " +
@@ -192,23 +303,55 @@ export default function RoomDetailPage() {
                 <span className="stage-dot">
                   {index < stage ? <Icon name="check" /> : ""}
                 </span>
-                <span>{label}</span>
-              </div>
-            </Fragment>
-          ))}
-        </div>
+                <span>
+                  {label}
+                  {index === 1 && termsNote && (
+                    <small className="stage-note">{termsNote}</small>
+                  )}
+                  <span className="visually-hidden">
+                    {index < stage
+                      ? ", complete"
+                      : index === stage
+                        ? ", current stage"
+                        : ", not started"}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </>
       )}
-      {"\n          "}
+      <NowBar room={room} partnerName={partnerName} />
+      {room.cycle && (
+        <p className="cycle-status">
+          Cycle {room.cycle.number} · Next session:{" "}
+          {upcomingSessions(state).find((item) => item.room.id === room.id)
+            ? scheduleLabel(
+                upcomingSessions(state).find((item) => item.room.id === room.id)
+                  .schedule,
+              )
+            : "not scheduled"}
+        </p>
+      )}
+      {Object.values(room.milestones).some(
+        (item) => item.dueDate || item.schedule || item.schedules?.length,
+      ) && (
+        <button
+          className="link-btn"
+          onClick={() => onAction({ page: "calendar" })}
+        >
+          View calendar
+        </button>
+      )}
       <div
         className="tabs room-tabs"
         ref={tabsRef}
         role="tablist"
-        aria-label={mentoring ? "Mentorship sections" : "Deal room sections"}
+        aria-label={mentoring ? "Mentorship sections" : "Deal Room sections"}
       >
         {[
-          ["terms", "Terms"],
+          ["terms", room.terms.partnerLocked ? "Agreement" : "Terms"],
           ["milestones", "Milestones"],
-          ["tasks", "Task board"],
           ...(room.type === "mentorship" ? [["schedule", "Schedule"]] : []),
           ["chat", "Chat"],
         ].map(([key, label], itemIndex) => (
@@ -238,8 +381,7 @@ export default function RoomDetailPage() {
           </Fragment>
         ))}
       </div>
-      {"\n          "}
-      {mentoring && (
+      {mentoring && tab === "terms" && (
         <section
           className="card panel mentorship-brief section-gap"
           aria-labelledby="mentoring-goal"
@@ -276,7 +418,7 @@ export default function RoomDetailPage() {
               className="link-btn"
               onClick={() => onAction({ action: "room-tab", tab: "tasks" })}
             >
-              View shared actions →
+              View shared actions <Icon name="arrow" />
             </button>
           </div>
         </section>
@@ -288,30 +430,11 @@ export default function RoomDetailPage() {
       >
         {panel}
       </div>
-      {"\n        "}
-      <NextStep />
-      {!terminalStatuses.includes(room.status) && (
-        <details className="card panel section-gap">
-          <summary>Close this collaboration</summary>
-          <p>
-            Either collaborator can close an unfinished room. Its history is
-            retained and your partner is notified.
-          </p>
-          <form data-form="close-room" className="grid" onSubmit={onSubmit}>
-            <div className="field">
-              <label htmlFor="close-reason">Reason for closing</label>
-              <textarea
-                id="close-reason"
-                name="reason"
-                required
-                maxLength={3000}
-              />
-            </div>
-            <button className="btn" disabled={state.busy}>
-              Close collaboration
-            </button>
-          </form>
-        </details>
+      {closing && (
+        <CloseRoomDialog
+          partnerName={partnerName}
+          onClose={() => setClosing(false)}
+        />
       )}
       {state.reportOpen && (
         <ReportCollaborator

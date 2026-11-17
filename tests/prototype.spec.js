@@ -93,7 +93,7 @@ test("prototype discovery preserves filters, sort, saved profiles and image fall
   await page.keyboard.press("Escape");
   await expect(why).toBeFocused();
   const savedName = await first.getByRole("heading").innerText();
-  await first.getByRole("button", { name: "Save match", exact: true }).click();
+  await first.getByRole("button", { name: /^Save (?!for later)/ }).click();
   await page.getByRole("tab", { name: /^Saved/ }).click();
   await expect(
     page.getByRole("heading", { name: savedName, exact: true }),
@@ -311,7 +311,7 @@ for (const role of ["founder", "mentor"])
       `/?review=${Date.now()}#/matches/${encodeURIComponent(person.id)}`,
     );
     await page
-      .getByRole("button", { name: "Express interest", exact: true })
+      .getByRole("button", { name: "Send introduction", exact: true })
       .click();
     const introduction = page.locator(".introduction-row").filter({
       has: page.getByRole("heading", { name: person.name, exact: true }),
@@ -351,11 +351,16 @@ for (const role of ["founder", "mentor"])
     await expect(page).toHaveURL(/#\/rooms\//);
     await page.goto("/#/waiting");
     await expect(
-      page.getByText("No pending introductions.", { exact: false }),
+      page.getByText(
+        role === "mentor"
+          ? "No pending requests."
+          : "No pending introductions.",
+        { exact: false },
+      ),
     ).toBeVisible();
     await page.goto("/#/");
     await expect(
-      page.getByRole("button", { name: /^Active rooms/ }),
+      page.getByRole("button", { name: /^Active Deal Rooms/ }),
     ).toContainText("1");
     await page.goto("/#/updates");
     await expect(

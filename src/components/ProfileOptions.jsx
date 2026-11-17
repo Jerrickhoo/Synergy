@@ -5,7 +5,7 @@ import { useApp } from "../state/AppContext.jsx";
 import { profileEntries } from "../data/profile-content.js";
 
 // Toggle chips replace typed tags; the hidden input keeps FormData unchanged.
-function TagPicker({ name, label, help, value, vocabulary, onChange }) {
+export function TagPicker({ name, label, help, value, vocabulary, onChange }) {
   const [selected, setSelected] = useState(() => profileEntries(value));
   // Saved tags that left the vocabulary stay visible so they can be removed.
   const choices = [...new Set([...vocabulary, ...selected])];
@@ -57,6 +57,7 @@ export default function ProfileOptions({
   profile,
   founder = true,
   onFieldChange,
+  showTags = true,
 }) {
   const { state } = useApp();
   const vocabulary = state.vocabulary || [];
@@ -100,27 +101,32 @@ export default function ProfileOptions({
               aria-describedby="profile-audience-help"
             />
             <span className="field-help" id="profile-audience-help">
-              Used to compare audience sizes for co-marketing.
+              Needed for co-marketing swaps. Swaps more than 10 times uneven are
+              flagged and score lower.
             </span>
           </div>
         )}
       </div>
-      <TagPicker
-        name="offerTags"
-        label="Offer tags"
-        help="Approved tags for what you can offer. They help suggest better matches."
-        value={profile.offerTags}
-        vocabulary={vocabulary}
-        onChange={onFieldChange}
-      />
-      <TagPicker
-        name="needTags"
-        label="Need tags"
-        help="Approved tags for the help you’re looking for."
-        value={profile.needTags}
-        vocabulary={vocabulary}
-        onChange={onFieldChange}
-      />
+      {showTags && (
+        <>
+          <TagPicker
+            name="offerTags"
+            label="Offer tags"
+            help="Approved tags for what you can offer. They help suggest better matches."
+            value={profile.offerTags}
+            vocabulary={vocabulary}
+            onChange={onFieldChange}
+          />
+          <TagPicker
+            name="needTags"
+            label="Need tags"
+            help="Approved tags for the help you’re looking for."
+            value={profile.needTags}
+            vocabulary={vocabulary}
+            onChange={onFieldChange}
+          />
+        </>
+      )}
     </fieldset>
   );
 }

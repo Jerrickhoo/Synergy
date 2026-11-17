@@ -148,10 +148,22 @@ export default function SelectField({
       for (let element = menu; element; element = element.parentElement)
         scale *= Number.parseFloat(getComputedStyle(element).zoom) || 1;
       const viewport = window.visualViewport;
-      const left = viewport?.offsetLeft || 0;
-      const top = viewport?.offsetTop || 0;
-      const width = viewport?.width || window.innerWidth;
-      const height = viewport?.height || window.innerHeight;
+      let left = viewport?.offsetLeft || 0;
+      let top = viewport?.offsetTop || 0;
+      let width = viewport?.width || window.innerWidth;
+      let height = viewport?.height || window.innerHeight;
+      // Inside a modal, keep the list within the dialog instead of letting it
+      // spill past the modal's edges.
+      const dialog = menu.closest("dialog");
+      if (dialog) {
+        const frame = dialog.getBoundingClientRect();
+        const right = Math.min(left + width, frame.right);
+        const bottom = Math.min(top + height, frame.bottom);
+        left = Math.max(left, frame.left);
+        top = Math.max(top, frame.top);
+        width = Math.max(0, right - left);
+        height = Math.max(0, bottom - top);
+      }
       const gap = 6;
       const below = top + height - bounds.bottom - gap - 8;
       const above = bounds.top - top - gap - 8;

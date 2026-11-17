@@ -41,7 +41,7 @@
   padding: 0;
   margin: auto;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   background: var(--paper);
   color: var(--ink);
   box-shadow: 0 24px 80px #102a2430;
@@ -71,7 +71,7 @@
   font-size: 19px;
 }
 .discovery-overlay-header .icon-btn {
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 .discovery-overlay-body {
   padding: 24px;
@@ -102,7 +102,7 @@
   border-top: 1px solid var(--line);
 }
 .discovery-overlay-footer .btn {
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 14px;
 }
 .discovery-overlay-footer .link-btn {
@@ -113,7 +113,7 @@
   align-items: center;
   gap: 18px;
   padding: 20px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface-soft);
   margin-bottom: 26px;
 }
@@ -149,7 +149,7 @@
   flex-basis: 100%;
   height: 5px;
   background: var(--surface-soft);
-  border-radius: 5px;
+  border-radius: var(--radius-xs);
   overflow: hidden;
 }
 .fit-factor-track > span {
@@ -224,4 +224,216 @@
   .preview-footer .btn {
     padding-inline: 10px;
   }
+}
+
+/* How the score works: a proportion bar, then one drawing per factor. */
+.score-guide-body {
+  display: grid;
+  gap: var(--space-5);
+}
+.score-guide-lead {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-md);
+  text-wrap: pretty;
+}
+.factor-need {
+  --factor: var(--factor-need);
+}
+.factor-expertise {
+  --factor: var(--factor-expertise);
+}
+.factor-industry {
+  --factor: var(--factor-industry);
+}
+.factor-stage {
+  --factor: var(--factor-stage);
+}
+.factor-goal {
+  --factor: var(--factor-goal);
+}
+
+.score-guide-switch {
+  display: inline-flex;
+  justify-self: start;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+}
+.score-guide-switch button {
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: calc(var(--radius-md) - var(--space-1));
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+.score-guide-switch button[aria-pressed="true"] {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow-raised);
+}
+.score-guide-switch button:focus-visible {
+  outline: 2px solid var(--control-focus);
+  outline-offset: 2px;
+}
+
+.score-mix {
+  display: flex;
+  height: 32px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.score-mix-part {
+  display: grid;
+  place-items: center;
+  flex-basis: 0;
+  min-width: 0;
+  background: var(--factor);
+  color: var(--on-factor);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  transition:
+    flex-grow var(--duration-slow) var(--ease-out),
+    background-color var(--duration-slow) var(--ease-out);
+}
+/* Separators drawn inside each part, so a part at 0 width leaves no gap. */
+.score-mix-part + .score-mix-part {
+  box-shadow: inset 2px 0 0 var(--paper);
+}
+/* Each row folds open and shut by animating its grid track from 1fr to 0fr. */
+.score-factor-slot {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows var(--duration-slow) var(--ease-out),
+    opacity var(--duration-base) var(--ease-out);
+}
+.score-factor-slot.is-hidden {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.score-factor-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+.score-factor-clip > .score-factor {
+  padding-bottom: var(--space-4);
+}
+.score-factor-slot:last-child .score-factor {
+  padding-bottom: 0;
+}
+.score-drawing {
+  transition:
+    background-color var(--duration-slow) var(--ease-out),
+    color var(--duration-slow) var(--ease-out);
+}
+
+.discovery-overlay .score-factors {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.discovery-overlay .score-factor-slot + .score-factor-slot {
+  margin-top: 0;
+}
+.score-factor,
+.score-cap {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-4);
+}
+.score-drawing {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--factor, var(--muted)) 12%, var(--paper));
+  color: var(--factor, var(--muted));
+}
+.score-drawing .icon {
+  width: 24px;
+  height: 24px;
+}
+.score-factor h3,
+.score-example h3,
+.score-cap h3 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-md);
+  text-wrap: balance;
+}
+.discovery-overlay .score-factor-weight {
+  display: inline;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.score-factor p,
+.score-cap p {
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  text-wrap: pretty;
+}
+
+.score-example {
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--surface-soft);
+}
+.score-example-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-3);
+}
+.score-example-head {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.score-chip {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-radius: calc(var(--radius-lg) - var(--space-2));
+  background: var(--paper);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-wrap: pretty;
+}
+.score-example-equals {
+  align-self: center;
+  color: var(--green-dark);
+  font-size: var(--text-xl);
+  font-weight: 700;
+}
+.score-cap-drawing {
+  --factor: var(--warning-text);
+}
+.discovery-overlay .score-guide-body .score-guide-note {
+  margin: 0;
+}
+/* Mentor matches add a row and can tip the body into scrolling; reserving the
+   scrollbar's space keeps content width fixed when switching match types. */
+#score-guide-dialog .discovery-overlay-body {
+  scrollbar-gutter: stable;
 }

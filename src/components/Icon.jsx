@@ -1,3 +1,11 @@
+/*
+ * Some icons below are from Lucide (https://lucide.dev), used under the ISC
+ * License: Copyright (c) 2026 Lucide Icons and Contributors. Permission to
+ * use, copy, modify, and/or distribute this software for any purpose with or
+ * without fee is hereby granted, provided that the above copyright notice and
+ * this permission notice appear in all copies. THE SOFTWARE IS PROVIDED "AS
+ * IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE.
+ */
 export default function Icon({ name }) {
   const paths = {
     bookmark: (
@@ -87,12 +95,48 @@ export default function Icon({ name }) {
         <path d="M20 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
       </>
     ),
+    // Lucide icons (lucide-static 1.70.0), copied as paths. See notice above.
     handshake: (
       <>
-        <path d="m11 17 2 2a2 2 0 0 0 3-3" />
-        <path d="m14 14 4 4a2 2 0 0 0 3-3l-7-7-4 4" />
-        <path d="m3 11 3-3h4l3 3a2 2 0 0 1-3 3l-2-2" />
-        <path d="m2 10 4 4m16-4-3 3" />
+        <path d="m11 17 2 2a1 1 0 1 0 3-3" />
+        <path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4" />
+        <path d="m21 3 1 11h-2" />
+        <path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3" />
+        <path d="M3 4h8" />
+      </>
+    ),
+    award: (
+      <>
+        <path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526" />
+        <circle cx="12" cy="8" r="6" />
+      </>
+    ),
+    blend: (
+      <>
+        <circle cx="15" cy="9" r="7" />
+        <circle cx="9" cy="15" r="7" />
+      </>
+    ),
+    "trending-up": (
+      <>
+        <path d="M16 7h6v6" />
+        <path d="m22 7-8.5 8.5-5-5L2 17" />
+      </>
+    ),
+    target: (
+      <>
+        <circle cx="12" cy="12" r="10" />
+        <circle cx="12" cy="12" r="6" />
+        <circle cx="12" cy="12" r="2" />
+      </>
+    ),
+    scale: (
+      <>
+        <path d="M12 3v18" />
+        <path d="m19 8 3 8a5 5 0 0 1-6 0zV7" />
+        <path d="M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1" />
+        <path d="m5 8 3 8a5 5 0 0 1-6 0zV7" />
+        <path d="M7 21h10" />
       </>
     ),
     eye: (
@@ -142,9 +186,18 @@ export default function Icon({ name }) {
       </>
     ),
     arrow: <path d="M5 12h14m-6-6 6 6-6 6" />,
+    back: <path d="M19 12H5m6-6-6 6 6 6" />,
+    filter: (
+      <>
+        <path d="M4 7h16M4 17h16" />
+        <circle cx="9" cy="7" r="3" />
+        <circle cx="15" cy="17" r="3" />
+      </>
+    ),
   };
   return (
     <svg
+      className={`icon icon-${name}`}
       viewBox="0 0 24 24"
       aria-hidden="true"
       fill="none"

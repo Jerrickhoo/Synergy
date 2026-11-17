@@ -167,6 +167,12 @@ function SessionPlanner({ room, partner }) {
           below.
         </p>
       )}
+      <button
+        className="link-btn"
+        onClick={() => onAction({ page: "calendar" })}
+      >
+        View calendar
+      </button>
       <form
         ref={formRef}
         data-form="schedule"

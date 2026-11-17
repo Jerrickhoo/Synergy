@@ -34,7 +34,7 @@ export default function Topbar() {
         <div className="workspace-heading">
           <span>Workspace</span>
           <span aria-hidden="true">/</span>
-          <strong>{pageLabel(state.page)}</strong>
+          <strong>{pageLabel(state.page, state.role)}</strong>
         </div>
       )}
       <div ref={actionsRef} className="top-actions">
@@ -82,7 +82,7 @@ export default function Topbar() {
         </div>
         <button
           className="account-button"
-          aria-label={`Open profile for ${model.roleName()}`}
+          aria-label={`Open profile for ${model.roleName()} ${model.roleLabel()}`}
           aria-current={state.page === "profile" ? "page" : undefined}
           title="Your profile"
           onClick={() => onAction({ page: "profile" })}

@@ -16,7 +16,7 @@ export default function HomeMetrics() {
   ).length;
   const metrics = [
     {
-      label: "Active rooms",
+      label: "Active Deal Rooms",
       icon: "rooms",
       value: rooms.length,
       detail: rooms.length
@@ -25,16 +25,16 @@ export default function HomeMetrics() {
       destination: { page: "rooms" },
     },
     {
-      label: "Introductions",
-      icon: "handshake",
-      value: incoming + outgoing,
+      label: "Introductions to answer",
+      icon: "people",
+      value: incoming,
       detail: incoming
-        ? `${incoming} awaiting your response`
+        ? "Reply within 14 days"
         : outgoing
-          ? "Waiting for a response"
+          ? `${outgoing} sent and waiting for a reply`
           : mentor
             ? "Meet a startup you can support"
-            : "Start a conversation",
+            : "Send one from Matches",
       destination: { page: "waiting" },
     },
     {

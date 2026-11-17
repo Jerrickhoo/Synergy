@@ -1,358 +1,665 @@
-import { Fragment } from "react";
+import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Icon from "../components/Icon.jsx";
 import FormErrors from "./FormErrors.jsx";
+import Overlay from "./Overlay.jsx";
+import SelectField from "./SelectField.jsx";
 import MilestoneRevision from "./MilestoneRevision.jsx";
-import { launchBlockers, scheduleLabel } from "../data/selectors.js";
-export default function MilestonesPanel({
-  room,
-  agreement,
-  partner,
-  milestones,
-}) {
-  const { state, model, onAction, onSubmit, onUpload, downloadFile } = useApp();
-  const { currentAgreement, statusText } = model;
+import { templateFields } from "./TermsPanel.jsx";
+import {
+  launchBlockers,
+  milestoneDate,
+  scheduleLabel,
+} from "../data/selectors.js";
+
+function blockedReason(room, agreement, id, item) {
+  if (!agreement.locked || !agreement.partnerLocked)
+    return "Available once both of you accept the terms.";
+  if (item.disputed) return "Resolve the dispute first.";
+  if (room.cycle && !room.cycle.goals?.trim())
+    return "Add goals for this cycle first.";
+  if (item.proposal) return "Decide on the proposed change first.";
+  if (room.type === "mentorship" && id === "session" && !item.schedule)
+    return "Schedule the session first.";
+  if (item.evidence && !item.attachment)
+    return "Attach proof to mark this done.";
+  return "";
+}
+
+function DisputeDialog({ id, item, onClose }) {
+  const { state, onAction } = useApp();
+  const [reason, setReason] = useState("");
+  const [outcome, setOutcome] = useState("");
+  return (
+    <Overlay
+      id={`dispute-dialog-${id}`}
+      title={`Flag a dispute on “${item.title}”`}
+      onClose={onClose}
+      busy={state.busy}
+      initialFocusSelector={`#dispute-reason-${id}`}
+      footer={
+        <>
+          <button className="btn" disabled={state.busy} onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="btn primary"
+            disabled={state.busy || !reason.trim()}
+            onClick={async () => {
+              if (
+                await onAction({
+                  action: "dispute",
+                  id,
+                  values: { reason, outcome },
+                })
+              )
+                onClose();
+            }}
+          >
+            Flag dispute
+          </button>
+        </>
+      }
+    >
+      <p>
+        Use this when you disagree that the work was done. Your collaborator
+        sees your reason. If you cannot settle it together, either of you can
+        send it to a moderator.
+      </p>
+      <form className="grid" onSubmit={(event) => event.preventDefault()}>
+        <FormErrors scope={`dispute-${id}`} />
+        <div className="field">
+          <label htmlFor={`dispute-reason-${id}`}>What is disputed?</label>
+          <textarea
+            id={`dispute-reason-${id}`}
+            name="reason"
+            required
+            maxLength={1000}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor={`dispute-outcome-${id}`}>
+            What outcome would settle it? (optional)
+          </label>
+          <textarea
+            id={`dispute-outcome-${id}`}
+            name="outcome"
+            maxLength={1000}
+            value={outcome}
+            onChange={(event) => setOutcome(event.target.value)}
+          />
+        </div>
+      </form>
+    </Overlay>
+  );
+}
+
+function OrderDialog({ title, earlier, onConfirm, onClose }) {
+  const { state } = useApp();
+  return (
+    <Overlay
+      id="milestone-order-dialog"
+      title="Earlier milestones are not done yet"
+      onClose={onClose}
+      busy={state.busy}
+      footer={
+        <>
+          <button className="btn" onClick={onClose}>
+            Go back
+          </button>
+          <button
+            className="btn primary"
+            disabled={state.busy}
+            onClick={onConfirm}
+          >
+            Mark as done anyway
+          </button>
+        </>
+      }
+    >
+      <p>
+        “{earlier}” comes before “{title}” and has not been marked done. Work
+        can overlap, so you can continue. This is noted in the room history.
+      </p>
+    </Overlay>
+  );
+}
+
+function EvidenceForms({ id, item }) {
+  const { state, onSubmit, onUpload } = useApp();
+  const [uploadError, setUploadError] = useState("");
+  const confirmed = item.me || item.partner;
+  return (
+    <div className="evidence-options">
+      {confirmed && (
+        <p className="warning-note">
+          Adding proof clears both confirmations so you can both review it.
+        </p>
+      )}
+      <form
+        className="inline-evidence"
+        data-id={id}
+        onSubmit={async (event) => {
+          setUploadError("");
+          const result = await onUpload(event);
+          if (result !== true && result) setUploadError(result);
+        }}
+      >
+        <label htmlFor={`file-${id}`}>Proof file (up to 5 MB)</label>
+        <input
+          id={`file-${id}`}
+          name="file"
+          type="file"
+          accept=".pdf,.png,.jpg,.jpeg,.webp,.txt"
+          required
+          aria-describedby={`file-${id}-help${uploadError ? ` file-${id}-error` : ""}`}
+          aria-invalid={uploadError ? "true" : undefined}
+          onChange={() => setUploadError("")}
+        />
+        <p className="muted" id={`file-${id}-help`}>
+          PDF, images or text. Only you and your collaborator can download it.
+        </p>
+        {uploadError && (
+          <p className="inline-error" id={`file-${id}-error`} role="alert">
+            {uploadError}
+          </p>
+        )}
+        <button
+          className="btn small primary"
+          type="submit"
+          disabled={state.busy}
+        >
+          Upload file
+        </button>
+      </form>
+      <form
+        className="inline-evidence"
+        data-form="evidence"
+        data-id={id}
+        onSubmit={(event) => onSubmit(event)}
+      >
+        <FormErrors scope={`evidence-${id}`} />
+        <label htmlFor={`evidence-${id}`}>Or add a link or description</label>
+        <input
+          id={`evidence-${id}`}
+          name="attachment"
+          placeholder="Link or short description"
+          required
+        />
+        <button
+          className="btn small primary"
+          type="submit"
+          disabled={state.busy}
+        >
+          Add proof
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function Milestone({ room, agreement, partnerName, id, item, index, current }) {
+  const { state, onAction, onSubmit, downloadFile } = useApp();
+  const [disputing, setDisputing] = useState(false);
+  const [ordering, setOrdering] = useState(null);
+  const [sendingBack, setSendingBack] = useState(false);
+  const closed =
+    ["launched", "reviewed", "cancelled"].includes(room.status) ||
+    (room.cycle?.phase === "review" &&
+      Object.keys(room.cycle.reviews || {}).length > 0);
+  const entries = Object.entries(room.milestones);
+  const blocked = blockedReason(room, agreement, id, item);
+  const both = item.me && item.partner;
+  const status = both
+    ? "Confirmed by both"
+    : item.me
+      ? `You marked it done · waiting for ${partnerName}`
+      : item.partner
+        ? `${partnerName} marked it done · your confirmation is needed`
+        : "Not started";
+  const owner =
+    item.ownerAccountId === "both"
+      ? "Both of you"
+      : item.ownerAccountId === state.accountId
+        ? "You"
+        : item.ownerAccountId === room.partnerAccountId
+          ? partnerName
+          : "";
+  const proof = item.evidenceItems?.length
+    ? item.evidenceItems
+    : item.attachment
+      ? [{ label: item.attachment, file: item.file }]
+      : [];
+  const earlier = entries
+    .slice(0, index)
+    .find(([, other]) => !other.me && !(other.me && other.partner));
+  const confirm = () =>
+    onAction({ action: "confirm-milestone", id }).then(() => setOrdering(null));
+  const mine = item.dispute?.byAccountId === state.accountId;
+  return (
+    <li
+      className={`milestone${current ? " current" : ""}${both ? " done" : ""}`}
+      id={`milestone-${id}`}
+      aria-current={current ? "step" : undefined}
+    >
+      <span className={"milestone-check " + (both ? "confirmed" : "")}>
+        {both ? <Icon name="check" /> : ""}
+      </span>
+      <div className="milestone-main">
+        <h3 className="milestone-title">
+          {item.title}
+          {item.evidence && <span className="proof-label">Proof needed</span>}
+          {current && <span className="next-label">Next</span>}
+        </h3>
+        <p className="milestone-note">{item.description}</p>
+        <p className="milestone-status">
+          <span>{status}</span>
+          {owner && <span>Owner: {owner}</span>}
+          {item.dueDate && <span>Due {milestoneDate(item.dueDate)}</span>}
+          {item.disputed && (
+            <span className="status dispute-chip">Disputed</span>
+          )}
+        </p>
+        {item.disputed && (
+          <div className="dispute-box" role="status">
+            <p>
+              <strong>
+                {mine
+                  ? "You flagged a dispute"
+                  : `${partnerName} flagged a dispute`}
+                :
+              </strong>{" "}
+              {item.dispute?.reason || "No reason was recorded."}
+            </p>
+            {item.dispute?.outcome && (
+              <p>Wanted outcome: {item.dispute.outcome}</p>
+            )}
+            {item.dispute?.escalatedAt && (
+              <p className="muted">
+                With a moderator since{" "}
+                {new Date(item.dispute.escalatedAt).toLocaleDateString()}. They
+                aim to decide within 3 business days.
+                {item.dispute.dueAt && (
+                  <>
+                    {" "}
+                    Decision due by{" "}
+                    {new Date(item.dispute.dueAt).toLocaleDateString()}
+                    {Date.now() > Date.parse(item.dispute.dueAt)
+                      ? " · Overdue"
+                      : ""}
+                    .
+                  </>
+                )}
+              </p>
+            )}
+            {!closed && (
+              <div className="chip-row">
+                {mine ? (
+                  <button
+                    className="btn small"
+                    disabled={state.busy}
+                    onClick={() => onAction({ action: "withdraw-dispute", id })}
+                  >
+                    Withdraw dispute
+                  </button>
+                ) : (
+                  <button
+                    className="btn small"
+                    disabled={state.busy || item.resolvedByMe}
+                    onClick={() => onAction({ action: "resolve-dispute", id })}
+                  >
+                    {item.resolvedByMe
+                      ? `Waiting for ${partnerName}`
+                      : "Agree it is resolved"}
+                  </button>
+                )}
+                {!item.dispute?.escalatedAt && (
+                  <button
+                    className="btn small"
+                    disabled={state.busy}
+                    onClick={() => onAction({ action: "escalate-dispute", id })}
+                  >
+                    Send to a moderator
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        <MilestoneRevision
+          id={id}
+          item={item}
+          closed={closed}
+          part="proposal"
+        />
+        {room.type === "mentorship" && id === "session" && (
+          <div className="chip-row">
+            {(item.schedules || (item.schedule ? [item.schedule] : [])).map(
+              (schedule) => (
+                <span className="evidence-chip" key={schedule.date}>
+                  {scheduleLabel(schedule)}
+                </span>
+              ),
+            )}
+            {!closed && (
+              <button
+                className="btn small"
+                type="button"
+                disabled={state.busy}
+                onClick={() =>
+                  onAction({ action: "room-tab", tab: "schedule" })
+                }
+              >
+                {item.schedule ? "Reschedule" : "Schedule session"}
+              </button>
+            )}
+          </div>
+        )}
+        {proof.length > 0 && (
+          <ul className="proof-list" aria-label={`Proof for ${item.title}`}>
+            {proof.map((entry, proofIndex) => (
+              <li key={proofIndex}>
+                {entry.file ? (
+                  <button
+                    className="evidence-chip file-download"
+                    onClick={() => downloadFile(entry.file)}
+                  >
+                    Download {entry.file.name} (
+                    {Math.ceil(entry.file.size / 1024)} KB)
+                  </button>
+                ) : /^https?:\/\//.test(entry.label) ? (
+                  <a
+                    className="evidence-chip"
+                    href={entry.label}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {entry.label}
+                  </a>
+                ) : (
+                  <span className="evidence-chip">{entry.label}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {item.evidenceOpen && !closed && <EvidenceForms id={id} item={item} />}
+        {sendingBack && (
+          <form
+            className="grid send-back"
+            data-form="send-back"
+            data-id={id}
+            onSubmit={async (event) => {
+              if (await onSubmit(event)) setSendingBack(false);
+            }}
+          >
+            <FormErrors scope="send-back" />
+            <label htmlFor={`send-back-${id}`}>What is still missing?</label>
+            <textarea
+              id={`send-back-${id}`}
+              name="note"
+              required
+              maxLength={1000}
+            />
+            <p className="muted">
+              This clears {partnerName}’s confirmation and posts your note in
+              Chat. It is not a dispute.
+            </p>
+            <div className="chip-row">
+              <button className="btn small primary" disabled={state.busy}>
+                Send back
+              </button>
+              <button
+                className="btn small"
+                type="button"
+                onClick={() => setSendingBack(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+        {!closed && !item.me && blocked && (
+          <p className="blocked-reason" id={`blocked-${id}`}>
+            {blocked}
+          </p>
+        )}
+      </div>
+      <div className="milestone-actions">
+        {!item.me ? (
+          <button
+            className={`btn small${!blocked && !closed ? " primary" : ""}`}
+            data-action="confirm-milestone"
+            disabled={state.busy || closed || Boolean(blocked)}
+            aria-describedby={blocked ? `blocked-${id}` : undefined}
+            onClick={() =>
+              earlier ? setOrdering(earlier[1].title) : confirm()
+            }
+          >
+            Mark as done
+            <span className="visually-hidden">: {item.title}</span>
+          </button>
+        ) : (
+          <span className={`status ${item.partner ? "green" : ""}`}>
+            {item.partner ? "Confirmed" : `Waiting for ${partnerName}`}
+          </span>
+        )}
+        {item.evidence && !closed && (
+          <button
+            className="btn small"
+            data-action="evidence-toggle"
+            data-id={id}
+            aria-expanded={Boolean(item.evidenceOpen)}
+            onClick={() => onAction({ action: "evidence-toggle", id })}
+          >
+            {proof.length ? "Add more proof" : "Attach proof"}
+          </button>
+        )}
+        {!closed && (
+          <details
+            className="milestone-more"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.currentTarget.open = false;
+                event.currentTarget.querySelector("summary")?.focus();
+              }
+            }}
+          >
+            <summary>
+              More<span className="visually-hidden"> for {item.title}</span>
+            </summary>
+            <div className="milestone-more-menu">
+              {item.partner && !item.me && (
+                <button
+                  className="link-btn"
+                  onClick={() => setSendingBack(true)}
+                >
+                  Not done yet
+                </button>
+              )}
+              <form
+                data-form="milestone-date"
+                data-id={id}
+                onSubmit={onSubmit}
+                className="schedule-form"
+              >
+                <label htmlFor={`due-${id}`}>Due date</label>
+                <input
+                  id={`due-${id}`}
+                  type="date"
+                  name="dueDate"
+                  defaultValue={item.dueDate || ""}
+                />
+                <SelectField
+                  id={`owner-${id}`}
+                  name="owner"
+                  label="Owner"
+                  defaultValue={
+                    item.ownerAccountId === "both"
+                      ? "both"
+                      : item.ownerAccountId === state.accountId
+                        ? "me"
+                        : item.ownerAccountId === room.partnerAccountId
+                          ? "partner"
+                          : ""
+                  }
+                  options={[
+                    { value: "", label: "Not assigned" },
+                    { value: "me", label: "Me" },
+                    { value: "partner", label: partnerName },
+                    { value: "both", label: "Both of us" },
+                  ]}
+                />
+                <button className="btn small" disabled={state.busy}>
+                  Save date and owner
+                </button>
+                <p className="muted">
+                  Changing the date asks both of you to confirm again.
+                </p>
+              </form>
+              <MilestoneRevision
+                id={id}
+                item={item}
+                closed={closed}
+                part="form"
+              />
+              {!item.disputed && agreement.partnerLocked && (
+                <button
+                  className="link-btn dispute-link"
+                  data-action="dispute"
+                  data-id={id}
+                  onClick={() => setDisputing(true)}
+                >
+                  Flag a dispute
+                </button>
+              )}
+            </div>
+          </details>
+        )}
+      </div>
+      {disputing && (
+        <DisputeDialog
+          id={id}
+          item={item}
+          onClose={() => setDisputing(false)}
+        />
+      )}
+      {ordering && (
+        <OrderDialog
+          title={item.title}
+          earlier={ordering}
+          onConfirm={confirm}
+          onClose={() => setOrdering(null)}
+        />
+      )}
+    </li>
+  );
+}
+
+export default function MilestonesPanel({ room, agreement, partner }) {
+  const { state, onAction } = useApp();
+  const partnerName = partner?.name || "your collaborator";
   const blockers = launchBlockers(room);
   const launched = ["launched", "reviewed", "cancelled"].includes(room.status);
+  const entries = Object.entries(room.milestones);
+  const currentId = entries.find(([, item]) => !(item.me && item.partner))?.[0];
+  const confirmedCount = entries.filter(
+    ([, item]) => item.me && item.partner,
+  ).length;
+  const agreedValues = templateFields(room)
+    .map((field) => [
+      field.label,
+      field.type === "select"
+        ? field.options.find(
+            ([value]) => value === agreement.draft[field.id],
+          )?.[1]
+        : field.type === "date" && agreement.draft[field.id]
+          ? milestoneDate(agreement.draft[field.id])
+          : agreement.draft[field.id],
+    ])
+    .filter(([, value]) => value);
   return (
     <section className="card panel room-content">
       <div className="panel-head">
         <div>
           <h2>Milestones</h2>
           <p className="panel-subtitle">
-            Progress is shared: both partners confirm each step.
+            A milestone counts when both of you mark it done.
           </p>
-          {room.type === "mentorship" && (
-            <p className="muted">
-              Agree goals → schedule → share guidance → record follow-up →
-              reflect together. Progress reflection is shared; your private
-              review comes after completion.
-            </p>
-          )}
-          {room.template?.name && (
-            <p className="muted">
-              Template: {room.template.name} · Version {room.template.version}
+          {agreedValues.length > 0 && (
+            <p className="agreed-values">
+              Agreed:{" "}
+              {agreedValues
+                .map(([label, value]) => `${label} ${value}`)
+                .join(" · ")}
             </p>
           )}
         </div>
         <span
-          className={`status ${milestones.every(([, item]) => item.me && item.partner) ? "green" : "gray"}`}
+          className={`status ${confirmedCount === entries.length ? "green" : "gray"}`}
         >
-          {
-            Object.values(room.milestones).filter(
-              (item) => item.me && item.partner,
-            ).length
-          }
-          {` of ${milestones.length} confirmed`}
+          {confirmedCount} of {entries.length} confirmed by both
         </span>
       </div>
-      {"\n          "}
-      {milestones.map(([id, item], itemIndex) => (
-        <Fragment key={itemIndex}>
-          <div className="milestone">
-            <span
-              className={
-                "milestone-check " +
-                (item.me && item.partner ? "confirmed" : "")
-              }
-            >
-              {item.me && item.partner ? <Icon name="check" /> : ""}
-            </span>
-            <div>
-              <div className="milestone-title">
-                {item.title}
-                {item.evidence ? " *" : ""}
-              </div>
-              <div className="milestone-note">{item.description}</div>
-              <MilestoneRevision id={id} item={item} closed={launched} />
-              <div className="milestone-note">
-                {statusText(id)}
-                {item.disputed ? (
-                  <span className="status dispute-chip">Disputed</span>
-                ) : (
-                  ""
-                )}
-              </div>
-              {item.dueDate && (
-                <p className="milestone-note">Due {item.dueDate} (UTC)</p>
-              )}
-              {!launched && (
-                <details className="milestone-date-editor">
-                  <summary>
-                    {item.dueDate ? "Change due date" : "Set due date"}
-                  </summary>
-                  <form
-                    data-form="milestone-date"
-                    data-id={id}
-                    onSubmit={onSubmit}
-                    className="schedule-form"
-                  >
-                    <label htmlFor={`due-${id}`}>Due date (UTC)</label>
-                    <input
-                      id={`due-${id}`}
-                      type="date"
-                      name="dueDate"
-                      defaultValue={item.dueDate || ""}
-                    />
-                    <button className="btn small" disabled={state.busy}>
-                      Save due date
-                    </button>
-                  </form>
-                </details>
-              )}
-              {room.type === "mentorship" && id === "session" ? (
-                <>
-                  {(
-                    item.schedules || (item.schedule ? [item.schedule] : [])
-                  ).map((schedule) => (
-                    <span className="evidence-chip" key={schedule.date}>
-                      {scheduleLabel(schedule)}
-                    </span>
+      <p className="muted">
+        {room.terms.draft.format === "ongoing"
+          ? "Each cycle ends with a check-in summary and private reviews. Then choose Continue or Finish together."
+          : "Completion happens automatically when both of you confirm the final milestone. You then have 14 days to review."}
+      </p>
+      <ol className="milestone-list">
+        {entries.map(([id, item], index) => (
+          <Milestone
+            key={id}
+            room={room}
+            agreement={agreement}
+            partnerName={partnerName}
+            id={id}
+            item={item}
+            index={index}
+            current={!launched && id === currentId}
+          />
+        ))}
+      </ol>
+      {
+        <div className="milestone-launch">
+          <div>
+            <h3>
+              {room.status === "cancelled"
+                ? "No more work can be confirmed"
+                : launched
+                  ? room.type === "mentorship"
+                    ? "Mentorship completed"
+                    : "Collaboration launched"
+                  : room.type === "mentorship"
+                    ? "Completing the mentorship"
+                    : "Launching"}
+            </h3>
+            {!launched && blockers.length > 0 && (
+              <>
+                <p className="panel-subtitle">Still needed before launch:</p>
+                <ul className="launch-blockers" id="launch-blockers">
+                  {blockers.map((reason) => (
+                    <li key={reason}>{reason}</li>
                   ))}
-                  {!launched && (
-                    <button
-                      className="btn small section-gap"
-                      type="button"
-                      disabled={state.busy}
-                      onClick={() =>
-                        onAction({ action: "room-tab", tab: "schedule" })
-                      }
-                    >
-                      {item.schedule
-                        ? "Reschedule session"
-                        : "Schedule session"}
-                    </button>
-                  )}
-                </>
-              ) : (
-                ""
-              )}
-              {item.attachment ? (
-                item.file ? (
-                  <button
-                    className="evidence-chip file-download"
-                    onClick={() => downloadFile(item.file)}
-                  >
-                    Download {item.file.name} (
-                    {Math.ceil(item.file.size / 1024)} KB)
-                  </button>
-                ) : (
-                  <span className="evidence-chip">{item.attachment}</span>
-                )
-              ) : (
-                ""
-              )}
-              {item.evidenceOpen ? (
-                <div className="evidence-options">
-                  <form
-                    className="inline-evidence"
-                    data-id={id}
-                    onSubmit={onUpload}
-                  >
-                    <label htmlFor={`file-${id}`}>
-                      Evidence file (up to 5 MB)
-                    </label>
-                    <input
-                      id={`file-${id}`}
-                      name="file"
-                      type="file"
-                      accept=".pdf,.png,.jpg,.jpeg,.webp,.txt"
-                      required
-                    />
-                    <p className="muted">
-                      PDF, images or text. Only you and your collaborator can
-                      download it.
-                    </p>
-                    <button
-                      className="btn small primary"
-                      type="submit"
-                      disabled={state.busy || launched}
-                    >
-                      Upload file
-                    </button>
-                  </form>
-                  <form
-                    className="inline-evidence"
-                    data-form="evidence"
-                    data-id={id}
-                    onSubmit={(event) => onSubmit(event)}
-                  >
-                    <FormErrors scope={`evidence-${id}`} />
-                    <label htmlFor={`evidence-${id}`}>
-                      Or add an evidence description or link
-                    </label>
-                    <input
-                      id={`evidence-${id}`}
-                      name="attachment"
-                      placeholder="Description or link"
-                      required
-                    />
-                    <button
-                      className="btn small primary"
-                      type="submit"
-                      disabled={state.busy || launched}
-                    >
-                      Attach
-                    </button>
-                  </form>
-                </div>
-              ) : (
-                ""
-              )}
-              {item.disputed ? (
-                <button
-                  className="link-btn dispute-link"
-                  disabled={state.busy || launched || item.resolvedByMe}
-                  onClick={() => onAction({ action: "resolve-dispute", id })}
-                >
-                  {item.resolvedByMe
-                    ? "Waiting for partner to resolve"
-                    : "Agree to resolve dispute"}
-                </button>
-              ) : (
-                <button
-                  className="link-btn dispute-link"
-                  disabled={state.busy || launched}
-                  data-action="dispute"
-                  data-id={id}
-                  {...(item.disputed
-                    ? {
-                        disabled: true,
-                      }
-                    : {})}
-                  onClick={(event) =>
-                    onAction(
-                      {
-                        action: "dispute",
-                        id: id,
-                      },
-                      event,
-                    )
-                  }
-                >
-                  Flag a dispute
-                </button>
-              )}
-            </div>
-            <div className="milestone-actions">
-              {item.evidence ? (
-                <button
-                  className="btn small"
-                  data-action="evidence-toggle"
-                  disabled={launched}
-                  data-id={id}
-                  onClick={(event) =>
-                    onAction(
-                      {
-                        action: "evidence-toggle",
-                        id: id,
-                      },
-                      event,
-                    )
-                  }
-                >
-                  {item.attachment ? "Replace evidence" : "Attach evidence"}
-                </button>
-              ) : (
-                ""
-              )}
-              {!item.me ? (
-                <button
-                  className="btn small"
-                  data-action="confirm-milestone"
-                  disabled={
-                    state.busy ||
-                    launched ||
-                    item.disputed ||
-                    Boolean(item.proposal) ||
-                    !agreement.partnerLocked
-                  }
-                  data-id={id}
-                  {...(item.evidence && !item.attachment
-                    ? {
-                        disabled: true,
-                        title: "Attach evidence first",
-                      }
-                    : {})}
-                  onClick={(event) =>
-                    onAction(
-                      {
-                        action: "confirm-milestone",
-                        id: id,
-                      },
-                      event,
-                    )
-                  }
-                >
-                  Confirm yours
-                </button>
-              ) : (
-                <span
-                  className={`status ${item.disputed ? "dispute-chip" : item.partner ? "green" : ""}`}
-                >
-                  {item.partner ? "Confirmed" : "Waiting"}
-                </span>
-              )}
-            </div>
+                </ul>
+              </>
+            )}
+            {launched && room.status !== "cancelled" && (
+              <button
+                className="link-btn"
+                onClick={() => onAction({ page: "review" })}
+              >
+                {room.status === "reviewed"
+                  ? "Read reviews"
+                  : "View your review"}
+              </button>
+            )}
           </div>
-        </Fragment>
-      ))}
-      {"\n          "}
-      <div className="milestone-launch">
-        <div>
-          <h3>
-            {room.type === "mentorship"
-              ? "Ready to complete your mentorship?"
-              : "Ready to launch?"}
-          </h3>
-          <p className="panel-subtitle">
-            {room.type === "mentorship"
-              ? "Both collaborators must confirm every milestone. Then either person can complete the mentorship and leave a separate private review."
-              : "Complete every milestone together before launching."}
-          </p>
-          {!launched && blockers.length > 0 && (
-            <ul className="launch-blockers" id="launch-blockers">
-              {blockers.map((reason) => (
-                <li key={reason}>{reason}</li>
-              ))}
-            </ul>
-          )}
-          {launched && room.status !== "cancelled" && (
-            <button
-              className="link-btn"
-              onClick={() => onAction({ page: "review" })}
-            >
-              View your review
-            </button>
-          )}
         </div>
-        <button
-          className="btn primary"
-          data-action="launch-room"
-          disabled={launched || blockers.length > 0}
-          aria-describedby={
-            !launched && blockers.length ? "launch-blockers" : undefined
-          }
-          onClick={(event) =>
-            onAction(
-              {
-                action: "launch-room",
-              },
-              event,
-            )
-          }
-        >
-          {room.status === "cancelled"
-            ? "Collaboration closed"
-            : launched
-              ? room.type === "mentorship"
-                ? "Mentorship completed"
-                : "Collaboration launched"
-              : room.type === "mentorship"
-                ? "Complete mentorship"
-                : "Mark as launched"}
-        </button>
-      </div>
+      }
     </section>
   );
 }

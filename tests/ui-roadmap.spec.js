@@ -65,7 +65,20 @@ async function saved(request, user) {
   });
   return decode(await response.text()).state;
 }
+// Let entrance animations settle so layout and contrast are measured at rest.
+const settled = (page) =>
+  page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter(
+          (animation) => animation.effect?.getTiming().iterations !== Infinity,
+        )
+        .map((animation) => animation.finished.catch(() => {})),
+    ),
+  );
 async function accessible(page) {
+  await settled(page);
   const result = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
     .analyze();
@@ -111,7 +124,7 @@ test("first visit ignores OS dark mode and explicit theme survives refresh and s
   await expect(
     page
       .getByRole("dialog")
-      .getByRole("button", { name: "Cancel", exact: true }),
+      .getByRole("button", { name: "Keep working", exact: true }),
   ).toBeFocused();
   await accessible(page);
   await page
@@ -390,14 +403,14 @@ test("exact fit draft Apply/Reset, clamped cards, saved synchronization and sepa
         parseFloat(getComputedStyle(el).lineHeight) * 2 + 1,
     ),
   ).toBe(true);
-  await card.getByRole("button", { name: "Save match", exact: true }).click();
+  await card.getByRole("button", { name: /^Save (?!for later)/ }).click();
   await expect(
     card.getByRole("button", {
-      name: "Remove from saved matches",
+      name: /^Remove .* from saved matches$/,
       exact: true,
     }),
   ).toHaveAttribute("aria-pressed", "true");
-  await card.getByRole("button", { name: "View match", exact: true }).click();
+  await card.getByRole("button", { name: /^View match/ }).click();
   await expect(page.locator(".identity-summary")).toHaveText(
     profiles.founder.bio.trim(),
   );
@@ -484,12 +497,27 @@ test("exact fit draft Apply/Reset, clamped cards, saved synchronization and sepa
   ).toBe(true);
 });
 
+const unreadLabel = (count) =>
+  count ? `Notifications, ${count} unread` : "Notifications";
 test("Updates actions keep read state, chronology and header counts synchronized through failures, preview and zoom", async ({
   page,
   request,
 }) => {
   const user = await account(request, "founder", "UpdateActions");
-  await account(request, "mentor", "UpdatePartner");
+  await action(request, user, {
+    form: "notification-preferences",
+    values: { match: "on", activity: "on", reminders: "on", digest: "off" },
+  });
+  for (const prefix of ["UpdatePartner", "UpdatePartnerTwo"]) {
+    const partner = await account(request, "mentor", prefix);
+    await action(request, partner, {
+      form: "profile-form",
+      values: {
+        ...profiles.mentor,
+        expertise: "Product strategy, Technical development",
+      },
+    });
+  }
   await open(page, user, "updates");
   const initial = await saved(request, user);
   const item = initial.notifications.find(
@@ -541,8 +569,8 @@ test("Updates actions keep read state, chronology and header counts synchronized
   ).toEqual(order);
   await expect(
     page.getByRole("button", { name: /^Notifications/ }),
-  ).toHaveAttribute("aria-label", `Notifications, ${unread - 1} unread`);
-  await row.getByRole("button", { name: "View match", exact: true }).click();
+  ).toHaveAttribute("aria-label", unreadLabel(unread - 1));
+  await row.getByRole("button", { name: /^View match/ }).click();
   await expect(page).toHaveURL(new RegExp(encodeURIComponent(item.matchId)));
   await page.getByRole("button", { name: /^Notifications/ }).click();
   const preview = page.locator("#notification-panel");
@@ -553,7 +581,7 @@ test("Updates actions keep read state, chronology and header counts synchronized
   await expect(page).toHaveURL(new RegExp(encodeURIComponent(item.matchId)));
   await expect(
     page.getByRole("button", { name: /^Notifications/ }),
-  ).toHaveAttribute("aria-label", `Notifications, ${unread - 2} unread`);
+  ).toHaveAttribute("aria-label", unreadLabel(unread - 2));
   await page.setViewportSize({ width: 768, height: 1000 });
   await page.evaluate(() => {
     document.body.style.zoom = "2";
@@ -690,8 +718,12 @@ for (const role of ["founder", "mentor"])
             .click();
         }
         if (route.startsWith("rooms/")) {
-          for (const tab of ["Milestones", "Schedule", "Task board", "Chat"]) {
+          for (const tab of ["Milestones", "Schedule", "Chat"]) {
             await page.getByRole("tab", { name: tab, exact: true }).click();
+            if (tab === "Milestones")
+              await page
+                .getByText("Task board · optional room tool", { exact: true })
+                .click();
             await accessible(page);
           }
         }
@@ -714,6 +746,7 @@ for (const role of ["founder", "mentor"])
           .click();
         await noOverflow(page);
         if (width === 1440) {
+          await settled(page);
           const actions = await page
             .locator(".match-card .preview-footer > .btn")
             .evaluateAll((buttons) =>

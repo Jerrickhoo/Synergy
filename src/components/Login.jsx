@@ -9,7 +9,7 @@ export default function Login() {
   const demoMode = Boolean(state.integrations?.demoMode);
   const [prototypeRole, setPrototypeRole] = useState("founder");
   return (
-    <section
+    <main
       id="login-shell"
       className="login-screen"
       hidden={state.authenticated}
@@ -35,7 +35,8 @@ export default function Login() {
           <h1 className="login-heading">Sign in to Synergy</h1>
           {"\n        "}
           <p className="login-subheading">
-            Access your profiles, introductions and collaboration rooms.
+            Find the startup or mentor who fills your gap, then finish the work
+            together in a shared Deal Room.
           </p>
           {"\n        "}
           <form
@@ -168,6 +169,6 @@ export default function Login() {
         {"\n    "}
       </div>
       {"\n  "}
-    </section>
+    </main>
   );
 }

@@ -17,7 +17,9 @@ import {
   preferenceLabel,
 } from "../data/profile-presentation.js";
 import ProfileStats from "../components/ProfileStats.jsx";
-import ProfileOptions from "../components/ProfileOptions.jsx";
+import ProfileOptions, { TagPicker } from "../components/ProfileOptions.jsx";
+import ProfileAssistant from "../components/ProfileAssistant.jsx";
+import Verification from "../components/Verification.jsx";
 import CommunityRequests from "../components/CommunityRequests.jsx";
 import Icon from "../components/Icon.jsx";
 import ProfilePhoto from "../components/ProfilePhoto.jsx";
@@ -193,6 +195,8 @@ function TagValue({ value, empty }) {
 function ProfileContent() {
   const { state, model, onAction, onSubmit } = useApp();
   const [photoReading, setPhotoReading] = useState(false);
+  // Remounts the uncontrolled fields after the assistant fills the draft.
+  const [formKey, setFormKey] = useState(0);
   const founder = state.role === "founder";
   const savedProfile = normalizeProfile(state.profiles[state.role]);
   const draft = useDraft(`${state.accountId}:profile:${state.role}`, {
@@ -242,6 +246,18 @@ function ProfileContent() {
               : "Share your expertise, experience and the startups you want to support."
         }
       />
+      {!state.profileEditing && state.profileWentLive && (
+        <section className="card panel profile-live" role="status">
+          <h2>Your profile is live</h2>
+          <p>Partners can now find you. See who fits what you need.</p>
+          <button
+            className="btn primary"
+            onClick={() => onAction({ page: "discover" })}
+          >
+            See your matches
+          </button>
+        </section>
+      )}
       {!state.profileEditing && (
         <section className="card identity-panel own-identity-panel">
           <div className="identity-heading">
@@ -253,7 +269,14 @@ function ProfileContent() {
             />
             <div className="own-identity-copy">
               <span className="section-eyebrow">{model.roleLabel()}</span>
-              <h2>{model.roleName()}</h2>
+              <h2>
+                {founder && savedProfile.startupName
+                  ? savedProfile.startupName
+                  : model.roleName()}
+              </h2>
+              {founder && savedProfile.startupName && (
+                <p className="muted">Founder: {model.roleName()}</p>
+              )}
               <p>
                 {founder
                   ? [
@@ -289,7 +312,7 @@ function ProfileContent() {
         <form
           id="profile-form"
           aria-busy={state.busy}
-          key={state.role}
+          key={`${state.role}-${formKey}`}
           className="profile-edit-form"
           onChange={(event) => {
             if (event.target.type !== "file")
@@ -313,6 +336,15 @@ function ProfileContent() {
         >
           <div className="profile-edit-main">
             <FormErrors scope="profile-form" />
+            {founder && (
+              <ProfileAssistant
+                values={draft.values}
+                onApply={(applied) => {
+                  draft.update({ ...draft.values, ...applied });
+                  setFormKey((key) => key + 1);
+                }}
+              />
+            )}
             <ProfilePhoto
               identity={state.accountId}
               image={draft.values.image}
@@ -335,6 +367,17 @@ function ProfileContent() {
                 autoComplete="name"
                 required
               />
+              {founder && (
+                <ProfileField
+                  id="startup-name"
+                  label="Startup name"
+                  name="startupName"
+                  value={profile.startupName}
+                  optional
+                  autoComplete="organization"
+                  hint="Matches and Deal Rooms show your startup’s name, with you as its founder."
+                />
+              )}
               <ProfileField
                 id="bio"
                 label="About me"
@@ -474,6 +517,22 @@ function ProfileContent() {
                   }
                 />
               </div>
+              <TagPicker
+                name="offerTags"
+                label="Standard tags for what you offer"
+                help="Matching uses these tags as well as your wording, so the right partners find you."
+                value={profile.offerTags}
+                vocabulary={state.vocabulary || []}
+                onChange={updateField}
+              />
+              <TagPicker
+                name="needTags"
+                label="Standard tags for what you need"
+                help="Pick the closest tags. Propose a new one from your profile if none fit."
+                value={profile.needTags}
+                vocabulary={state.vocabulary || []}
+                onChange={updateField}
+              />
             </EditSection>
             {!founder && (
               <EditSection
@@ -498,10 +557,11 @@ function ProfileContent() {
               <summary className="interactive-surface">
                 <span className="optional-profile-heading">
                   <span className="optional-profile-title">
-                    Collaboration preferences and tags
+                    Collaboration preferences
                   </span>
                   <span className="optional-profile-meta">
-                    Optional · Goals, engagement preference and approved tags
+                    Optional · Goals, engagement preference
+                    {founder ? " and audience size" : ""}
                     {optionalAdded > 0 && ` · ${optionalAdded} added`}
                   </span>
                 </span>
@@ -512,6 +572,7 @@ function ProfileContent() {
                   profile={profile}
                   founder={founder}
                   onFieldChange={updateField}
+                  showTags={false}
                 />
               </div>
             </details>
@@ -677,8 +738,13 @@ function ProfileContent() {
             aria-label="Collaboration history"
           >
             <h2>
-              Collaboration history{" "}
-              <span className="tag">{history.length}</span>
+              Collaboration history
+              {history.length > 0 && (
+                <>
+                  {" "}
+                  <span className="tag">{history.length}</span>
+                </>
+              )}
             </h2>
             {history.length ? (
               history.map((item) => (
@@ -705,12 +771,10 @@ function ProfileContent() {
               </div>
             )}
           </section>
+          <Verification />
           <CommunityRequests />
         </>
       )}
-      <p className="local-workspace-note">
-        Your profile and collaborations are saved on this workspace server.
-      </p>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { useApp } from "../state/AppContext.jsx";
 import Brand from "./Brand.jsx";
 import Icon from "./Icon.jsx";
 import NavButton from "./NavButton.jsx";
-import { navigation, workspaceNavigation } from "./Sidebar.jsx";
+import { primaryNavigation, workspaceNavigation } from "./Sidebar.jsx";
 import { lockDocumentScroll } from "../state/scroll-lock.js";
 export default function MobileMenu() {
   const { state, onAction } = useApp();
@@ -69,7 +69,7 @@ export default function MobileMenu() {
           </button>
         </div>
         <nav className="drawer-nav" aria-label="Mobile navigation">
-          {[...navigation, ...workspaceNavigation].map(
+          {[...primaryNavigation(state.role), ...workspaceNavigation].map(
             ([page, label, icon]) => (
               <NavButton key={page} page={page}>
                 <Icon name={icon} />

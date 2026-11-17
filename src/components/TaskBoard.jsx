@@ -20,6 +20,7 @@ export default function TaskBoard({ room, partner }) {
   const [dragging, setDragging] = useState("");
   const [deletePrompt, setDeletePrompt] = useState(false);
   const addButton = useRef(null);
+  const editorOpener = useRef(null);
   const closed = terminalStatuses.includes(room.status);
   const tasks = room.tasks || [];
   const shown = tasks.filter(
@@ -37,13 +38,19 @@ export default function TaskBoard({ room, partner }) {
         ? partner?.name || "Collaborator"
         : "Unassigned";
   function openEditor(task) {
+    editorOpener.current = document.activeElement;
     setEditor(task);
     setDeletePrompt(false);
   }
   function closeEditor() {
     setEditor(null);
     setDeletePrompt(false);
-    addButton.current?.focus();
+    requestAnimationFrame(() =>
+      (editorOpener.current?.isConnected
+        ? editorOpener.current
+        : addButton.current
+      )?.focus(),
+    );
   }
   async function mutate(form, task, values = {}) {
     try {
@@ -67,12 +74,12 @@ export default function TaskBoard({ room, partner }) {
           <span className="eyebrow">
             {room.type === "mentorship"
               ? "Shared mentoring actions"
-              : "A little progress, every day"}
+              : "Shared tasks"}
           </span>
           <h2>
             {room.type === "mentorship"
               ? "Prepare, follow up and keep moving."
-              : "Make room for your next big idea."}
+              : "Break milestones into tasks."}
           </h2>
           <p className="muted">
             Break shared milestones into small, actionable tasks.

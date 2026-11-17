@@ -23,6 +23,8 @@ services:
         value: /var/data/synergy.sqlite
       - key: SYNERGY_DEMO_MODE
         value: "true"
+      - key: SYNERGY_REQUIRE_VERIFICATION
+        value: "true"
       - key: SYNERGY_ALLOWED_ORIGINS
         value: https://synergy-prototype.netlify.app
       - key: SYNERGY_ADMIN_EMAILS

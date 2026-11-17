@@ -273,7 +273,12 @@ test("two accounts share terms, chat, evidence, disputes, milestones and blind r
   command(b, { form: "chat-form", values: { message: "Hello back" } });
   assert.equal(room(b).messages[0].who, "partner");
   assert.equal(room(a).messages[1].who, "partner");
-  command(a, { action: "dispute", id: "scope" });
+  command(a, {
+    action: "dispute",
+    id: "scope",
+    values: { reason: "Scope is incomplete" },
+  });
+  assert.equal(room(b).milestones.scope.dispute.reason, "Scope is incomplete");
   command(a, { action: "resolve-dispute", id: "scope" });
   assert.equal(room(a).milestones.scope.disputed, true);
   command(b, { action: "resolve-dispute", id: "scope" });

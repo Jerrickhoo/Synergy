@@ -68,7 +68,9 @@ test("mentor next actions respect role, room closure, task ownership and complet
     timeZone: "Asia/Manila",
   };
   assert.ok(
-    mentorshipActions(state).some((a) => a.text === "Complete your mentorship"),
+    !mentorshipActions(state).some(
+      (a) => a.text === "Complete your mentorship",
+    ),
   );
   room.status = "launched";
   actions = mentorshipActions(state);

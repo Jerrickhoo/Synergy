@@ -1,6 +1,6 @@
 # Synergy identity assets
 
-The application logo is `synergy-logo.svg`, a vector redraw of the user-provided `Synergy Logo.png` from October 30, 2026. It keeps the original shapes, the straight seam between the two halves and the two colors: deep teal `#027D82` and bright teal `#1DC1BB`. The PNGs are exported from that SVG. `synergy-logo.png` is 512px tall. `synergy-favicon.png` (64px) and `synergy-touch-icon.png` (180px) center the mark in a transparent square. Preserve the aspect ratio (316 × 512).
+The application logo is `synergy-logo.png`, exported from the user-provided `SynergyLogoFinal.png` (October 30, 2026). Two ribbons meet along a curved seam to form an S, with one dot in each bowl. The colors are deep teal (about `#027E84`) and bright teal (about `#1EC1BE`). `synergy-logo.png` is cropped tightly to the mark and is 512px tall. `synergy-favicon.png` (64px) and `synergy-touch-icon.png` (180px) center the mark in a transparent square. Preserve the aspect ratio (325 × 512). Regenerate all three from the source file rather than from each other.
 
 The shared `Brand` component shows the mark followed by the full word “Synergy”. The gap between them is about 0.4em, so the S-shaped mark does not read as a doubled first letter. Its accessible name is “Synergy”.
 

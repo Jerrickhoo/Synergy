@@ -1,3 +1,6 @@
+import Icon from "./Icon.jsx";
+
+// Small samples are shown as counts so one event cannot look like a pattern.
 export default function TrustSummary({ person, detailed = false }) {
   const trust = person.trust;
   if (!trust)
@@ -6,58 +9,65 @@ export default function TrustSummary({ person, detailed = false }) {
         Collaboration history is unavailable for this profile.
       </p>
     );
+  const fresh = !trust.completed && !trust.cancelled;
+  const reviews = trust.distinctReviewers || 0;
   return (
     <section
       className="trust-summary section-gap"
       aria-label={`Trust history for ${person.name}`}
     >
       <div className="tag-row">
-        {person.affiliation && (
-          <span className="tag green">
-            Affiliation verified: {person.affiliation.organization}
+        {person.affiliation ? (
+          <span className="badge-verified">
+            <Icon name="check" /> Verified: {person.affiliation.organization}
           </span>
+        ) : (
+          detailed && <span className="muted">Not verified yet</span>
         )}
       </div>
-      {detailed && !trust.completed && !trust.cancelled && (
-        <h3>A new collaboration profile</h3>
-      )}
+      {detailed && fresh && <h3>New to Synergy</h3>}
       <p>
         {trust.completed} completed ·{" "}
         {trust.averageRating === null
           ? "No ratings yet"
-          : `${trust.averageRating}/5 from ${trust.distinctReviewers} distinct collaborators`}
+          : `${trust.averageRating}/5 from ${reviews} review${reviews === 1 ? "" : "s"}${reviews < 3 ? " (small sample)" : ""}`}
       </p>
       {detailed && (
         <>
           <p className="muted">
-            {trust.followThrough === null
-              ? "No closed engagements yet"
-              : `${trust.followThrough}% of closed engagements completed`}{" "}
-            · {trust.cancelled} closed early · {trust.stalled} quiet for 14+
-            days
+            {!trust.closed
+              ? "No finished collaborations yet"
+              : trust.closed < 3
+                ? `${trust.completed} of ${trust.closed} finished collaboration${trust.closed === 1 ? "" : "s"} completed`
+                : `${trust.followThrough}% of ${trust.closed} finished collaborations completed`}
+            {trust.cancelled ? ` · ${trust.cancelled} closed early` : ""}
+            {trust.stalled ? ` · ${trust.stalled} quiet for 14+ days` : ""}
           </p>
           <p className="muted">
-            Repeat-partner reviews count once in the average. Affiliation is
-            reviewed separately.
+            Collaborations closed by mutual agreement, or because the other
+            person stopped responding, do not count against this record.
+            Repeat-partner reviews count once.
           </p>
           {trust.ratingPattern && (
             <p className="muted">{trust.ratingPattern}</p>
           )}
           <details>
             <summary>
-              Completed engagement history ({trust.history.length})
+              Completed collaboration history ({trust.history.length})
             </summary>
             {trust.history.length ? (
               trust.history.map((item) => (
                 <p key={item.id}>
                   {item.type} · {item.date || "Date unavailable"} ·{" "}
-                  {item.rating === null
-                    ? "Reviews pending"
+                  {item.rating === null || item.rating === undefined
+                    ? item.status === "launched"
+                      ? "Reviews pending"
+                      : "No rating"
                     : `${item.rating}/5`}
                 </p>
               ))
             ) : (
-              <p>No completed engagements yet.</p>
+              <p>No completed collaborations yet.</p>
             )}
           </details>
         </>

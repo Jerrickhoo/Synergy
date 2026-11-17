@@ -114,6 +114,14 @@ export default function ReportCollaborator({
                       value: "Harassment or abusive behavior",
                       label: "Harassment or abusive behavior",
                     },
+                    {
+                      value: "Ghosting or unresponsive",
+                      label: "Stopped responding (ghosting)",
+                    },
+                    {
+                      value: "Bad-faith engagement",
+                      label: "Bad-faith engagement or broken commitments",
+                    },
                     { value: "Spam or scam", label: "Spam or scam" },
                     {
                       value: "Misleading profile or impersonation",

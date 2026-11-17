@@ -33,7 +33,10 @@ test("fit presentation distinguishes true zero, missing inputs and unavailable d
   assert.equal(rows[1].score, null);
   assert.equal(rows[2].status, "Details unavailable");
   assert.equal(rows[2].score, null);
-  assert.match(fitSummary(person, factors), /does not show shared/);
+  assert.match(
+    fitSummary(person, factors),
+    /Neither profile clearly offers what the other needs/,
+  );
   assert.match(fitSummary({}, factors), /not enough information/);
   assert.equal(
     fitFactors({ factorScores: [NaN, -1, 120] }, [
@@ -45,7 +48,7 @@ test("fit presentation distinguishes true zero, missing inputs and unavailable d
   );
   assert.match(
     fitSummary({ score: 70, factorScores: [80] }, [["Need Fit", 0]]),
-    /connect through/,
+    /needs and their offers overlap/,
   );
 });
 
@@ -106,8 +109,9 @@ test("session reminder creation is stable and separate from the scheduled instan
   };
   state.rooms[room.id] = room;
   const account = { id: "viewer" };
+  const database = { accounts: {}, reports: [] };
   const features = createFeatures({
-    getDb: () => ({ accounts: {}, reports: [] }),
+    getDb: () => database,
     options: {},
   });
   const first = features
@@ -151,7 +155,7 @@ test("update destinations check visibility and role membership with useful fallb
   );
   assert.equal(
     notificationDestination({ roomId: "missing" }, state, people).label,
-    "View rooms",
+    "View Deal Rooms",
   );
   assert.equal(
     notificationDestination({ matchId: "p" }, state, people).label,
@@ -218,8 +222,8 @@ test("generated match timestamps and read state survive polling, role changes an
     const other = restarted.openDemo("founder");
     assert.equal(
       other.state.notifications.find((item) => item.id === first.id).read,
-      false,
-      "another account has independent read state",
+      true,
+      "weekly digests collect new-account match alerts without unread noise",
     );
     // Preview sessions intentionally expire at restart, so read the persisted
     // account through its stored ledger rather than inventing a login shortcut.

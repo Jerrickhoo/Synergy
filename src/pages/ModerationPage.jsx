@@ -37,8 +37,14 @@ function Decision({ kind, id, decisions, report = false }) {
             <label htmlFor={`${prefix}-remedy`}>Resolution action</label>
             <SelectField id={`${prefix}-remedy`} name="remedy">
               <option value="none">Record decision only</option>
+              <option value="confirm-milestone">
+                Dispute: confirm the milestone as done
+              </option>
               <option value="resolve-disputes">
-                Clear disputes; require both partners to reconfirm
+                Dispute: reopen the milestone; both reconfirm
+              </option>
+              <option value="close-without-penalty">
+                Close the collaboration without penalty to either side
               </option>
               <option value="close">Close unfinished collaboration</option>
             </SelectField>
@@ -86,16 +92,22 @@ export default function ModerationPage() {
           reports.map((report) => (
             <details className="moderation-entry" key={report.id}>
               <summary>
+                {report.kind === "dispute" ? "Dispute · " : ""}
                 {report.status} · {report.reason.slice(0, 100)}
+                {report.dueAt &&
+                  ` · Due ${new Date(report.dueAt).toLocaleDateString()}`}
+                {report.overdue ? " · Overdue" : ""}
               </summary>
               <p>{report.reason}</p>
               {report.details && (
                 <p className="preserve-lines">{report.details}</p>
               )}
               <p className="muted">
-                Reporter: {report.reporterProfileId || report.accountId} ·
-                Reported profile:{" "}
-                {report.reportedProfileId || "See room context"}
+                Reporter: {report.reporterName || report.reporterProfileId} ·
+                Reported:{" "}
+                {report.reportedName ||
+                  report.reportedProfileId ||
+                  "See room context"}
               </p>
               <p>Assigned to {report.assignee || "unassigned"}</p>
               {report.resolution && <p>Decision: {report.resolution}</p>}
@@ -147,6 +159,9 @@ export default function ModerationPage() {
             <details className="moderation-entry" key={item.accountId}>
               <summary>
                 {item.name} · {item.organization}
+                {item.dueAt &&
+                  ` · Due ${new Date(item.dueAt).toLocaleDateString()}`}
+                {item.overdue ? " · Overdue" : ""}
               </summary>
               <p>{item.evidence}</p>
               <Decision
@@ -166,7 +181,10 @@ export default function ModerationPage() {
           .filter((t) => t.status === "pending")
           .map((item) => (
             <details className="moderation-entry" key={item.id}>
-              <summary>{item.label}</summary>
+              <summary>
+                {item.label} · Due {new Date(item.dueAt).toLocaleDateString()}
+                {item.overdue ? " · Overdue" : ""}
+              </summary>
               <Decision
                 kind="tag"
                 id={item.id}

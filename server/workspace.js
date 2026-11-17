@@ -10,12 +10,25 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { createInitialState, createModel } from "../src/data/model.js";
-import { profileCompleteness, roomProgress } from "../src/data/selectors.js";
+import {
+  profileCompleteness,
+  roomProgress,
+  launchBlockers,
+} from "../src/data/selectors.js";
 import { validateCredentials, cleanValues } from "../src/state/validation.js";
 import { transition } from "../src/state/transitions.js";
 import { encode, decode } from "../src/state/serialization.js";
-import { createFeatures } from "./features.js";
-import { trustSummary } from "../src/data/collaboration.js";
+import { createFeatures, defaultPreferences } from "./features.js";
+import defaultTemplates from "../src/data/engagement-templates.json" with { type: "json" };
+import {
+  trustSummary,
+  canonicalTags,
+  reviewDeadline,
+  ongoingMentorship,
+  ensureCycle,
+  moderationDueAt,
+  resolveCycleDecisions,
+} from "../src/data/collaboration.js";
 import { defaultMatching } from "../src/data/matching.js";
 import { normalizeProfile } from "../src/data/profile-content.js";
 import {
@@ -84,6 +97,7 @@ const overlap = (left, right) => {
     ? [...a].filter((word) => b.has(word)).length / a.size
     : 0;
 };
+const sharedOverlap = (a, b) => (overlap(a, b) + overlap(b, a)) / 2;
 export function scoreProfile(mine, theirs, mentor, config = defaultMatching) {
   mine = normalizeProfile(mine);
   theirs = normalizeProfile(theirs);
@@ -97,17 +111,49 @@ export function scoreProfile(mine, theirs, mentor, config = defaultMatching) {
     offer: `${theirs.offer || ""} ${theirs.offerTags || ""}`,
     need: `${theirs.need || ""} ${theirs.needTags || ""}`,
   };
-  const forward = overlap(mine.need, theirs.offer),
-    reverse = overlap(theirs.need, mine.offer);
-  const mentorProfile = mine.expertise ? mine : theirs;
-  const founder = mine.expertise ? theirs : mine;
+  // Needs and offers are compared both as words and as controlled tags, so
+  // "people to try our product" and "beta testers" count as the same help.
+  const tagged = (text) => new Set(canonicalTags(text));
+  const covered = (needs, offers) => {
+    const wanted = tagged(needs),
+      given = tagged(offers);
+    const shared = [...wanted].filter((tag) => given.has(tag));
+    return { ratio: wanted.size ? shared.length / wanted.size : 0, shared };
+  };
+  const forwardTags = covered(mine.need, theirs.offer),
+    reverseTags = covered(theirs.need, mine.offer);
+  const forward = Math.max(overlap(mine.need, theirs.offer), forwardTags.ratio),
+    reverse = Math.max(overlap(theirs.need, mine.offer), reverseTags.ratio);
+  const mentorRank = (profile) =>
+    ["expertise", "availability", "startups"].filter((key) =>
+      Object.hasOwn(profile, key),
+    ).length;
+  const profileKey = (profile) =>
+    JSON.stringify(
+      Object.entries(profile).sort(([a], [b]) => a.localeCompare(b)),
+    );
+  const mineIsMentor =
+    mentorRank(mine) === mentorRank(theirs)
+      ? profileKey(mine) >= profileKey(theirs)
+      : mentorRank(mine) > mentorRank(theirs);
+  const mentorProfile = mineIsMentor ? mine : theirs;
+  const founder = mineIsMentor ? theirs : mine;
   const need = mentor
-    ? overlap(founder.need, mentorProfile.offer)
+    ? Math.max(
+        overlap(founder.need, mentorProfile.offer),
+        covered(founder.need, mentorProfile.offer).ratio,
+      )
     : Math.sqrt(forward * reverse);
   const expertise = mentor
-    ? overlap(founder.need, mentorProfile.expertise || mentorProfile.offer)
+    ? Math.max(
+        overlap(founder.need, mentorProfile.expertise || mentorProfile.offer),
+        covered(
+          founder.need,
+          `${mentorProfile.expertise || ""} ${mentorProfile.offer}`,
+        ).ratio,
+      )
     : 0;
-  const industry = overlap(
+  const industry = sharedOverlap(
     mentor ? founder.industry : mine.industry,
     mentor ? mentorProfile.startups : theirs.industry,
   );
@@ -124,11 +170,20 @@ export function scoreProfile(mine, theirs, mentor, config = defaultMatching) {
   const sizes = marketing
     ? [Number(mine.audienceSize), Number(theirs.audienceSize)]
     : [Number(mine.teamSize), Number(theirs.teamSize)];
+  // A swap needs both audience sizes. Unknown size is not treated as a fit.
   const sizeFit = sizes.every((n) => n > 0)
     ? Math.min(...sizes) / Math.max(...sizes)
-    : null;
+    : marketing
+      ? 0
+      : null;
+  const audienceGap =
+    marketing && sizes.every((n) => n > 0) && sizeFit < 0.1
+      ? `Uneven swap: ${Math.max(...sizes).toLocaleString("en")} vs ${Math.min(...sizes).toLocaleString("en")} audience`
+      : marketing && !sizes.every((n) => n > 0)
+        ? "Audience size missing for a co-marketing swap"
+        : "";
   const stage = mentor
-    ? overlap(founder.stage, mentorProfile.startups)
+    ? sharedOverlap(founder.stage, mentorProfile.startups)
     : sizeFit === null
       ? stageFit
       : stageKnown
@@ -166,12 +221,30 @@ export function scoreProfile(mine, theirs, mentor, config = defaultMatching) {
     !explicitGoals && preference === null,
   ];
   const weights = config[mentor ? "mentor" : "founder"];
+  const weighted = Math.round(
+    100 * factors.reduce((sum, value, i) => sum + value * weights[i], 0),
+  );
+  const mentorTags = mentor
+    ? covered(
+        founder.need,
+        `${mentorProfile.expertise || ""} ${mentorProfile.offer}`,
+      ).shared
+    : [];
   return {
-    score: Math.round(
-      100 * factors.reduce((sum, value, i) => sum + value * weights[i], 0),
-    ),
+    // A 10x audience gap makes a swap unfair (§9), so it caps the score.
+    score:
+      marketing && sizes.every((n) => n > 0) && sizeFit < 0.1
+        ? Math.min(weighted, 40)
+        : weighted,
+    audienceWarning: audienceGap,
+    exchange: mentor
+      ? {
+          youGet: founder === mine ? mentorTags : [],
+          theyGet: founder === theirs ? mentorTags : [],
+        }
+      : { youGet: forwardTags.shared, theyGet: reverseTags.shared },
     matchingVersion: config.version,
-    matchingAlgorithm: "reciprocal-v2",
+    matchingAlgorithm: "reciprocal-v3",
     factorWeights: weights,
     directionalFit: {
       yourNeeds: Math.round(forward * 100),
@@ -203,13 +276,16 @@ export function scoreProfile(mine, theirs, mentor, config = defaultMatching) {
         ? "Founder stage compared with the mentor's stated startup interests; missing context earns no positive fit."
         : sizeFit === null
           ? "Stage comparison only; both size values are needed for size fit."
-          : `Stage and ${marketing ? "audience" : "team"} size; size ratio ${Math.round(sizeFit * 100)}%.`,
+          : audienceGap
+            ? `${audienceGap}. A swap more than 10 times uneven is limited to 40% overall.`
+            : `Stage and ${marketing ? "audience" : "team"} size; size ratio ${Math.round(sizeFit * 100)}%.`,
       `${explicitGoals ? "Stated goal overlap" : "Stated goals missing; no goal overlap assumed"}${preference === null ? "; engagement preference not provided by both" : "; engagement preferences included"}.`,
     ],
   };
 }
 
 export function createWorkspace(file, options = {}) {
+  const now = () => options.now?.() ?? Date.now();
   const storage = createStorage(file);
   let db = storage.load();
   if (db.version !== 1 || !db.accounts)
@@ -232,6 +308,33 @@ export function createWorkspace(file, options = {}) {
     }
   };
 
+  let migrated = false;
+  for (const account of Object.values(db.accounts)) {
+    for (const room of Object.values(account.state.rooms)) {
+      if (ongoingMentorship(room) && room.terms.partnerLocked && !room.cycle) {
+        ensureCycle(room, now());
+        migrated = true;
+      }
+    }
+    if (!account.notificationPreferences) {
+      account.notificationPreferences = {
+        ...defaultPreferences,
+        digest: "off",
+      };
+      migrated = true;
+    }
+    if (
+      account.affiliation?.status === "pending" &&
+      !account.affiliation.requestedAt
+    ) {
+      account.affiliation.requestedAt = new Date(now()).toISOString();
+      account.affiliation.dueAt = moderationDueAt(
+        account.affiliation.requestedAt,
+      );
+      migrated = true;
+    }
+  }
+  if (migrated) save();
   if (options.demoMode) {
     let samplesChanged = false;
     const snapshot = (name, profile) => ({ name, profile });
@@ -284,6 +387,7 @@ export function createWorkspace(file, options = {}) {
         id,
         demo: true,
         demoSample: true,
+        notificationPreferences: { ...defaultPreferences },
         demoFixture: {
           version: demoDirectoryVersion,
           snapshot: sampleSnapshot(sample),
@@ -298,7 +402,7 @@ export function createWorkspace(file, options = {}) {
     if (samplesChanged) save();
   }
 
-  const event = (account, role, text, roomId) =>
+  const event = (account, role, text, roomId, extra = {}) =>
     account.state.activity.unshift({
       id: randomUUID(),
       role,
@@ -306,7 +410,104 @@ export function createWorkspace(file, options = {}) {
       roomId,
       timestamp: new Date().toISOString(),
       sample: false,
+      ...extra,
     });
+  // Startups appear under their company name when one is set.
+  const displayName = (account, role) =>
+    (role === "founder" &&
+      account.state.profiles.founder?.startupName?.trim()) ||
+    account.state.accountName;
+  const introLimitMs = 14 * 86400000;
+  const keepHistory = (state, role, entry) => {
+    state.introHistoryByRole ||= { founder: [], mentor: [] };
+    state.introHistoryByRole[role] ||= [];
+    state.introHistoryByRole[role].unshift({
+      ...entry,
+      at: new Date().toISOString(),
+    });
+    state.introHistoryByRole[role] = state.introHistoryByRole[role].slice(
+      0,
+      20,
+    );
+  };
+  // Time-based closures run before any read: unanswered introductions expire
+  // after 14 days and review windows close 14 days after launch (D1, D13).
+  function sweep(account) {
+    let changed = false;
+    const time = now();
+    const state = account.state;
+    for (const role of roles) {
+      const meta = state.introductionMetaByRole?.[role] || {};
+      for (const [id, item] of Object.entries(meta)) {
+        if (!state.waitingByRole[role].has(id)) continue;
+        if (
+          time - Date.parse(item.sentAt || 0) <
+          (options.introductionLimitMs ?? introLimitMs)
+        )
+          continue;
+        const [otherId, otherRole] = id.split(":");
+        const other = db.accounts[otherId];
+        const ownId = identity(account, role);
+        state.waitingByRole[role].delete(id);
+        state.interestByRole[role].delete(id);
+        delete meta[id];
+        keepHistory(state, role, {
+          id,
+          name: item.name,
+          status: "expired",
+          direction: "sent",
+        });
+        event(
+          account,
+          role,
+          `Your introduction to ${item.name} expired after 14 days without a reply.`,
+          undefined,
+          { matchId: id },
+        );
+        if (other?.state.incomingByRole[otherRole]?.has(ownId)) {
+          other.state.incomingByRole[otherRole].delete(ownId);
+          delete other.state.introductionMetaByRole?.[otherRole]?.[ownId];
+          keepHistory(other.state, otherRole, {
+            id: ownId,
+            name: displayName(account, role),
+            status: "expired",
+            direction: "received",
+          });
+        }
+        changed = true;
+      }
+    }
+    for (const room of Object.values(state.rooms)) {
+      if (room.status !== "launched") continue;
+      if (!room.launchedAt) {
+        room.launchedAt =
+          room.updatedAt || room.createdAt || new Date(time).toISOString();
+        const other = db.accounts[room.partnerAccountId]?.state.rooms[room.id];
+        if (other) other.launchedAt ||= room.launchedAt;
+        changed = true;
+      }
+      if (time < Date.parse(reviewDeadline(room, options.reviewWindowMs)))
+        continue;
+      for (const copy of [
+        room,
+        db.accounts[room.partnerAccountId]?.state.rooms[room.id],
+      ]) {
+        if (!copy || copy.status !== "launched") continue;
+        copy.status = "reviewed";
+        copy.review.windowClosed = true;
+        copy.completedAt ||= new Date().toISOString();
+      }
+      event(
+        account,
+        room.role,
+        "The review window closed. Submitted feedback is now visible.",
+        room.id,
+        { review: true, kind: "review-release" },
+      );
+      changed = true;
+    }
+    return changed;
+  }
   function person(account, role, viewer) {
     const profile = normalizeProfile(account.state.profiles[role]);
     const mine = viewer.profiles[viewer.role];
@@ -322,7 +523,12 @@ export function createWorkspace(file, options = {}) {
       id: identity(account, role),
       accountId: account.id,
       role,
-      name: account.state.accountName,
+      // Startups are listed by company; the founder stays visible beside it.
+      name:
+        role === "founder" && profile.startupName?.trim()
+          ? profile.startupName.trim()
+          : account.state.accountName,
+      founderName: role === "founder" ? account.state.accountName : "",
       kind: role === "mentor" ? "Mentor" : "Startup",
       initials: initials(account.state.accountName),
       image: profile.image || "",
@@ -346,6 +552,11 @@ export function createWorkspace(file, options = {}) {
           : marketing
             ? "Co-Marketing Swap"
             : "Beta Testing Exchange",
+      // Every startup pair can run either exchange; mentors offer mentorship.
+      engagementTypes:
+        role === "mentor" || viewer.role === "mentor"
+          ? ["Mentorship"]
+          : ["Beta Testing Exchange", "Co-Marketing Swap"],
       emailVerified: Boolean(account.emailVerifiedAt),
       affiliation:
         account.affiliation?.status === "verified"
@@ -364,6 +575,7 @@ export function createWorkspace(file, options = {}) {
     };
   }
   function prepare(account, role = account.state.role) {
+    if (sweep(account)) save();
     const state = clone(account.state);
     state.role = roles.includes(role) ? role : state.role;
     state.authenticated = true;
@@ -374,8 +586,12 @@ export function createWorkspace(file, options = {}) {
       guest: Boolean(account.demo),
       maxFileBytes: options.maxFileBytes || 5 * 1024 * 1024,
       moderation: Boolean(options.adminEmails?.length),
+      requireVerification: Boolean(options.requireVerification),
     };
     state.introductionTypesByRole ||= { founder: {}, mentor: {} };
+    state.introductionMetaByRole ||= { founder: {}, mentor: {} };
+    state.introHistoryByRole ||= { founder: [], mentor: [] };
+    state.verification = account.affiliation?.status || "none";
     state.directory = createInitialState().directory;
     for (const other of Object.values(db.accounts)) {
       if (
@@ -435,16 +651,27 @@ export function createWorkspace(file, options = {}) {
     }
     state.trustHistoryByRole = { founder: [], mentor: [] };
     for (const room of Object.values(state.rooms)) {
-      if (room.status !== "reviewed") continue;
+      if (!["launched", "reviewed"].includes(room.status)) continue;
       const partner = db.accounts[room.partnerAccountId];
+      const released =
+        room.status === "reviewed" &&
+        (room.review.me || room.review.windowClosed);
       state.trustHistoryByRole[room.role].push({
         id: room.id,
-        partner: partner?.state.accountName || "Collaborator",
+        partner: partner
+          ? displayName(partner, room.partnerRole)
+          : "Collaborator",
         type: room.engagementType,
-        rating: room.review.partnerRating,
-        note: room.review.partnerNote,
-        status: "Completed",
-        date: room.completedAt?.slice(0, 10) || "",
+        rating:
+          released && room.review.partner ? room.review.partnerRating : null,
+        note: released && room.review.partner ? room.review.partnerNote : "",
+        status:
+          room.status === "launched"
+            ? "Reviews pending"
+            : room.review.partner
+              ? "Completed"
+              : "Completed · no partner review",
+        date: (room.completedAt || room.launchedAt)?.slice(0, 10) || "",
         sample: false,
       });
     }
@@ -454,7 +681,17 @@ export function createWorkspace(file, options = {}) {
     const state = prepare(account, role);
     if (features.rememberNotifications(account, state)) save();
     for (const room of Object.values(state.rooms)) {
-      if (!room.review.me || !room.review.partner) {
+      for (const cycle of [...(room.cycleHistory || []), room.cycle].filter(
+        Boolean,
+      )) {
+        const reviews = cycle.reviews || {};
+        if (!reviews[account.id] || !reviews[room.partnerAccountId])
+          delete reviews[room.partnerAccountId];
+      }
+      if (
+        !(room.review.me && room.review.partner) &&
+        !room.review.windowClosed
+      ) {
         delete room.review.partnerRating;
         delete room.review.partnerNote;
         delete room.review.partnerUseful;
@@ -523,6 +760,7 @@ export function createWorkspace(file, options = {}) {
           derived?.hash ||
           scryptSync(values.password, salt, 64).toString("hex"),
         state: createInitialState(),
+        notificationPreferences: { ...defaultPreferences },
       };
       transition(account.state, { form: "signup-form", values });
       db.accounts[account.id] = account;
@@ -621,9 +859,54 @@ export function createWorkspace(file, options = {}) {
     options,
     fail,
     sessions,
+    displayName,
+    simulatePartner: (...args) => simulatePartner(...args),
+    advanceRoom,
   });
 
-  function mirror(account, state, room, text) {
+  function advanceRoom(account, state, room) {
+    if (["launched", "reviewed", "cancelled"].includes(room.status))
+      return false;
+    if (!room.terms.locked || !room.terms.partnerLocked) return false;
+    if (ongoingMentorship(room)) ensureCycle(room, now());
+    if (launchBlockers(room).length) {
+      if (room.cycle && !room.finishingCycles) room.cycle.phase = "active";
+      return false;
+    }
+    const items = Object.values(room.milestones);
+    if (
+      !items.length ||
+      items.some(
+        (item) =>
+          !item.me ||
+          !item.partner ||
+          item.disputed ||
+          item.proposal ||
+          (item.evidence && !item.attachment),
+      )
+    )
+      return false;
+    if (ongoingMentorship(room) && !room.finishingCycles) {
+      room.cycle.phase = "review";
+      return false;
+    }
+    room.status = "launched";
+    room.launchedAt = new Date(now()).toISOString();
+    state.rating = 0;
+    state.page = "review";
+    state.confirmation =
+      room.type === "mentorship"
+        ? "Your mentorship completed. Review within 14 days."
+        : "Your deal launched. Review within 14 days.";
+    state.toast = state.confirmation;
+    event({ state }, room.role, state.confirmation, room.id, {
+      kind: "review",
+      review: true,
+    });
+    return true;
+  }
+
+  function mirror(account, state, room, text, extra = {}) {
     const partner = db.accounts[room.partnerAccountId];
     const previous = partner?.state.rooms[room.id];
     if (!partner || !previous || previous.partnerAccountId !== account.id)
@@ -639,6 +922,7 @@ export function createWorkspace(file, options = {}) {
         item.schedule,
         item.schedules,
         Boolean(item.disputed),
+        room.cycle?.goals,
         room.terms.revision || 0,
       ]);
     for (const [id, item] of Object.entries(room.milestones)) {
@@ -653,6 +937,7 @@ export function createWorkspace(file, options = {}) {
         old.schedule,
         old.schedules,
         Boolean(old.disputed),
+        previous.cycle?.goals,
         previous.terms.revision || 0,
       ]);
       item.contentVersion =
@@ -660,6 +945,11 @@ export function createWorkspace(file, options = {}) {
       if (content(item) !== oldContent) item.me = item.partner = false;
     }
     room.progress = roomProgress(room);
+    const justLaunched = advanceRoom(account, state, room);
+    if (justLaunched) {
+      text = state.confirmation;
+      extra = { kind: "review", review: true };
+    }
     const shared = clone(room);
     shared.role = room.partnerRole;
     shared.partnerRole = room.role;
@@ -681,6 +971,7 @@ export function createWorkspace(file, options = {}) {
       who: message.who === "me" ? "partner" : "me",
     }));
     shared.review = {
+      windowClosed: room.review.windowClosed,
       me: room.review.partner,
       partner: room.review.me,
       rating: room.review.partnerRating,
@@ -693,8 +984,145 @@ export function createWorkspace(file, options = {}) {
       partnerGoalOutcome: room.review.goalOutcome,
     };
     partner.state.rooms[room.id] = shared;
-    if (text) event(partner, shared.role, text, room.id);
+    if (text)
+      event(
+        partner,
+        shared.role,
+        text,
+        room.id,
+        Object.fromEntries(
+          Object.entries(extra).filter(([, value]) => value !== undefined),
+        ),
+      );
     state.rooms[room.id] = room;
+  }
+  // Prototype only: fictional sample collaborators answer a preview account's
+  // actions so the whole Deal Room can be explored without a second person.
+  function simulatePartner(account, state, room) {
+    const partner = db.accounts[room.partnerAccountId];
+    if (!options.demoMode || !account.demo || !partner?.demoSample) return;
+    if (["cancelled", "reviewed"].includes(room.status)) return;
+    const before = encode(room);
+    const name = displayName(partner, room.partnerRole);
+    const said = [];
+    if (room.terms.reopenRequest?.byAccountId === account.id) {
+      room.terms = {
+        ...room.terms,
+        locked: false,
+        partnerLocked: false,
+        confirmedByMe: false,
+        reopenRequest: null,
+        revision: (room.terms.revision || 0) + 1,
+      };
+      for (const item of Object.values(room.milestones))
+        item.me = item.partner = false;
+      room.status = "matched";
+      said.push("agreed to reopen the terms");
+    }
+    if (
+      room.terms.locked &&
+      room.terms.confirmedByMe &&
+      !room.terms.partnerLocked
+    ) {
+      room.terms.partnerLocked = true;
+      room.status = "in-progress";
+      said.push("accepted the shared terms");
+    }
+    for (const item of Object.values(room.milestones)) {
+      if (item.proposal && item.proposal.proposedBy === account.id) {
+        (item.revisions ||= []).push({
+          ...item.proposal,
+          previousTitle: item.title,
+          previousDescription: item.description,
+          decision: "accept",
+          decidedBy: partner.id,
+          decidedAt: new Date().toISOString(),
+        });
+        Object.assign(item, {
+          title: item.proposal.title,
+          description: item.proposal.description,
+          revision: (item.revision || 0) + 1,
+          me: false,
+          partner: false,
+        });
+        delete item.proposal;
+        said.push(`accepted your revision to “${item.title}”`);
+      }
+      if (item.disputed && item.resolvedByMe) {
+        Object.assign(item, {
+          disputed: false,
+          dispute: null,
+          me: false,
+          partner: false,
+          resolvedByMe: false,
+          resolvedByPartner: false,
+        });
+        said.push(`agreed to resolve the dispute on “${item.title}”`);
+      }
+      if (item.me && !item.partner && !item.disputed && !item.proposal) {
+        item.partner = true;
+        said.push(`confirmed “${item.title}”`);
+      }
+    }
+    let cycleCompleted = false;
+    if (room.cycle?.phase === "review" && room.cycle.reviews[account.id]) {
+      if (!room.cycle.reviews[partner.id]) {
+        room.cycle.reviews[partner.id] = {
+          rating: 4,
+          note: "Simulated private cycle review from a fictional collaborator.",
+          at: new Date(now()).toISOString(),
+        };
+        said.push("submitted a private cycle review");
+      }
+      if (
+        room.cycle.decisions[account.id] &&
+        !room.cycle.decisions[partner.id]
+      ) {
+        room.cycle.decisions[partner.id] = room.cycle.decisions[account.id];
+        const result = resolveCycleDecisions(room, now());
+        said.push(
+          result === "finish"
+            ? "agreed to finish the mentorship"
+            : "agreed to continue with a new cycle",
+        );
+        if (result === "continue")
+          state.toast = `Cycle ${room.cycle.number} started. Agree new goals and sessions.`;
+        if (result === "finish")
+          cycleCompleted = advanceRoom(account, state, room);
+      }
+    }
+    if (room.status === "launched" && room.review.me && !room.review.partner) {
+      Object.assign(room.review, {
+        partner: true,
+        partnerRating: 4,
+        partnerNote:
+          "Simulated review from a fictional prototype collaborator.",
+        partnerUseful: "yes",
+        partnerGoalOutcome: "achieved",
+      });
+      room.status = "reviewed";
+      room.completedAt = new Date().toISOString();
+      said.push("submitted a review");
+    }
+    if (encode(room) === before) return;
+    room.progress = roomProgress(room);
+    room.updatedAt = new Date().toISOString();
+    mirror(
+      account,
+      state,
+      room,
+      cycleCompleted ? state.confirmation : null,
+      cycleCompleted ? { kind: "review", review: true } : {},
+    );
+    event(
+      { state },
+      state.role,
+      `Prototype: ${name} ${said.join(", ")}. This is a simulated response from a fictional collaborator.`,
+      room.id,
+      room.status === "reviewed"
+        ? { review: true, kind: "review-release" }
+        : { tab: "milestones" },
+    );
   }
   function connect(account, state, person, acceptedByPartner = false) {
     const other = db.accounts[person.accountId];
@@ -733,7 +1161,7 @@ export function createWorkspace(file, options = {}) {
     );
     room.matchingSnapshot = {
       version: config.version,
-      algorithm: "reciprocal-v2",
+      algorithm: "reciprocal-v3",
       weights: config,
       capturedAt: room.createdAt,
       scores: [
@@ -786,9 +1214,10 @@ export function createWorkspace(file, options = {}) {
       other,
       person.role,
       acceptedByPartner
-        ? `You accepted ${state.accountName}'s introduction. Your room is ready.`
-        : `${state.accountName} accepted your introduction. Your room is ready.`,
+        ? `You accepted ${displayName(account, state.role)}'s introduction. Your room is ready.`
+        : `${displayName(account, state.role)} accepted your introduction. Your room is ready.`,
       id,
+      { tab: "terms" },
     );
   }
   function act(token, input, uploadedFile, avatar) {
@@ -799,6 +1228,16 @@ export function createWorkspace(file, options = {}) {
         input.action,
       )
     ) {
+      if (
+        options.requireVerification &&
+        !account.demo &&
+        account.affiliation?.status !== "verified" &&
+        ["interest", "accept-interest"].includes(input.action)
+      )
+        fail(
+          "Verify your affiliation before sending or accepting introductions. Open Verification on your profile.",
+          403,
+        );
       if (account.profileVisible === false)
         fail(
           "Make your profile visible in Account settings before connecting.",
@@ -821,9 +1260,11 @@ export function createWorkspace(file, options = {}) {
     state.toastTitle = "";
     state.confirmation = "";
     state.formErrors = null;
+    if (input.form !== "profile-form") state.profileWentLive = false;
     state.activeRoomId =
       typeof input.activeRoomId === "string" ? input.activeRoomId : null;
     const payload = {
+      serverManaged: true,
       action: input.action,
       form: input.form,
       id: input.id,
@@ -838,18 +1279,51 @@ export function createWorkspace(file, options = {}) {
         timeZone: "Asia/Manila",
       }),
     };
-    if (input.form === "terms-form" || input.action === "lock-terms")
+    if (input.form === "terms-form" || input.action === "lock-terms") {
+      // Template-specific terms (tester count, send date, mentorship format)
+      // travel with the shared agreement.
+      const termsRoom = state.rooms[state.activeRoomId];
+      const extra = (
+        termsRoom?.template?.fields ||
+        defaultTemplates[termsRoom?.type]?.fields ||
+        []
+      ).map((item) => item.id);
       payload.values = Object.fromEntries(
-        ["goal", "scope", "timeline", "commitment", "compensation"].map(
-          (key) => [key, payload.values[key] || ""],
-        ),
+        [
+          "goal",
+          "scope",
+          "timeline",
+          "commitment",
+          "compensation",
+          ...extra,
+        ].map((key) => [key, String(payload.values[key] || "").slice(0, 300)]),
       );
+    }
     const roomOperation =
       roomActions.has(input.action) || roomForms.has(input.form);
     const room = roomOperation ? createModel(state).activeRoom() : null;
     const previousRoom = room ? encode(room) : null;
     if (roomOperation && !room)
       fail("This room is unavailable for your account and role.", 404);
+    if (
+      room?.status === "in-progress" &&
+      room.cycle?.phase === "review" &&
+      Object.keys(room.cycle.reviews).length &&
+      input.form !== "chat-form" &&
+      input.action !== "launch-room"
+    )
+      fail(
+        "Cycle work is locked after a private cycle review. Choose Continue or Finish after both reviews.",
+      );
+    if (
+      room &&
+      input.action === "confirm-milestone" &&
+      ongoingMentorship(room) &&
+      !room.cycle?.goals?.trim()
+    )
+      fail("Add goals for this mentorship cycle before confirming work.");
+    if (room && input.action === "launch-room" && room.status !== "cancelled")
+      return response(account, input.role);
     if (
       room &&
       input.form === "chat-form" &&
@@ -909,6 +1383,8 @@ export function createWorkspace(file, options = {}) {
       );
     if (room && input.form === "review-form" && room.review.me)
       fail("Your review has already been submitted.");
+    if (room && input.form === "review-form" && room.review.windowClosed)
+      fail("The 14-day review window has closed for this collaboration.");
     if (
       room &&
       input.action === "confirm-milestone" &&
@@ -1007,9 +1483,29 @@ export function createWorkspace(file, options = {}) {
       )
         fail("This introduction is no longer pending.");
       if (input.action === "interest" || input.action === "accept-interest") {
-        if (state.incomingByRole[state.role].has(person.id))
+        if (state.incomingByRole[state.role].has(person.id)) {
+          if (
+            input.engagementType &&
+            permittedTypes.includes(input.engagementType)
+          )
+            state.introductionTypesByRole[state.role][person.id] =
+              input.engagementType;
+          keepHistory(state, state.role, {
+            id: person.id,
+            name: person.name,
+            status: "accepted",
+            direction: "received",
+          });
+          keepHistory(other.state, person.role, {
+            id: ownId,
+            name: displayName(account, state.role),
+            status: "accepted",
+            direction: "sent",
+          });
+          delete state.introductionMetaByRole?.[state.role]?.[person.id];
+          delete other.state.introductionMetaByRole?.[person.role]?.[ownId];
           connect(account, state, person);
-        else if (!createModel(state).existingRoomFor(state.role, person.id)) {
+        } else if (!createModel(state).existingRoomFor(state.role, person.id)) {
           if (state.interestByRole[state.role].has(person.id))
             fail("This introduction is already pending.", 409);
           state.introductionTypesByRole ||= { founder: {}, mentor: {} };
@@ -1017,6 +1513,23 @@ export function createWorkspace(file, options = {}) {
           state.introductionTypesByRole[state.role][person.id] = proposedType;
           other.state.introductionTypesByRole[person.role][ownId] =
             proposedType;
+          const note = String(payload.values.note || "")
+            .trim()
+            .slice(0, 280);
+          const sentAt = payload.timestamp;
+          state.introductionMetaByRole ||= { founder: {}, mentor: {} };
+          other.state.introductionMetaByRole ||= { founder: {}, mentor: {} };
+          state.introductionMetaByRole[state.role][person.id] = {
+            sentAt,
+            note,
+            name: person.name,
+          };
+          other.state.introductionMetaByRole[person.role] ||= {};
+          other.state.introductionMetaByRole[person.role][ownId] = {
+            sentAt,
+            note,
+            name: displayName(account, state.role),
+          };
           state.waitingByRole[state.role].add(person.id);
           state.interestByRole[state.role].add(person.id);
           other.state.incomingByRole[person.role].add(ownId);
@@ -1031,7 +1544,9 @@ export function createWorkspace(file, options = {}) {
           event(
             other,
             person.role,
-            `${state.accountName} wants to connect with you.`,
+            `${displayName(account, state.role)} wants to connect with you.`,
+            undefined,
+            { matchId: ownId, kind: "confirmation" },
           );
         } else fail("You already have a room with this collaborator.");
       } else if (input.action === "cancel-interest") {
@@ -1041,6 +1556,27 @@ export function createWorkspace(file, options = {}) {
         delete state.introductionTypesByRole[state.role][person.id];
         if (other.state.introductionTypesByRole?.[person.role])
           delete other.state.introductionTypesByRole[person.role][ownId];
+        delete state.introductionMetaByRole?.[state.role]?.[person.id];
+        delete other.state.introductionMetaByRole?.[person.role]?.[ownId];
+        keepHistory(state, state.role, {
+          id: person.id,
+          name: person.name,
+          status: "withdrawn",
+          direction: "sent",
+        });
+        keepHistory(other.state, person.role, {
+          id: ownId,
+          name: displayName(account, state.role),
+          status: "withdrawn",
+          direction: "received",
+        });
+        event(
+          other,
+          person.role,
+          `${displayName(account, state.role)} withdrew their introduction.`,
+          undefined,
+          { matchId: ownId },
+        );
         state.toast = "Introduction withdrawn.";
       } else if (input.action === "decline-interest") {
         state.incomingByRole[state.role].delete(person.id);
@@ -1049,11 +1585,31 @@ export function createWorkspace(file, options = {}) {
         delete state.introductionTypesByRole[state.role][person.id];
         if (other.state.introductionTypesByRole?.[person.role])
           delete other.state.introductionTypesByRole[person.role][ownId];
+        delete state.introductionMetaByRole?.[state.role]?.[person.id];
+        delete other.state.introductionMetaByRole?.[person.role]?.[ownId];
+        const reason = String(payload.values.reason || "")
+          .trim()
+          .slice(0, 280);
+        keepHistory(state, state.role, {
+          id: person.id,
+          name: person.name,
+          status: "declined",
+          direction: "received",
+        });
+        keepHistory(other.state, person.role, {
+          id: ownId,
+          name: displayName(account, state.role),
+          status: "declined",
+          direction: "sent",
+          reason,
+        });
         state.toast = "Introduction declined.";
         event(
           other,
           person.role,
-          `${state.accountName} declined your introduction.`,
+          `${displayName(account, state.role)} declined your introduction.${reason ? ` Reason: ${reason}` : ""}`,
+          undefined,
+          { matchId: ownId },
         );
       } else transition(state, payload);
     } else if (input.action === "accept-terms") {
@@ -1063,20 +1619,21 @@ export function createWorkspace(file, options = {}) {
       room.terms.partnerLocked = true;
       room.status = "in-progress";
       state.toast = "Terms confirmed by both collaborators.";
-      partnerText = `${state.accountName} accepted the shared terms.`;
+      partnerText = `${displayName(account, state.role)} accepted the shared terms. Work can begin.`;
     } else if (input.action === "resolve-dispute") {
       const item = room.milestones[input.id];
       if (!item?.disputed) fail("This milestone has no open dispute.");
       item.resolvedByMe = true;
       if (item.resolvedByPartner) {
         item.disputed = false;
+        item.dispute = null;
         item.me = false;
         item.partner = false;
       }
       state.toast = item.disputed
         ? "Resolution recorded. Your collaborator must also agree."
         : "Dispute resolved. Confirm the milestone again together.";
-      partnerText = `${state.accountName} agreed to resolve a milestone dispute.`;
+      partnerText = `${displayName(account, state.role)} agreed to resolve the dispute on “${item.title}”.`;
     } else if (input.form === "report-form") {
       if (
         !payload.values.reason ||
@@ -1161,33 +1718,95 @@ export function createWorkspace(file, options = {}) {
           if (input.action === "lock-terms" && room.terms.locked)
             room.terms.confirmedByMe = true;
         }
-        if (input.action === "dispute" && room.milestones[input.id])
+        if (input.action === "dispute" && room.milestones[input.id]?.disputed)
           Object.assign(room.milestones[input.id], {
             me: false,
             partner: false,
             resolvedByMe: false,
             resolvedByPartner: false,
           });
-        if (input.form === "evidence" && room.milestones[input.id])
-          Object.assign(room.milestones[input.id], {
+        if (input.form === "evidence" && room.milestones[input.id]) {
+          const item = room.milestones[input.id];
+          // Keep every piece of proof; the latest stays the primary item.
+          item.evidenceItems ||= [];
+          item.evidenceItems.push({
+            label: item.attachment,
+            file: uploadedFile || null,
+            at: payload.timestamp,
+            byAccountId: account.id,
+          });
+          Object.assign(item, {
             me: false,
             partner: false,
             file: uploadedFile || null,
           });
+        }
         if (input.form === "schedule")
           Object.assign(room.milestones.session, { me: false, partner: false });
         if (input.form === "review-form" && room.status === "reviewed")
           room.completedAt = payload.timestamp;
         if (input.action === "launch-room" && room.status === "launched")
-          room.launchedAt = payload.timestamp;
+          room.launchedAt ||= new Date(now()).toISOString();
         room.progress = roomProgress(room);
-        partnerText = `${state.accountName} ${input.form === "chat-form" ? "sent a message" : input.form === "review-form" ? "submitted a private review" : "updated your collaboration"}.`;
+        const who = displayName(account, state.role);
+        const title = room.milestones[input.id]?.title;
+        partnerText =
+          input.form === "chat-form"
+            ? `${who} sent a message.`
+            : input.form === "review-form"
+              ? room.status === "reviewed"
+                ? `Reviews are in. Read ${who}'s feedback.`
+                : `${who} submitted a private review. Yours is still open.`
+              : input.action === "lock-terms"
+                ? `${who} sent terms for your approval.`
+                : input.form === "terms-form"
+                  ? `${who} updated the draft terms.`
+                  : input.action === "confirm-milestone"
+                    ? `${who} confirmed “${title}”. Your confirmation is needed.`
+                    : input.form === "evidence"
+                      ? `${who} added proof to “${title}”.`
+                      : input.action === "dispute"
+                        ? `${who} flagged a dispute on “${title}”: ${room.milestones[input.id]?.dispute?.reason || ""}`
+                        : input.action === "launch-room"
+                          ? `${who} marked the collaboration as ${room.type === "mentorship" ? "complete" : "launched"}. Leave your review within 14 days.`
+                          : input.form === "schedule"
+                            ? `${who} scheduled a session.`
+                            : `${who} updated your collaboration.`;
+        if (input.form === "review-form" && room.status === "reviewed") {
+          event(
+            { state },
+            state.role,
+            "Reviews are in. Read your collaborator's feedback.",
+            room.id,
+            { review: true, kind: "review-release", self: false },
+          );
+        }
       }
     }
     if (room && !state.formErrors && encode(room) !== previousRoom) {
       room.updatedAt = new Date().toISOString();
-      mirror(account, state, room, partnerText);
+      mirror(account, state, room, partnerText, {
+        tab:
+          input.form === "chat-form"
+            ? "chat"
+            : ["lock-terms", "accept-terms"].includes(input.action) ||
+                input.form === "terms-form"
+              ? "terms"
+              : "milestones",
+        review: input.form === "review-form" && room.status === "reviewed",
+        kind:
+          input.form === "review-form" && room.status === "reviewed"
+            ? "review-release"
+            : ["lock-terms", "confirm-milestone", "dispute"].includes(
+                  input.action,
+                )
+              ? "confirmation"
+              : input.action === "launch-room"
+                ? "review"
+                : undefined,
+      });
     }
+    if (room && !state.formErrors) simulatePartner(account, state, room);
     // Persist only this account's workspace. Directory and trust history are computed.
     state.directory = createInitialState().directory;
     account.state = state;
@@ -1224,6 +1843,7 @@ export function createWorkspace(file, options = {}) {
       const account = {
         id: randomUUID(),
         demo: true,
+        notificationPreferences: { ...defaultPreferences },
         email: `demo-${randomUUID()}@example.invalid`,
         salt: randomBytes(16).toString("hex"),
         passwordHash: randomBytes(64).toString("hex"),

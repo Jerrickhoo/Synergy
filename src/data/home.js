@@ -6,9 +6,28 @@ import {
   scheduleInstant,
 } from "./selectors.js";
 import { mentorshipActions } from "./mentorship.js";
+import { roomNextAction } from "./selectors.js";
+import { createModel } from "./model.js";
+import { verificationRequired } from "./collaboration.js";
+
+export const partnerName = (state, room) =>
+  createModel(state)
+    .allPeople()
+    .find((person) => person.id === room.partnerId)?.name ||
+  "your collaborator";
 
 export function homeNextStep(state, now = new Date()) {
   const mentor = state.role === "mentor";
+  if (verificationRequired(state))
+    return {
+      title: "Verify to send introductions",
+      detail:
+        state.verification === "pending"
+          ? "A moderator is checking your evidence. You can keep browsing"
+          : "A moderator can check an accelerator, university, community or referral note.",
+      label: "Go to Verification",
+      command: { action: "open-verification" },
+    };
   const attention = mentor
     ? mentorshipActions(state, now.getTime())
     : attentionItems(state, now.getTime());
@@ -39,25 +58,39 @@ export function homeNextStep(state, now = new Date()) {
       label: "View session",
       command: { action: "open-room", id: next.room.id, tab: "schedule" },
     };
-  const room = activeRooms(state)[0];
-  if (room)
+  const rooms = activeRooms(state);
+  const room =
+    rooms.find((item) => roomNextAction(item, partnerName(state, item)).mine) ||
+    rooms[0];
+  if (room) {
+    const name = partnerName(state, room);
+    const next = roomNextAction(room, name);
     return {
-      title: mentor
-        ? "Continue your mentorship"
-        : "Continue your collaboration",
-      detail:
-        room.terms.draft.goal || "Agree on your shared goal and next steps.",
-      label: "Open room",
-      command: {
-        action: "open-room",
-        id: room.id,
-        tab: room.terms.partnerLocked ? "milestones" : "terms",
-      },
+      title: next.mine ? next.text : `Waiting on ${name}`,
+      detail: next.mine
+        ? next.detail || room.terms.draft.goal || ""
+        : `${next.text}. Nothing needs you right now.`,
+      label: next.mine ? next.action || "Open Deal Room" : "Open Deal Room",
+      command: { action: "open-room", id: room.id, tab: next.tab },
     };
+  }
   const completeness = profileCompleteness(
     state.profiles[state.role],
     state.role,
   );
+  const other = mentor ? "founder" : "mentor";
+  if (
+    completeness === 100 &&
+    state.bothRoles &&
+    profileCompleteness(state.profiles[other], other) < 100
+  )
+    return {
+      title: `Set up your ${other} profile`,
+      detail:
+        "You chose both roles. Switch profiles to add the details for your other role.",
+      label: `Switch to ${other}`,
+      command: { action: "choose-role", roleChoice: other, goHome: true },
+    };
   if (completeness < 100)
     return {
       title: mentor

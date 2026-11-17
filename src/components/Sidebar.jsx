@@ -7,11 +7,20 @@ import Avatar from "./Avatar.jsx";
 export const navigation = [
   ["home", "Home", "home"],
   ["discover", "Matches", "search"],
-  ["rooms", "Rooms", "rooms"],
+  ["waiting", "Introductions", "people"],
+  ["rooms", "Deal Rooms", "rooms"],
+];
+// Mentors work from requests, mentees and sessions rather than a match feed.
+// Startups stay reachable from Requests ("Browse startups").
+export const mentorNavigation = [
+  ["home", "Home", "home"],
+  ["waiting", "Requests", "inbox"],
+  ["rooms", "Mentees", "people"],
   ["calendar", "Calendar", "calendar"],
 ];
+export const primaryNavigation = (role) =>
+  role === "mentor" ? mentorNavigation : navigation;
 export const workspaceNavigation = [
-  ["waiting", "Introductions", "people"],
   ["notifications", "Updates", "bell"],
   ["settings", "Settings", "settings"],
 ];
@@ -21,14 +30,21 @@ export default function Sidebar() {
   return (
     <aside className="sidebar" aria-label="Workspace sidebar">
       <Brand />
-      <div className="workspace-label">Workspace</div>
       <nav className="nav" aria-label="Main navigation">
-        {navigation.map(([page, label, icon]) => (
+        {primaryNavigation(state.role).map(([page, label, icon]) => (
           <NavButton key={page} page={page}>
             <span className="nav-icon">
               <Icon name={icon} />
             </span>
             <span className="nav-label">{label}</span>
+            {page === "waiting" &&
+              state.incomingByRole[state.role].size > 0 && (
+                <span className="nav-count">
+                  <span className="visually-hidden">, </span>
+                  {state.incomingByRole[state.role].size}
+                  <span className="visually-hidden"> waiting for you</span>
+                </span>
+              )}
           </NavButton>
         ))}
         {state.isAdmin && (
@@ -48,12 +64,6 @@ export default function Sidebar() {
               <Icon name={icon} />
             </span>
             <span className="nav-label">{label}</span>
-            {page === "waiting" &&
-              state.incomingByRole[state.role].size > 0 && (
-                <span className="nav-count">
-                  {state.incomingByRole[state.role].size}
-                </span>
-              )}
           </NavButton>
         ))}
       </nav>
@@ -66,6 +76,21 @@ export default function Sidebar() {
         <div className="user-mini-copy">
           <div className="user-mini-name">{model.roleName()}</div>
           <div className="user-mini-role">{model.roleLabel()}</div>
+          {state.bothRoles && (
+            <button
+              className="link-btn"
+              disabled={state.busy}
+              onClick={() =>
+                onAction({
+                  action: "choose-role",
+                  roleChoice: state.role === "founder" ? "mentor" : "founder",
+                  goHome: true,
+                })
+              }
+            >
+              Switch to {state.role === "founder" ? "mentor" : "founder"}
+            </button>
+          )}
           <button
             className="link-btn"
             disabled={state.busy}
