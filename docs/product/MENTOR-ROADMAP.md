@@ -234,6 +234,7 @@ Pause Mode is separate from the account-wide "Pause discovery". It stops new req
 - New action `accept-guidelines {version}` stores `guidelinesAcceptedAt` and `guidelinesVersion`.
 - **Existing mentors** get a grace period of `guidelinesGraceDays` (14) from the day Phase 1 ships. They see a banner on Home ("Accept the mentor guidelines by 2 Dec to keep receiving requests"). After the grace period they stay visible but `available` is false with `reason: "guidelines"` until they accept.
 - When `guidelinesVersion` in config is raised, the same 14-day grace applies to everyone.
+- **Mentors who sign up after Phase 1 ships** get no grace period. Until they accept, `available` is false with `reason: "guidelines"`, and Home shows "Accept the mentor guidelines to start receiving requests" with the accept action. Until Phase 6 ships, this is the only step a new mentor must complete before taking requests. From Phase 6 it is part of signup.
 
 ### Conflict of interest
 
@@ -613,7 +614,7 @@ Rework `MentorHome.jsx` as the dashboard:
 - top-ranked requests come first and are the main feature, with Accept and Decline on each
 - then today's sessions, prep status, attendance waiting for the mentor, and new follow-up outcomes
 - the capacity meter (mentees, async and hours used against the limits), linking to Settings
-- banners only when there's something to do: guidelines to accept, approval pending (Phase 6), Pause Mode on
+- banners only when there's something to do: guidelines to accept, Pause Mode on, and approval pending once Phase 6 ships (Phase 5 can ship first, so the banner is added in Phase 6)
 
 ### Mentees page
 
@@ -858,7 +859,8 @@ Starts only when the Phase 8 gates are met. Phase P1 ships with the simulated pr
   ```js
   { currency: "PHP", platformFeeRate: 0.15, minPrice: 30000, maxPrice: 1000000,
     paymentWindowHours: 48, paymentReminderHours: 12, slotHoldMinutes: 15,
-    cycleRemainderReleaseDays: 7, paymentDisputeBusinessDays: 5 }
+    cycleRemainderReleaseDays: 7, paymentDisputeBusinessDays: 5,
+    paymentLapseLimit: 2, paymentLapseWindowDays: 90 }
   ```
 
 - A mentor can set a price above 0 only after payout setup is complete (see "Payouts").
@@ -880,7 +882,8 @@ All amounts are integers in centavos. `split(price, rate)` returns `{ amount: pr
 - When a mentor accepts a paid request, the room opens with `payment.status: "due"`. The founder sees a payment panel (`CheckoutPanel.jsx`). The mentor sees "Waiting for payment".
 - Accepting reserves the mentor's capacity, so a slot can't be taken twice.
 - The founder has `paymentWindowHours` (48) to pay, with a reminder 12 hours before the end. If they don't pay, `sweep()` closes the room as `cancelled` with the reason `payment-lapsed`, frees the capacity and notifies both sides.
-- A lapsed payment counts like a late cancellation in the founder's trust. Two lapses in 90 days apply the founder no-show limit from Phase 7.
+- A lapsed payment counts like a late cancellation in the founder's trust. `paymentLapseLimit` (2) lapses within `paymentLapseWindowDays` (90) apply the founder no-show limit from Phase 7, for `noShowLimitDays`.
+- **Paid Office Hours** are paid at booking, so the 48-hour window does not apply. Choosing a slot holds it for `slotHoldMinutes` (15) while the founder completes the provider's checkout, and nobody else can book it meanwhile. If payment succeeds, the booking is confirmed and the room opens. If the founder abandons checkout, or the hold runs out, the slot is released for everyone and nothing is recorded: no room, no lapse and no trust effect. A payment that arrives after its hold ran out is refunded automatically, and the founder sees "That slot was released. Your payment has been refunded."
 - `mentorshipStage` shows "Awaiting payment" right after Accepted, or after Booked for Office Hours.
 - Free formats skip all of this and work exactly as in v1.
 
