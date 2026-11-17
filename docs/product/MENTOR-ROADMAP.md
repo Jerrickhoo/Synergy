@@ -211,6 +211,12 @@ Add a "Mentoring" section to `SettingsPage.jsx`, in this order:
 
 Pause Mode is separate from the account-wide "Pause discovery". It stops new requests but keeps active mentees and their rooms.
 
+### Lowering capacity below current use
+
+- A mentor can always lower a limit, even below what they're using now. Current engagements, booked sessions and pending requests continue unchanged. Nothing is cancelled or returned.
+- Until usage drops under the new limit, the affected formats are unavailable with the usual `reason` (`mentee-limit`, `async-limit` or `hours-limit`). The Settings line explains it: "You have 3 active mentees and a limit of 1. New requests for sessions resume when you're under the limit."
+- Lowering `monthlyHours` below the minutes already in open, **unbooked** Office Hours slots for a month is refused with the slots to close first ("Close 2 slots in December to lower your hours to 2"). Booked slots are never touched.
+
 ### Pause Mode rules
 
 - New action `set-mentor-pause {paused, pausedUntil?}`.
@@ -291,6 +297,13 @@ Extend `introductionMetaByRole[role][id]` for mentor requests:
 - **The server writes `price`, `expiresAt` and `quality`.** It ignores those fields from the client. `price` comes from the mentor's `formats` at send time, and pending requests keep it if the mentor later changes prices.
 - `note` stays for founder ↔ founder introductions.
 
+### Requests already pending when Phase 2 ships
+
+- The backfill marks every pending founder → mentor introduction as `kind: "legacy-note"`. It keeps its `note` and its original 14-day expiry. It is not converted, because the founder never answered the three questions.
+- Legacy requests appear in the mentor's inbox with the note in place of the three answers, labelled "Sent before structured requests". Accept, decline and refer work as for new requests. Accepting opens a `single-session` room with the note as the goal.
+- They count towards both pending limits, and expire, decline or are returned under the new rules, with alternatives.
+- No new legacy requests can be created. They disappear naturally within 14 days of the release.
+
 ### Founder request form
 
 `MatchDetailPage.jsx` shows a new `MentorRequestForm.jsx` in place of the intro note when the target is a mentor:
@@ -356,6 +369,25 @@ Add `src/pages/RequestsPage.jsx` (mentor, `#/requests`), replacing the Phase 0 l
 - Reminder to the mentor: at 1 day before expiry when `responseDays` is 3 or more, otherwise at half the window. This replaces the day-7 reminder in `features.js` for mentor requests.
 - Expiries count against the mentor's response rate. Returns caused by Pause Mode or by blocking (Phase 7) do not.
 
+### Founder view of sent requests
+
+Founders already follow sent introductions on `WaitingPage.jsx` (`#/waiting`, "Introductions"). Phase 2 extends it for mentor requests:
+
+- One card per mentor request, newest first, showing the mentor, the format, the status and the time left before expiry.
+- Statuses and what each card offers:
+
+  | Status | Card shows |
+  | --- | --- |
+  | `pending` | Time left, and "Withdraw" (`withdraw-request`: frees a founder request slot, removes it from the mentor's inbox, and doesn't count against the mentor's response rate) |
+  | `accepted` | "Open mentorship room" |
+  | `declined` | The reason in plain words, the mentor's optional message, the cooldown end date if any, and the alternatives |
+  | `expired`, `returned` | Why, and the alternatives |
+  | `referred` | The suggested mentors, each with "Ask" opening a pre-filled request form |
+
+- Alternatives on a card are recalculated when the page loads, so a mentor who has since become unavailable is not offered.
+- The header states what needs action, e.g. "2 requests waiting · 1 mentor suggested others for you".
+- Every notification from this phase links to its card here.
+
 ### Shared helper
 
 Add `similarMentors(founder, excludeId, n)` to `server/workspace.js`. It returns available, non-conflicting mentors ranked by `scoreProfile` against the founder, and is used by refer, expiry, pause returns and every 409 response.
@@ -375,6 +407,8 @@ Add `similarMentors(founder, excludeId, n)` to `server/workspace.js`. It returns
 - [ ] Refer never shares the request content with another mentor.
 - [ ] Declining with `no-slots` does not block the founder from asking again.
 - [ ] Each blocked state shows its reason and alternatives.
+- [ ] A request pending before the release is still answerable and expires on its original date.
+- [ ] A founder can see every sent mentor request and its status on `#/waiting`, and withdraw a pending one.
 
 ## Phase 3 — Format ladder and Mentorship Room rework
 
@@ -410,6 +444,7 @@ The stages come from a new `mentorshipStage(room)` in `src/data/mentorship.js`, 
 ### Room contents (mentorship tabs)
 
 - **Goal card** (`GoalCard.jsx`). The founder's question and desired outcome, shown at the top of the room with the format. The mentor confirms the goal with one tap (`confirm-goal`), which completes the `goal` milestone, or asks a clarifying question in chat. This replaces the `mentorship-brief` card on the Terms tab. For mentorship rooms the Terms tab is removed: there are no terms to negotiate, and compensation is not offered in v1.
+- **Where format and goal are stored.** They stay in `room.terms.draft.format` and `room.terms.draft.goal`, where `ongoingMentorship`, `ensureCycle`, `MentorHome`, `SchedulePanel`, `RoomsPage`, `ReviewPage` and `home.js` already read them. Only the tab goes away. For mentorship rooms the server writes these fields: from the request on accept or booking, from `confirm-goal` (the goal), and from `accept-upgrade` (the format). The generic terms actions (propose, counter, accept terms) return 409 for mentorship rooms.
 - **Prep checklist** (`PrepChecklist.jsx`). For the founder: deck, metrics and links, due 24 hours before the session. Uploads use the existing `/api/upload` and evidence items. The mentor sees "Prep shared" or "Prep not shared yet".
 - **Shared notes** (`SessionNotes.jsx`). Add `room.notes[] {id, authorRole, text, at, sessionIndex}`, mirrored by `mirror()` (`server/workspace.js`), and a new form `session-note`. Notes are editable by their author for 24 hours.
 - **Action items.** These reuse TaskBoard tasks with a new `kind: "action"`, the founder as assignee and an optional due date. The "Action items logged" milestone completes once there is at least one. Only the mentor or founder can add them. Only the founder can mark them done.
@@ -572,7 +607,7 @@ Add `src/pages/ImpactPage.jsx` (`#/impact`) and public profile sections. Stats c
 | Average rating | Mean of founder → mentor ratings. Shown only after `minDataPoints` (3) ratings. |
 | Top-rated skills | The topics of the 3 highest-rated engagements |
 | Follow-through rate | Action items marked Done ÷ action items with a submitted follow-up |
-| Response rate | (Accepted + declined + referred) ÷ (all requests − returns caused by Pause Mode or blocking) |
+| Response rate | (Accepted + declined + referred) ÷ (all requests − returns caused by Pause Mode or blocking − requests the founder withdrew) |
 | Average response time | Median hours from `sentAt` to the mentor's response |
 | No-show rate | `no-show-mentor` and `no-show-both` outcomes ÷ resolved sessions (shown to the mentor and to admins; publicly only as "Reliable" when below 5%) |
 | Late cancellations | Count in the last 90 days (mentor and admins only) |
@@ -592,7 +627,16 @@ The same `trustSummary` gives founders: follow-up rate, average preparedness rat
 - founder → mentor: usefulness, clarity, responsiveness (1–5 each), plus the optional testimonial
 - mentor → founder: preparedness, follow-through (1–5 each)
 
-Reviews stay blind, using the existing `response()` in `server/workspace.js`. The review window opens when the session outcome is `held` (or the answer is delivered) and closes after `reviewWindowDays` (14).
+Reviews stay blind, using the existing `response()` in `server/workspace.js`. Each window closes after `reviewWindowDays` (14). When a review opens depends on the format:
+
+| Format | Reviews | Window opens |
+| --- | --- | --- |
+| Quick Ask, Doc/Pitch Review | One per room | When the answer or review is delivered |
+| Single Session | One per room | When the session outcome is `held` |
+| Office Hours | One per booking (each booking is its own room) | When the session outcome is `held` |
+| Ongoing Advisory | One per 8-week cycle, using the existing `cycle.reviews` | When the cycle ends. It is the same review the cycle's Continue / Finish decision already asks for, with the questions above. There is no review per check-in. |
+
+Each review counts once in the rating stats. A cycle review counts as one rating, however many check-ins the cycle had.
 
 ### Badges
 
@@ -943,7 +987,7 @@ Release gate. Every item must be true before any real money moves:
 
 **Pages and components**
 
-- `src/pages/RoomDetailPage.jsx`, `MatchDetailPage.jsx`, `SettingsPage.jsx`, `ProfilePage.jsx`, `CalendarPage.jsx`, `ReviewPage.jsx`, `DiscoverPage.jsx`, `ModerationPage.jsx`, `SignupPage.jsx`, `OnboardingPage.jsx`
+- `src/pages/RoomDetailPage.jsx`, `MatchDetailPage.jsx`, `WaitingPage.jsx`, `SettingsPage.jsx`, `ProfilePage.jsx`, `CalendarPage.jsx`, `ReviewPage.jsx`, `DiscoverPage.jsx`, `ModerationPage.jsx`, `SignupPage.jsx`, `OnboardingPage.jsx`
 - new pages: `RequestsPage`, `MenteesPage`, `ImpactPage`
 - `src/components/MentorHome.jsx`, `MatchCard.jsx`, `Sidebar.jsx`, `MobileMenu.jsx`, `SchedulePanel.jsx`, `TaskBoard.jsx`, `DeclineIntroduction.jsx`, `Verification.jsx`, `ChatPanel.jsx`
 - new components: `MentorRequestForm`, `GoalCard`, `PrepChecklist`, `SessionNotes`, `AttendancePanel`, `FollowupForm`, and in v1.1 `CheckoutPanel`, `PayoutSettings`
