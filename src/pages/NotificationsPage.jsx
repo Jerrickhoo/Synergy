@@ -104,8 +104,7 @@ function Digest({ items, prefs, now }) {
         </ol>
       )}
       <p className="digest-note">
-        Bundled here instead of separate alerts. Anything that needs your reply
-        still arrives straight away.
+        Match suggestions and collaboration activity are bundled here.
       </p>
     </section>
   );

@@ -55,7 +55,7 @@ async function account(request, role) {
     await post(
       request,
       "action",
-      { role, form: "accept-guidelines", values: { version: 1 } },
+      { role, form: "accept-guidelines", values: { version: 2 } },
       u.token,
     );
   return u;
@@ -121,226 +121,82 @@ async function checkLayout(page, name, testInfo, axe = true) {
 }
 
 for (const initiator of ["founder", "mentor"]) {
-  test(`${initiator}-initiated mentorship completes mutually and releases only both private reviews`, async ({
+  test(`${initiator}-initiated mentorship opens a format-specific room`, async ({
     page,
     browser,
     request,
   }, testInfo) => {
-    test.setTimeout(90000);
+    test.setTimeout(60000);
     const founder = await account(request, "founder");
     const mentor = await account(request, "mentor");
-    const otherContext = await browser.newContext({
+    const context = await browser.newContext({
       baseURL: testInfo.project.use.baseURL,
     });
-    const other = await otherContext.newPage();
+    const inbox = await context.newPage();
     try {
-      page.on("pageerror", (error) => {
-        throw error;
-      });
-      other.on("pageerror", (error) => {
-        throw error;
-      });
-      const sender = initiator === "mentor" ? mentor : founder;
-      const receiver = initiator === "mentor" ? founder : mentor;
-      await open(page, sender, "matches");
-      await open(other, receiver, "waiting");
-      await page.getByRole("tab", { name: "Browse all", exact: true }).click();
-      await page
-        .getByLabel("Search matches", { exact: true })
-        .fill(receiver.name);
-      const card = page
-        .locator(".match-card")
-        .filter({ hasText: receiver.name });
-      if (initiator === "mentor")
-        await expect(card).toContainText("Needs guidance with");
-      await card.getByRole("button", { name: /^Save (?!for later)/ }).click();
-      await expect(
-        card.getByRole("button", { name: /^Remove .* from saved matches$/ }),
-      ).toHaveAttribute("aria-pressed", "true");
-      await card.getByRole("button", { name: /^View match/ }).click();
-      await page
-        .getByRole("combobox", { name: "Collaboration type", exact: true })
-        .click();
-      await expect(page.getByRole("listbox").getByRole("option")).toHaveCount(
-        1,
+      const sender = initiator === "founder" ? founder : mentor;
+      const receiver = initiator === "founder" ? mentor : founder;
+      await open(
+        page,
+        sender,
+        `matches/${receiver.state.accountId}:${receiver.role}`,
       );
-      await page
-        .getByRole("option", { name: "Mentorship", exact: true })
-        .click();
-      await page
-        .getByRole("button", { name: "Send introduction", exact: true })
-        .click();
-      await expect(
-        page.getByRole("button", { name: /^Withdraw/ }),
-      ).toBeVisible();
-      const intro = other
-        .locator(".introduction-row")
-        .filter({ hasText: sender.name });
       if (initiator === "founder") {
-        await expect(intro).toContainText("Validate onboarding");
-        await expect(intro).toContainText("Product feedback");
-        await checkLayout(other, "mentor-request", testInfo);
+        await page
+          .getByLabel("What's the problem?")
+          .fill("Student founders leave our product during onboarding.");
+        await page
+          .getByLabel("What have you already tried?")
+          .fill("We interviewed 12 teams and shortened the signup flow.");
+        await page
+          .getByLabel("What specific question do you want answered?")
+          .fill("Which onboarding experiment should we prioritize next?");
+        await page
+          .getByRole("button", { name: "Send mentorship request" })
+          .click();
+      } else {
+        await page
+          .getByLabel("Add a short note (optional)")
+          .fill("Let's review your current onboarding goals.");
+        await page
+          .getByRole("button", { name: "Send introduction", exact: true })
+          .click();
       }
-      await intro.getByRole("button", { name: /^Accept introduction/ }).click();
-      await expect(
-        other.getByRole("heading", {
-          name: "Mentorship Engagement",
-          exact: true,
-        }),
-      ).toBeVisible();
-      const id = (await state(request, receiver)).activeRoomId;
-      await page.goto(`/#/rooms/${id}`);
-      await page
-        .getByLabel("Shared goal", { exact: true })
-        .fill("Validate onboarding together");
-      await page
-        .getByLabel("Scope and deliverables")
-        .fill("Review the first-use flow and agree next steps");
-      await page.getByLabel("Timeline", { exact: true }).fill("Two weeks");
-      await page
-        .getByLabel("Commitment", { exact: true })
-        .fill("One 45 minute session");
-      await page
-        .getByLabel("Mentoring arrangement", { exact: true })
-        .fill("Voluntary guidance");
-      await page
+      await open(
+        inbox,
+        receiver,
+        initiator === "founder" ? "requests" : "waiting",
+      );
+      await inbox
         .getByRole("button", {
-          name: /^Send for /,
-          exact: true,
+          name: initiator === "founder" ? /^Accept$/ : /^Accept introduction/,
         })
         .click();
-      await other
-        .getByRole("button", { name: "Accept these terms", exact: true })
-        .click();
       await expect(
-        page.getByText("Agreed by both", { exact: true }),
+        inbox.getByRole("heading", { name: "Mentorship Room", exact: true }),
       ).toBeVisible();
-      if (initiator === "mentor")
-        await checkLayout(page, "mentorship-goals", testInfo);
-      await page.getByRole("tab", { name: "Schedule", exact: true }).click();
-      await page.getByLabel("Session date", { exact: true }).fill("2035-04-01");
-      await page
-        .getByLabel("Or choose another time", { exact: true })
-        .fill("10:00");
-      await selectValue(
-        page.getByLabel("Session duration", { exact: true }),
-        "45",
-      );
-      await page
-        .getByRole("button", { name: "Review schedule", exact: true })
-        .click();
-      await page
-        .getByRole("button", { name: "Save session schedule", exact: true })
-        .click();
       await expect(
-        page.getByText("Your session schedule is saved.", { exact: true }),
-      ).toBeVisible();
-      await page.getByRole("tab", { name: "Milestones", exact: true }).click();
-      await page
-        .getByText("Task board · optional room tool", { exact: true })
-        .click();
-      await page
-        .getByRole("button", { name: "+ Add task", exact: true })
-        .click();
-      await page
-        .getByLabel("Task title", { exact: true })
-        .fill("Prepare mentoring feedback");
-      await selectValue(
-        page.locator(".task-editor").getByLabel("Owner", { exact: true }),
-        mentor.state.accountId,
-      );
-      await page
-        .getByRole("button", { name: "Create task", exact: true })
-        .click();
-      const mentorPage = initiator === "mentor" ? page : other;
-      await mentorPage.goto("/#/");
-      await expect(
-        mentorPage.getByRole("region", { name: "Mentoring overview" }),
-      ).toContainText("Active Deal Rooms");
-      await expect(
-        mentorPage
-          .getByText("Prepare mentoring feedback", { exact: true })
-          .first(),
-      ).toBeVisible();
-      if (initiator === "mentor")
-        await checkLayout(mentorPage, "mentor-home", testInfo);
-      for (const p of [page, other]) {
-        await p.goto(`/#/rooms/${id}`);
-        await p.getByRole("tab", { name: "Milestones", exact: true }).click();
-      }
-      await expect(
-        page.getByRole("button", { name: "Complete mentorship", exact: true }),
+        inbox.getByRole("tab", { name: "Terms", exact: true }),
       ).toHaveCount(0);
-      const guidance = page.locator(".milestone").filter({
-        has: page.locator(".milestone-title", {
-          hasText: "Guidance delivered",
-        }),
-      });
-      await guidance
-        .getByRole("button", { name: "Attach proof", exact: true })
-        .click();
-      await guidance
-        .getByLabel("Or add a link or description")
-        .fill(
-          "Discussed the onboarding flow and recorded three recommendations",
-        );
-      await guidance
-        .getByRole("button", { name: "Add proof", exact: true })
-        .click();
-      // Each participant independently confirms what happened in this walkthrough.
-      for (const p of [page, other]) {
-        const buttons = p.getByRole("button", {
-          name: /^Mark as done/,
-        });
-        await expect(buttons).toHaveCount(5);
-        for (let i = 0; i < 5; i++) await buttons.first().click();
+      const id = (await state(request, receiver)).activeRoomId;
+      if (initiator === "founder") {
+        await inbox.getByRole("button", { name: "Confirm goal" }).click();
+        await expect(
+          inbox.getByText("Goal Confirmed", { exact: true }),
+        ).toHaveAttribute("aria-current", "step");
       }
-      await expect(
-        other.getByRole("heading", { name: "How did it go?" }),
-      ).toBeVisible();
+      await page.goto(`/#/rooms/${id}`);
+      await page.getByRole("tab", { name: "Notes" }).click();
       await page
-        .getByRole("button", { name: "View your review", exact: true })
-        .click();
+        .getByLabel("New session note")
+        .fill("Review activation, retention and the new signup flow.");
+      await page.getByRole("button", { name: "Add note" }).click();
       await expect(
-        page.getByRole("heading", { name: "How did it go?" }),
+        page.getByText("Review activation, retention and the new signup flow."),
       ).toBeVisible();
-      await expect(
-        other.getByRole("button", { name: "Undo completion", exact: true }),
-      ).toBeVisible();
-      await page.getByRole("radio", { name: "4 stars", exact: true }).check();
-      await page
-        .getByLabel("A note about working together")
-        .fill("Private mentoring feedback from first reviewer");
-      await page
-        .getByRole("button", { name: "Submit private review", exact: true })
-        .click();
-      await expect(
-        other.getByText("Private mentoring feedback from first reviewer", {
-          exact: true,
-        }),
-      ).toHaveCount(0);
-      const withheld = await state(request, receiver);
-      expect(withheld.rooms[id].review.partnerNote).toBeFalsy();
-      await other.getByRole("radio", { name: "5 stars", exact: true }).check();
-      await other
-        .getByLabel("A note about working together")
-        .fill("Helpful shared guidance");
-      await other
-        .getByRole("button", { name: "Submit private review", exact: true })
-        .click();
-      await expect(
-        other.getByText("Private mentoring feedback from first reviewer", {
-          exact: true,
-        }),
-      ).toBeVisible();
-      await expect(
-        page.getByText("Helpful shared guidance", { exact: true }),
-      ).toBeVisible();
-      expect((await state(request, mentor)).rooms[id].status).toBe("reviewed");
-      if (initiator === "mentor")
-        await checkLayout(page, "mentorship-reviewed", testInfo);
+      await checkLayout(page, `${initiator}-mentorship-room`, testInfo);
     } finally {
-      await otherContext.close();
+      await context.close();
     }
   });
 }
@@ -419,7 +275,7 @@ test("mentor requests can be withdrawn and declined, remain consistent after ref
       0,
     );
     await page.reload();
-    await expect(page.getByText(/No pending requests/)).toBeVisible();
+    await expect(page.getByText(/No new mentorship requests/)).toBeVisible();
     expect(Object.keys((await state(request, mentor)).rooms)).toHaveLength(0);
     expect(Object.keys((await state(request, founder)).rooms)).toHaveLength(0);
   } finally {
@@ -497,6 +353,7 @@ test("mentors navigate by requests, mentees and calendar while founders keep mat
   request,
   browser,
 }, testInfo) => {
+  test.setTimeout(60000);
   const mentor = await account(request, "mentor");
   const founder = await account(request, "founder");
   await open(page, mentor);
@@ -511,15 +368,15 @@ test("mentors navigate by requests, mentees and calendar while founders keep mat
   await expect(
     page.getByRole("heading", { level: 1, name: "Requests" }),
   ).toBeVisible();
-  await expect(page.getByText(/No pending requests/)).toBeVisible();
+  await expect(page.getByText(/No new mentorship requests/)).toBeVisible();
   await page.getByRole("button", { name: "Browse startups" }).click();
   await expect(page).toHaveURL(/#\/matches$/);
   await main.getByRole("button", { name: "Mentees", exact: true }).click();
   await expect(
     page.getByRole("heading", { level: 1, name: "Mentees" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Review requests" }).click();
-  await expect(page).toHaveURL(/#\/waiting$/);
+  await main.getByRole("button", { name: "Requests", exact: true }).click();
+  await expect(page).toHaveURL(/#\/requests$/);
   await checkLayout(page, "mentor-requests", testInfo);
   await page.setViewportSize({ width: 390, height: 844 });
   await page

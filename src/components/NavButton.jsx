@@ -4,7 +4,9 @@ import { useApp } from "../state/AppContext.jsx";
 export default function NavButton({ page, children }) {
   const { state, onAction } = useApp();
   const currentPage = ["room-detail", "review"].includes(state.page)
-    ? "rooms"
+    ? state.role === "mentor"
+      ? "mentees"
+      : "rooms"
     : state.page === "match-detail"
       ? "discover"
       : state.page;

@@ -18,7 +18,7 @@ $env:SYNERGY_DATA_FILE = ".data/manual-preview-$([guid]::NewGuid()).sqlite"
 npm.cmd run dev
 ```
 
-Open the URL printed by Vite, normally `http://localhost:5173`. Run TC-01 and the discovery checks TC-13 through TC-18 in this mode. The fictional directory contains 14 startups and 10 mentors; results are paginated and filtered by the active role. Sample profiles have no fabricated collaboration history.
+Open the URL printed by Vite, normally `http://localhost:5173`. Run TC-01 and the discovery checks TC-13 through TC-18 in this mode. The fictional directory contains 14 startups and 10 mentors. Open Rafael Lim’s profile to see weekly Office Hours and Impact from three fictional completed engagements.
 
 Role previews cannot discover or connect with one another. Do not use them to test acceptance, shared rooms or two-party reviews. Each simulated sign-in creates a separate preview account; use refresh to retain the current session while testing it.
 
@@ -686,6 +686,109 @@ Run these as a mentor (R-MENTOR) with a second founder account. Mentor settings 
 
 **Expected:** Only mentors who can take a request now are listed, and the filter counts in the Filters badge. Mentor scores show Availability fit and Format fit, and the guide lists both with weights that total 100%.
 
+## Mentor roadmap Phase 2
+
+### TC-66 - Send and withdraw a structured request
+
+1. As a founder, open an available mentor from Matches. Add the problem, what you tried, a specific question, and an optional link.
+2. Try the request assistant, review the recipient and format, then send. Open the request from Introductions.
+3. As the mentor, open Requests and compare the answers and expiry to the founder's card. As the founder, withdraw the request.
+
+**Expected:** The mentor sees the chosen format, match and request before expiry. Withdrawal removes it from the inbox and immediately frees a founder request slot.
+
+### TC-67 - Decline, refer and expire
+
+1. Decline a request with **No slots available**. Send a second request from the same founder, then refer that founder to another available mentor.
+2. As the founder, open the referral from Introductions and confirm the prefilled form. Review it before sending to the suggested mentor.
+3. Let a separate 1-day request pass its deadline. Compare its request history and available alternatives. Repeat with a pre-release note-only request.
+
+**Expected:** No-slots declines have no cooldown. The suggested mentor sees nothing until a founder sends a new request. Expiries free capacity, and pre-release requests keep their original 14-day expiry.
+
+## Mentor roadmap Phase 3
+
+### TC-68 - Confirm a goal, share prep and resolve attendance
+
+1. Accept a Single Session request. Confirm its goal, schedule a session and share a prep file. Add a session note and an action item.
+2. Reschedule twice as the same participant. After the new session starts, submit conflicting attendance statements and resolve them as a moderator.
+3. Confirm the founder can submit an overdue follow-up and regain the full request limit.
+
+**Expected:** The second reschedule registers a late cancellation. Attendance is mirrored in both rooms. Either participant can see shared prep and notes, and only the founder can mark an action item done.
+
+### TC-69 - Deliver an async response and start advisory check-ins
+
+1. Deliver a Quick Ask answer or Doc Review. Confirm the founder can rate the response and, for a Doc Review, log revisions.
+2. Propose Ongoing Advisory. Try to accept first with insufficient monthly hours and then with sufficient capacity. Confirm the recurring time and complete the fixed check-ins.
+3. Submit one cycle review, verify it remains private, then submit the second. Continue to a new cycle or end early and verify the slot and future hours are released.
+
+**Expected:** An async slot is released on delivery. A failed upgrade leaves its proposal open. Advisory check-ins reserve capacity before scheduling and later cycles keep their history.
+
+## Mentor roadmap Phase 4
+
+### TC-70 - Open and book Office Hours
+
+1. Offer Office Hours in Mentoring settings. As the mentor, open a weekly slot. Attempt to open more hours than your capacity permits.
+2. Open the same slot as two founders and book simultaneously. View the session from another time zone.
+3. Close the booked slot from the mentor Calendar. Open the resulting update as the founder and find the next open slots.
+4. Create a private calendar link, download a session and reset the subscription link.
+
+**Expected:** Monthly over-allocation is rejected. One founder books the slot and the other sees “Just taken”. The calendar uses the same UTC instant in both views. Closing a slot cancels its booking. Resetting a link revokes the old one, and ICS files contain session times without the request content.
+
+## Mentor roadmap Phase 5
+
+### TC-71 - Check the mentor dashboard and public impact
+
+1. Open Mentor Home with requests waiting and with scheduled or completed work. Compare the ranked requests and capacity against Requests and Settings.
+2. Open Mentees and move a room through goal confirmation and delivery. Check the stage group and next action.
+3. Review a mentor as a founder, with and without consenting to publish a testimonial. Open Impact, the public match page and the print view.
+
+**Expected:** Mentor actions and stages reflect room progress. Stats display “Not enough data yet” below the minimum. Both people must agree before a testimonial is public. The certificate shows actual volunteer hours.
+
+## Mentor roadmap Phase 6
+
+### TC-72 - Apply, resume and approve a mentor
+
+1. Sign up as a mentor. Save verification, sign out, then sign back in and continue at Expertise.
+2. Complete required steps and submit the application. Try to send a founder request before approval. As a moderator, reject with a reason and check that the mentor can edit and resubmit.
+3. Approve the resubmission and check discovery. Repeat signup as Both and verify that the founder profile can be used during mentor approval.
+
+**Expected:** Draft progress survives login and reload. Pending or rejected mentors cannot receive requests. Approval makes the mentor discoverable, and existing mentors keep their eligibility.
+
+## Mentor roadmap Phase 7
+
+### TC-73 - Warn, report and block
+
+1. In a mentorship room, try to send “Please pay me for my time”. Edit the message, then repeat and choose **Send anyway**.
+2. As the recipient, report the flagged message. Send two more flagged messages and check the moderation queue.
+3. Block a founder from a pending request card and check the founder's request history.
+
+**Expected:** Editing leaves the message unsent. A confirmed message is delivered with a Report shortcut. The queue identifies flag categories and keeps request text private. Blocking returns the request without affecting response rate.
+
+### TC-74 - Limit repeated no-shows and suspend a mentor
+
+1. Resolve two attendance outcomes as no-shows for the same participant within 90 days. Lift the limit in moderation.
+2. Suspend a mentor with an upcoming appointment, an active room and a pending request. Check the affected founders' updates and room history.
+3. Reinstate the mentor and check discovery and room history.
+
+**Expected:** The attendance limit applies once and stays lifted for the same incidents. Suspension returns requests, cancels booked appointments, closes active rooms and notifies affected founders. Reinstatement restores discovery eligibility.
+
+## Mentor roadmap Phase 8
+
+### TC-75 - Delivery, preferences and privacy
+
+1. Confirm the stub remains the default. In staging, configure Brevo and test request digest and instant delivery in two time zones.
+2. Open the links from an accepted request, a session reminder and a follow-up. Check unsubscribe confirmation and replay a bounce webhook.
+3. Delete a test account with Office Hours, a private request and a shared session note. Inspect the other account's room, request history and rating counts.
+
+**Expected:** Emails contain notice text and links with no request answers. Per-kind unsubscribe and bounce suppression apply to queued sends. Deletion removes profile data, unavailable bookings, authored notes and unshared request content while retaining anonymized counts.
+
+### TC-76 - Edit settings and verify launch metrics
+
+1. As a moderator, change the free reschedule count and inspect the change log. Try a value outside 0 to 3 and try changing it as a non-moderator.
+2. Compare the six launch metrics against a known fixture. Filter moderator queues by approval, disputes, safety flags, rating flags and attendance limits.
+3. Verify that weekly history requires four consecutive weeks meeting every threshold before the v1.1 review is ready.
+
+**Expected:** A valid setting takes effect immediately, survives restart, and records the old value, new value and moderator. Invalid settings are rejected. Each metric matches its numerator and denominator; missing samples stay visible as insufficient data.
+
 ## 12. Optional engineering checks
 
 Manual UI checks do not fully establish API authorization, stale-version enforcement, storage transactions or backup integrity. The repository's automated tests cover additional cases in these areas. Run the checks below when doing a release/regression pass; do not mark manual cases passed solely because automation passed.
@@ -699,7 +802,7 @@ npm.cmd run test:e2e
 npm.cmd run build
 ```
 
-The browser suite uses isolated generated databases and ports 5181-5184. It includes local-account browser projects and a separate prototype project. Existing tests in [app.spec.js](../../tests/app.spec.js), [prototype.spec.js](../../tests/prototype.spec.js), [features.spec.js](../../tests/features.spec.js), [mentorship.spec.js](../../tests/mentorship.spec.js) and [mentor-capacity.spec.js](../../tests/mentor-capacity.spec.js) provide executable workflow references. Backend coverage includes [reliability.test.js](../../tests/reliability.test.js), [features.test.js](../../tests/features.test.js) and [integrations.test.js](../../tests/integrations.test.js).
+The browser suite uses isolated generated databases on ports 5181–5186, with dedicated verification and mentor approval servers. It includes local-account browser projects and a separate prototype project. Existing tests in [app.spec.js](../../tests/app.spec.js), [prototype.spec.js](../../tests/prototype.spec.js), [features.spec.js](../../tests/features.spec.js), [mentorship.spec.js](../../tests/mentorship.spec.js) and [mentor-capacity.spec.js](../../tests/mentor-capacity.spec.js) provide executable workflow references. Backend coverage includes [reliability.test.js](../../tests/reliability.test.js), [features.test.js](../../tests/features.test.js) and [integrations.test.js](../../tests/integrations.test.js).
 
 For an operator rehearsal, follow [Deployment, storage and recovery](../operations/DEPLOYMENT.md) using disposable database/upload copies. Verify backup creation, integrity checks and restore in a separate workspace before comparing saved records and downloads. Do not restore over the main test run or a real workspace.
 

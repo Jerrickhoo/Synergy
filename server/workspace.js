@@ -19,6 +19,45 @@ import {
 import { validateCredentials, cleanValues } from "../src/state/validation.js";
 import { transition } from "../src/state/transitions.js";
 import { encode, decode } from "../src/state/serialization.js";
+import {
+  calendarActions,
+  calendarIcs,
+  createOfficeHours,
+  officeAllocation,
+  officeAvailability,
+  preferredAvailability,
+} from "./office-hours.js";
+import {
+  applicationActions,
+  createMentorOnboarding,
+} from "./mentor-onboarding.js";
+import {
+  logMentorSetting,
+  mentoringGate,
+  mentorSettingEntries,
+  recordMentoringWeek,
+  updatedMentorConfig,
+} from "./mentor-admin.js";
+import {
+  applyEmailWebhook,
+  createBrevoSender,
+  emailKindAllowed,
+  equalSecret,
+  nextRequestDigest,
+  parseUnsubscribe,
+} from "./mentor-email.js";
+import { createMentorSafety, safetyActions } from "./mentor-safety.js";
+import { createMentorshipRooms } from "./mentorship-rooms.js";
+import { createMentorPayments, paymentActions } from "./mentor-payments.js";
+import {
+  initMentorship,
+  isMentorRoom,
+  migrateMentorship,
+  roomFormat,
+} from "../src/data/mentor-room.js";
+import { publicMentorshipTrust } from "../src/data/mentor-impact.js";
+import { mentorFormat } from "../src/data/mentor-formats.js";
+import { createMentorRequests, requestActions } from "./mentor-requests.js";
 import { createFeatures, defaultPreferences } from "./features.js";
 import defaultTemplates from "../src/data/engagement-templates.json" with { type: "json" };
 import {
@@ -43,6 +82,7 @@ import {
   conflictWith,
   formatFit,
   mentorConfig,
+  mentorDefaults,
   ownUnavailableText,
   unavailableText,
 } from "../src/data/mentor-rules.js";
@@ -51,6 +91,7 @@ import {
   demoProfiles,
   legacyDemoProfiles,
   demoDirectoryVersion,
+  seedDemoImpact,
 } from "./demo-directory.js";
 
 export class WorkspaceError extends Error {
@@ -346,11 +387,33 @@ export function createWorkspace(file, options = {}) {
       "Unsupported workspace database. Existing data was not changed.",
     );
   const sessions = new Map();
+  const mentorSettings = () =>
+    db.mentorConfig ? { ...mentorConfig, ...db.mentorConfig } : mentorConfig;
   db.files ||= {};
   const hash = (value) => createHash("sha256").update(value).digest("hex");
   let committed = clone(db);
   const save = () => {
     try {
+      for (const { state } of Object.values(db.accounts)) {
+        delete state.mentorRequests;
+        delete state.referralChoices;
+        delete state.mentorRequestLimit;
+        delete state.calendarToken;
+        delete state.mentorApplication;
+        delete state.mentorSuspension;
+        delete state.mentorConfig;
+        delete state.pricingConfig;
+        delete state.pricingHistory;
+        delete state.paymentRecords;
+        delete state.paymentCheckoutData;
+        delete state.paymentModeration;
+        delete state.mentorshipSurvey;
+        delete state.mentorEmailStatus;
+        for (const room of Object.values(state.rooms))
+          delete room.officeHoursSuggestions;
+        for (const room of Object.values(state.rooms))
+          delete room.preferredHoursSuggestions;
+      }
       const expected = db.revision;
       db.revision += 1;
       storage.commit(db, expected);
@@ -361,17 +424,47 @@ export function createWorkspace(file, options = {}) {
     }
   };
 
+  const onboarding = createMentorOnboarding({
+    accounts: () => db.accounts,
+    config: mentorSettings,
+    now,
+    fail,
+    event: (...args) => event(...args),
+    vocabulary: () => features.vocabulary(),
+    isAdmin: (account) => features.isAdmin(account),
+    audit,
+    required: options.mentorApprovalRequired !== false,
+  });
+  function audit(account, kind, id, decision, note = "") {
+    (db.moderationAudit ||= []).push({
+      id: randomUUID(),
+      moderator: account.email,
+      kind,
+      targetId: id,
+      decision,
+      note,
+      timestamp: new Date(now()).toISOString(),
+    });
+  }
   let migrated = false;
+  if (
+    db.mentorConfig &&
+    db.mentorConfig.guidelinesVersion < mentorConfig.guidelinesVersion
+  ) {
+    db.mentorConfig.guidelinesVersion = mentorConfig.guidelinesVersion;
+    migrated = true;
+  }
   // Phase 1 mentoring: the release time starts the guidelines grace period for
   // mentors who existed before it. Mentors who join later get no grace.
   db.mentorRules ||= {};
+  if (onboarding.migrations(db)) migrated = true;
   if (!db.mentorRules.phase1At) {
     db.mentorRules.phase1At = new Date(now()).toISOString();
     migrated = true;
   }
   const guidelinesGraceUntil = new Date(
     Date.parse(db.mentorRules.phase1At) +
-      mentorConfig.guidelinesGraceDays * 86400000,
+      mentorSettings().guidelinesGraceDays * 86400000,
   ).toISOString();
   const backfillMentor = (profile) =>
     backfillMentorProfile(profile, {
@@ -387,13 +480,44 @@ export function createWorkspace(file, options = {}) {
   }
   for (const account of Object.values(db.accounts)) {
     if (backfillMentor(account.state.profiles.mentor)) migrated = true;
+    if (!Array.isArray(account.state.profiles.mentor.officeHours)) {
+      account.state.profiles.mentor.officeHours = [];
+      migrated = true;
+    }
+    if (!Object.hasOwn(account.state.profiles.mentor, "preferredHours")) {
+      account.state.profiles.mentor.preferredHours = null;
+      migrated = true;
+    }
     // A sample's stored baseline is migrated the same way, so an untouched
     // sample still matches it and is refreshed to the new fixture below.
-    if (account.demoFixture?.snapshot?.profile?.expertise !== undefined)
-      backfillMentor(account.demoFixture.snapshot.profile);
+    if (account.demoFixture?.snapshot?.profile?.expertise !== undefined) {
+      const baseline = account.demoFixture.snapshot.profile;
+      if (backfillMentor(baseline)) migrated = true;
+      if (!Object.hasOwn(baseline, "officeHours")) {
+        baseline.officeHours = [];
+        migrated = true;
+      }
+      if (!Object.hasOwn(baseline, "preferredHours")) {
+        baseline.preferredHours = null;
+        migrated = true;
+      }
+    }
     for (const room of Object.values(account.state.rooms)) {
+      if (migrateMentorship(room, now())) {
+        if (room.status === "launched" && room.launchedAt) {
+          room.mentorship.reviewOpenedAt = room.launchedAt;
+          room.mentorship.reviewClosesAt = reviewDeadline(room);
+        }
+        if (room.cycle) {
+          room.cycle.checkIns ||= mentorSettings().checkInsPerCycle;
+          room.cycle.checkInMinutes ||= mentorSettings().checkInMinutes;
+          if (room.milestones.checkins?.schedules?.length)
+            room.cycle.confirmedAt ||= room.createdAt || room.cycle.startsAt;
+        }
+        migrated = true;
+      }
       if (ongoingMentorship(room) && room.terms.partnerLocked && !room.cycle) {
-        ensureCycle(room, now());
+        ensureCycle(room, now(), mentorSettings());
         migrated = true;
       }
     }
@@ -480,25 +604,122 @@ export function createWorkspace(file, options = {}) {
       };
       samplesChanged = true;
     }
-    if (samplesChanged) save();
+    if (seedDemoImpact(db.accounts) || samplesChanged) save();
   }
 
-  const event = (account, role, text, roomId, extra = {}) =>
+  const event = (account, role, text, roomId, extra = {}) => {
+    const time = now();
+    const mentorRequest = role === "mentor" && extra.kind === "request";
     account.state.activity.unshift({
       id: randomUUID(),
       role,
       text,
       roomId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(time).toISOString(),
       sample: false,
       ...extra,
+      ...(mentorRequest && {
+        requestDigestAt:
+          account.notificationPreferences?.mentorRequestEmail === "instant"
+            ? null
+            : nextRequestDigest(
+                time,
+                account.state.profiles.mentor.timeZone || "Asia/Manila",
+                mentorSettings().digestHour,
+              ),
+      }),
     });
+  };
   // Startups appear under their company name when one is set.
   const displayName = (account, role) =>
     (role === "founder" &&
       account.state.profiles.founder?.startupName?.trim()) ||
     account.state.accountName;
-  const introLimitMs = 14 * 86400000;
+  const introLimitMs = options.introductionLimitMs ?? 14 * 86400000;
+  const mentorRequests = createMentorRequests({
+    accounts: () => db.accounts,
+    now,
+    config: mentorSettings,
+    identity,
+    displayName,
+    capacity: (state) => mentorUsage(state),
+    similarMentors: (...args) => similarMentors(...args),
+    conflict: (...args) => pairConflict(...args),
+    fail,
+    event,
+    connect,
+    legacyWindow: introLimitMs,
+    approvedMentor: (account) => onboarding.approved(account),
+    safetyCheck: (...args) => safety.check(...args),
+    recordSafety: (...args) => safety.record(...args),
+    options,
+  });
+  const mentorshipRooms = createMentorshipRooms({
+    accounts: () => db.accounts,
+    config: mentorSettings,
+    now,
+    capacity: (...args) => mentorUsage(...args),
+    officeAllocation,
+    safetyCheck: (...args) => safety.check(...args),
+    recordSafety: (...args) => safety.record(...args),
+    event,
+    mirror,
+    fail,
+    isAdmin: (account) => features.isAdmin(account),
+    audit(account, kind, id, decision) {
+      (db.moderationAudit ||= []).push({
+        id: randomUUID(),
+        moderator: account.email,
+        kind,
+        targetId: id,
+        decision,
+        timestamp: new Date(now()).toISOString(),
+      });
+    },
+  });
+  const officeHours = createOfficeHours({
+    accounts: () => db.accounts,
+    config: mentorSettings,
+    now,
+    fail,
+    mirror,
+    connect,
+    capacity: (state) => mentorUsage(state),
+    verify: (...args) => mentorRequests.verify(...args),
+    founderLimit: (state) => mentorRequests.founderLimit(state),
+    eligible: directoryVisible,
+    conflict: (...args) => pairConflict(...args),
+    checkSchedule: (...args) => mentorshipRooms.checkSchedule(...args),
+    safetyCheck: (...args) => safety.check(...args),
+    recordSafety: (...args) => safety.record(...args),
+  });
+  const safety = createMentorSafety({
+    accounts: () => db.accounts,
+    config: mentorSettings,
+    now,
+    event,
+    audit,
+    fail,
+    isAdmin: (account) => features.isAdmin(account),
+    mirror,
+    endRoom: (...args) => mentorshipRooms.end(...args),
+    returnRequests: (...args) => mentorRequests.returned(...args),
+    similarMentors: (...args) => similarMentors(...args),
+  });
+  const payments = createMentorPayments({
+    getDb: () => db,
+    now,
+    fail,
+    event,
+    mirror,
+    isAdmin: (account) => features.isAdmin(account),
+    settings: mentorSettings,
+    bookOffice: (...args) => officeHours.act(...args),
+    validateOffice: (...args) => officeHours.validateBooking(...args),
+    acceptUpgrade: (...args) => mentorshipRooms.act(...args),
+    roomAction: (...args) => mentorshipRooms.act(...args),
+    secret: options.paymentsWebhookSecret,
+  });
   const keepHistory = (state, role, entry) => {
     state.introHistoryByRole ||= { founder: [], mentor: [] };
     state.introHistoryByRole[role] ||= [];
@@ -513,8 +734,28 @@ export function createWorkspace(file, options = {}) {
   };
   // Time-based closures run before any read: unanswered introductions expire
   // after 14 days and review windows close 14 days after launch (D1, D13).
-  function sweep(account) {
+  function sweepMentorship() {
     let changed = false;
+    for (const owner of Object.values(db.accounts)) {
+      for (const room of Object.values(owner.state.rooms)) {
+        if (
+          !isMentorRoom(room) ||
+          room.role !== "mentor" ||
+          !db.accounts[room.partnerAccountId]?.state.rooms[room.id]
+        )
+          continue;
+        if (mentorshipRooms.sweep(owner, owner.state, room)) {
+          mirror(owner, owner.state, room);
+          changed = true;
+        }
+      }
+    }
+    if (payments.sweep()) changed = true;
+    if (safety.sweep()) changed = true;
+    return mentorRequests.sweep() || changed;
+  }
+  function sweep(account, mentoring = true) {
+    let changed = mentoring && sweepMentorship();
     const time = now();
     const state = account.state;
     // Pause Mode ends by itself at the start of the chosen resume date, in the
@@ -522,6 +763,7 @@ export function createWorkspace(file, options = {}) {
     const mentor = state.profiles.mentor;
     if (
       mentor?.paused &&
+      !account.mentorSafetyPause &&
       mentor.pausedUntil &&
       time >=
         scheduleInstant({
@@ -547,7 +789,7 @@ export function createWorkspace(file, options = {}) {
     for (const role of roles) {
       const meta = state.introductionMetaByRole?.[role] || {};
       for (const [id, item] of Object.entries(meta)) {
-        if (!state.waitingByRole[role].has(id)) continue;
+        if (!state.waitingByRole[role].has(id) || item.kind) continue;
         if (
           time - Date.parse(item.sentAt || 0) <
           (options.introductionLimitMs ?? introLimitMs)
@@ -586,6 +828,7 @@ export function createWorkspace(file, options = {}) {
       }
     }
     for (const room of Object.values(state.rooms)) {
+      if (isMentorRoom(room)) continue;
       if (room.status !== "launched") continue;
       if (!room.launchedAt) {
         room.launchedAt =
@@ -616,7 +859,14 @@ export function createWorkspace(file, options = {}) {
     }
     return changed;
   }
-  const mentorUsage = (mentorState) => capacityUsage(mentorState, now());
+  const mentorUsage = (mentorState) => {
+    const config = mentorSettings();
+    const time = now();
+    const allocation = mentorState.profiles.mentor?.officeHours?.length
+      ? officeAllocation(mentorState, time, config).months
+      : undefined;
+    return capacityUsage(mentorState, time, config, allocation);
+  };
   // Conflict of interest between a mentor account and a founder account.
   const pairConflict = (mentorAccount, founderAccount) =>
     conflictWith(
@@ -630,12 +880,21 @@ export function createWorkspace(file, options = {}) {
   // Available mentors most similar to the founder's needs, for every place a
   // request can't go ahead (paused, full, conflict).
   function similarMentors(
-    viewerState,
+    founder,
     excludeId,
-    n = mentorConfig.alternativesCount,
+    n = mentorSettings().alternativesCount,
   ) {
-    return viewerState.directory.mentors
-      .filter((item) => item.id !== excludeId && item.available)
+    const viewer = { ...founder.state, role: "founder" };
+    return Object.values(db.accounts)
+      .filter(
+        (other) =>
+          identity(other, "mentor") !== excludeId &&
+          directoryVisible(other, founder) &&
+          discoverableMentor(other) &&
+          pairConflict(other, founder)?.level !== "block",
+      )
+      .map((other) => person(other, "mentor", viewer))
+      .filter((item) => item.available)
       .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
       .slice(0, n)
       .map(({ id, name, score }) => ({ id, name, score }));
@@ -657,20 +916,48 @@ export function createWorkspace(file, options = {}) {
         undefined,
         {
           reason: "conflict",
-          alternatives: mentorIsThem ? similarMentors(state, person.id) : [],
+          alternatives: mentorIsThem ? similarMentors(account, person.id) : [],
+        },
+      );
+    if (mentorAccount.mentorSuspension)
+      fail("This mentor is suspended.", 409, undefined, {
+        reason: "suspended",
+      });
+    if (!onboarding.approved(mentorAccount))
+      fail(
+        "This mentor must complete approval before connecting.",
+        409,
+        undefined,
+        {
+          reason: "approval-required",
+          alternatives: similarMentors(
+            founderAccount,
+            identity(mentorAccount, "mentor"),
+          ),
         },
       );
     const usage = mentorUsage(mentorIsMe ? state : mentorAccount.state);
-    if (usage.available) return;
+    const single = "single-session";
+    const reason = ["paused", "guidelines", "no-show-limit"].includes(
+      usage.reason,
+    )
+      ? usage.reason
+      : !usage.offeredFormats.includes(single)
+        ? "format-unavailable"
+        : usage.fitReasons[single];
+    if (!reason) return;
     if (mentorIsMe)
-      fail(ownUnavailableText(usage.reason), 409, undefined, {
-        reason: usage.reason,
+      fail(ownUnavailableText(reason), 409, undefined, {
+        reason,
       });
     fail(
-      `${unavailableText(usage.reason, person.name)} Try one of the suggested mentors instead.`,
+      `${unavailableText(reason, person.name)} Try one of the suggested mentors instead.`,
       409,
       undefined,
-      { reason: usage.reason, alternatives: similarMentors(state, person.id) },
+      {
+        reason,
+        alternatives: similarMentors(account, person.id),
+      },
     );
   }
   function person(account, role, viewer) {
@@ -680,6 +967,40 @@ export function createWorkspace(file, options = {}) {
     // Availability and Format Fit describe the mentor being scored. A mentor
     // browsing founders isn't scored on their own capacity.
     const usage = role === "mentor" ? mentorUsage(account.state) : null;
+    const officeHours =
+      usage?.offeredFormats.includes("office-hours") &&
+      usage.activeMentees < usage.capacity.maxMentees &&
+      ![
+        "paused",
+        "guidelines",
+        "suspended",
+        "approval-required",
+        "no-show-limit",
+      ].includes(usage.reason)
+        ? officeAvailability(account.state, now(), mentorSettings()).filter(
+            (slot) =>
+              !Object.values(db.payments || {}).some(
+                (payment) =>
+                  payment.mentorId === account.id &&
+                  payment.hold?.occurrenceId === slot.id &&
+                  payment.status === "due" &&
+                  Date.parse(payment.dueBy) > now(),
+              ),
+          )
+        : [];
+    if (
+      usage?.availableFormats.includes("office-hours") &&
+      !officeHours.length
+    ) {
+      usage.availableFormats = usage.availableFormats.filter(
+        (id) => id !== "office-hours",
+      );
+      usage.formatReasons["office-hours"] = "no-office-hours";
+      if (!usage.availableFormats.length) {
+        usage.available = false;
+        usage.reason = "no-office-hours";
+      }
+    }
     const marketing = [
       [mine.offer, profile.need],
       [profile.offer, mine.need],
@@ -688,6 +1009,19 @@ export function createWorkspace(file, options = {}) {
         /marketing|audience|promotion|growth/i.test(offer) &&
         /marketing|audience|promotion|growth/i.test(need),
     );
+    const { mentorship, ...trust } = trustSummary(
+      account.state.rooms,
+      role,
+      now(),
+      {
+        requests: account.state.mentorRequestsByRole?.[role] || [],
+        pending:
+          role === "mentor" ? account.state.incomingByRole.mentor.size : 0,
+        approved: role === "mentor" && onboarding.approved(account),
+        config: mentorSettings(),
+      },
+    );
+    const mentorStats = publicMentorshipTrust(mentorship, mentorSettings());
     return {
       id: identity(account, role),
       accountId: account.id,
@@ -720,10 +1054,15 @@ export function createWorkspace(file, options = {}) {
       ...(role === "mentor" && {
         available: usage.available,
         availableFormats: usage.availableFormats,
+        officeHours,
         formatReasons: usage.formatReasons,
         openSlots: usage.openSlots,
         hoursLeftThisMonth: usage.hoursLeft,
-        formats: normalizeOfferedFormats(profile.formats),
+        formats: normalizeOfferedFormats(
+          profile.formats,
+          profile.payoutSetup?.status === "ready",
+          payments.config(),
+        ),
         responseDays: usage.capacity.responseDays,
         reason: usage.reason,
         paused: usage.paused,
@@ -751,7 +1090,13 @@ export function createWorkspace(file, options = {}) {
               status: "verified",
             }
           : null,
-      trust: trustSummary(account.state.rooms, role),
+      trust,
+      ...(role === "mentor"
+        ? { mentorImpact: mentorStats }
+        : viewer.role === "mentor"
+          ? { founderTrackRecord: mentorStats }
+          : {}),
+      badges: mentorStats.badges,
       ...scoreProfile(
         viewer.profiles[viewer.role],
         profile,
@@ -765,12 +1110,37 @@ export function createWorkspace(file, options = {}) {
       ),
     };
   }
+  function discoverableMentor(account) {
+    return (
+      !account.mentorSuspension &&
+      onboarding.approved(account) &&
+      (account.mentorApplication?.status === "approved" ||
+        profileCompleteness(account.state.profiles.mentor, "mentor") === 100)
+    );
+  }
+  function directoryVisible(other, account) {
+    return (
+      other.id !== account.id &&
+      !other.deletedAt &&
+      (!other.demo || (account.demo && other.demoSample && options.demoMode)) &&
+      !other.suspended &&
+      other.profileVisible !== false &&
+      !account.blockedAccounts?.includes(other.id) &&
+      !other.blockedAccounts?.includes(account.id)
+    );
+  }
   function prepare(account, role = account.state.role) {
     if (sweep(account)) save();
     const state = clone(account.state);
     state.role = roles.includes(role) ? role : state.role;
     state.authenticated = true;
     state.accountId = account.id;
+    state.calendarToken = account.calendarToken || null;
+    state.mentorApplication = onboarding.get(account, state.role);
+    state.mentorshipSurvey =
+      state.role === "mentor" ? account.mentorshipSurvey || null : null;
+    state.mentorSuspension =
+      state.role === "mentor" ? account.mentorSuspension || null : null;
     state.emailVerified = Boolean(account.emailVerifiedAt);
     state.integrations = {
       demoMode: Boolean(options.demoMode),
@@ -782,25 +1152,29 @@ export function createWorkspace(file, options = {}) {
     state.introductionTypesByRole ||= { founder: {}, mentor: {} };
     state.introductionMetaByRole ||= { founder: {}, mentor: {} };
     state.introHistoryByRole ||= { founder: [], mentor: [] };
-    state.verification = account.affiliation?.status || "none";
+    state.verification =
+      (state.role === "mentor" &&
+        account.mentorApplication?.status === "approved") ||
+      account.affiliation?.status === "verified"
+        ? "verified"
+        : account.affiliation?.status || "none";
     // The mentor's own capacity, computed on the server and only shown by the
     // client (Settings, Home and Profile).
-    state.mentorUsage = capacityUsage(state, now());
+    state.mentorUsage = mentorUsage(state);
+    if (state.mentorApplication || state.mentorSuspension)
+      Object.assign(state.mentorUsage, {
+        available: false,
+        availableFormats: [],
+        reason: state.mentorSuspension ? "suspended" : "approval-required",
+      });
     state.directory = createInitialState().directory;
     for (const other of Object.values(db.accounts)) {
-      if (
-        other.id === account.id ||
-        (other.demo &&
-          (!account.demo || !other.demoSample || !options.demoMode)) ||
-        other.suspended ||
-        other.profileVisible === false ||
-        account.blockedAccounts?.includes(other.id) ||
-        other.blockedAccounts?.includes(account.id)
-      )
-        continue;
+      if (!directoryVisible(other, account)) continue;
       for (const otherRole of roles) {
         if (
-          profileCompleteness(other.state.profiles[otherRole], otherRole) < 100
+          otherRole === "mentor"
+            ? !discoverableMentor(other)
+            : profileCompleteness(other.state.profiles.founder, "founder") < 100
         )
           continue;
         // A blocking conflict hides the pair from each other in both
@@ -844,6 +1218,21 @@ export function createWorkspace(file, options = {}) {
     // Existing collaborators remain identifiable if their public profile changes.
     for (const room of Object.values(state.rooms)) {
       const other = db.accounts[room.partnerAccountId];
+      if (isMentorRoom(room)) {
+        const mentor = room.role === "mentor" ? account : other;
+        if (mentor)
+          room.officeHoursSuggestions = officeAvailability(
+            mentor.state,
+            now(),
+            mentorSettings(),
+          );
+        if (mentor)
+          room.preferredHoursSuggestions = preferredAvailability(
+            mentor.state,
+            now(),
+            mentorSettings(),
+          );
+      }
       if (
         other &&
         !createModel(state)
@@ -880,6 +1269,8 @@ export function createWorkspace(file, options = {}) {
         sample: false,
       });
     }
+    mentorRequests.decorate(account, state);
+    payments.decorate(account, state);
     return features.decorate(account, state);
   }
   function response(account, role) {
@@ -890,8 +1281,33 @@ export function createWorkspace(file, options = {}) {
         Boolean,
       )) {
         const reviews = cycle.reviews || {};
-        if (!reviews[account.id] || !reviews[room.partnerAccountId])
+        if (
+          !cycle.reviewWindowClosed &&
+          (!reviews[account.id] || !reviews[room.partnerAccountId])
+        )
           delete reviews[room.partnerAccountId];
+      }
+      if (isMentorRoom(room)) {
+        for (const entry of room.mentorship.history || []) {
+          if (
+            entry.review &&
+            !(entry.review.me && entry.review.partner) &&
+            !entry.review.windowClosed
+          )
+            delete entry.review;
+        }
+        if (
+          !(room.review.me && room.review.partner) &&
+          !room.review.windowClosed
+        ) {
+          for (const key of [
+            "partnerScores",
+            "partnerTestimonial",
+            "partnerTestimonialPublic",
+            "partnerSubmittedAt",
+          ])
+            delete room.review[key];
+        }
       }
       if (
         !(room.review.me && room.review.partner) &&
@@ -968,6 +1384,12 @@ export function createWorkspace(file, options = {}) {
         notificationPreferences: { ...defaultPreferences },
       };
       transition(account.state, { form: "signup-form", values });
+      Object.assign(
+        account.state.profiles.mentor,
+        mentorDefaults(mentorSettings()),
+      );
+      if (values.role === "mentor" || values.role === "both")
+        onboarding.begin(account);
       db.accounts[account.id] = account;
       save();
     } else {
@@ -1068,10 +1490,50 @@ export function createWorkspace(file, options = {}) {
     simulatePartner: (...args) => simulatePartner(...args),
     advanceRoom,
     keepHistory,
+    mentorSettings,
+    mentorAdmin: () => ({
+      entries: mentorSettingEntries(mentorSettings()),
+      history: (db.mentorConfigHistory || []).slice(0, 100),
+      gate: mentoringGate(db, now()),
+    }),
+    changeMentorSetting(account, path, input) {
+      let change;
+      try {
+        change = updatedMentorConfig(mentorSettings(), path, input);
+      } catch (error) {
+        fail(error.message, 400, { value: error.message });
+      }
+      const { next, before, value } = change;
+      if (isDeepStrictEqual(before, value)) return false;
+      db.mentorConfig = next;
+      logMentorSetting(db, account.email, path, before, value, now());
+      if (path === "guidelinesVersion") {
+        const until = new Date(
+          now() + next.guidelinesGraceDays * 86400000,
+        ).toISOString();
+        for (const mentor of Object.values(db.accounts).filter(
+          discoverableMentor,
+        ))
+          mentor.state.profiles.mentor.guidelinesGraceUntil = until;
+      }
+      return true;
+    },
+    mentorApproved: (account) => onboarding.approved(account),
+    approvalQueue: () => onboarding.queue(),
+    mentorSafetyQueue: () => safety.queue(),
+    validateOfficeHours: (...args) => officeHours.validateLowering(...args),
     similarMentors: (...args) => similarMentors(...args),
+    mentorRequestActions: requestActions,
+    mentorRequestAction: (account, state, input) => {
+      mentorRequests.verify(account, state, input);
+      mentorRequests.act(account, state, input);
+    },
+    returnMentorRequests: (account, state, reason, founder) =>
+      mentorRequests.returned({ ...account, state }, reason, founder),
   });
 
   function advanceRoom(account, state, room) {
+    if (isMentorRoom(room)) return false;
     if (["launched", "reviewed", "cancelled"].includes(room.status))
       return false;
     if (!room.terms.locked || !room.terms.partnerLocked) return false;
@@ -1114,6 +1576,7 @@ export function createWorkspace(file, options = {}) {
   }
 
   function mirror(account, state, room, text, extra = {}) {
+    if (isMentorRoom(room)) payments.syncRoom(room);
     const partner = db.accounts[room.partnerAccountId];
     const previous = partner?.state.rooms[room.id];
     if (!partner || !previous || previous.partnerAccountId !== account.id)
@@ -1132,7 +1595,9 @@ export function createWorkspace(file, options = {}) {
         room.cycle?.goals,
         room.terms.revision || 0,
       ]);
-    for (const [id, item] of Object.entries(room.milestones)) {
+    for (const [id, item] of Object.entries(
+      isMentorRoom(room) ? {} : room.milestones,
+    )) {
       const old = previous.milestones[id];
       const oldContent = encode([
         old.title,
@@ -1189,6 +1654,15 @@ export function createWorkspace(file, options = {}) {
       goalOutcome: room.review.partnerGoalOutcome,
       partnerUseful: room.review.useful,
       partnerGoalOutcome: room.review.goalOutcome,
+      scores: room.review.partnerScores,
+      partnerScores: room.review.scores,
+      testimonial: room.review.partnerTestimonial,
+      partnerTestimonial: room.review.testimonial,
+      testimonialPublic: room.review.partnerTestimonialPublic,
+      partnerTestimonialPublic: room.review.testimonialPublic,
+      submittedAt: room.review.partnerSubmittedAt,
+      partnerSubmittedAt: room.review.submittedAt,
+      testimonialAccepted: room.review.testimonialAccepted,
     };
     partner.state.rooms[room.id] = shared;
     if (text)
@@ -1331,7 +1805,7 @@ export function createWorkspace(file, options = {}) {
         : { tab: "milestones" },
     );
   }
-  function connect(account, state, person, acceptedByPartner = false) {
+  function connect(account, state, person, acceptedByPartner = false, request) {
     const other = db.accounts[person.accountId];
     const ownId = identity(account, state.role);
     if (createModel(state).existingRoomFor(state.role, person.id))
@@ -1342,6 +1816,7 @@ export function createWorkspace(file, options = {}) {
       role: state.role,
       partnerId: person.id,
       type:
+        (request && "mentorship") ||
         state.introductionTypesByRole[state.role]?.[person.id] ||
         createModel(state).roomTypeForPerson(person),
     });
@@ -1350,7 +1825,32 @@ export function createWorkspace(file, options = {}) {
       marketing: "Co-Marketing Swap",
       mentorship: "Mentorship",
     }[room.type];
-    room.createdAt = room.updatedAt = new Date().toISOString();
+    if (room.type === "mentorship") {
+      const previous = state.introductionMetaByRole[state.role]?.[person.id];
+      initMentorship(
+        room,
+        request?.format || "single-session",
+        request?.desiredOutcome ||
+          request?.question ||
+          request?.note ||
+          previous?.note ||
+          "",
+        now(),
+      );
+      if (request?.question) room.mentorship.question = request.question;
+      if (request?.desiredOutcome)
+        room.mentorship.desiredOutcome = request.desiredOutcome;
+      const mentorProfile =
+        state.role === "mentor"
+          ? state.profiles.mentor
+          : other.state.profiles.mentor;
+      room.mentorship.topics = tags(mentorProfile.topics);
+      room.mentorship.mentorTimeZone = mentorProfile.timeZone;
+      if (request) room.mentorshipRequestId = request.id;
+      if (roomFormat(room) === "ongoing-advisory")
+        ensureCycle(room, now(), mentorSettings());
+    }
+    room.createdAt = room.updatedAt = new Date(now()).toISOString();
     room.partnerAccountId = other.id;
     room.partnerRole = person.role;
     const config = clone(db.matchingConfig || defaultMatching);
@@ -1386,7 +1886,7 @@ export function createWorkspace(file, options = {}) {
         },
       ],
     };
-    room.terms.confirmedByMe = false;
+    if (!isMentorRoom(room)) room.terms.confirmedByMe = false;
     state.rooms[id] = room;
     other.state.rooms[id] = {
       ...clone(room),
@@ -1407,29 +1907,87 @@ export function createWorkspace(file, options = {}) {
     }
     state.activeRoomId = id;
     state.page = "room-detail";
-    state.roomTab = "terms";
+    state.roomTab = isMentorRoom(room) ? "overview" : "terms";
     state.confirmation = "You're connected. Your shared room is ready.";
-    event(
-      { state },
-      state.role,
-      acceptedByPartner
-        ? `${person.name} accepted your introduction. Your room is ready.`
-        : `You connected with ${person.name}.`,
-      id,
-    );
-    event(
-      other,
-      person.role,
-      acceptedByPartner
-        ? `You accepted ${displayName(account, state.role)}'s introduction. Your room is ready.`
-        : `${displayName(account, state.role)} accepted your introduction. Your room is ready.`,
-      id,
-      { tab: "terms" },
-    );
+    if (!request)
+      event(
+        { state },
+        state.role,
+        acceptedByPartner
+          ? `${person.name} accepted your introduction. Your room is ready.`
+          : `You connected with ${person.name}.`,
+        id,
+      );
+    if (!request)
+      event(
+        other,
+        person.role,
+        acceptedByPartner
+          ? `You accepted ${displayName(account, state.role)}'s introduction. Your room is ready.`
+          : `${displayName(account, state.role)} accepted your introduction. Your room is ready.`,
+        id,
+        { tab: "terms" },
+      );
+    if (request?.price && request.format !== "office-hours") {
+      room.terms.draft.price = request.price;
+      payments.initialize(room, request.price, account.id);
+    }
+    return room;
   }
   function act(token, input, uploadedFile, avatar) {
-    if (features.handles(input)) return features.act(token, input);
+    try {
+      return actInternal(token, input, uploadedFile, avatar);
+    } catch (error) {
+      db = clone(committed);
+      throw error;
+    }
+  }
+  function actInternal(token, input, uploadedFile, avatar) {
     const account = authenticate(token);
+    if (paymentActions.has(input.action)) {
+      if (!roles.includes(input.role) || input.form)
+        fail("Choose a role and one action.");
+      const state = prepare(account, input.role);
+      payments.act(account, state, input);
+      account.state = state;
+      save();
+      return response(account, input.role);
+    }
+    const officeAction = calendarActions.has(input.action);
+    const onboardingAction = applicationActions.has(input.action);
+    const safetyAction = safetyActions.has(input.action);
+    if (
+      safetyAction ||
+      onboardingAction ||
+      officeAction ||
+      mentorshipRooms.handles(input, account)
+    ) {
+      if (
+        Boolean(input.action) === Boolean(input.form) ||
+        !roles.includes(input.role)
+      )
+        fail("Choose a role and submit one action or form.");
+      const state = prepare(account, input.role);
+      state.formErrors = null;
+      state.confirmation = "";
+      if (payments.intercept(account, state, input)) {
+        /* Checkout opened. */
+      } else if (safetyAction) safety.act(account, state, input);
+      else if (onboardingAction) onboarding.act(account, state, input);
+      else if (officeAction) officeHours.act(account, state, input);
+      else mentorshipRooms.act(account, state, input, uploadedFile);
+      state.directory = createInitialState().directory;
+      account.state = state;
+      if (uploadedFile)
+        db.files[uploadedFile.id] = {
+          ...uploadedFile,
+          accountId: account.id,
+          roomId: input.activeRoomId,
+        };
+      save();
+      return response(account, input.role);
+    }
+    if (features.handles(input)) return features.act(token, input);
     if (
       ["interest", "accept-interest", "simulate-acceptance"].includes(
         input.action,
@@ -1439,6 +1997,10 @@ export function createWorkspace(file, options = {}) {
         options.requireVerification &&
         !account.demo &&
         account.affiliation?.status !== "verified" &&
+        !(
+          input.role === "mentor" &&
+          account.mentorApplication?.status === "approved"
+        ) &&
         ["interest", "accept-interest"].includes(input.action)
       )
         fail(
@@ -1541,6 +2103,12 @@ export function createWorkspace(file, options = {}) {
         db.accounts[room.partnerAccountId]?.deletedAt)
     )
       fail("Further contact is unavailable for this collaboration.", 403);
+    if (
+      isMentorRoom(room) &&
+      input.form === "chat-form" &&
+      ["launched", "reviewed", "cancelled"].includes(room.status)
+    )
+      fail("This mentorship room is read-only.", 409);
     if (room && input.form === "schedule" && room.type !== "mentorship")
       fail("Scheduling is available only in mentorship rooms.");
     if (
@@ -1649,7 +2217,9 @@ export function createWorkspace(file, options = {}) {
             "This outgoing introduction is no longer eligible for simulated acceptance.",
             409,
           );
-        connect(account, state, target, true);
+        if (state.introductionMetaByRole[state.role]?.[target.id]?.kind)
+          mentorRequests.act(account, state, input);
+        else connect(account, state, target, true);
       }
     } else if (
       [
@@ -1660,6 +2230,44 @@ export function createWorkspace(file, options = {}) {
         "save",
       ].includes(input.action)
     ) {
+      const structured =
+        state.introductionMetaByRole[state.role]?.[input.id]?.kind;
+      if (structured && input.action !== "save") {
+        const mappedAction = {
+          "accept-interest": "accept-request",
+          "decline-interest": "decline-request",
+          "cancel-interest": "withdraw-request",
+        }[input.action];
+        if (!mappedAction) fail("This request is already pending.", 409);
+        mentorRequests.verify(account, state, { action: mappedAction });
+        mentorRequests.act(account, state, {
+          ...input,
+          action: mappedAction,
+          values:
+            mappedAction === "decline-request"
+              ? { reason: "other", message: input.values?.reason }
+              : input.values,
+        });
+        state.directory = createInitialState().directory;
+        account.state = state;
+        save();
+        return response(account);
+      }
+      if (
+        input.action === "interest" &&
+        state.role === "founder" &&
+        typeof input.id === "string" &&
+        input.id.endsWith(":mentor") &&
+        !state.incomingByRole.founder.has(input.id)
+      ) {
+        const command = { ...input, action: "send-request" };
+        mentorRequests.verify(account, state, command);
+        mentorRequests.act(account, state, command);
+        state.directory = createInitialState().directory;
+        account.state = state;
+        save();
+        return response(account);
+      }
       const person = createModel(state)
         .rolePeople()
         .find((item) => item.id === input.id);
@@ -1853,6 +2461,28 @@ export function createWorkspace(file, options = {}) {
         (payload.values.details || "").length > 3000
       )
         fail("Choose a reason and keep report details under 3,000 characters.");
+      if (
+        payload.values.appeal === "mentor-suspension" &&
+        state.role === "mentor"
+      ) {
+        safety.appeal(account);
+        db.reports.push({
+          id: randomUUID(),
+          kind: "mentor-appeal",
+          accountId: account.id,
+          reporterAccountId: account.id,
+          reporterProfileId: identity(account, "mentor"),
+          reason: payload.values.reason,
+          details: payload.values.details || "",
+          timestamp: payload.timestamp,
+          status: "open",
+        });
+        state.toast = "Your suspension appeal was sent to moderation.";
+        state.directory = createInitialState().directory;
+        account.state = state;
+        save();
+        return response(account);
+      }
       const requestedProfile = payload.values.profileId;
       const reportRoom = requestedProfile
         ? Object.values(state.rooms).find(
@@ -1881,6 +2511,15 @@ export function createWorkspace(file, options = {}) {
         roomId: reportRoom?.id || null,
         reason: payload.values.reason,
         details: payload.values.details || "",
+        ...(payload.values.messageId &&
+        reportRoom?.messages.some(
+          (message) =>
+            message.id === payload.values.messageId &&
+            message.who === "partner" &&
+            message.safetyFlags?.length,
+        )
+          ? { messageId: payload.values.messageId }
+          : {}),
         timestamp: payload.timestamp,
         status: "open",
       });
@@ -1903,7 +2542,27 @@ export function createWorkspace(file, options = {}) {
             fail("Choose approved tags or propose a new tag for review.");
         }
       }
+      const chatFlags =
+        isMentorRoom(room) && input.form === "chat-form"
+          ? safety.check(
+              String(input.values?.message || "").slice(0, 3000),
+              input.values?.acknowledgeSafety,
+            )
+          : [];
+      const messageCount = room?.messages.length;
       transition(state, payload);
+      if (chatFlags.length && room.messages.length > messageCount) {
+        const message = room.messages.at(-1);
+        message.id = randomUUID();
+        message.safetyFlags = chatFlags;
+        safety.record(
+          account,
+          state.role,
+          chatFlags,
+          `chat:${message.id}`,
+          room.id,
+        );
+      }
       if (input.form === "profile-form" && !state.formErrors) {
         if (avatar) {
           state.profiles[state.role].image = `/api/avatars/${avatar.id}`;
@@ -2031,7 +2690,96 @@ export function createWorkspace(file, options = {}) {
     save();
     return response(account);
   }
+  const brevoSender =
+    options.emailProvider === "brevo" && !options.demoMode
+      ? createBrevoSender({
+          apiKey: options.brevoApiKey,
+          from: options.emailFrom,
+          publicUrl: options.publicUrl,
+          webhookSecret: options.brevoWebhookSecret,
+          fetcher: options.emailFetch,
+        })
+      : null;
+  let maintenance = null;
+  async function maintain() {
+    let changed = sweepMentorship();
+    for (const account of Object.values(db.accounts)) {
+      if (account.deletedAt) continue;
+      if (sweep(account, false)) changed = true;
+      if (brevoSender && !account.demo && features.scheduledEmails(account))
+        changed = true;
+    }
+    if (recordMentoringWeek(db, now())) changed = true;
+    if (changed) save();
+    if (!brevoSender) return;
+    // Claim a bounded batch before awaiting the provider. Each completion
+    // resolves against the current database, which may have been changed by
+    // an account action while delivery was in flight.
+    const ready = (db.outbox || [])
+      .filter(
+        (entry) =>
+          entry.key.includes(":mentor-email:") &&
+          entry.status === "pending" &&
+          Date.parse(entry.availableAt) <= now(),
+      )
+      .slice(0, 20);
+    for (const listed of ready) {
+      const entry = db.outbox.find((item) => item.id === listed.id);
+      if (
+        !entry ||
+        entry.status !== "pending" ||
+        Date.parse(entry.availableAt) > now()
+      )
+        continue;
+      const account = db.accounts[entry.accountId];
+      if (!emailKindAllowed(account, entry.kind)) {
+        entry.status = "skipped";
+        save();
+        continue;
+      }
+      const at = now();
+      entry.attempts = (entry.attempts || 0) + 1;
+      entry.availableAt = new Date(
+        at + Math.min(60, 2 ** entry.attempts) * 60000,
+      ).toISOString();
+      save();
+      const result = await brevoSender(structuredClone(entry), {
+        id: account.id,
+        email: account.email,
+      });
+      const saved = db.outbox.find((item) => item.id === entry.id);
+      if (
+        !saved ||
+        saved.status !== "pending" ||
+        saved.attempts !== entry.attempts
+      )
+        continue;
+      if (result.delivered) {
+        saved.status = "sent";
+        saved.sentAt = new Date(now()).toISOString();
+        saved.providerMessageId = result.messageId;
+        delete saved.lastError;
+      } else if (result.skipped) saved.status = "skipped";
+      else {
+        saved.lastError = result.reason;
+        if (result.permanent || saved.attempts >= 5) saved.status = "failed";
+      }
+      save();
+    }
+  }
+
   const accounts = accountControls({
+    closeMentorship: (...args) => mentorshipRooms.end(...args),
+    disconnectMentorship(account, target, reason) {
+      const other = target ? db.accounts[target] : null;
+      mentorRequests.returned(account, reason, other);
+      for (const id of account.state.waitingByRole.founder) {
+        if (!id.endsWith(":mentor")) continue;
+        const mentor = db.accounts[id.slice(0, -7)];
+        if (mentor && (!target || mentor.id === target))
+          mentorRequests.returned(mentor, reason, account);
+      }
+    },
     getDb: () => db,
     authenticate,
     sessions,
@@ -2043,6 +2791,16 @@ export function createWorkspace(file, options = {}) {
   });
   return {
     health: () => storage.health(),
+    paymentWebhook(body, signature) {
+      try {
+        const result = payments.webhook(body, signature);
+        if (!result.repeated) save();
+        return result;
+      } catch (error) {
+        db = clone(committed);
+        throw error;
+      }
+    },
     close: () => storage.close(),
     accounts,
     features,
@@ -2085,7 +2843,7 @@ export function createWorkspace(file, options = {}) {
         noConflicts: true,
         // The guided preview starts ready to mentor. Real mentors accept the
         // guidelines themselves from Settings.
-        guidelinesVersion: mentorConfig.guidelinesVersion,
+        guidelinesVersion: mentorSettings().guidelinesVersion,
         guidelinesAcceptedAt: new Date(now()).toISOString(),
       });
       db.accounts[account.id] = account;
@@ -2153,6 +2911,48 @@ export function createWorkspace(file, options = {}) {
         fail("Profile photo unavailable.", 404);
       return photo;
     },
+    runMaintenance() {
+      maintenance ||= maintain().finally(() => {
+        maintenance = null;
+      });
+      return maintenance;
+    },
+    emailWebhook(authorization, data) {
+      if (
+        !brevoSender ||
+        !equalSecret(authorization, `Bearer ${options.brevoWebhookSecret}`)
+      )
+        fail("Webhook authentication required.", 403);
+      if (applyEmailWebhook(db, data, now())) save();
+      return { ok: true };
+    },
+    emailUnsubscribe(token, confirm) {
+      const parsed =
+        brevoSender && parseUnsubscribe(token, options.brevoWebhookSecret);
+      if (!parsed) fail("This unsubscribe link is unavailable.", 404);
+      const [id, kind] = parsed;
+      const account = Object.hasOwn(db.accounts, id) ? db.accounts[id] : null;
+      if (!account || account.deletedAt)
+        fail("This unsubscribe link is unavailable.", 404);
+      if (confirm) {
+        account.emailDeliveryStatus ||= {};
+        const status = account.emailDeliveryStatus;
+        status.unsubscribedKinds ||= [];
+        if (!status.unsubscribedKinds.includes(kind)) {
+          status.unsubscribedKinds.push(kind);
+          save();
+        }
+      }
+      return { kind };
+    },
+    calendar(token, selected) {
+      const account = Object.values(db.accounts).find(
+        (candidate) =>
+          !candidate.deletedAt && candidate.calendarToken === token,
+      );
+      if (!account) fail("This calendar link is unavailable.", 404);
+      return calendarIcs(account.state, now(), selected);
+    },
     get: (token, role) => response(authenticate(token), role),
     poll(token, role, since, key) {
       const account = authenticate(token);
@@ -2166,14 +2966,19 @@ export function createWorkspace(file, options = {}) {
     authorizeUpload(token, input, size = 0) {
       const account = authenticate(token);
       const room = account.state.rooms[input.activeRoomId];
+      const mentoringUpload =
+        isMentorRoom(room) &&
+        room.role === "founder" &&
+        ((input.id === "prep" && mentorFormat(roomFormat(room)).sync) ||
+          (input.id === "uploaded" && roomFormat(room) === "doc-review"));
       if (
         !room ||
         room.role !== input.role ||
-        !Object.hasOwn(room.milestones, input.id)
+        (!mentoringUpload && !Object.hasOwn(room.milestones, input.id))
       )
         fail("This milestone is unavailable for your account and role.", 404);
       if (
-        !room.milestones[input.id].evidence ||
+        (!mentoringUpload && !room.milestones[input.id].evidence) ||
         ["launched", "reviewed", "cancelled"].includes(room.status)
       )
         fail("Files cannot be added to this milestone.");

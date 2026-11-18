@@ -1,6 +1,10 @@
+import { useState } from "react";
+import { PaymentModeration } from "../components/Payments.jsx";
+import { resolvedOutcomes } from "../data/mentor-room.js";
 import SelectField from "../components/SelectField.jsx";
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
+import MentorAdminSettings from "../components/MentorAdminSettings.jsx";
 import EngagementSettings from "../components/EngagementSettings.jsx";
 function Decision({ kind, id, decisions, report = false }) {
   const { state, onSubmit } = useApp();
@@ -207,6 +211,7 @@ export default function ModerationPage() {
               <summary>
                 {account.name} · {account.suspended ? "Suspended" : "Active"}
               </summary>
+              {account.mentor && <MentorSuspension account={account} />}
               <Decision
                 kind="account"
                 id={account.id}
@@ -224,7 +229,300 @@ export default function ModerationPage() {
           </p>
         ))}
       </details>
+      <MentorshipModeration />
+      <MentorAdminSettings />
+      <PaymentModeration />
       <EngagementSettings />
     </div>
+  );
+}
+
+function SessionDisputeDecision({ dispute }) {
+  const { onAction, state } = useApp();
+  const [outcome, setOutcome] = useState("held");
+  return (
+    <article className="moderation-entry">
+      <h3>
+        {dispute.mentor} and {dispute.founder}
+      </h3>
+      <p>{new Date(dispute.startsAt).toLocaleString()}</p>
+      <p>
+        Mentor reported {dispute.attendance.mentor || "nothing"} · Founder
+        reported {dispute.attendance.founder || "nothing"}
+      </p>
+      <form
+        className="mentor-request-form"
+        onSubmit={(event) =>
+          onAction(
+            {
+              action: "resolve-session-dispute",
+              values: {
+                accountId: dispute.accountId,
+                roomId: dispute.roomId,
+                scheduleIndex: dispute.index,
+                scheduleId: dispute.scheduleId,
+                outcome,
+              },
+            },
+            event,
+          )
+        }
+      >
+        <label>
+          Session outcome
+          <select
+            value={outcome}
+            onChange={(event) => setOutcome(event.target.value)}
+          >
+            {resolvedOutcomes.map((value) => (
+              <option key={value}>{value}</option>
+            ))}
+          </select>
+        </label>
+        <button className="btn" disabled={state.busy}>
+          Resolve session dispute
+        </button>
+      </form>
+    </article>
+  );
+}
+
+function SessionDisputes({ disputes }) {
+  return (
+    <section className="card panel section-gap">
+      <h2>Session disputes</h2>
+      {disputes.length ? (
+        disputes.map((dispute) => (
+          <SessionDisputeDecision
+            key={`${dispute.roomId}:${dispute.scheduleId}`}
+            dispute={dispute}
+          />
+        ))
+      ) : (
+        <p>No open session disputes.</p>
+      )}
+    </section>
+  );
+}
+
+function MentorApprovals({ approvals }) {
+  const { onAction, state } = useApp();
+  return (
+    <section className="card panel section-gap" aria-label="Mentor approvals">
+      <h2>Mentor approvals</h2>
+      {approvals.length === 0 && <p>No mentor applications waiting.</p>}
+      {approvals.map((application) => (
+        <details className="moderation-entry" key={application.accountId}>
+          <summary>
+            {application.name} · {application.waitHours} hours waiting
+            {application.overdue ? " · Past target" : ""}
+          </summary>
+          {application.overdue && (
+            <p className="warning-note">
+              This application is past the approval target.
+            </p>
+          )}
+          <p>Verification method: {application.verification.method}</p>
+          <p className="preserve-lines">{application.verification.evidence}</p>
+          <form
+            className="mentor-request-form"
+            onSubmit={(event) => {
+              const values = Object.fromEntries(
+                new FormData(event.currentTarget),
+              );
+              return onAction(
+                {
+                  action:
+                    event.nativeEvent.submitter?.value || "approve-mentor",
+                  id: application.accountId,
+                  values,
+                },
+                event,
+              );
+            }}
+          >
+            <label htmlFor={`approval-reason-${application.accountId}`}>
+              Reason for rejection, if rejecting
+            </label>
+            <textarea
+              id={`approval-reason-${application.accountId}`}
+              name="reason"
+              maxLength={500}
+            />
+            <div className="mentor-request-controls">
+              <button
+                className="btn primary"
+                type="submit"
+                value="approve-mentor"
+                disabled={state.busy}
+              >
+                Approve mentor
+              </button>
+              <button
+                className="btn"
+                type="submit"
+                value="reject-mentor"
+                disabled={state.busy}
+              >
+                Reject application
+              </button>
+            </div>
+          </form>
+        </details>
+      ))}
+    </section>
+  );
+}
+
+function MentorSafetyQueue({ queue, filter }) {
+  const { state, onAction } = useApp();
+  if (!queue) return null;
+  return (
+    <section className="card panel section-gap" aria-label="Mentorship safety">
+      <h2>Mentorship safety</h2>
+      {["all", "safety"].includes(filter) && (
+        <>
+          <h3>Reported patterns</h3>
+          {!queue.flags.length && (
+            <p>No accounts reached the message flag limit.</p>
+          )}
+          {queue.flags.map((row) => (
+            <p key={row.id}>
+              {row.name} · {row.count} flags · {row.categories.join(", ")}
+            </p>
+          ))}
+        </>
+      )}
+      {["all", "ratings"].includes(filter) && (
+        <>
+          <h3>Rating flags</h3>
+          {!queue.ratings.length && <p>No rating patterns need review.</p>}
+          {queue.ratings.map((row) => (
+            <p key={`${row.id}:${row.role}`}>
+              {row.name} · {row.reason}
+            </p>
+          ))}
+        </>
+      )}
+      {["all", "limits"].includes(filter) && (
+        <>
+          <h3>Active attendance limits</h3>
+          {!queue.limits.length && <p>No active attendance limits.</p>}
+          {queue.limits.map((row) => (
+            <div key={`${row.id}:${row.role}`} className="collaboration-row">
+              <p>
+                {row.name} · {row.role} · until{" "}
+                {new Date(row.until).toLocaleDateString()}
+              </p>
+              <button
+                className="btn"
+                disabled={state.busy}
+                onClick={(event) =>
+                  onAction(
+                    {
+                      action: "lift-limit",
+                      id: row.id,
+                      values: { role: row.role },
+                    },
+                    event,
+                  )
+                }
+              >
+                Lift limit
+              </button>
+            </div>
+          ))}
+        </>
+      )}
+    </section>
+  );
+}
+
+function MentorSuspension({ account }) {
+  const { state, onAction } = useApp();
+  return account.mentorSuspension ? (
+    <button
+      className="btn"
+      disabled={state.busy}
+      onClick={(event) =>
+        onAction({ action: "reinstate-mentor", id: account.id }, event)
+      }
+    >
+      Reinstate mentor
+    </button>
+  ) : (
+    <form
+      className="mentor-request-form section-gap"
+      onSubmit={(event) =>
+        onAction(
+          {
+            action: "suspend-mentor",
+            id: account.id,
+            values: Object.fromEntries(new FormData(event.currentTarget)),
+          },
+          event,
+        )
+      }
+    >
+      <label htmlFor={`suspension-reason-${account.id}`}>
+        Mentor suspension reason
+      </label>
+      <textarea
+        name="reason"
+        id={`suspension-reason-${account.id}`}
+        required
+        maxLength={500}
+      />
+      <label htmlFor={`suspension-end-${account.id}`}>
+        End date (optional)
+      </label>
+      <input type="date" id={`suspension-end-${account.id}`} name="until" />
+      <button className="btn danger" disabled={state.busy}>
+        Suspend mentor
+      </button>
+    </form>
+  );
+}
+
+function MentorshipModeration() {
+  const { state } = useApp();
+  const [filter, setFilter] = useState("all");
+  return (
+    <section className="section-gap" aria-label="Mentorship moderation">
+      <div className="card panel">
+        <h2>Mentorship queue</h2>
+        <label htmlFor="mentorship-queue-filter">Filter by</label>
+        <select
+          id="mentorship-queue-filter"
+          value={filter}
+          onChange={(event) => setFilter(event.target.value)}
+        >
+          {[
+            ["all", "All mentorship items"],
+            ["approval", "Mentor approvals"],
+            ["sessions", "Session disputes"],
+            ["safety", "Safety flags"],
+            ["ratings", "Rating flags"],
+            ["limits", "Active limits"],
+          ].map(([key, label]) => (
+            <option value={key} key={key}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </div>
+      {["all", "approval"].includes(filter) && (
+        <MentorApprovals approvals={state.moderation.mentorApprovals || []} />
+      )}
+      {["all", "sessions"].includes(filter) && (
+        <SessionDisputes disputes={state.moderation.sessionDisputes || []} />
+      )}
+      {["all", "safety", "ratings", "limits"].includes(filter) && (
+        <MentorSafetyQueue
+          queue={state.moderation.mentorSafety}
+          filter={filter}
+        />
+      )}
+    </section>
   );
 }

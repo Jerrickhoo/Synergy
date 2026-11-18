@@ -6,6 +6,8 @@ import SelectField from "./SelectField.jsx";
 export default function ReportCollaborator({
   person,
   initialOpen = false,
+  messageId,
+  compact = false,
   onClose,
 }) {
   const { state, onSubmit, onAction } = useApp();
@@ -25,7 +27,7 @@ export default function ReportCollaborator({
     <>
       {!initialOpen && (
         <button
-          className="btn full"
+          className={compact ? "link-btn" : "btn full"}
           onClick={() => {
             onAction({ action: "clear-form-errors", scope: "report-form" });
             setError("");
@@ -33,7 +35,7 @@ export default function ReportCollaborator({
             setOpen(true);
           }}
         >
-          Report collaborator
+          {compact ? "Report" : "Report collaborator"}
         </button>
       )}
       {open && (
@@ -102,6 +104,9 @@ export default function ReportCollaborator({
                 }}
               >
                 <input type="hidden" name="profileId" value={person.id} />
+                {messageId && (
+                  <input type="hidden" name="messageId" value={messageId} />
+                )}
                 <SelectField
                   id="report-reason"
                   name="reason"

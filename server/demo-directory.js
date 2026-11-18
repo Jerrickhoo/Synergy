@@ -1,6 +1,8 @@
 // Fictional collaborators for prototype workspaces. Scores use the normal matcher.
 import { mentorDefaults } from "../src/data/mentor-rules.js";
 import { canonicalTags } from "../src/data/collaboration.js";
+import { createModel } from "../src/data/model.js";
+import { appointment, initMentorship } from "../src/data/mentor-room.js";
 export const legacyDemoProfiles = [
   {
     id: "david-park",
@@ -99,7 +101,7 @@ export const legacyDemoProfiles = [
   },
 ];
 
-export const demoDirectoryVersion = 4;
+export const demoDirectoryVersion = 9;
 const startup = (
   id,
   name,
@@ -149,7 +151,6 @@ const mentor = (
     goals,
     bio,
     availability,
-    pastExperience: "Fictional sample background for exploring mentorship.",
     engagementPreference: "ongoing",
     ...(image && { image: `/demo/avatars/${image}.svg` }),
   },
@@ -382,10 +383,31 @@ const baseDemoProfiles = [
 const demoMentoring = {
   "priya-shah": { paused: true, pausedAt: "2026-11-01T00:00:00.000Z" },
   "rafael-lim": {
+    noConflicts: false,
+    conflicts: [
+      {
+        company: "Signal Harbor",
+        relation: "investor",
+        industry: "Cybersecurity",
+      },
+    ],
     formats: [
       { id: "quick-ask", price: 0 },
       { id: "doc-review", price: 0 },
       { id: "single-session", price: 0 },
+      { id: "office-hours", price: 0 },
+    ],
+    officeHours: [
+      {
+        id: "demo-rafael-weekly",
+        date: "2026-11-02",
+        weekday: 1,
+        time: "10:00",
+        timeZone: "Asia/Manila",
+        durationMinutes: 30,
+        recurring: true,
+        closedDates: [],
+      },
     ],
   },
   "isabel-cruz": {
@@ -409,13 +431,72 @@ export const demoProfiles = baseDemoProfiles.map((sample) =>
           ],
           topics: canonicalTags(sample.profile.expertise).join(", "),
           noConflicts: true,
-          guidelinesVersion: 1,
+          guidelinesVersion: 2,
           guidelinesAcceptedAt: "2026-11-01T00:00:00.000Z",
           ...demoMentoring[sample.id],
         },
       }
     : sample,
 );
+
+export function seedDemoImpact(accounts) {
+  const mentor = accounts["demo-sample-rafael-lim"];
+  if (!mentor?.demoSample) return false;
+  let changed = false;
+  for (const [sample, date, goal] of [
+    ["studyloop", "2026-09-07", "Simplify signup for the first pilot"],
+    ["launchpad-labs", "2026-09-14", "Plan a smaller first release"],
+    ["greenplate", "2026-09-21", "Measure reliability before adding partners"],
+  ]) {
+    const founder = accounts[`demo-sample-${sample}`];
+    if (!founder?.demoSample || founder.deletedAt || mentor.deletedAt) continue;
+    const id = `demo-impact-rafael-${sample}`;
+    if (mentor.state.rooms[id] || founder.state.rooms[id]) continue;
+    const session = appointment({
+      id: `${id}-session`,
+      date,
+      time: "10:00",
+      timeZone: "Asia/Manila",
+      durationMinutes: 45,
+    });
+    for (const [account, role, partner, partnerRole] of [
+      [mentor, "mentor", founder, "founder"],
+      [founder, "founder", mentor, "mentor"],
+    ]) {
+      const room = initMentorship(
+        createModel(account.state).createRoom({
+          id,
+          role,
+          partnerId: `${partner.id}:${partnerRole}`,
+          type: "mentorship",
+        }),
+        "single-session",
+        goal,
+        Date.parse(session.startsAt),
+      );
+      room.partnerAccountId = partner.id;
+      room.partnerRole = partnerRole;
+      room.status = "reviewed";
+      room.createdAt = room.updatedAt = room.completedAt = session.startsAt;
+      room.mentorship.topics = canonicalTags(
+        mentor.state.profiles.mentor.expertise,
+      );
+      room.mentorship.sample = true;
+      for (const milestone of Object.values(room.milestones))
+        milestone.me = milestone.partner = true;
+      room.milestones.held.schedules = [{ ...session, outcome: "held" }];
+      room.mentorship.followup = {
+        submittedAt: session.startsAt,
+        outcomes: { example: "done" },
+      };
+      room.review = { me: true, partner: true, rating: 5, partnerRating: 5 };
+      room.progress = 100;
+      account.state.rooms[id] = room;
+    }
+    changed = true;
+  }
+  return changed;
+}
 
 // Viewer inputs are reproducible reference scenarios, not extra directory accounts.
 // Scores and suggestion counts are always derived by the real matcher.

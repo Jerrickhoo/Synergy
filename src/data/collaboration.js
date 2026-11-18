@@ -1,11 +1,18 @@
+import { mentorshipTrust } from "./mentor-impact.js";
+import { mentorConfig } from "./mentor-rules.js";
+import { normalizeMentorFormat } from "./mentor-formats.js";
+
 export const terminalStatuses = ["launched", "reviewed", "cancelled"];
 export const ongoingMentorship = (room) =>
-  room.type === "mentorship" && room.terms.draft.format === "ongoing";
-export function ensureCycle(room, now = Date.now()) {
+  room.type === "mentorship" &&
+  normalizeMentorFormat(room.terms.draft.format) === "ongoing-advisory";
+export function ensureCycle(room, now = Date.now(), config = mentorConfig) {
   room.cycle ||= {
     number: 1,
+    checkIns: config.checkInsPerCycle,
+    checkInMinutes: config.checkInMinutes,
     startsAt: new Date(now).toISOString(),
-    dueAt: new Date(now + 8 * 7 * 86400000).toISOString(),
+    dueAt: new Date(now + config.cycleWeeks * 7 * 86400000).toISOString(),
     goals: room.terms.draft.goal,
     summary: "",
     reviews: {},
@@ -127,7 +134,12 @@ export function closureCountsAgainstMe(room) {
     return room.closedByAccountId === room.partnerAccountId;
   return true;
 }
-export function trustSummary(rooms, role, now = Date.now()) {
+export function trustSummary(
+  rooms,
+  role,
+  now = Date.now(),
+  mentorOptions = {},
+) {
   const all = Object.values(rooms).filter((room) => room.role === role);
   const completed = all.filter((room) =>
     ["launched", "reviewed"].includes(room.status),
@@ -159,6 +171,7 @@ export function trustSummary(rooms, role, now = Date.now()) {
   const closedEarly = all.filter(closureCountsAgainstMe);
   const closed = completed.length + closedEarly.length;
   return {
+    mentorship: mentorshipTrust(rooms, role, { now, ...mentorOptions }),
     completed: completed.length,
     reviewed: reviewed.length,
     reviewCount: ratings.length,

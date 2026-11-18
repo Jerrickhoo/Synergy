@@ -1,3 +1,4 @@
+import { mentorRequestValues } from "./mentor-request-fixtures.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -24,7 +25,10 @@ function fixture(t) {
     assert.ok(resolve(dir).startsWith(resolve(tmpdir()) + sep));
     rmSync(dir, { recursive: true });
   });
-  return { file, workspace: createWorkspace(file) };
+  return {
+    file,
+    workspace: createWorkspace(file, { mentorApprovalRequired: false }),
+  };
 }
 const founder = {
   name: "Alex Rivera",
@@ -67,7 +71,7 @@ function signup(workspace, name, role = "founder") {
     workspace.act(user.token, {
       role,
       form: "accept-guidelines",
-      values: { version: 1 },
+      values: { version: 2 },
     });
   return user;
 }
@@ -485,12 +489,17 @@ test("mentorship scheduling preserves the participant timezone across both accou
     b = signup(workspace, "Jamie", "mentor");
   act(workspace, a, { form: "profile-form", values: founder });
   act(workspace, b, { form: "profile-form", values: mentor });
-  act(workspace, a, { action: "interest", id: `${b.state.accountId}:mentor` });
+  act(workspace, a, {
+    action: "interest",
+    values: mentorRequestValues,
+    id: `${b.state.accountId}:mentor`,
+  });
   const accepted = act(workspace, b, {
     action: "accept-interest",
     id: `${a.state.accountId}:founder`,
   });
   const activeRoomId = accepted.state.activeRoomId;
+  act(workspace, b, { activeRoomId, action: "confirm-goal" });
   const result = act(workspace, b, {
     activeRoomId,
     form: "schedule",
@@ -499,7 +508,7 @@ test("mentorship scheduling preserves the participant timezone across both accou
   });
   assert.equal(result.state.rooms[activeRoomId].type, "mentorship");
   const schedule = workspace.get(a.token).state.rooms[activeRoomId].milestones
-    .session.schedule;
+    .held.schedules[0];
   assert.equal(schedule.timeZone, "Asia/Manila");
   assert.equal(
     scheduleInstant(schedule).toISOString(),

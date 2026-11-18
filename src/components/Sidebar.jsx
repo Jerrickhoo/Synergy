@@ -14,9 +14,10 @@ export const navigation = [
 // Startups stay reachable from Requests ("Browse startups").
 export const mentorNavigation = [
   ["home", "Home", "home"],
-  ["waiting", "Requests", "inbox"],
-  ["rooms", "Mentees", "people"],
+  ["requests", "Requests", "inbox"],
+  ["mentees", "Mentees", "people"],
   ["calendar", "Calendar", "calendar"],
+  ["impact", "Impact", "star"],
 ];
 export const primaryNavigation = (role) =>
   role === "mentor" ? mentorNavigation : navigation;
@@ -37,7 +38,7 @@ export default function Sidebar() {
               <Icon name={icon} />
             </span>
             <span className="nav-label">{label}</span>
-            {page === "waiting" &&
+            {["waiting", "requests"].includes(page) &&
               state.incomingByRole[state.role].size > 0 && (
                 <span className="nav-count">
                   <span className="visually-hidden">, </span>

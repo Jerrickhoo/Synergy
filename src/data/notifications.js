@@ -1,4 +1,10 @@
 const kinds = {
+  "payment-due": ["Payment due", "clock"],
+  "payment-lapsed": ["Payment expired", "clock"],
+  "payment-received": ["Payment received", "check"],
+  "payout-released": ["Payout released", "check"],
+  refund: ["Payment refund", "check"],
+  "payment-dispute": ["Payment dispute", "clock"],
   match: ["Match suggestion", "spark"],
   activity: ["Collaboration activity", "handshake"],
   review: ["Review requested", "star"],
@@ -8,17 +14,69 @@ const kinds = {
   "guidelines-required": ["Mentor guidelines", "check"],
   capacity: ["Mentoring capacity", "clock"],
   mentoring: ["Mentoring", "bell"],
+  request: ["New mentorship request", "inbox"],
+  "request-digest": ["Mentorship request digest", "inbox"],
+  "request-expiring": ["Request expiring", "clock"],
+  declined: ["Request declined", "inbox"],
+  expired: ["Request expired", "clock"],
+  returned: ["Request returned", "inbox"],
+  referred: ["Mentor referral", "people"],
+  accepted: ["Request accepted", "check"],
+  "session-reminder": ["Session reminder", "calendar"],
+  "attendance-needed": ["Attendance needed", "clock"],
+  "prep-missing": ["Preparation needed", "clock"],
+  "followup-due": ["Follow-up due", "check"],
+  "review-open": ["Private review", "star"],
+  badge: ["Badge earned", "star"],
+  "mentor-approved": ["Mentor approved", "check"],
+  "mentor-rejected": ["Mentor application", "inbox"],
+  "approval-queue": ["Mentor approval queue", "clock"],
+  "mentor-unavailable": ["Mentor unavailable", "people"],
 };
 // Items that ask the founder to do something, shown first on Updates.
 export const needsAction = (item) =>
   !item.self &&
-  ["confirmation", "review", "reminder", "guidelines-required"].includes(
-    item.kind,
-  ) &&
+  [
+    "confirmation",
+    "review",
+    "reminder",
+    "guidelines-required",
+    "request",
+    "request-digest",
+    "request-expiring",
+    "referred",
+  ].includes(item.kind) &&
   !item.read;
 export const notificationKind = (kind) =>
   kinds[kind] || ["Workspace update", "bell"];
 export function notificationDestination(item, state, people) {
+  if (item.kind === "request-digest")
+    return { label: "Open requests", command: { page: "requests" } };
+  if (item.requestId && !item.roomId)
+    return {
+      label: "Open request",
+      context: item.page === "requests" ? "Requests" : "Introductions",
+      command: {
+        action: "mentor-request-link",
+        page: item.page,
+        requestId: item.requestId,
+      },
+    };
+  if (item.page === "home")
+    return { label: "Open Home", command: { page: "home" } };
+  if (item.page === "onboarding" || item.page === "moderation")
+    return {
+      label:
+        item.page === "onboarding"
+          ? "View mentor application"
+          : "Open moderation",
+      command: { page: item.page },
+    };
+  if (["impact", "profile"].includes(item.page))
+    return {
+      label: item.page === "impact" ? "View impact" : "View profile",
+      command: { page: item.page },
+    };
   if (item.page === "settings")
     return {
       label: "Open mentoring settings",
@@ -36,7 +94,8 @@ export function notificationDestination(item, state, people) {
     if (room?.role === state.role) {
       const partner = people.find((p) => p.id === room.partnerId);
       const reviewLink =
-        item.review || ["review", "review-release"].includes(item.kind);
+        item.review ||
+        ["review", "review-release", "review-open"].includes(item.kind);
       return {
         label:
           item.kind === "review-release" ||
@@ -44,7 +103,11 @@ export function notificationDestination(item, state, people) {
             ? "Read feedback"
             : item.kind === "review"
               ? "Write a review"
-              : "Open Deal Room",
+              : item.kind === "followup-due"
+                ? "Add your follow-up"
+                : room.type === "mentorship"
+                  ? "Open mentorship room"
+                  : "Open Deal Room",
         context: partner
           ? `With ${partner.name}`
           : room.engagementType || "Collaboration",

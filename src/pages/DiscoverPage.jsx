@@ -256,6 +256,8 @@ export default function DiscoverPage() {
                         "score",
                         "engagement",
                         "availableNow",
+                        "freeOnly",
+                        "maxPrice",
                       ])
                         onFilter(key, draftFilters[key]);
                       setFiltersOpen(false);
@@ -270,6 +272,31 @@ export default function DiscoverPage() {
                 Narrow your search to the people you want to work with.
               </p>
               <div className="overlay-filters">
+                {state.role === "founder" && (
+                  <>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(draftFilters.freeOnly)}
+                        onChange={(e) =>
+                          updateDraft("freeOnly", e.target.checked)
+                        }
+                      />
+                      Free only
+                    </label>
+                    <label>
+                      Maximum price in PHP
+                      <input
+                        type="number"
+                        min="0"
+                        value={draftFilters.maxPrice || ""}
+                        onChange={(e) =>
+                          updateDraft("maxPrice", e.target.value)
+                        }
+                      />
+                    </label>
+                  </>
+                )}
                 {state.role === "founder" && (
                   <label className="checkbox-label">
                     <input

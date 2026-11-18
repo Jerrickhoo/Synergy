@@ -1,9 +1,14 @@
+import { isMentorRoom, mentorSessions, roomFormat } from "./mentor-room.js";
 // Mentor capacity, Pause Mode, conflicts of interest and guidelines (roadmap
 // Phase 1). Shared by the server, which enforces these rules, and the client,
 // which only displays what the server computed.
 import { scheduleInstant } from "./selectors.js";
 import { terminalStatuses } from "./collaboration.js";
-import { mentorFormat, normalizeOfferedFormats } from "./mentor-formats.js";
+import {
+  mentorFormat,
+  mentorFormatIds,
+  normalizeOfferedFormats,
+} from "./mentor-formats.js";
 
 // Every tunable mentor number lives here. Later phases read the values they
 // need; admins edit them from the Phase 8 admin settings.
@@ -53,6 +58,8 @@ export const mentorConfig = {
   noShowLimitDays: 30,
   flaggedMessageLimit: 3,
   flaggedMessageWindowDays: 30,
+  rapidReviewSeconds: 10,
+  rapidReviewCount: 2,
   // Notifications
   digestHour: 8,
   // Badges
@@ -68,7 +75,7 @@ export const mentorConfig = {
   },
   // Onboarding
   approvalTargetBusinessDays: 2,
-  guidelinesVersion: 1,
+  guidelinesVersion: 2,
   guidelinesGraceDays: 14,
 };
 
@@ -100,6 +107,8 @@ export function mentorDefaults(config = mentorConfig) {
     formats: [{ id: "single-session", price: 0 }],
     topics: "",
     stages: [],
+    officeHours: [],
+    preferredHours: null,
     industries: [],
     paused: false,
     pausedAt: null,
@@ -170,7 +179,7 @@ export function validTimeZone(value) {
   }
 }
 
-const monthKey = (instant, timeZone) =>
+export const mentorMonthKey = (instant, timeZone) =>
   new Intl.DateTimeFormat("en-CA", {
     timeZone: validTimeZone(timeZone) ? timeZone : "UTC",
     year: "numeric",
@@ -182,10 +191,114 @@ const roomSchedules = (room) =>
     (item) => item.schedules || (item.schedule ? [item.schedule] : []),
   );
 
+export function cyclePlan(
+  start,
+  config = mentorConfig,
+  count = config.checkInsPerCycle,
+  minutes = config.checkInMinutes,
+  end = start + config.cycleWeeks * 7 * 86400000,
+) {
+  const interval = (end - start) / count;
+  return Array.from({ length: count }, (_, index) => ({
+    instant: start + index * interval,
+    minutes,
+  }));
+}
+
+export function mentorCommitments(
+  state,
+  now = Date.now(),
+  config = mentorConfig,
+  exclude = {},
+) {
+  const timeZone = state.profiles.mentor?.timeZone || "Asia/Manila";
+  const months = {};
+  const add = (instant, minutes) => {
+    if (!Number.isFinite(instant)) return;
+    const month = mentorMonthKey(instant, timeZone);
+    months[month] = (months[month] || 0) + minutes;
+  };
+  for (const room of Object.values(state.rooms || {})) {
+    if (room.role !== "mentor" || room.type !== "mentorship") continue;
+    const active = !terminalStatuses.includes(room.status);
+    const format = mentorFormat(room.terms?.draft?.format);
+    if (format?.sync === false && (active || room.mentorship?.deliveredAt))
+      add(
+        Date.parse(room.mentorship?.acceptedAt || room.createdAt) || now,
+        format.effortMinutes,
+      );
+    if (!isMentorRoom(room) && !active) continue;
+    if (
+      isMentorRoom(room) &&
+      roomFormat(room) === "ongoing-advisory" &&
+      active &&
+      room.cycle &&
+      !room.cycle.confirmedAt &&
+      room.cycle.phase === "active" &&
+      exclude.reservationRoomId !== room.id
+    ) {
+      for (const { instant, minutes } of cyclePlan(
+        Date.parse(room.cycle.startsAt),
+        config,
+        room.cycle.checkIns,
+        room.cycle.checkInMinutes,
+        Date.parse(room.cycle.dueAt),
+      ))
+        add(instant, minutes);
+    }
+    const sessions = [
+      ...roomSchedules(room),
+      ...(room.mentorship?.sessionHistory || []),
+    ];
+    for (const schedule of sessions) {
+      if (
+        schedule === exclude.schedule ||
+        (exclude.roomId === room.id &&
+          (!exclude.scheduleId || schedule.id === exclude.scheduleId))
+      )
+        continue;
+      if (
+        schedule.cancelledAt ||
+        (!active && isMentorRoom(room) && !schedule.outcome)
+      )
+        continue;
+      add(
+        scheduleInstant(schedule).getTime(),
+        Number(schedule.durationMinutes) || 60,
+      );
+    }
+  }
+  return months;
+}
+
+export function mentorMinutesFit(
+  state,
+  proposed,
+  config = mentorConfig,
+  commitments = mentorCommitments(state, Date.now(), config),
+) {
+  const timeZone = state.profiles.mentor?.timeZone || "Asia/Manila";
+  const limit =
+    (state.profiles.mentor?.capacity?.monthlyHours ||
+      config.defaultMonthlyHours) * 60;
+  const added = {};
+  for (const { instant, minutes } of proposed) {
+    const month = mentorMonthKey(instant, timeZone);
+    added[month] = (added[month] || 0) + minutes;
+    if ((commitments[month] || 0) + added[month] > limit) return false;
+  }
+  return true;
+}
+
 // The single rule for what a mentor has committed and what they can still
 // take on (roadmap Phase 1, "What uses capacity"). `state` is the mentor's
 // account state; only rooms held in the mentor role count.
-export function capacityUsage(state, now = Date.now(), config = mentorConfig) {
+export function capacityUsage(
+  state,
+  now = Date.now(),
+  config = mentorConfig,
+  allocated,
+) {
   const profile = state.profiles?.mentor || {};
   const capacity = {
     ...mentorDefaults(config).capacity,
@@ -194,38 +307,53 @@ export function capacityUsage(state, now = Date.now(), config = mentorConfig) {
   const timeZone = profile.timeZone || "Asia/Manila";
   const offered = normalizeOfferedFormats(profile.formats).map((f) => f.id);
   const rooms = Object.values(state.rooms || {}).filter(
-    (room) =>
-      room.role === "mentor" &&
-      room.type === "mentorship" &&
-      !terminalStatuses.includes(room.status),
+    (room) => room.role === "mentor" && room.type === "mentorship",
+  );
+  const active = rooms.filter(
+    (room) => !terminalStatuses.includes(room.status),
   );
   const asyncRoom = (room) =>
     mentorFormat(room.terms?.draft?.format)?.sync === false;
-  const activeMentees = rooms.filter((room) => !asyncRoom(room)).length;
-  const openAsync = rooms.filter(asyncRoom).length;
-  const thisMonth = monthKey(now, timeZone);
-  let minutesCommitted = 0;
-  for (const room of rooms) {
-    if (asyncRoom(room)) {
-      const accepted = Date.parse(room.createdAt || "") || now;
-      if (monthKey(accepted, timeZone) === thisMonth)
-        minutesCommitted += mentorFormat(room.terms.draft.format).effortMinutes;
-      continue;
-    }
-    for (const schedule of roomSchedules(room)) {
-      const instant = scheduleInstant(schedule);
-      if (Number.isNaN(instant.getTime())) continue;
-      if (monthKey(instant, timeZone) === thisMonth)
-        minutesCommitted += Number(schedule.durationMinutes) || 60;
-    }
-  }
+  const openAsync = active.filter(
+    (room) =>
+      asyncRoom(room) &&
+      !room.mentorship?.deliveredAt &&
+      !room.mentorship?.answerExpiredAt,
+  ).length;
+  const activeMentees = active.filter(
+    (room) =>
+      !asyncRoom(room) &&
+      !(
+        isMentorRoom(room) &&
+        roomFormat(room) !== "ongoing-advisory" &&
+        (room.mentorship.slotReleased ||
+          mentorSessions(room).some(
+            (session) => session.outcome && session.outcome !== "disputed",
+          ))
+      ),
+  ).length;
+  const thisMonth = mentorMonthKey(now, timeZone);
+  const commitments = mentorCommitments(state, now, config);
+  const minutesCommitted = commitments[thisMonth] || 0;
+  const availabilityCommitments = allocated || commitments;
   const minutesLeft = Math.max(
     0,
-    capacity.monthlyHours * 60 - minutesCommitted,
+    capacity.monthlyHours * 60 - (availabilityCommitments[thisMonth] || 0),
   );
   const guidelines = guidelinesStatus(profile, now, config);
   const formatReason = (id) => {
-    if (minutesLeft < minutesNeeded(id, config)) return "hours-limit";
+    if (id === "ongoing-advisory") {
+      if (
+        !mentorMinutesFit(
+          state,
+          cyclePlan(now, config),
+          config,
+          availabilityCommitments,
+        )
+      )
+        return "hours-limit";
+    } else if (id !== "office-hours" && minutesLeft < minutesNeeded(id, config))
+      return "hours-limit";
     if (mentorFormat(id).sync)
       return activeMentees < capacity.maxMentees ? null : "mentee-limit";
     return openAsync < capacity.maxOpenAsync ? null : "async-limit";
@@ -233,9 +361,21 @@ export function capacityUsage(state, now = Date.now(), config = mentorConfig) {
   const reasons = Object.fromEntries(
     offered.map((id) => [id, formatReason(id)]),
   );
-  let availableFormats = offered.filter((id) => !reasons[id]);
+  const openSlots =
+    (offered.some((id) => mentorFormat(id).sync)
+      ? Math.max(0, capacity.maxMentees - activeMentees)
+      : 0) +
+    (offered.some((id) => !mentorFormat(id).sync)
+      ? Math.max(0, capacity.maxOpenAsync - openAsync)
+      : 0);
+  const pendingRequests = state.incomingByRole?.mentor?.size || 0;
+  const pendingLimit = Math.max(2, openSlots * config.pendingPerOpenSlot);
+  const bookableFormats = offered.filter((id) => !reasons[id]);
+  let availableFormats = bookableFormats;
   let reason = null;
-  if (profile.paused) reason = "paused";
+  if (Date.parse(state.mentorshipLimits?.mentor || "") > now)
+    reason = "no-show-limit";
+  else if (profile.paused) reason = "paused";
   else if (guidelines.status === "required") reason = "guidelines";
   if (reason) availableFormats = [];
   else if (!availableFormats.length) {
@@ -247,21 +387,26 @@ export function capacityUsage(state, now = Date.now(), config = mentorConfig) {
           ? "mentee-limit"
           : "async-limit";
   }
-  const offersSync = offered.some((id) => mentorFormat(id).sync);
-  const offersAsync = offered.some((id) => !mentorFormat(id).sync);
+  if (!reason && pendingRequests >= pendingLimit) {
+    reason = "inbox-full";
+    availableFormats = [];
+  }
   return {
     capacity,
     timeZone,
     activeMentees,
     openAsync,
-    pendingRequests: state.incomingByRole?.mentor?.size || 0,
+    pendingRequests,
+    pendingLimit,
+    bookableFormats,
     minutesCommitted,
     hoursLeft: Math.round((minutesLeft / 60) * 10) / 10,
-    openSlots:
-      (offersSync ? Math.max(0, capacity.maxMentees - activeMentees) : 0) +
-      (offersAsync ? Math.max(0, capacity.maxOpenAsync - openAsync) : 0),
+    openSlots,
     offeredFormats: offered,
     formatReasons: reasons,
+    fitReasons: Object.fromEntries(
+      mentorFormatIds.map((id) => [id, formatReason(id)]),
+    ),
     availableFormats,
     available: availableFormats.length > 0,
     reason,
@@ -297,6 +442,11 @@ export function availabilityLine(usage) {
 }
 
 const founderReasonText = {
+  "format-unavailable": (name) => `${name} does not offer this format.`,
+  "no-office-hours": (name) => `${name} has no open Office Hours slots.`,
+  "no-show-limit": (name) => `${name} is temporarily unable to take requests.`,
+  "inbox-full": (name) =>
+    `${name} has several requests waiting. Try again in a few days, or ask another mentor.`,
   paused: (name) => `${name} is not taking requests right now.`,
   guidelines: (name) =>
     `${name} can take requests once they accept the mentor guidelines.`,
@@ -310,6 +460,13 @@ export const unavailableText = (reason, name = "This mentor") =>
   founderReasonText[reason]?.(name) || "";
 
 const mentorReasonText = {
+  "format-unavailable":
+    "Enable Single Session in Mentoring settings to invite a founder.",
+  "no-show-limit":
+    "An attendance limit pauses new requests. Check Updates for the details.",
+  suspended: "Your mentor profile is suspended.",
+  "approval-required": "Complete mentor approval to start receiving requests.",
+  "inbox-full": "Reply to pending requests to make space for new ones.",
   paused: "Pause Mode is on, so founders can't send you requests.",
   guidelines: "Accept the mentor guidelines to start receiving requests.",
   "mentee-limit":

@@ -158,7 +158,12 @@ export default function Introductions({ compact = false }) {
   const outgoing = model.waitingMatches();
   const people = model
     .rolePeople()
-    .filter((person) => incoming.has(person.id) || outgoing.has(person.id));
+    .filter(
+      (person) =>
+        (incoming.has(person.id) || outgoing.has(person.id)) &&
+        (compact ||
+          !state.introductionMetaByRole?.[state.role]?.[person.id]?.kind),
+    );
   const received = people.filter((person) => incoming.has(person.id));
   const sent = people.filter((person) => !incoming.has(person.id));
   const history = (state.introHistoryByRole?.[state.role] || []).slice(0, 10);
@@ -176,7 +181,10 @@ export default function Introductions({ compact = false }) {
             ? `${received.length} ${received.length === 1 ? `${one} needs` : `${many} need`} your reply.`
             : `${sent.length} sent and waiting for a reply.`}
         </p>
-        <button className="btn" onClick={() => onAction({ page: "waiting" })}>
+        <button
+          className="btn"
+          onClick={() => onAction({ page: mentor ? "requests" : "waiting" })}
+        >
           View {many}
         </button>
       </section>
@@ -189,7 +197,7 @@ export default function Introductions({ compact = false }) {
         <p className="muted">
           {mentor
             ? "No pending requests. Browse startups to find one to support."
-            : "No pending introductions. Explore Matches to find your next collaborator."}
+            : "No pending introductions for founder exchanges."}
         </p>
       )}
       {received.length > 0 && (

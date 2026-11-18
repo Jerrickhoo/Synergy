@@ -41,12 +41,9 @@ export function createModel(state) {
     const template =
       (state.engagementTemplates || defaultTemplates)[type] ||
       defaultTemplates.beta;
-    const names = template.milestones.map((item) => [
-      item.id,
-      item.title,
-      item.description,
-      item.evidence,
-    ]);
+    const names = (template.legacyMilestones || template.milestones).map(
+      (item) => [item.id, item.title, item.description, item.evidence],
+    );
     return Object.fromEntries(
       names.map(([id, title, description, evidence], index) => [
         id,
@@ -291,6 +288,8 @@ export function createInitialState() {
       score: "0",
       engagement: "all",
       availableNow: false,
+      freeOnly: false,
+      maxPrice: "",
     },
     profileEditing: false,
     onboarding: {

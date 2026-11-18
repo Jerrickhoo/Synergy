@@ -1,6 +1,7 @@
 import { scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { createInitialState } from "../src/data/model.js";
+import { isMentorRoom } from "../src/data/mentor-room.js";
 import { terminalStatuses } from "../src/data/collaboration.js";
 const derive = promisify(scrypt);
 
@@ -13,6 +14,8 @@ export function accountControls({
   response,
   mirror,
   fail,
+  disconnectMentorship,
+  closeMentorship,
 }) {
   const revoke = (id, keep) => {
     for (const [token, session] of sessions)
@@ -32,7 +35,8 @@ export function accountControls({
       fail("Your current password is incorrect.", 403);
     return authenticate(token);
   }
-  function clearIntroductions(account, target) {
+  function clearIntroductions(account, target, reason) {
+    disconnectMentorship?.(account, target, reason);
     for (const other of Object.values(getDb().accounts)) {
       if (target && other.id !== target) continue;
       for (const role of ["founder", "mentor"])
@@ -42,6 +46,7 @@ export function accountControls({
             "interestByRole",
             "incomingByRole",
             "introductionTypesByRole",
+            "introductionMetaByRole",
           ]) {
             const own = account.state[collection]?.[role];
             const theirs = other.state[collection]?.[otherRole];
@@ -59,6 +64,7 @@ export function accountControls({
         terminalStatuses.includes(room.status)
       )
         continue;
+      if (isMentorRoom(room)) closeMentorship?.(room, room.role, reason);
       room.status = "cancelled";
       room.closedAt = new Date().toISOString();
       room.closeReason = reason;
@@ -93,7 +99,7 @@ export function accountControls({
       if (typeof visible !== "boolean")
         fail("Choose whether your profile is visible.");
       account.profileVisible = visible;
-      if (!visible) clearIntroductions(account);
+      if (!visible) clearIntroductions(account, null, "profile-hidden");
       save();
       return response(account);
     },
@@ -112,7 +118,8 @@ export function accountControls({
       const list = new Set(account.blockedAccounts || []);
       if (blocked) {
         list.add(id);
-        clearIntroductions(account, id);
+        account.blockedAccounts = [...list];
+        clearIntroductions(account, id, "blocked");
         closeRooms(
           account,
           id,
@@ -141,6 +148,7 @@ export function accountControls({
       const workspace = response(account).state;
       for (const key of [
         "directory",
+        "calendarToken",
         "moderation",
         "isAdmin",
         "integrations",
@@ -167,15 +175,79 @@ export function accountControls({
     },
     delete(token) {
       const account = authenticate(token);
-      clearIntroductions(account);
+      clearIntroductions(account, null, "account-deleted");
       closeRooms(
         account,
         null,
         "A participant deleted their account. This collaboration is closed.",
       );
-      for (const owner of Object.values(getDb().accounts))
-        for (const room of Object.values(owner.state.rooms))
-          for (const message of room.messages) {
+      const db = getDb();
+      const oldName = account.state.accountName;
+      const startupName = account.state.profiles.founder?.startupName;
+      const oldNames = [
+        ...new Set([oldName, startupName].filter(Boolean)),
+      ].sort((a, b) => b.length - a.length);
+      const anonymise = (text) =>
+        typeof text === "string"
+          ? oldNames.reduce(
+              (value, before) => value.replaceAll(before, "Deleted account"),
+              text,
+            )
+          : text;
+      for (const owner of Object.values(db.accounts)) {
+        for (const role of ["mentor", "founder"]) {
+          for (const record of owner.state.mentorRequestsByRole?.[role] || []) {
+            if (!record.partnerId?.startsWith(account.id + ":")) continue;
+            record.name = "Deleted account";
+            for (const key of [
+              "note",
+              "problem",
+              "tried",
+              "question",
+              "desiredOutcome",
+              "links",
+              "quality",
+              "qualityReasons",
+              "sharpenedFrom",
+              "consentAt",
+              "message",
+              "safetyFlags",
+            ])
+              delete record[key];
+          }
+        }
+        for (const room of Object.values(owner.state.rooms)) {
+          const authorRole =
+            owner.id === account.id
+              ? room.role
+              : room.partnerAccountId === account.id
+                ? room.partnerRole
+                : null;
+          if (isMentorRoom(room) && authorRole) {
+            if (room.notes)
+              room.notes = room.notes.filter(
+                (note) => note.authorRole !== authorRole,
+              );
+            const deleteFeedback = (review, own) => {
+              if (!review) return;
+              for (const key of own
+                ? ["note", "testimonial", "testimonialPublic"]
+                : [
+                    "partnerNote",
+                    "partnerTestimonial",
+                    "partnerTestimonialPublic",
+                  ])
+                delete review[key];
+            };
+            deleteFeedback(room.review, room.role === authorRole);
+            for (const entry of room.mentorship.history || [])
+              deleteFeedback(entry.review, entry.role === authorRole);
+            for (const cycle of [room.cycle, ...(room.cycleHistory || [])]) {
+              const review = cycle?.reviews?.[account.id];
+              if (review) delete review.note;
+            }
+          }
+          for (const message of room.messages || []) {
             const authoredByDeleted =
               owner.id === account.id
                 ? message.who === "me"
@@ -186,14 +258,20 @@ export function accountControls({
               message.initials = "?";
             }
           }
-      const oldName = account.state.accountName;
-      if (oldName)
-        for (const owner of Object.values(getDb().accounts))
-          for (const activity of owner.state.activity)
-            activity.text = activity.text.replaceAll(
-              oldName,
-              "Deleted account",
-            );
+        }
+        for (const activity of owner.state.activity)
+          activity.text = anonymise(activity.text);
+      }
+      db.outbox = (db.outbox || []).filter(
+        (entry) => entry.accountId !== account.id,
+      );
+      for (const entry of db.outbox) {
+        if (!entry.payload) continue;
+        if (entry.payload.text)
+          entry.payload.text = anonymise(entry.payload.text);
+        for (const item of entry.payload.items || [])
+          if (item.text) item.text = anonymise(item.text);
+      }
       const retainedRooms = account.state.rooms;
       for (const key of Object.keys(account))
         if (key !== "id") delete account[key];

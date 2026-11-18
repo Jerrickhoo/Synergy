@@ -44,7 +44,7 @@ export async function user(
   if (role === "mentor")
     await command(request, result, {
       form: "accept-guidelines",
-      values: { version: 1 },
+      values: { version: 2 },
     });
   return result;
 }

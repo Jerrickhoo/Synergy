@@ -16,6 +16,9 @@ import {
   stageLabel,
   preferenceLabel,
 } from "../data/profile-presentation.js";
+import MentorImpact, {
+  FounderTrackRecord,
+} from "../components/MentorImpact.jsx";
 import ProfileStats from "../components/ProfileStats.jsx";
 import { availabilityLine } from "../data/mentor-rules.js";
 import ProfileOptions, { TagPicker } from "../components/ProfileOptions.jsx";
@@ -738,6 +741,19 @@ function ProfileContent() {
               </ProfileSection>
               <ProfileSection title="Collaboration record">
                 <ProfileStats />
+                {state.role === "mentor" ? (
+                  <MentorImpact
+                    trust={state.trustSummary?.mentorship}
+                    privateView
+                  />
+                ) : (
+                  state.trustSummary?.mentorship && (
+                    <FounderTrackRecord
+                      trackRecord={state.trustSummary.mentorship}
+                      own
+                    />
+                  )
+                )}
               </ProfileSection>
               <section className="card panel profile-section">
                 <h2>Account and community</h2>

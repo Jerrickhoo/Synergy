@@ -30,6 +30,12 @@ export function filterPeople(people, filters) {
         )) &&
       // "Available now" keeps only mentors who can take a request right now.
       (!filters.availableNow || person.available === true) &&
+      (!filters.freeOnly ||
+        person.formats?.some((format) => format.price === 0)) &&
+      (!filters.maxPrice ||
+        person.formats?.some(
+          (format) => format.price <= Number(filters.maxPrice) * 100,
+        )) &&
       person.score >= Number(filters.score)
     );
   });
@@ -46,6 +52,10 @@ export const pageLabel = (page, role) =>
     home: "Home",
     discover: "Matches",
     waiting: "Introductions",
+    requests: "Requests",
+    mentees: "Mentees",
+    impact: "Impact",
+    "impact-certificate": "Volunteer mentorship certificate",
     notifications: "Updates",
     moderation: "Moderation",
     rooms: "Deal Rooms",

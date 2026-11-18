@@ -4,6 +4,7 @@ import Brand from "./Brand.jsx";
 import FormErrors from "./FormErrors.jsx";
 import { useApp } from "../state/AppContext.jsx";
 import Icon from "./Icon.jsx";
+import Toast from "./Toast.jsx";
 export default function Login() {
   const { state, onAction, onSubmit } = useApp();
   const demoMode = Boolean(state.integrations?.demoMode);
@@ -23,7 +24,7 @@ export default function Login() {
         draggable="false"
       />
       {"\n    "}
-      <div className={`login-panel${demoMode ? " prototype-login" : ""}`}>
+      <div className="login-panel">
         {"\n      "}
         <div className="login-form-wrap">
           {"\n        "}
@@ -39,6 +40,7 @@ export default function Login() {
             together in a shared Deal Room.
           </p>
           {"\n        "}
+          <Toast />
           <form
             className="login-form"
             id="login-form"
@@ -51,6 +53,36 @@ export default function Login() {
             }}
           >
             <FormErrors scope="login-form" />
+            {demoMode && (
+              <>
+                <div className="field">
+                  <div className="prototype-role-heading">
+                    <label htmlFor="prototype-role">Prototype role</label>
+                    <details className="prototype-role-help">
+                      <summary aria-label="About role previews">
+                        <Icon name="info" />
+                      </summary>
+                      <p>
+                        Role previews are for browsing sample profiles. Preview
+                        accounts cannot connect with each other.
+                      </p>
+                    </details>
+                  </div>
+                  <SelectField
+                    id="prototype-role"
+                    value={prototypeRole}
+                    disabled={state.busy}
+                    onChange={(event) => setPrototypeRole(event.target.value)}
+                  >
+                    <option value="founder">Founder</option>
+                    <option value="mentor">Mentor</option>
+                  </SelectField>
+                </div>
+                <p className="field-help" id="demo-password-help">
+                  Use any made-up email and password to explore the prototype.
+                </p>
+              </>
+            )}
             {"\n          "}
             <div className="field">
               <label htmlFor="login-email">Email address</label>
@@ -100,11 +132,11 @@ export default function Login() {
                   <Icon name={state.passwordVisible ? "eye-off" : "eye"} />
                 </button>
               </div>
-              <span className="field-help" id="demo-password-help">
-                {demoMode
-                  ? "Use any email and password to explore the prototype."
-                  : "Use the password you chose when creating your account."}
-              </span>
+              {!demoMode && (
+                <span className="field-help" id="demo-password-help">
+                  Use the password you chose when creating your account.
+                </span>
+              )}
             </div>
             {"\n          "}
             <button
@@ -141,31 +173,6 @@ export default function Login() {
           {"\n        "}
           {"\n      "}
         </div>
-        {demoMode && (
-          <div className="prototype-role-control">
-            <div className="prototype-role-heading">
-              <label htmlFor="prototype-role">Prototype role</label>
-              <details className="prototype-role-help">
-                <summary aria-label="About role previews">
-                  <Icon name="info" />
-                </summary>
-                <p>
-                  Role previews are for browsing sample profiles. Preview
-                  accounts cannot connect with each other.
-                </p>
-              </details>
-            </div>
-            <SelectField
-              id="prototype-role"
-              value={prototypeRole}
-              disabled={state.busy}
-              onChange={(event) => setPrototypeRole(event.target.value)}
-            >
-              <option value="founder">Founder</option>
-              <option value="mentor">Mentor</option>
-            </SelectField>
-          </div>
-        )}
         {"\n    "}
       </div>
       {"\n  "}

@@ -5,9 +5,9 @@ export default function BlockCollaborator({ person }) {
     <details className="block-collaborator">
       <summary>Block this collaborator</summary>
       <p>
-        Block {person.name} from discovery and further chat. Pending
-        introductions are withdrawn and unfinished rooms between you will close.
-        Shared history remains available.
+        Block {person.name} from discovery and further chat. Pending requests
+        will be returned and unfinished rooms between you will close. Shared
+        history remains available.
       </p>
       <button
         className="btn danger"

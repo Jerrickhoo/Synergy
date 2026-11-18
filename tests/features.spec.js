@@ -1,3 +1,4 @@
+import { mentorRequestValues } from "./mentor-request-fixtures.js";
 import { selectValue, confirmSignOut } from "./ui-helpers.js";
 import { defaultMatching } from "../src/data/matching.js";
 import { test, expect } from "@playwright/test";
@@ -424,14 +425,15 @@ async function pair(request, mentor = false) {
   if (mentor)
     await act(request, b, {
       form: "accept-guidelines",
-      values: { version: 1 },
+      values: { version: 2 },
     });
   await act(request, a, {
-    action: "interest",
+    action: mentor ? "send-request" : "interest",
+    values: mentor ? mentorRequestValues : undefined,
     id: `${b.state.accountId}:${b.role}`,
   });
   const connected = await act(request, b, {
-    action: "accept-interest",
+    action: mentor ? "accept-request" : "accept-interest",
     id: `${a.state.accountId}:founder`,
   });
   return { a, b, id: connected.state.activeRoomId };
@@ -699,69 +701,44 @@ test("partners request revised terms, set due dates, close a room and reconnect 
   expect(next.state.rooms[id].status).toBe("cancelled");
 });
 
-test("weekly mentorship rescheduling and notification read state work on mobile", async ({
+test("mentorship rescheduling and notification read state work on mobile", async ({
   page,
   request,
 }) => {
   const { a, b, id } = await pair(request, true);
-  await agree(request, a, b, id);
+  await act(request, b, { action: "confirm-goal", activeRoomId: id });
   await page.setViewportSize({ width: 360, height: 900 });
   await open(page, a, `rooms/${id}`);
-  await page.getByRole("tab", { name: "Milestones", exact: true }).click();
-  await page
+  await page.getByRole("tab", { name: "Schedule", exact: true }).click();
+  const panel = page.getByRole("tabpanel", { name: "Schedule" });
+  await panel.getByLabel("Date", { exact: true }).fill("2035-04-01");
+  await panel.getByLabel("Time", { exact: true }).fill("10:00");
+  await panel
+    .getByRole("combobox", { name: "Duration", exact: true })
+    .selectOption("45");
+  await panel
     .getByRole("button", { name: "Schedule session", exact: true })
     .click();
-  await page.getByLabel("Session date", { exact: true }).fill("2035-04-01");
-  await page
-    .getByLabel("Or choose another time", { exact: true })
-    .fill("10:00");
-  await selectValue(page.getByLabel("Session duration", { exact: true }), "45");
-  await selectValue(page.getByLabel("Repeat", { exact: true }), "3");
-  await page
-    .getByRole("button", { name: "Review schedule", exact: true })
+  await expect(panel.getByText(/45 minutes/)).toBeVisible();
+  await panel.getByText("Reschedule or cancel", { exact: true }).click();
+  await panel.getByLabel("Date", { exact: true }).fill("2035-04-02");
+  await panel.getByLabel("Time", { exact: true }).fill("11:00");
+  await panel
+    .getByRole("button", { name: "Reschedule session", exact: true })
     .click();
-  await expect(
-    page.getByRole("region", { name: "Review session schedule", exact: true }),
-  ).toContainText("45 minutes");
-  await page
-    .getByRole("button", { name: "Save session schedule", exact: true })
-    .click();
-  await expect(
-    page.getByText("Your session schedule is saved.", { exact: true }),
-  ).toBeVisible();
-  expect(
-    (await state(request, a)).state.rooms[id].milestones.session.schedule
-      .durationMinutes,
-  ).toBe(45);
-  await page.getByRole("tab", { name: "Milestones", exact: true }).click();
-  await expect(page.getByText(/2035-04-15 · 10:00/)).toBeVisible();
-  await page.getByRole("button", { name: "Reschedule", exact: true }).click();
-  await page.getByLabel("Session date", { exact: true }).fill("2035-04-02");
-  await page
-    .getByLabel("Or choose another time", { exact: true })
-    .fill("10:00");
-  await page
-    .getByRole("button", { name: "Review schedule", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Update session schedule", exact: true })
-    .click();
-  await expect(
-    page.getByText("Your session schedule is saved.", { exact: true }),
-  ).toBeVisible();
-  await page.getByRole("tab", { name: "Milestones", exact: true }).click();
-  await expect(page.getByText(/2035-04-16 · 10:00/)).toBeVisible();
+  await expect
+    .poll(
+      async () =>
+        (await state(request, a)).state.rooms[id].milestones.held.schedules[0]
+          .date,
+    )
+    .toBe("2035-04-02");
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
   await capture(page, "fixed-scheduling-mobile");
-  await act(request, b, {
-    action: "confirm-milestone",
-    activeRoomId: id,
-    id: "goals",
-  });
   await page.goto("/#/updates");
   await page
     .getByRole("button", { name: "Mark all as read", exact: true })
@@ -773,11 +750,6 @@ test("weekly mentorship rescheduling and notification read state work on mobile"
   await expect(
     page.getByRole("status").filter({ hasText: /^0 unread updates$/ }),
   ).toBeVisible();
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-  ).toBe(true);
 });
 
 test("verified moderators review reports, tags and affiliations while ordinary accounts cannot access the queue", async ({

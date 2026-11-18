@@ -182,7 +182,8 @@ export default function MentoringSettings() {
         <fieldset className="mentoring-formats">
           <legend>Formats you offer</legend>
           <p className="field-help">
-            Keep at least one selected. All mentoring is free in this version.
+            Keep at least one selected. Set prices in Payouts after completing
+            payout setup.
           </p>
           {mentorFormats.map((format) => (
             <label className="mentoring-format" key={format.id}>
@@ -318,7 +319,8 @@ export default function MentoringSettings() {
           open={guidelines.status !== "accepted"}
         >
           <summary>
-            Read the guidelines (version {mentorGuidelines.version})
+            Read the guidelines (version{" "}
+            {state.mentorConfig?.guidelinesVersion || mentorGuidelines.version})
           </summary>
           {mentorGuidelines.sections.map((section) => (
             <div key={section.title}>
@@ -337,7 +339,10 @@ export default function MentoringSettings() {
             <input
               type="hidden"
               name="version"
-              value={mentorConfig.guidelinesVersion}
+              value={
+                state.mentorConfig?.guidelinesVersion ||
+                mentorConfig.guidelinesVersion
+              }
             />
             <SubmitButton
               primary

@@ -25,7 +25,7 @@ function temporary(t, extension = "json") {
   return join(dir, `workspace.${extension}`);
 }
 
-test("demo profiles validate, use local artwork, and contain no simulated trust history", (t) => {
+test("demo profiles validate and sample Impact and Office Hours stay in the demo", (t) => {
   assert.equal(demoProfiles.filter((p) => p.role === "founder").length, 14);
   assert.equal(demoProfiles.filter((p) => p.role === "mentor").length, 10);
   assert.equal(new Set(demoProfiles.map((p) => p.id)).size, 24);
@@ -40,9 +40,28 @@ test("demo profiles validate, use local artwork, and contain no simulated trust 
   }
   const file = temporary(t);
   const workspace = createWorkspace(file, { demoMode: true });
+  const viewer = workspace.openDemo("founder");
+  const sample = viewer.state.directory.mentors.find(
+    ({ id }) => id === "demo-sample-rafael-lim:mentor",
+  );
+  assert.ok(sample.officeHours.length > 0);
+  assert.equal(sample.mentorImpact.sessions.value, 3);
+  assert.equal(sample.pastExperience, "");
+  const experiencedMentor = viewer.state.directory.mentors.find(
+    ({ id }) => id === "demo-sample-david-park:mentor",
+  );
+  assert.ok(experiencedMentor.pastExperience);
+  assert.ok(!Object.keys(viewer.state.rooms).length);
   workspace.close();
+  const realFile = temporary(t);
+  createWorkspace(realFile, { demoMode: false }).close();
+  assert.deepEqual(readWorkspaceSnapshot(realFile).accounts, {});
   for (const account of Object.values(readWorkspaceSnapshot(file).accounts)) {
-    assert.deepEqual(account.state.rooms, {});
+    assert.ok(
+      Object.values(account.state.rooms).every(
+        (room) => room.mentorship.sample && room.status === "reviewed",
+      ),
+    );
     assert.deepEqual(account.state.activity, []);
     assert.deepEqual(account.state.trustHistoryByRole, {
       founder: [],

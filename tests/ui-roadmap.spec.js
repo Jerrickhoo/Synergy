@@ -1,3 +1,4 @@
+import { mentorRequestValues } from "./mentor-request-fixtures.js";
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import sharp from "sharp";
@@ -44,7 +45,7 @@ async function account(request, role, prefix = "Roadmap") {
   if (role === "mentor")
     await action(request, user, {
       form: "accept-guidelines",
-      values: { version: 1 },
+      values: { version: 2 },
     });
   return user;
 }
@@ -648,31 +649,20 @@ for (const role of ["founder", "mentor"])
       },
     });
     await action(request, user, {
-      action: "interest",
+      action: role === "founder" ? "send-request" : "interest",
       id: matchId,
       engagementType: "mentorship",
+      values: role === "founder" ? mentorRequestValues : undefined,
     });
     const connected = await action(request, peer, {
-      action: "accept-interest",
+      action: role === "founder" ? "accept-request" : "accept-interest",
       id: `${user.state.accountId}:${role}`,
     });
     const roomId = connected.state.activeRoomId;
-    await action(request, user, {
-      action: "lock-terms",
+    await action(request, role === "mentor" ? user : peer, {
+      action: "confirm-goal",
       activeRoomId: roomId,
-      termsRevision: 0,
-      values: {
-        goal: "Review the onboarding experience",
-        scope: "Product mentoring",
-        timeline: "One session",
-        commitment: "An hour",
-        compensation: "Shared learning",
-      },
-    });
-    await action(request, peer, {
-      action: "accept-terms",
-      activeRoomId: roomId,
-      termsRevision: 1,
+      values: { goal: "Review the onboarding experience" },
     });
     await action(request, user, {
       form: "schedule",
@@ -724,12 +714,8 @@ for (const role of ["founder", "mentor"])
             .click();
         }
         if (route.startsWith("rooms/")) {
-          for (const tab of ["Milestones", "Schedule", "Chat"]) {
+          for (const tab of ["Overview", "Schedule", "Action items", "Chat"]) {
             await page.getByRole("tab", { name: tab, exact: true }).click();
-            if (tab === "Milestones")
-              await page
-                .getByText("Task board · optional room tool", { exact: true })
-                .click();
             await accessible(page);
           }
         }

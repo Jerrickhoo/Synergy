@@ -88,7 +88,7 @@ test("a new mentor accepts the guidelines in Settings before founders can ask th
   ).toBeVisible();
   await checkLayout(page, "guidelines-required", testInfo);
   await page.getByRole("button", { name: "Accept guidelines" }).click();
-  await expect(page.getByText(/You accepted version 1/)).toBeVisible();
+  await expect(page.getByText(/You accepted version 2/)).toBeVisible();
 
   seen = (await getState(request, founder)).directory.mentors.find(
     (item) => item.accountId === mentor.state.accountId,
@@ -183,7 +183,7 @@ test("founders see why a paused mentor is unavailable and can filter to who is a
     page.getByText(/is not taking requests right now/).first(),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Send introduction" }),
-  ).toBeDisabled();
+    page.getByRole("button", { name: "Send mentorship request" }),
+  ).toHaveCount(0);
   await checkLayout(page, "match-detail-paused", testInfo);
 });

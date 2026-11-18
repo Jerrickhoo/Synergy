@@ -1,3 +1,9 @@
+import MentorImpact, { MentorshipBadges } from "../components/MentorImpact.jsx";
+import { FormatPrices } from "../components/Payments.jsx";
+import { OfficeHoursBooking } from "../components/OfficeHours.jsx";
+import MentorRequestForm, {
+  MentorAlternatives,
+} from "../components/MentorRequestForm.jsx";
 import SelectField from "../components/SelectField.jsx";
 import BlockCollaborator from "../components/BlockCollaborator.jsx";
 import VerificationGate from "../components/VerificationGate.jsx";
@@ -29,7 +35,11 @@ const typeNames = {
 
 export default function MatchDetailPage() {
   const { state } = useApp();
-  return <MatchDetail key={`${state.role}:${state.activeMatch}`} />;
+  return (
+    <MatchDetail
+      key={`${state.role}:${state.activeMatch}:${state.mentorReferralId || ""}`}
+    />
+  );
 }
 function MatchDetail() {
   const { state, model, onAction } = useApp();
@@ -38,6 +48,17 @@ function MatchDetail() {
   const person = model
     .rolePeople()
     .find((item) => item.id === state.activeMatch);
+  const mentorUnavailable =
+    state.role === "founder" &&
+    (person
+      ? person.kind === "Mentor" && person.available === false
+      : state.activeMatch?.endsWith(":mentor"));
+  const alternatives = mentorUnavailable
+    ? model.people.mentors
+        .filter((item) => item.id !== state.activeMatch && item.available)
+        .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+        .slice(0, state.mentorConfig?.alternativesCount ?? 3)
+    : [];
   if (!person)
     return (
       <div className="page page-enter">
@@ -45,6 +66,7 @@ function MatchDetail() {
           title="Match unavailable"
           intro="This profile may have changed its visibility or is no longer available. Explore Matches to find someone else."
         />
+        <MentorAlternatives alternatives={alternatives} />
         <button className="btn" onClick={() => onAction({ page: "discover" })}>
           Back to matches
         </button>
@@ -54,6 +76,18 @@ function MatchDetail() {
   const incoming = state.incomingByRole[state.role].has(person.id);
   const interested = model.interestedMatches().has(person.id);
   const mentor = person.kind === "Mentor";
+  const requestForm =
+    state.role === "founder" && mentor && !incoming && !existingRoom;
+  const mentorRequest =
+    state.role === "mentor" &&
+    incoming &&
+    state.introductionMetaByRole?.mentor?.[person.id]?.kind;
+  const referral = state.mentorRequests?.find(
+    (entry) =>
+      entry.id === state.mentorReferralId &&
+      entry.status === "referred" &&
+      entry.alternatives.some((item) => item.id === person.id),
+  );
   const factors = model.scoreFactors(person);
   const rows = fitFactors(person, factors);
   const isScore =
@@ -80,20 +114,12 @@ function MatchDetail() {
   // A mentor who can't take requests (paused, full, guidelines) blocks sending
   // here, and a mentor whose own limits are full can't accept. The server
   // enforces both; this explains why and offers similar mentors.
-  const mentorUnavailable =
-    state.role === "founder" && mentor && person.available === false;
   const ownUnavailable =
     state.role === "mentor" &&
     state.mentorUsage &&
     !state.mentorUsage.available;
   const startBlocked =
     !existingRoom && !interested && (mentorUnavailable || ownUnavailable);
-  const alternatives = mentorUnavailable
-    ? model.people.mentors
-        .filter((item) => item.id !== person.id && item.available)
-        .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
-        .slice(0, 3)
-    : [];
   return (
     <div className="page match-detail-page page-enter">
       <button
@@ -129,6 +155,7 @@ function MatchDetail() {
           <p className="identity-summary preserve-lines">
             {person.summary || "An introduction has not been added yet."}
           </p>
+          <MentorshipBadges badges={person.badges} />
           <div className="identity-metadata">
             {person.affiliation && (
               <span className="badge-verified">
@@ -171,215 +198,262 @@ function MatchDetail() {
           className="card panel match-action-panel"
           aria-label="Collaboration actions"
         >
-          <span className="action-eyebrow">
-            <Icon
-              name={existingRoom ? "rooms" : incoming ? "inbox" : "handshake"}
-            />
-            {existingRoom
-              ? "Connected"
-              : incoming
-                ? "Introduction received"
-                : interested
-                  ? "Waiting for a reply"
-                  : "Your next step"}
-          </span>
-          <h2>
-            {existingRoom
-              ? "Continue in your Deal Room"
-              : incoming
-                ? `${person.name} wants to work with you`
-                : interested
-                  ? "Introduction sent"
-                  : pastRooms.length
-                    ? "Start another collaboration"
-                    : "Send an introduction"}
-          </h2>
-          <p>
-            {existingRoom
-              ? "Your shared Deal Room has the agreed terms and next steps."
-              : incoming
-                ? `Accepting opens a Deal Room where you agree terms together. Nothing is committed until you both accept the terms.`
-                : interested
-                  ? `If ${person.name} accepts, a Deal Room opens automatically. Introductions expire after 14 days without a reply. You can withdraw it while you wait.`
-                  : `If ${person.name} accepts, a Deal Room opens where you agree terms before any work starts.`}
-          </p>
-          {incoming && meta?.note && (
-            <blockquote className="intro-note">“{meta.note}”</blockquote>
-          )}
-          {startBlocked && (
-            <div className="mentoring-banner" role="status">
-              <p>
-                {mentorUnavailable
-                  ? unavailableText(person.reason, person.name)
-                  : ownUnavailableText(state.mentorUsage.reason)}
-              </p>
-              {ownUnavailable && (
-                <button
-                  className="btn small"
-                  onClick={() => onAction({ page: "settings" })}
-                >
-                  Open mentoring settings
-                </button>
+          {requestForm ? (
+            <>
+              {person.formats?.some(
+                (format) => format.id !== "office-hours",
+              ) && (
+                <MentorRequestForm
+                  person={person}
+                  alternatives={alternatives}
+                  referral={referral}
+                />
               )}
-            </div>
-          )}
-          {alternatives.length > 0 && !existingRoom && (
-            <div className="mentoring-alternatives">
-              <h3>Ask one of these mentors instead</h3>
-              <ul>
-                {alternatives.map((item) => (
-                  <li key={item.id}>
-                    <span>
-                      <strong>{item.name}</strong>
-                      <span className="muted">
-                        {item.score}% fit · {item.availability}
-                      </span>
-                    </span>
+              <OfficeHoursBooking person={person} />
+              {mentorUnavailable &&
+                person.formats?.every(
+                  (format) => format.id === "office-hours",
+                ) && <MentorAlternatives alternatives={alternatives} />}
+            </>
+          ) : mentorRequest ? (
+            <>
+              <h2>Mentorship request received</h2>
+              <button
+                className="btn"
+                onClick={() =>
+                  onAction({
+                    action: "mentor-request-link",
+                    page: "requests",
+                    requestId: meta.id,
+                  })
+                }
+              >
+                View request
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="action-eyebrow">
+                <Icon
+                  name={
+                    existingRoom ? "rooms" : incoming ? "inbox" : "handshake"
+                  }
+                />
+                {existingRoom
+                  ? "Connected"
+                  : incoming
+                    ? "Introduction received"
+                    : interested
+                      ? "Waiting for a reply"
+                      : "Your next step"}
+              </span>
+              <h2>
+                {existingRoom
+                  ? existingRoom.type === "mentorship"
+                    ? "Continue in your Mentorship Room"
+                    : "Continue in your Deal Room"
+                  : incoming
+                    ? `${person.name} wants to work with you`
+                    : interested
+                      ? "Introduction sent"
+                      : pastRooms.length
+                        ? "Start another collaboration"
+                        : "Send an introduction"}
+              </h2>
+              <p>
+                {existingRoom
+                  ? existingRoom.type === "mentorship"
+                    ? "Open your Mentorship Room to pick up where you left off."
+                    : "Your shared Deal Room has the agreed terms and next steps."
+                  : incoming
+                    ? `Accepting opens a Deal Room where you agree terms together. Nothing is committed until you both accept the terms.`
+                    : interested
+                      ? `If ${person.name} accepts, a Deal Room opens automatically. Introductions expire after 14 days without a reply. You can withdraw it while you wait.`
+                      : `If ${person.name} accepts, a Deal Room opens where you agree terms before any work starts.`}
+              </p>
+              {incoming && meta?.note && (
+                <blockquote className="intro-note">“{meta.note}”</blockquote>
+              )}
+              {startBlocked && (
+                <div className="mentoring-banner" role="status">
+                  <p>
+                    {mentorUnavailable
+                      ? unavailableText(person.reason, person.name)
+                      : ownUnavailableText(state.mentorUsage.reason)}
+                  </p>
+                  {ownUnavailable && (
                     <button
                       className="btn small"
-                      onClick={() =>
-                        onAction({ action: "match-detail", id: item.id })
-                      }
+                      onClick={() => onAction({ page: "settings" })}
                     >
-                      View match
-                      <span className="visually-hidden">: {item.name}</span>
+                      Open mentoring settings
                     </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {!existingRoom && !interested && (
-            <div className="field">
-              <label htmlFor="introduction-type">
-                {incoming ? "Accept as" : "Collaboration type"}
-              </label>
-              <SelectField
-                id="introduction-type"
-                value={chosenType}
-                onChange={(event) => setEngagementType(event.target.value)}
-              >
-                {state.role === "mentor" || mentor ? (
-                  <option value="mentorship">Mentorship</option>
-                ) : (
-                  <>
-                    <option value="beta">Beta Testing Exchange</option>
-                    <option value="marketing">Co-Marketing Swap</option>
-                  </>
-                )}
-              </SelectField>
-              <p className="field-help">
-                {incoming
-                  ? `${person.name} proposed ${typeNames[proposed]}. Choosing another type tells them when the room opens.`
-                  : `First step: ${template?.milestones?.[0]?.title || "agree on terms"}. ${person.name} sees this before accepting.`}
-              </p>
-              {swapWithoutAudience && (
-                <p className="warning-note">
-                  Add your audience size to your profile so {person.name} can
-                  judge whether the swap is fair.
+                  )}
+                </div>
+              )}
+              {alternatives.length > 0 && !existingRoom && (
+                <div className="mentoring-alternatives">
+                  <h3>Ask one of these mentors instead</h3>
+                  <ul>
+                    {alternatives.map((item) => (
+                      <li key={item.id}>
+                        <span>
+                          <strong>{item.name}</strong>
+                          <span className="muted">
+                            {item.score}% fit · {item.availability}
+                          </span>
+                        </span>
+                        <button
+                          className="btn small"
+                          onClick={() =>
+                            onAction({ action: "match-detail", id: item.id })
+                          }
+                        >
+                          View match
+                          <span className="visually-hidden">: {item.name}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {!existingRoom && !interested && (
+                <div className="field">
+                  <label htmlFor="introduction-type">
+                    {incoming ? "Accept as" : "Collaboration type"}
+                  </label>
+                  <SelectField
+                    id="introduction-type"
+                    value={chosenType}
+                    onChange={(event) => setEngagementType(event.target.value)}
+                  >
+                    {state.role === "mentor" || mentor ? (
+                      <option value="mentorship">Mentorship</option>
+                    ) : (
+                      <>
+                        <option value="beta">Beta Testing Exchange</option>
+                        <option value="marketing">Co-Marketing Swap</option>
+                      </>
+                    )}
+                  </SelectField>
+                  <p className="field-help">
+                    {incoming
+                      ? `${person.name} proposed ${typeNames[proposed]}. Choosing another type tells them when the room opens.`
+                      : `First step: ${template?.milestones?.[0]?.title || "agree on terms"}. ${person.name} sees this before accepting.`}
+                  </p>
+                  {swapWithoutAudience && (
+                    <p className="warning-note">
+                      Add your audience size to your profile so {person.name}{" "}
+                      can judge whether the swap is fair.
+                    </p>
+                  )}
+                  {chosenType === "marketing" && person.audienceWarning && (
+                    <p className="warning-note">{person.audienceWarning}.</p>
+                  )}
+                </div>
+              )}
+              {!existingRoom && !incoming && !interested && (
+                <div className="field">
+                  <label htmlFor="introduction-note">
+                    Add a short note (optional)
+                  </label>
+                  <textarea
+                    id="introduction-note"
+                    maxLength={280}
+                    value={note}
+                    placeholder={`Why ${person.name}? For example: your 600 student users are exactly who we want to test with.`}
+                    onChange={(event) => setNote(event.target.value)}
+                  />
+                  <span className="field-count">{note.length} / 280</span>
+                </div>
+              )}
+              {interested && !existingRoom && !incoming && meta?.sentAt && (
+                <p className="muted">
+                  Sent {new Date(meta.sentAt).toLocaleDateString()} · expires{" "}
+                  {new Date(
+                    Date.parse(meta.sentAt) + 14 * 86400000,
+                  ).toLocaleDateString()}
                 </p>
               )}
-              {chosenType === "marketing" && person.audienceWarning && (
-                <p className="warning-note">{person.audienceWarning}.</p>
+              <button
+                className="btn primary full"
+                data-action="interest"
+                data-id={person.id}
+                disabled={
+                  state.busy ||
+                  startBlocked ||
+                  (!existingRoom && verificationRequired(state)) ||
+                  (interested && !existingRoom && !incoming)
+                }
+                onClick={() =>
+                  onAction({
+                    action: existingRoom
+                      ? "open-room"
+                      : incoming
+                        ? "accept-interest"
+                        : "interest",
+                    id: existingRoom?.id || person.id,
+                    engagementType: chosenType,
+                    values: incoming || existingRoom ? undefined : { note },
+                  })
+                }
+              >
+                {existingRoom
+                  ? existingRoom.type === "mentorship"
+                    ? "Open Mentorship Room"
+                    : "Open Deal Room"
+                  : verificationRequired(state)
+                    ? "Verify to send introductions"
+                    : incoming
+                      ? "Accept introduction"
+                      : interested
+                        ? "Introduction sent"
+                        : "Send introduction"}
+                <Icon name="arrow" />
+              </button>
+              {!existingRoom && <VerificationGate />}
+              {incoming && !existingRoom && (
+                <DeclineIntroduction person={person} />
               )}
-            </div>
+              {interested && !incoming && !existingRoom && (
+                <SimulateAcceptance person={person} />
+              )}
+              {interested && !incoming && !existingRoom && (
+                <button
+                  className="btn full"
+                  disabled={state.busy}
+                  onClick={() =>
+                    onAction({ action: "cancel-interest", id: person.id })
+                  }
+                >
+                  Withdraw introduction
+                </button>
+              )}
+              <button
+                className={`btn full ${model.savedMatches().has(person.id) ? "is-saved" : ""}`}
+                aria-pressed={model.savedMatches().has(person.id)}
+                disabled={state.busy}
+                data-action="save"
+                data-id={person.id}
+                onClick={() => onAction({ action: "save", id: person.id })}
+              >
+                <Icon name="bookmark" />
+                {model.savedMatches().has(person.id)
+                  ? "Saved for later"
+                  : "Save for later"}
+              </button>
+              <details className="match-safety">
+                <summary>Safety and privacy</summary>
+                <p className="field-help">
+                  Send a private report for moderator review, or block further
+                  contact. Blocking withdraws introductions and closes
+                  unfinished rooms.
+                </p>
+                <ReportCollaborator person={person} />
+                <BlockCollaborator person={person} />
+              </details>
+            </>
           )}
-          {!existingRoom && !incoming && !interested && (
-            <div className="field">
-              <label htmlFor="introduction-note">
-                Add a short note (optional)
-              </label>
-              <textarea
-                id="introduction-note"
-                maxLength={280}
-                value={note}
-                placeholder={`Why ${person.name}? For example: your 600 student users are exactly who we want to test with.`}
-                onChange={(event) => setNote(event.target.value)}
-              />
-              <span className="field-count">{note.length} / 280</span>
-            </div>
-          )}
-          {interested && !existingRoom && !incoming && meta?.sentAt && (
-            <p className="muted">
-              Sent {new Date(meta.sentAt).toLocaleDateString()} · expires{" "}
-              {new Date(
-                Date.parse(meta.sentAt) + 14 * 86400000,
-              ).toLocaleDateString()}
-            </p>
-          )}
-          <button
-            className="btn primary full"
-            data-action="interest"
-            data-id={person.id}
-            disabled={
-              state.busy ||
-              startBlocked ||
-              (!existingRoom && verificationRequired(state)) ||
-              (interested && !existingRoom && !incoming)
-            }
-            onClick={() =>
-              onAction({
-                action: existingRoom
-                  ? "open-room"
-                  : incoming
-                    ? "accept-interest"
-                    : "interest",
-                id: existingRoom?.id || person.id,
-                engagementType: chosenType,
-                values: incoming || existingRoom ? undefined : { note },
-              })
-            }
-          >
-            {existingRoom
-              ? "Open Deal Room"
-              : verificationRequired(state)
-                ? "Verify to send introductions"
-                : incoming
-                  ? "Accept introduction"
-                  : interested
-                    ? "Introduction sent"
-                    : "Send introduction"}
-            <Icon name="arrow" />
-          </button>
-          {!existingRoom && <VerificationGate />}
-          {incoming && !existingRoom && <DeclineIntroduction person={person} />}
-          {interested && !incoming && !existingRoom && (
-            <SimulateAcceptance person={person} />
-          )}
-          {interested && !incoming && !existingRoom && (
-            <button
-              className="btn full"
-              disabled={state.busy}
-              onClick={() =>
-                onAction({ action: "cancel-interest", id: person.id })
-              }
-            >
-              Withdraw introduction
-            </button>
-          )}
-          <button
-            className={`btn full ${model.savedMatches().has(person.id) ? "is-saved" : ""}`}
-            aria-pressed={model.savedMatches().has(person.id)}
-            disabled={state.busy}
-            data-action="save"
-            data-id={person.id}
-            onClick={() => onAction({ action: "save", id: person.id })}
-          >
-            <Icon name="bookmark" />
-            {model.savedMatches().has(person.id)
-              ? "Saved for later"
-              : "Save for later"}
-          </button>
-          <details className="match-safety">
-            <summary>Safety and privacy</summary>
-            <p className="field-help">
-              Send a private report for moderator review, or block further
-              contact. Blocking withdraws introductions and closes unfinished
-              rooms.
-            </p>
-            <ReportCollaborator person={person} />
-            <BlockCollaborator person={person} />
-          </details>
         </aside>
         <div className="match-reading-column">
           <section className="card panel profile-section fit-section">
@@ -505,6 +579,10 @@ function MatchDetail() {
               </div>
             )}
             <TrustSummary person={person} detailed />
+            {person.mentorImpact && <FormatPrices person={person} />}
+            {person.mentorImpact && (
+              <MentorImpact trust={person.mentorImpact} />
+            )}
           </section>
         </div>
       </div>

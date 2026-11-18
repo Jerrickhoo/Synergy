@@ -13,66 +13,68 @@ export default function EngagementSettings() {
           Edit the starting checklist for each room type. New rooms receive a
           copy of the current version; existing agreements keep their checklist.
         </p>
-        {Object.values(state.engagementTemplates).map((template) => (
-          <details className="moderation-entry" key={template.id}>
-            <summary>
-              {template.name} · Version {template.version}
-            </summary>
-            <form
-              key={template.version}
-              data-form="engagement-template"
-              className="grid section-gap"
-              onSubmit={onSubmit}
-            >
-              <input type="hidden" name="type" value={template.id} />
-              <input type="hidden" name="version" value={template.version} />
-              <label htmlFor={`template-${template.id}`}>Template name</label>
-              <input
-                id={`template-${template.id}`}
-                name="name"
-                required
-                maxLength={100}
-                defaultValue={template.name}
-              />
-              {template.milestones.map((item, index) => (
-                <fieldset className="template-milestone" key={item.id}>
-                  <legend>Milestone {index + 1}</legend>
-                  <label htmlFor={`${template.id}-${item.id}-title`}>
-                    Title
-                  </label>
-                  <input
-                    id={`${template.id}-${item.id}-title`}
-                    name={`title-${item.id}`}
-                    required
-                    maxLength={120}
-                    defaultValue={item.title}
-                  />
-                  <label htmlFor={`${template.id}-${item.id}-scope`}>
-                    Scope
-                  </label>
-                  <textarea
-                    id={`${template.id}-${item.id}-scope`}
-                    name={`description-${item.id}`}
-                    required
-                    maxLength={2000}
-                    defaultValue={item.description}
-                  />
-                  <label className="checkbox-label">
+        {Object.values(state.engagementTemplates)
+          .filter((template) => template.id !== "mentorship")
+          .map((template) => (
+            <details className="moderation-entry" key={template.id}>
+              <summary>
+                {template.name} · Version {template.version}
+              </summary>
+              <form
+                key={template.version}
+                data-form="engagement-template"
+                className="grid section-gap"
+                onSubmit={onSubmit}
+              >
+                <input type="hidden" name="type" value={template.id} />
+                <input type="hidden" name="version" value={template.version} />
+                <label htmlFor={`template-${template.id}`}>Template name</label>
+                <input
+                  id={`template-${template.id}`}
+                  name="name"
+                  required
+                  maxLength={100}
+                  defaultValue={template.name}
+                />
+                {template.milestones.map((item, index) => (
+                  <fieldset className="template-milestone" key={item.id}>
+                    <legend>Milestone {index + 1}</legend>
+                    <label htmlFor={`${template.id}-${item.id}-title`}>
+                      Title
+                    </label>
                     <input
-                      type="checkbox"
-                      name={`evidence-${item.id}`}
-                      defaultChecked={item.evidence}
-                    />{" "}
-                    Require evidence
-                  </label>
-                </fieldset>
-              ))}
-              <button className="btn" disabled={state.busy}>
-                Save template
-              </button>
-            </form>
-          </details>
-        ))}
+                      id={`${template.id}-${item.id}-title`}
+                      name={`title-${item.id}`}
+                      required
+                      maxLength={120}
+                      defaultValue={item.title}
+                    />
+                    <label htmlFor={`${template.id}-${item.id}-scope`}>
+                      Scope
+                    </label>
+                    <textarea
+                      id={`${template.id}-${item.id}-scope`}
+                      name={`description-${item.id}`}
+                      required
+                      maxLength={2000}
+                      defaultValue={item.description}
+                    />
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        name={`evidence-${item.id}`}
+                        defaultChecked={item.evidence}
+                      />{" "}
+                      Require evidence
+                    </label>
+                  </fieldset>
+                ))}
+                <button className="btn" disabled={state.busy}>
+                  Save template
+                </button>
+              </form>
+            </details>
+          ))}
       </section>
       <section className="card panel section-gap">
         <h2>Matching evaluation</h2>
@@ -88,7 +90,12 @@ export default function EngagementSettings() {
           reviews.
         </p>
         {report.cohorts.length ? (
-          <div className="table-scroll">
+          <div
+            className="table-scroll"
+            tabIndex={0}
+            role="region"
+            aria-label="Match factor breakdown"
+          >
             <table className="outcome-table">
               <caption>
                 Outcomes by scoring version, room type and average initial

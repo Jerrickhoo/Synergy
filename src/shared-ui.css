@@ -531,11 +531,6 @@ textarea:focus-visible {
   width: 300px;
   max-width: 100%;
 }
-.prototype-role-control > .select-field {
-  width: 160px;
-  max-width: calc(100vw - 40px);
-}
-
 .login-screen {
   position: relative;
   isolation: isolate;
@@ -579,12 +574,13 @@ textarea:focus-visible {
 .login-submit {
   border-radius: var(--control-radius);
 }
-.prototype-role-control {
-  right: max(24px, env(safe-area-inset-right));
-  bottom: max(24px, env(safe-area-inset-bottom));
+.login-form-wrap #toast-root {
+  position: static;
+  width: auto;
+  max-width: none;
 }
-.prototype-role-control .select-field-trigger {
-  box-shadow: 0 2px 8px #26432f05;
+.login-form-wrap .toast {
+  margin-bottom: 16px;
 }
 
 .toast {
@@ -659,10 +655,6 @@ textarea:focus-visible {
   }
   .login-heading {
     font-size: 24px;
-  }
-  .prototype-role-control {
-    right: max(20px, env(safe-area-inset-right));
-    bottom: max(20px, env(safe-area-inset-bottom));
   }
   .connection-banner.workspace-connection {
     padding: 14px 16px;

@@ -1,3 +1,4 @@
+import { isMentorRoom, mentorshipStage } from "../data/mentor-room.js";
 import SelectField from "../components/SelectField.jsx";
 import { Fragment, useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
@@ -131,12 +132,14 @@ export default function RoomsPage() {
                   <span
                     className={`status ${["launched", "reviewed"].includes(room.status) ? "green" : ""}`}
                   >
-                    {roomStatusLabel(
-                      room.status,
-                      partner?.name || room.partnerId,
-                      room.terms.confirmedByMe,
-                      room.type,
-                    )}
+                    {isMentorRoom(room)
+                      ? mentorshipStage(room).label
+                      : roomStatusLabel(
+                          room.status,
+                          partner?.name || room.partnerId,
+                          room.terms.confirmedByMe,
+                          room.type,
+                        )}
                   </span>
                 </div>
                 <p>

@@ -1,3 +1,5 @@
+import { equalSecret } from "./mentor-email.js";
+import { mentorEmailKinds } from "../src/data/mentor-email.js";
 import { createOperations, logFailure } from "./operations.js";
 import { resolve, dirname, join } from "node:path";
 import { mkdirSync, writeFileSync, unlinkSync, readFileSync } from "node:fs";
@@ -28,9 +30,76 @@ export function createApi({
     };
     try {
       const token = req.headers.authorization?.replace(/^Bearer /, "");
+      if (req.method === "POST" && url.pathname === "/api/payments/webhook") {
+        const body = (await readBody(req, 65536)).toString("utf8");
+        return send(
+          200,
+          workspace.paymentWebhook(body, req.headers["x-payment-signature"]),
+        );
+      }
       if (req.method === "GET" && url.pathname === "/api/health") {
         const health = operations.health();
         return send(health.ok ? 200 : 503, health);
+      }
+      if (
+        url.pathname === "/api/email/brevo-webhook" &&
+        req.method === "POST"
+      ) {
+        if (
+          !config.brevoWebhookSecret ||
+          !equalSecret(
+            req.headers.authorization,
+            `Bearer ${config.brevoWebhookSecret}`,
+          )
+        )
+          throw new WorkspaceError("Webhook authentication required.", 403);
+        let data;
+        try {
+          data = JSON.parse((await readBody(req, 65536)).toString("utf8"));
+        } catch (error) {
+          if (error.status) throw error;
+          throw new WorkspaceError("Invalid email webhook.");
+        }
+        return send(
+          200,
+          workspace.emailWebhook(req.headers.authorization, data),
+        );
+      }
+      if (
+        url.pathname === "/api/email/unsubscribe" &&
+        ["GET", "POST"].includes(req.method)
+      ) {
+        const unsubscribe = url.searchParams.get("token");
+        const confirmed = req.method === "POST";
+        const { kind } = workspace.emailUnsubscribe(unsubscribe, confirmed);
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.setHeader(
+          "Content-Security-Policy",
+          "default-src 'none'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+        );
+        const title = confirmed
+          ? "Email preference saved"
+          : "Confirm unsubscribe";
+        const form = confirmed
+          ? ""
+          : `<form method="post" action="/api/email/unsubscribe?token=${encodeURIComponent(unsubscribe)}"><button>Unsubscribe</button></form>`;
+        return res.end(
+          `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title><h1>${title}</h1><p>${mentorEmailKinds[kind]}</p>${form}</html>`,
+        );
+      }
+      const calendarRoute = /^\/api\/calendar\/([0-9a-f]{64})\.ics$/.exec(
+        url.pathname,
+      );
+      if (req.method === "GET" && calendarRoute) {
+        const selected = url.searchParams.get("session");
+        const calendar = workspace.calendar(calendarRoute[1], selected);
+        res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+        if (selected)
+          res.setHeader(
+            "Content-Disposition",
+            'attachment; filename="synergy-session.ics"',
+          );
+        return res.end(calendar);
       }
       const fileRoute = /^\/api\/files\/([0-9a-f-]{36})$/.exec(url.pathname);
       const avatarRoute = /^\/api\/avatars\/([0-9a-f-]{36})$/.exec(
@@ -248,7 +317,12 @@ export function createApi({
     }
   };
   api.close = () => workspace.close();
-  api.runOperations = () => operations.tick();
+  api.runOperations = () => {
+    operations.tick();
+    return workspace
+      .runMaintenance()
+      .catch((error) => logFailure("workspace_maintenance_failed", error));
+  };
   return api;
 }
 

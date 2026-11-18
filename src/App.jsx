@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
+import { CheckoutPanel } from "./components/Payments.jsx";
 import { useApp } from "./state/AppContext.jsx";
 import Login from "./components/Login.jsx";
 import Sidebar from "./components/Sidebar.jsx";
@@ -10,6 +11,9 @@ import HomePage from "./pages/HomePage.jsx";
 import DiscoverPage from "./pages/DiscoverPage.jsx";
 import RoomsPage from "./pages/RoomsPage.jsx";
 import RoomDetailPage from "./pages/RoomDetailPage.jsx";
+import ImpactPage from "./pages/ImpactPage.jsx";
+import MenteesPage from "./pages/MenteesPage.jsx";
+import RequestsPage from "./pages/RequestsPage.jsx";
 import WaitingPage from "./pages/WaitingPage.jsx";
 import MatchDetailPage from "./pages/MatchDetailPage.jsx";
 import ReviewPage from "./pages/ReviewPage.jsx";
@@ -22,6 +26,7 @@ import NotificationsPage from "./pages/NotificationsPage.jsx";
 import ModerationPage from "./pages/ModerationPage.jsx";
 import CalendarPage from "./pages/CalendarPage.jsx";
 import Icon from "./components/Icon.jsx";
+import MentorshipWarning from "./components/MentorshipWarning.jsx";
 import SignOutDialog from "./components/SignOutDialog.jsx";
 
 const pages = {
@@ -34,6 +39,10 @@ const pages = {
   rooms: RoomsPage,
   "room-detail": RoomDetailPage,
   waiting: WaitingPage,
+  requests: RequestsPage,
+  mentees: MenteesPage,
+  impact: ImpactPage,
+  "impact-certificate": ImpactPage,
   "match-detail": MatchDetailPage,
   review: ReviewPage,
   profile: ProfilePage,
@@ -62,10 +71,20 @@ function Unavailable({ room = false }) {
   );
 }
 export default function App() {
-  const { state, model, onAction, retryRestore, onInvalid, onFormInput } =
-    useApp();
+  const {
+    state,
+    model,
+    onAction,
+    retryRestore,
+    workspaceConnection,
+    retryConnection,
+    onInvalid,
+    onFormInput,
+  } = useApp();
   const mainRef = useRef(null);
-  const authPage = ["signup", "onboarding"].includes(state.page);
+  const authPage =
+    state.page === "signup" ||
+    (state.page === "onboarding" && !state.authenticated);
   const Page = pages[state.page];
   const unavailableRoom =
     ["room-detail", "review"].includes(state.page) && !model.activeRoom();
@@ -113,6 +132,22 @@ export default function App() {
       </main>
     );
 
+  if (!state.authenticated && workspaceConnection !== "ready")
+    return (
+      <main className="session-loading" aria-label="Workspace connection">
+        {workspaceConnection === "unavailable" ? (
+          <>
+            <p role="alert">The workspace is unavailable.</p>
+            <button className="btn primary" onClick={retryConnection}>
+              Retry connection
+            </button>
+          </>
+        ) : (
+          <p role="status">Connecting to Synergy…</p>
+        )}
+      </main>
+    );
+
   return (
     <div
       onInvalidCapture={onInvalid}
@@ -147,6 +182,7 @@ export default function App() {
             {!authPage && <Sidebar />}
             <main id="main-content" tabIndex={-1} ref={mainRef}>
               {authPage ? <AuthHeader /> : <Topbar />}
+              {!authPage && state.paymentCheckoutData && <CheckoutPanel />}
               {state.connectionError && (
                 <div
                   className="connection-banner workspace-connection"
@@ -179,7 +215,8 @@ export default function App() {
         </>
       )}
       <SignOutDialog />
-      <Toast />
+      <MentorshipWarning />
+      {(state.authenticated || authPage) && <Toast />}
       {state.busy && (
         <div className="saving-indicator" role="status">
           <span className="spinner" aria-hidden="true" /> Please wait…

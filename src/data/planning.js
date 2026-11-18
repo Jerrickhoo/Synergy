@@ -1,3 +1,4 @@
+import { isMentorRoom, mentorSessions } from "./mentor-room.js";
 import { activeRooms, scheduleInstant } from "./selectors.js";
 
 export function localDateKey(date) {
@@ -109,7 +110,9 @@ export function calendarEvents(state) {
     .flatMap((room) => {
       const session = room.milestones.session;
       const events = (
-        session?.schedules || (session?.schedule ? [session.schedule] : [])
+        isMentorRoom(room)
+          ? mentorSessions(room).filter((entry) => !entry.cancelledAt)
+          : session?.schedules || (session?.schedule ? [session.schedule] : [])
       )
         .map((schedule, index) => {
           const instant = scheduleInstant(schedule);

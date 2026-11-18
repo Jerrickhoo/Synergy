@@ -1,3 +1,4 @@
+import { mentorRequestValues } from "./mentor-request-fixtures.js";
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -5,6 +6,7 @@ import {
   pair,
   open,
   command,
+  getState,
   finish,
   user,
   sharedTerms,
@@ -39,104 +41,78 @@ const audit = async (page) => {
       .map(({ id, nodes }) => ({ id, targets: nodes.map((n) => n.target) })),
   ).toEqual([]);
 };
-test("ongoing mentorship exposes accessible cycle goals, blind reviews and mutual continuation", async ({
+test("ongoing advisory exposes goals, fixed check-ins and blind cycle reviews", async ({
   page,
   request,
 }) => {
-  const a = await user(request, "CycleFounder"),
-    b = await user(
-      request,
-      "CycleMentor",
-      {
-        bio: "Advising founders",
-        offer: "Beta testers",
-        need: "Focused questions",
-        expertise: "Product feedback",
-        availability: "Weekly",
-        startups: "EdTech idea stage",
-      },
-      "mentor",
-    );
+  const a = await user(request, "CycleFounder");
+  const b = await user(
+    request,
+    "CycleMentor",
+    {
+      bio: "Advising founders",
+      offer: "Beta testers",
+      need: "Focused questions",
+      expertise: "Product feedback",
+      startups: "EdTech idea stage",
+    },
+    "mentor",
+  );
+  await command(request, b, {
+    form: "mentor-capacity",
+    values: {
+      maxMentees: 3,
+      monthlyHours: 4,
+      maxOpenAsync: 3,
+      responseDays: 3,
+      timeZone: "Asia/Manila",
+      "format-ongoing-advisory": "on",
+    },
+  });
   await command(request, a, {
-    action: "interest",
+    action: "send-request",
     id: `${b.state.accountId}:mentor`,
+    values: { ...mentorRequestValues, format: "ongoing-advisory" },
   });
   const id = (
     await command(request, b, {
-      action: "accept-interest",
+      action: "accept-request",
       id: `${a.state.accountId}:founder`,
     })
   ).state.activeRoomId;
-  await command(request, a, {
-    action: "lock-terms",
-    activeRoomId: id,
-    values: { ...sharedTerms, format: "ongoing" },
-  });
-  await command(request, b, { action: "accept-terms", activeRoomId: id });
+  await command(request, b, { action: "confirm-goal", activeRoomId: id });
   await open(page, a, `rooms/${id}`);
-  await page.getByRole("tab", { name: "Milestones", exact: true }).click();
+  await page.getByRole("tab", { name: "Overview" }).click();
   await expect(
-    page.getByRole("heading", { name: "Mentorship cycle 1", exact: true }),
+    page.getByRole("heading", { name: "Mentorship cycle 1" }),
   ).toBeVisible();
-  await page
-    .getByLabel("Check-in summary", { exact: true })
-    .fill("Reviewed the flow and assigned follow-up actions");
-  await page
-    .getByRole("button", { name: "Save cycle details", exact: true })
-    .click();
+  await expect(page.getByText(/4 check-ins.*ends/)).toBeVisible();
   await audit(page);
-  await command(request, a, {
-    form: "schedule",
+  await command(request, b, {
+    action: "end-mentorship",
     activeRoomId: id,
-    values: {
-      date: "2030-01-08",
-      time: "10:00",
-      timeZone: "Asia/Manila",
-      count: "8",
-      durationMinutes: "45",
-    },
+    values: { reason: "Cycle ended early." },
   });
-  await finish(request, a, b, id);
-  await expect(
-    page.getByRole("heading", {
-      name: "Your private cycle review",
-      exact: true,
-    }),
-  ).toBeVisible();
-  await audit(page);
-  await page.getByLabel("Cycle rating (1–5)", { exact: true }).fill("4");
+  await page.reload();
+  await page.getByRole("tab", { name: "Overview" }).click();
+  await page.getByLabel("Cycle review note").fill("Helpful cycle");
   await page
-    .getByLabel("Cycle review note", { exact: true })
-    .fill("Helpful cycle");
-  await page
-    .getByRole("button", { name: "Submit private cycle review", exact: true })
+    .getByRole("button", { name: "Submit private cycle review" })
     .click();
-  await expect(
-    page.getByText(
-      "Your cycle review is saved. Waiting for your partner’s private review.",
-      { exact: true },
-    ),
-  ).toBeVisible();
+  await expect(page.getByText(/Your private rating/)).toBeVisible();
+  expect(
+    (await getState(request, b)).rooms[id].cycle.reviews[a.state.accountId],
+  ).toBeUndefined();
   await command(request, b, {
     form: "cycle-review",
     activeRoomId: id,
-    values: { rating: "5", note: "Good shared progress" },
+    values: { rating: 5, note: "Good shared progress" },
   });
-  await expect(
-    page.getByRole("heading", { name: "Cycle feedback", exact: true }),
-  ).toBeVisible();
-  await audit(page);
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await command(request, b, {
-    action: "cycle-decision",
-    activeRoomId: id,
-    values: { decision: "continue" },
-  });
-  await expect(
-    page.getByRole("heading", { name: "Mentorship cycle 2", exact: true }),
-  ).toBeVisible();
+  await page.reload();
+  await expect(page.getByText(/Good shared progress/)).toBeVisible();
   await audit(page);
 });
+
 test("audit surfaces support axe and keyboard task cards, milestone menus, dialogs and focus return", async ({
   page,
   request,

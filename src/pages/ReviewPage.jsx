@@ -1,3 +1,4 @@
+import { isMentorRoom } from "../data/mentor-room.js";
 import { useState } from "react";
 import SelectField from "../components/SelectField.jsx";
 import { useApp } from "../state/AppContext.jsx";
@@ -25,6 +26,8 @@ export default function ReviewPage() {
     .allPeople()
     .find((person) => person.id === room.partnerId);
   const partnerName = partner?.name || "your collaborator";
+  if (isMentorRoom(room))
+    return <MentorshipReview room={room} partnerName={partnerName} />;
   if (!["launched", "reviewed"].includes(room.status))
     return (
       <div className="page">
@@ -240,6 +243,143 @@ export default function ReviewPage() {
           All Deal Rooms
         </button>
       </div>
+    </div>
+  );
+}
+
+function MentorshipReview({ room, partnerName }) {
+  const { state, onSubmit, onAction } = useApp();
+  const review = room.review;
+  const released = review.windowClosed || (review.me && review.partner);
+  const categories =
+    room.role === "founder"
+      ? [
+          ["usefulness", "Usefulness"],
+          ["clarity", "Clarity"],
+          ["responsiveness", "Responsiveness"],
+          ...(room.payment?.amount
+            ? [["valueForMoney", "Value for money"]]
+            : []),
+        ]
+      : [
+          ["preparedness", "Preparedness"],
+          ["followThrough", "Follow-through"],
+        ];
+  const open = Boolean(room.mentorship.reviewOpenedAt);
+  return (
+    <div className="page page-enter">
+      <PageHeader
+        title={released ? "Mentorship feedback" : "Private mentorship review"}
+        intro={`With ${partnerName}`}
+        actions={
+          <button
+            className="btn"
+            onClick={() => onAction({ action: "open-room", id: room.id })}
+          >
+            Back to mentorship room
+          </button>
+        }
+      />
+      {!open && (
+        <p>
+          The review opens once the response is delivered or the session is
+          held.
+        </p>
+      )}
+      {open &&
+        !review.me &&
+        !review.windowClosed &&
+        room.status !== "cancelled" && (
+          <form
+            id="review-form"
+            className="card panel mentor-request-form"
+            onSubmit={onSubmit}
+          >
+            <p>
+              Your feedback stays private until both people submit or the review
+              window closes.
+            </p>
+            {categories.map(([id, label]) => (
+              <label key={id}>
+                {label}
+                <select name={id} required defaultValue="">
+                  <option value="" disabled>
+                    Choose a rating
+                  </option>
+                  {[1, 2, 3, 4, 5].map((rating) => (
+                    <option key={rating}>{rating}</option>
+                  ))}
+                </select>
+              </label>
+            ))}
+            <label htmlFor="mentor-review-note">
+              Private feedback (optional)
+            </label>
+            <textarea id="mentor-review-note" name="note" maxLength={3000} />
+            {room.role === "founder" && (
+              <>
+                <label htmlFor="mentor-testimonial">
+                  Testimonial (optional)
+                </label>
+                <textarea
+                  name="testimonial"
+                  id="mentor-testimonial"
+                  maxLength={500}
+                />
+                <label>
+                  <input type="checkbox" name="testimonialPublic" /> Let the
+                  mentor share this testimonial publicly
+                </label>
+              </>
+            )}
+            <button className="btn primary" disabled={state.busy}>
+              Submit private review
+            </button>
+          </form>
+        )}
+      {review.me && !released && (
+        <p role="status">Your private review is saved.</p>
+      )}
+      {released && (
+        <section className="card panel">
+          <h2>Your feedback</h2>
+          <p>
+            {review.me
+              ? `${Number(review.rating).toFixed(1)}/5 · ${review.note || "No written feedback."}`
+              : "No review submitted."}
+          </p>
+          <h2>Feedback from {partnerName}</h2>
+          <p>
+            {review.partner
+              ? `${Number(review.partnerRating).toFixed(1)}/5 · ${review.partnerNote || "No written feedback."}`
+              : "No review submitted."}
+          </p>
+          {room.role === "mentor" && review.partnerTestimonial && (
+            <>
+              <blockquote>{review.partnerTestimonial}</blockquote>
+              {review.partnerTestimonialPublic && (
+                <button
+                  className="btn"
+                  disabled={state.busy}
+                  onClick={(event) =>
+                    onAction(
+                      {
+                        action: "set-testimonial-public",
+                        values: { public: !review.testimonialAccepted },
+                      },
+                      event,
+                    )
+                  }
+                >
+                  {review.testimonialAccepted
+                    ? "Hide testimonial"
+                    : "Publish testimonial"}
+                </button>
+              )}
+            </>
+          )}
+        </section>
+      )}
     </div>
   );
 }

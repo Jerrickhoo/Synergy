@@ -1,5 +1,6 @@
 // Isolated browser-test server with disposable local accounts.
 import { createServer } from "vite";
+import { readFileSync } from "node:fs";
 import react from "@vitejs/plugin-react";
 import { createApi } from "../server/api.js";
 import { configuration } from "../server/config.js";
@@ -11,7 +12,14 @@ const config = configuration({
   SYNERGY_ADMIN_EMAILS: "moderator@example.com,settings-moderator@example.com",
 });
 const api = createApi({
-  config,
+  config: {
+    ...config,
+    mentorApprovalRequired: process.env.SYNERGY_TEST_MENTOR_APPROVAL === "true",
+    ...(process.env.SYNERGY_TEST_CLOCK_FILE && {
+      now: () =>
+        Date.parse(readFileSync(process.env.SYNERGY_TEST_CLOCK_FILE, "utf8")),
+    }),
+  },
   // This isolated suite creates many accounts on one loopback IP. Production
   // keeps createApi's default of 30 authentication requests per minute.
   authAttemptsPerMinute: 300,

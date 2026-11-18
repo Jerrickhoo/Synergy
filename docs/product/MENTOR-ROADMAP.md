@@ -2,7 +2,13 @@
 
 Status, 18 November 2026: **final.** Phase 0 delivered. Phases 1 to 8 make up the v1 MVP (volunteer-only). Paid mentorship is v1.1 and has its own section at the end.
 
+**Implementation update, 18 November 2026.** A local two-account browser walkthrough covered request sharpening, goal confirmation, prep, session-linked notes, attendance by both participants, action items, blind reviews, founder follow-up and an upgrade to Ongoing Advisory. The walkthrough advanced a test clock for the session and follow-up. Live Brevo delivery and suppression still need [staging verification](../operations/DEPLOYMENT.md). Paid mentorship starts after the four-week metrics gate.
+
+Local acceptance checks also covered Pause Mode returns, a no-slots decline and retry, referral consent, expiry with alternatives, a one-sided no-show, moderator dispute resolution, a late reschedule and recovery from an overdue follow-up. Browser checks confirmed the daily digest opens Requests and a suspension notice opens the suggested mentor’s profile.
+
 This roadmap brings the mentor side in line with the [current product spec](SYNERGY-SPEC.md). Each phase can be shipped and tested on its own. Every rule below is a decision, not a suggestion. Where a number appears, it is the default value, and it lives in config so admins can tune it without a code change.
+
+**Checkbox review, 18 November 2026.** 41 of 52 acceptance items are checked after comparison with the implementation and recorded local tests. The remaining 11 cover blocked-state alternatives, live email staging and the P2 live-payment release requirements. The [v1.1 review log](V1.1-IMPLEMENTATION.md) records the payment tests and browser reruns.
 
 ## Context
 
@@ -274,9 +280,9 @@ Add an "Available now" filter (`DiscoverPage.jsx`) for founders. It shows only m
 ### Done when
 
 - [x] A mentor at the mentee limit can still receive Quick Asks if they offer them and have async slots and hours.
-- [ ] Pausing returns every pending request with alternatives, and the response rate is unchanged.
+- [x] Pausing returns every pending request with alternatives, and the response rate is unchanged.
 - [x] A founder whose startup matches a disclosed conflict cannot see or request that mentor, by any path.
-- [ ] A "both" user never sees themselves in Matches.
+- [x] A "both" user never sees themselves in Matches.
 - [x] Existing mentors are migrated, and the migration runs twice without changes.
 
 ## Phase 2 — Structured requests and the Requests Inbox
@@ -407,14 +413,17 @@ Add `similarMentors(founder, excludeId, n)` to `server/workspace.js`. It returns
 
 ### Done when
 
-- [ ] The client cannot set `price`, `expiresAt` or `quality`. A test posts them and checks they are ignored.
-- [ ] A mentor with 1 open slot never has more than 2 pending requests.
-- [ ] Accept re-checks capacity, and two accepts racing for the last slot result in one success and one 409.
-- [ ] Refer never shares the request content with another mentor.
-- [ ] Declining with `no-slots` does not block the founder from asking again.
+- [x] The client cannot set `price`, `expiresAt` or `quality`. A test posts them and checks they are ignored.
+- [x] A mentor with 1 open slot never has more than 2 pending requests.
+- [x] Accept re-checks capacity, and two accepts racing for the last slot result in one success and one 409.
+- [x] Refer never shares the request content with another mentor.
+- [x] Declining with `no-slots` does not block the founder from asking again.
 - [ ] Each blocked state shows its reason and alternatives.
-- [ ] A request pending before the release is still answerable and expires on its original date.
-- [ ] A founder can see every sent mentor request and its status on `#/waiting`, and withdraw a pending one.
+
+  The founder request form shows the reason and any available alternatives. Unavailable mentor links suggest other open mentors. The Requests Inbox gives mentors a way to refresh stale requests, adjust their settings, decline, or refer. Review the remaining format and account restriction cases during the API session.
+
+- [x] A request pending before the release is still answerable and expires on its original date.
+- [x] A founder can see every sent mentor request and its status on `#/waiting`, and withdraw a pending one.
 
 ## Phase 3 — Format ladder and Mentorship Room rework
 
@@ -557,14 +566,14 @@ Remove the generic Deal Room pieces from mentorship rooms: the per-milestone dis
 
 ### Done when
 
-- [ ] Every v3 mentorship room migrates to v4 with milestones preserved.
-- [ ] Silence from both sides 72 hours after a session resolves to `held`, and one-sided "partner-absent" becomes a no-show unless answered.
-- [ ] A second reschedule by the same side is recorded as a late cancellation.
-- [ ] An overdue follow-up limits the founder to 1 pending request, and submitting lifts it.
-- [ ] An upgrade that would go over capacity is refused with a reason.
-- [ ] The unit test for the mentor admin limit passes for all five formats.
-- [ ] Accepting Ongoing Advisory reserves the cycle's minutes, and is refused when they don't fit.
-- [ ] Ending an Ongoing Advisory early cancels the remaining check-ins and frees the slot and unused hours at once.
+- [x] Every v3 mentorship room migrates to v4 with milestones preserved.
+- [x] Silence from both sides 72 hours after a session resolves to `held`, and one-sided "partner-absent" becomes a no-show unless answered.
+- [x] A second reschedule by the same side is recorded as a late cancellation.
+- [x] An overdue follow-up limits the founder to 1 pending request, and submitting lifts it.
+- [x] An upgrade that would go over capacity is refused with a reason.
+- [x] The unit test for the mentor admin limit passes for all five formats.
+- [x] Accepting Ongoing Advisory reserves the cycle's minutes, and is refused when they don't fit.
+- [x] Ending an Ongoing Advisory early cancels the remaining check-ins and frees the slot and unused hours at once.
 
 ## Phase 4 — Office Hours and Calendar
 
@@ -601,9 +610,9 @@ Remove the generic Deal Room pieces from mentorship rooms: the per-milestone dis
 
 ### Done when
 
-- [ ] A mentor cannot open more slot time in a month than their hours allow.
-- [ ] Two founders racing for one slot result in one booking and one clear "Just taken" message.
-- [ ] Times are correct for a mentor in Asia/Manila and a founder in another time zone.
+- [x] A mentor cannot open more slot time in a month than their hours allow.
+- [x] Two founders racing for one slot result in one booking and one clear "Just taken" message.
+- [x] Times are correct for a mentor in Asia/Manila and a founder in another time zone.
 
 ## Phase 5 — Mentor Home, Active Mentees and Impact Profile
 
@@ -683,9 +692,9 @@ A printable `#/impact/certificate` view (print CSS) listing the mentor's name, p
 
 ### Done when
 
-- [ ] Every stat matches its definition in a unit test with a fixed fixture.
-- [ ] Stats with fewer than 3 data points show "Not enough data yet".
-- [ ] A private testimonial never appears in a public view.
+- [x] Every stat matches its definition in a unit test with a fixed fixture.
+- [x] Stats with fewer than 3 data points show "Not enough data yet".
+- [x] A private testimonial never appears in a public view.
 
 ## Phase 6 — Stricter mentor onboarding and approval
 
@@ -725,9 +734,9 @@ Progress is saved after every step, so a mentor can leave and come back.
 
 ### Done when
 
-- [ ] A new mentor cannot receive requests before approval.
-- [ ] Existing mentors keep working on the day this ships.
-- [ ] Leaving signup half-way and coming back resumes at the same step.
+- [x] A new mentor cannot receive requests before approval.
+- [x] Existing mentors keep working on the day this ships.
+- [x] Leaving signup half-way and coming back resumes at the same step.
 
 ## Phase 7 — Mentor safety rules
 
@@ -775,10 +784,10 @@ Confidentiality and block/report reuse the existing `report-form` and blocked co
 
 ### Done when
 
-- [ ] Each flagged phrase in a fixture list is caught, and a list of normal sentences produces no flags.
-- [ ] A second no-show within 90 days applies the limit, and an admin can lift it.
-- [ ] Blocking from a request card works and returns the request.
-- [ ] Suspending a mentor hides them, returns their requests, cancels their booked sessions and closes their rooms, with every affected founder notified.
+- [x] Each flagged phrase in a fixture list is caught, and a list of normal sentences produces no flags.
+- [x] A second no-show within 90 days applies the limit, and an admin can lift it.
+- [x] Blocking from a request card works and returns the request.
+- [x] Suspending a mentor hides them, returns their requests, cancels their booked sessions and closes their rooms, with every affected founder notified.
 
 ## Phase 8 — Notification delivery, admin settings and launch readiness
 
@@ -826,9 +835,12 @@ v1.1 starts when every gate is met for 4 weeks in a row. Until then, the team im
 ### Done when
 
 - [ ] Real email delivery works in staging and the stub still works in tests.
-- [ ] A config change shows in the change log and takes effect without a deploy.
-- [ ] Deleting an account removes the data listed above.
-- [ ] The metrics view matches hand-computed numbers on a fixture.
+
+  Local stub and mocked Brevo tests pass. Verified-domain staging delivery, bounce suppression and unsubscribe callbacks still need a live staging run.
+
+- [x] A config change shows in the change log and takes effect without a deploy.
+- [x] Deleting an account removes the data listed above.
+- [x] The metrics view matches hand-computed numbers on a fixture.
 
 ---
 
@@ -840,6 +852,8 @@ v1.1 starts when every gate is met for 4 weeks in a row. Until then, the team im
 ---
 
 ## v1.1 — Paid mentorship
+
+Implementation status and review results are tracked in the [v1.1 checklist](V1.1-IMPLEMENTATION.md). P1 is implemented with the simulated provider. P2 remains open pending provider integration and the release requirements below.
 
 Starts only when the Phase 8 gates are met. Phase P1 ships with the simulated provider. Phase P2 connects the real provider and has its own release gate. When v1.1 starts, update spec §3 ("Why mentors join") and §9 (the v1 rule on payment requests) and the mentor guidelines to version 2.
 
@@ -985,11 +999,11 @@ Payment notifications are never batched into the digest, and each one is also se
 
 ### Done when
 
-- [ ] Every row of the release and refund tables has a unit test with the simulated provider.
-- [ ] `fee + payout === amount` for every price from `minPrice` to `maxPrice` in a property test.
-- [ ] Replaying a webhook does not change anything a second time.
-- [ ] Price never changes `scoreProfile`.
-- [ ] The full paid journey passes in Playwright: request → accept → pay → session held → payout released, plus a mentor no-show refund and a moderator split.
+- [x] Every row of the release and refund tables has a unit test with the simulated provider.
+- [x] `fee + payout === amount` for every price from `minPrice` to `maxPrice` in a property test.
+- [x] Replaying a webhook does not change anything a second time.
+- [x] Price never changes `scoreProfile`.
+- [x] The full paid journey passes in Playwright: request → accept → pay → session held → payout released, plus a mentor no-show refund and a moderator split.
 
 ## Phase P2 — Real provider (separate release)
 
@@ -1072,7 +1086,7 @@ Release gate. Every item must be true before any real money moves:
 - Existing suites must stay green: `tests/founder-completion.*`, `workspace.test.js`, `features.*`, `mentor-formats.test.js`.
 - Manual run with the `run` skill:
   1. Open the demo as a mentor: `POST /api/demo {role:"mentor"}`.
-  2. Walk Journey B from the spec end to end: request → sharpen → accept → prep → session held (both report) → action items → follow-up → blind ratings → upgrade to Ongoing Advisory.
+  2. With separate founder and mentor accounts, walk Journey B from request and sharpening through acceptance, prep, attendance from both participants, action items, blind ratings, follow-up and upgrade to Ongoing Advisory. Offer both Single Session and Ongoing Advisory on the mentor profile. With the default settings, submit the ratings before day 14, when the review window closes and the founder follow-up opens.
   3. Check the edge paths: Pause Mode returning requests, a decline with `no-slots`, a referral, an expiry with alternatives, a one-sided no-show, a dispute resolved by a moderator, a late reschedule, an overdue follow-up.
   4. v1.1: walk it again with a paid format and the simulated provider: request → accept → pay → session held → payout released. Then check a mentor no-show (full refund), a payment lapse and a disputed session split by a moderator.
 - Update `docs/testing/TEST-CASE-RUNTHROUGH.md` with a test case for each new flow, including the missing ones for ongoing cycles and expiry, and update the `README.md` feature list.

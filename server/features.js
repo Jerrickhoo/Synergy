@@ -1,3 +1,12 @@
+import {
+  dayMs,
+  followupEngagement,
+  hourMs,
+  isMentorRoom,
+  mentorSessions,
+  setMentorMilestone,
+} from "../src/data/mentor-room.js";
+import { createInitialState } from "../src/data/model.js";
 import { randomUUID } from "node:crypto";
 import {
   closeCategories,
@@ -11,6 +20,8 @@ import {
   ensureCycle,
   resolveCycleDecisions,
 } from "../src/data/collaboration.js";
+import { queueMentorEmail } from "./mentor-email.js";
+import { mentorEmailKinds } from "../src/data/mentor-email.js";
 import { enqueueDelivery } from "./delivery.js";
 export const defaultPreferences = {
   match: true,
@@ -49,6 +60,31 @@ const mentoringForms = new Set([
   "accept-guidelines",
 ]);
 
+function requestDigestUpdates(items, time) {
+  const digests = new Map();
+  const updates = [];
+  for (const item of items) {
+    const timestamp = item.requestDigestAt;
+    if (item.kind !== "request" || !timestamp) {
+      updates.push(item);
+      continue;
+    }
+    if (Date.parse(timestamp) <= time)
+      digests.set(timestamp, (digests.get(timestamp) || 0) + 1);
+  }
+  for (const [timestamp, count] of digests) {
+    updates.push({
+      id: `request-digest:${timestamp}`,
+      kind: "request-digest",
+      role: "mentor",
+      timestamp,
+      text: `${count} new mentorship ${count === 1 ? "request" : "requests"}`,
+      page: "requests",
+    });
+  }
+  return updates;
+}
+
 export function createFeatures({
   getDb,
   save,
@@ -65,6 +101,21 @@ export function createFeatures({
   advanceRoom,
   keepHistory = () => {},
   similarMentors = () => [],
+  mentorRequestActions = new Set(),
+  mentorRequestAction,
+  returnMentorRequests,
+  mentorSettings = () => mentorConfig,
+  mentorAdmin,
+  changeMentorSetting,
+  validateOfficeHours,
+  mentorApproved = () => true,
+  approvalQueue = () => [],
+  mentorSafetyQueue = () => ({
+    flags: [],
+    limits: [],
+    suspensions: [],
+    ratings: [],
+  }),
 }) {
   const now = () => options.now?.() ?? Date.now();
   const db = () => getDb();
@@ -74,8 +125,8 @@ export function createFeatures({
     Boolean(options.adminEmails?.includes(account.email));
   const vocabulary = () =>
     [...new Set([...defaultVocabulary, ...(db().approvedTags || [])])].sort();
-  function notifications(account, state, time = now()) {
-    const items = state.activity
+  function notifications(account, state, time = now(), rawRequests = false) {
+    const activity = state.activity
       .filter((item) => item.role === state.role)
       .map((item) => ({
         ...item,
@@ -83,6 +134,7 @@ export function createFeatures({
         self:
           item.self ?? /^(You\b|Milestone due date updated)/.test(item.text),
       }));
+    const items = rawRequests ? activity : requestDigestUpdates(activity, time);
     const add = (id, text, roomId, kind, matchId, timing = {}) =>
       items.push({
         id,
@@ -114,8 +166,8 @@ export function createFeatures({
       profileCompleteness(state.profiles.mentor, "mentor") === 100
     ) {
       const mentor = state.profiles.mentor;
-      const guidelines = guidelinesStatus(mentor, time);
-      const version = mentorConfig.guidelinesVersion;
+      const guidelines = guidelinesStatus(mentor, time, mentorSettings());
+      const version = mentorSettings().guidelinesVersion;
       const settingsLink = { page: "settings" };
       if (guidelines.status !== "accepted") {
         const until = guidelines.graceUntil
@@ -270,11 +322,122 @@ export function createFeatures({
           "reminder",
         );
     }
+    for (const room of Object.values(state.rooms)) {
+      if (!isMentorRoom(room) || room.role !== state.role) continue;
+      const followup = followupEngagement(room)?.followup;
+      if (room.role === "founder" && followup && !followup.submittedAt)
+        for (const day of mentorSettings().followupRemindDays)
+          if (time >= Date.parse(followup.heldAt) + day * dayMs)
+            add(
+              `followup-due:${room.id}:${day}`,
+              "Share what happened after your mentorship session.",
+              room.id,
+              "followup-due",
+              undefined,
+              { tab: "overview" },
+            );
+      if (room.status === "cancelled") continue;
+      for (const [index, session] of mentorSessions(room).entries()) {
+        if (session.cancelledAt || session.outcome) continue;
+        const starts = scheduleInstant(session).getTime();
+        const ends = starts + session.durationMinutes * 60000;
+        const base = `${room.id}:${session.id || index}`;
+        const sessionLink = {
+          tab: "schedule",
+          sessionAt: new Date(starts).toISOString(),
+        };
+        for (const [hours, label] of [
+          [24, "tomorrow"],
+          [1, "in one hour"],
+        ])
+          if (time >= starts - hours * hourMs && time < starts)
+            add(
+              `session-reminder:${base}:${hours}`,
+              `Your mentorship session starts ${label}. Check your schedule and prep materials.`,
+              room.id,
+              "session-reminder",
+              undefined,
+              { ...sessionLink, reminderHours: hours },
+            );
+        if (
+          !room.mentorship.prep?.sharedAt &&
+          room.role === "founder" &&
+          time >= starts - 26 * hourMs &&
+          time < starts
+        )
+          add(
+            `prep-missing:${base}`,
+            "Share your deck, metrics or links before your session.",
+            room.id,
+            "prep-missing",
+            undefined,
+            { tab: "overview" },
+          );
+        if (!session.attendance?.[room.role] && time >= ends) {
+          add(
+            `attendance-needed:${base}`,
+            "Report attendance for your mentorship session.",
+            room.id,
+            "attendance-needed",
+            undefined,
+            sessionLink,
+          );
+          if (time >= ends + 48 * hourMs)
+            add(
+              `attendance-needed:${base}:48`,
+              "We still need your mentorship attendance report.",
+              room.id,
+              "attendance-needed",
+              undefined,
+              sessionLink,
+            );
+        }
+      }
+      const review = room.mentorship;
+      if (
+        review.reviewOpenedAt &&
+        !room.review.me &&
+        !room.review.windowClosed
+      ) {
+        add(
+          `review-open:${room.id}:${review.reviewOpenedAt}`,
+          "Your private mentorship review is open.",
+          room.id,
+          "review-open",
+          undefined,
+          { review: true },
+        );
+        if (time >= Date.parse(review.reviewClosesAt) - 3 * dayMs)
+          add(
+            `review-open:${room.id}:${review.reviewOpenedAt}:closing`,
+            "Your private mentorship review closes soon.",
+            room.id,
+            "review-open",
+            undefined,
+            { review: true },
+          );
+      }
+    }
     // Introductions that need a reply expire after 14 days; remind at day 7.
     for (const [id, meta] of Object.entries(
       state.introductionMetaByRole?.[state.role] || {},
     )) {
       if (!state.incomingByRole[state.role].has(id)) continue;
+      if (meta.kind) {
+        const expiry = Date.parse(meta.expiresAt);
+        const window = expiry - Date.parse(meta.sentAt);
+        if (time >= expiry - Math.min(86400000, window / 2) && time < expiry) {
+          add(
+            `request-expiring:${meta.id}`,
+            `${meta.name}'s mentorship request is expiring soon.`,
+            null,
+            "request-expiring",
+            undefined,
+            { page: "requests", requestId: meta.id },
+          );
+        }
+        continue;
+      }
       const age = time - Date.parse(meta.sentAt || time);
       if (age >= 7 * 86400000)
         add(
@@ -285,6 +448,28 @@ export function createFeatures({
           id,
         );
     }
+    if (state.isAdmin) {
+      const overdue = approvalQueue().filter((item) => item.overdue).length;
+      if (overdue)
+        add(
+          `approval-queue:${new Date(time).toISOString().slice(0, 10)}`,
+          `${overdue} mentor ${overdue === 1 ? "application is" : "applications are"} past the approval target.`,
+          null,
+          "approval-queue",
+          undefined,
+          { page: "moderation" },
+        );
+    }
+    const trust = state.trustSummary?.mentorship;
+    for (const badge of trust?.badges || [])
+      add(
+        `badge:${badge}`,
+        `You earned the ${badge} badge.`,
+        null,
+        "badge",
+        undefined,
+        { page: state.role === "mentor" ? "impact" : "profile" },
+      );
     const read = new Set(account.readNotifications || []);
     const prefs = {
       ...defaultPreferences,
@@ -293,9 +478,40 @@ export function createFeatures({
     const category = (item) =>
       item.kind === "match"
         ? "match"
-        : item.kind === "reminder"
+        : ["reminder", "prep-missing"].includes(item.kind)
           ? "reminders"
-          : ["confirmation", "review", "review-release"].includes(item.kind)
+          : [
+                "confirmation",
+                "review",
+                "review-release",
+                "request",
+                "request-digest",
+                "payment-due",
+                "payment-lapsed",
+                "payment-received",
+                "payout-released",
+                "refund",
+                "payment-dispute",
+                "request-expiring",
+                "session-reminder",
+                "attendance-needed",
+                "session-disputed",
+                "accepted",
+                "referred",
+                "returned",
+                "followup-due",
+                "mentor-approved",
+                "mentor-rejected",
+                "approval-queue",
+                "guidelines-required",
+                "mentor-suspended",
+                "mentor-reinstated",
+                "mentor-unavailable",
+                "no-show-limit",
+                "limit-lifted",
+                "slot-closed",
+                "booking",
+              ].includes(item.kind)
             ? "action"
             : "activity";
     return items
@@ -323,6 +539,31 @@ export function createFeatures({
   }
   // Called only at the response boundary, after successful commands. Preparing
   // data for validation remains read-only; repeated polls do not write again.
+  function collectMentorshipEmail(account, items) {
+    let changed = false;
+    for (const item of items) {
+      if (item.self || Date.parse(item.timestamp) < now() - 7 * dayMs) continue;
+      if (queueMentorEmail(db(), account, item, mentorSettings(), now()))
+        changed = true;
+    }
+    return changed;
+  }
+
+  function scheduledEmails(account) {
+    let changed = false;
+    for (const role of ["founder", "mentor"]) {
+      const state = { ...account.state, role };
+      if (
+        collectMentorshipEmail(
+          account,
+          notifications(account, state, now(), true),
+        )
+      )
+        changed = true;
+    }
+    return changed;
+  }
+
   function rememberNotifications(account, state) {
     let changed = false;
     for (const item of state.notifications || []) {
@@ -333,6 +574,17 @@ export function createFeatures({
       account.notificationCreatedAt[key] = item.timestamp;
       changed = true;
     }
+    if (options.emailProvider === "brevo")
+      return (
+        collectMentorshipEmail(account, [
+          ...(state.notifications || []).filter(
+            (item) => item.kind !== "request",
+          ),
+          ...account.state.activity.filter(
+            (item) => item.role === state.role && item.kind === "request",
+          ),
+        ]) || changed
+      );
     for (const item of state.notifications || []) {
       if (item.self || item.muted || item.digested) continue;
       changed =
@@ -385,16 +637,25 @@ export function createFeatures({
     state.vocabulary = vocabulary();
     state.engagementTemplates = db().engagementTemplates || defaultTemplates;
     state.matchingConfig = db().matchingConfig || defaultMatching;
-    state.notifications = notifications(account, state);
+    state.mentorEmailStatus = account.emailDeliveryStatus || null;
     state.notificationPreferences = {
       ...defaultPreferences,
+      mentorRequestEmail: "daily",
+      mentorEmailKinds: {},
       ...(account.notificationPreferences || {}),
     };
     state.myTagProposals = (db().tagProposals || [])
       .filter((tag) => tag.accountId === account.id)
       .map(({ id, label, status, note }) => ({ id, label, status, note }));
     state.affiliation = account.affiliation || null;
-    state.trustSummary = trustSummary(state.rooms, state.role);
+    state.mentorConfig = mentorSettings();
+    state.trustSummary = trustSummary(state.rooms, state.role, now(), {
+      requests: account.state?.mentorRequestsByRole?.[state.role] || [],
+      pending: state.role === "mentor" ? state.incomingByRole.mentor.size : 0,
+      approved: state.role === "mentor" && mentorApproved(account),
+      config: mentorSettings(),
+    });
+    state.notifications = notifications(account, state);
     if (state.isAdmin)
       state.moderation = {
         matchingReport: matchingReport(db().accounts),
@@ -467,7 +728,39 @@ export function createFeatures({
           name: a.state.accountName,
           email: a.email,
           suspended: Boolean(a.suspended),
+          mentor:
+            a.state.role === "mentor" ||
+            a.state.bothRoles ||
+            Boolean(a.state.profiles.mentor.mentorApprovedAt),
+          mentorSuspension: a.mentorSuspension || null,
         })),
+        sessionDisputes: Object.values(db().accounts).flatMap((owner) =>
+          Object.values(owner.state.rooms)
+            .filter((room) => isMentorRoom(room) && room.role === "mentor")
+            .flatMap((room) =>
+              mentorSessions(room).flatMap((session, index) =>
+                session.outcome === "disputed"
+                  ? [
+                      {
+                        accountId: owner.id,
+                        roomId: room.id,
+                        scheduleId: session.id,
+                        index,
+                        attendance: session.attendance,
+                        startsAt: session.startsAt,
+                        mentor: owner.state.accountName,
+                        founder:
+                          accountById(room.partnerAccountId)?.state
+                            .accountName || "Founder",
+                      },
+                    ]
+                  : [],
+              ),
+            ),
+        ),
+        mentorApprovals: approvalQueue(),
+        mentorSafety: mentorSafetyQueue(),
+        mentoring: mentorAdmin?.(),
         moderators: options.adminEmails || [],
         audit: (db().moderationAudit || []).slice(-100).reverse(),
       };
@@ -501,6 +794,8 @@ export function createFeatures({
     "engagement-template",
     "matching-config",
     "notification-preferences",
+    "mentor-config",
+    "mentorship-survey",
     "send-back",
     "cycle-details",
     "cycle-review",
@@ -510,6 +805,8 @@ export function createFeatures({
   // founder keeps a "returned" history entry with similar available mentors,
   // and the return never counts against the mentor's response rate.
   function returnPendingRequests(account, state) {
+    const structuredCount =
+      returnMentorRequests?.(account, state, "mentor-paused") || 0;
     const mentorId = `${account.id}:mentor`;
     const mentorName = displayName(account, "mentor");
     // Alternatives are worked out before anything changes, so a save during
@@ -517,9 +814,7 @@ export function createFeatures({
     const pending = [...state.incomingByRole.mentor].map((id) => {
       const [otherId, otherRole] = id.split(":");
       const other = accountById(otherId);
-      const alternatives = other
-        ? similarMentors(prepare(other, otherRole), mentorId)
-        : [];
+      const alternatives = other ? similarMentors(other, mentorId) : [];
       return { id, other, otherRole, alternatives };
     });
     for (const { id, other, otherRole, alternatives } of pending) {
@@ -556,7 +851,7 @@ export function createFeatures({
         { kind: "confirmation", page: "discover" },
       );
     }
-    return pending.length;
+    return structuredCount + pending.length;
   }
   function mentoringSettings(account, state, input, values, text) {
     if (state.role !== "mentor")
@@ -564,15 +859,20 @@ export function createFeatures({
     const mentor = state.profiles.mentor;
     const stamp = new Date(now()).toISOString();
     if (input.form === "accept-guidelines") {
-      if (Number(values.version) !== mentorConfig.guidelinesVersion)
+      if (Number(values.version) !== mentorSettings().guidelinesVersion)
         fail(
           "The guidelines have been updated. Refresh to read the latest version.",
           409,
         );
-      mentor.guidelinesVersion = mentorConfig.guidelinesVersion;
+      mentor.guidelinesVersion = mentorSettings().guidelinesVersion;
       mentor.guidelinesAcceptedAt = stamp;
       state.toast = "Mentor guidelines accepted.";
     } else if (input.form === "set-mentor-pause") {
+      if (Date.parse(state.mentorshipLimits?.mentor || "") > now())
+        fail(
+          "Pause Mode stays on until the attendance limit ends or a moderator lifts it.",
+          409,
+        );
       const paused = values.paused === "on";
       const until = text("pausedUntil");
       const today = new Intl.DateTimeFormat("en-CA", {
@@ -625,7 +925,13 @@ export function createFeatures({
       if (!responseDayOptions.includes(capacity.responseDays))
         errors.responseDays = "Choose 1, 2, 3, 5 or 7 days.";
       const formats = normalizeOfferedFormats(
-        mentorFormatIds.filter((id) => values[`format-${id}`] === "on"),
+        mentorFormatIds
+          .filter((id) => values[`format-${id}`] === "on")
+          .map(
+            (id) =>
+              mentor.formats.find((item) => item.id === id) || { id, price: 0 },
+          ),
+        mentor.payoutSetup?.status === "ready",
       );
       if (!formats.length) errors.formats = "Offer at least one format.";
       const timeZone = text("timeZone");
@@ -633,7 +939,9 @@ export function createFeatures({
         errors.timeZone = "Choose a valid time zone.";
       if (Object.keys(errors).length)
         fail("Check your mentoring settings.", 400, errors);
+      validateOfficeHours?.(state, capacity);
       Object.assign(mentor, { capacity, formats, timeZone });
+      if (mentor.preferredHours) mentor.preferredHours.timeZone = timeZone;
       state.toast = "Mentoring settings saved.";
     } else {
       const op = text("op");
@@ -678,6 +986,16 @@ export function createFeatures({
     if (Boolean(input.action) === Boolean(input.form))
       fail("Submit one action or form at a time.");
     const state = prepare(account, input.role);
+    if (mentorRequestActions.has(input.action)) {
+      state.toast = "";
+      state.confirmation = "";
+      state.formErrors = null;
+      mentorRequestAction(account, state, input);
+      state.directory = createInitialState().directory;
+      account.state = state;
+      save();
+      return response(account, input.role);
+    }
     const values = input.values || {};
     if (!values || typeof values !== "object" || Array.isArray(values))
       fail("Invalid form values.");
@@ -824,6 +1142,8 @@ export function createFeatures({
       if (!isAdmin(account)) fail("Moderator access required.", 403);
       if (input.form === "engagement-template") {
         const id = text("type");
+        if (id === "mentorship")
+          fail("Mentorship templates follow the format definitions.", 409);
         const current = (db().engagementTemplates || defaultTemplates)[id];
         if (!Object.hasOwn(defaultTemplates, id) || !current)
           fail("Choose a valid room type.");
@@ -1123,11 +1443,22 @@ export function createFeatures({
           description = text("description");
         const status = text("status"),
           priority = text("priority");
-        const assignee = text("assignee"),
+        const assignee = isMentorRoom(room)
+            ? room.role === "founder"
+              ? account.id
+              : room.partnerAccountId
+            : text("assignee"),
           dueDate = text("dueDate");
         const milestoneId = text("milestoneId");
         if (!title || title.length > 160)
           fail("Use a task title of 1–160 characters.");
+        if (
+          isMentorRoom(room) &&
+          room.role !== "founder" &&
+          status === "done" &&
+          task?.status !== "done"
+        )
+          fail("Only the founder can mark an action item done.", 403);
         if (!["todo", "doing", "done"].includes(status))
           fail("Choose a valid task status.");
         if (!["low", "normal", "high"].includes(priority))
@@ -1152,6 +1483,7 @@ export function createFeatures({
           assignee,
           dueDate,
           milestoneId,
+          ...(isMentorRoom(room) && { kind: "action" }),
         };
         if (task) Object.assign(task, fields, { version: task.version + 1 });
         else {
@@ -1166,6 +1498,12 @@ export function createFeatures({
         }
         state.toast = task ? "Task updated." : "Task added to the board.";
       }
+      if (isMentorRoom(room))
+        setMentorMilestone(
+          room,
+          "actions",
+          room.tasks.some((task) => task.kind === "action"),
+        );
     } else if (input.form === "milestone-date") {
       if (!Object.hasOwn(room.milestones, input.id))
         fail("This milestone is unavailable.", 404);
@@ -1202,16 +1540,62 @@ export function createFeatures({
           ? `Due date set for “${item.title}”: ${new Date(`${date}T12:00:00Z`).toLocaleDateString("en", { weekday: "short", day: "numeric", month: "short" })}. Your collaborator was notified.`
           : `Due date removed from “${item.title}”.`
         : `Milestone details updated for “${item.title}”.`;
+    } else if (input.form === "mentor-config") {
+      if (!isAdmin(account)) fail("Moderator access required.", 403);
+      state.toast = changeMentorSetting?.(account, values.path, values.value)
+        ? "Mentoring setting saved."
+        : "That value is already active.";
+    } else if (input.form === "mentorship-survey") {
+      if (state.role !== "mentor")
+        fail("Switch to your mentor profile to answer this survey.", 403);
+      if (!["yes", "no"].includes(values.wouldCharge))
+        fail("Choose Yes or No.");
+      account.mentorshipSurvey = {
+        wouldCharge: values.wouldCharge === "yes",
+        at: new Date(now()).toISOString(),
+      };
+      state.toast = "Survey response saved.";
     } else if (input.form === "notification-preferences") {
       const digest = text("digest");
       if (!["off", "daily", "weekly"].includes(digest))
         fail("Choose Off, Daily or Weekly.");
       account.notificationPreferences = {
+        ...(account.notificationPreferences || {}),
         match: values.match === "on",
         activity: values.activity === "on",
         reminders: values.reminders === "on",
         digest,
+        ...(state.role === "mentor" && {
+          mentorRequestEmail:
+            values.mentorRequestEmail === "instant" ? "instant" : "daily",
+        }),
+        ...(values.mentorshipEmailPreferences === "yes" && {
+          mentorEmailKinds: {
+            ...(account.notificationPreferences?.mentorEmailKinds || {}),
+            ...Object.fromEntries(
+              Object.keys(mentorEmailKinds)
+                .filter(
+                  (kind) =>
+                    state.role === "mentor" ||
+                    ![
+                      "request",
+                      "mentor-approved",
+                      "guidelines-required",
+                    ].includes(kind),
+                )
+                .map((kind) => [kind, values[`email-${kind}`] === "on"]),
+            ),
+          },
+        }),
       };
+      if (
+        values.mentorshipEmailPreferences === "yes" &&
+        account.emailDeliveryStatus?.unsubscribedKinds
+      )
+        account.emailDeliveryStatus.unsubscribedKinds =
+          account.emailDeliveryStatus.unsubscribedKinds.filter(
+            (kind) => values[`email-${kind}`] !== "on",
+          );
       state.toast = "Notification preferences saved.";
     } else if (input.action === "read-notifications") {
       const ids = state.notifications
@@ -1496,10 +1880,14 @@ export function createFeatures({
   return {
     decorate,
     rememberNotifications,
+    scheduledEmails,
     vocabulary,
     suggestTags,
     isAdmin,
-    handles: (input) => actions.has(input.action) || forms.has(input.form),
+    handles: (input) =>
+      actions.has(input.action) ||
+      forms.has(input.form) ||
+      mentorRequestActions.has(input.action),
     act,
   };
 }

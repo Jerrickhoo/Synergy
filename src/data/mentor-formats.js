@@ -3,6 +3,7 @@
 // per-format room templates all read from here. Milestones marked `confirm`
 // need evidence or mutual confirmation (the * in the spec).
 
+import { validPrice, pricingConfig } from "./pricing.js";
 export const mentorFormats = [
   {
     id: "quick-ask",
@@ -114,13 +115,20 @@ export function normalizeMentorFormats(values) {
 
 // The formats a mentor offers, each with its price. Accepts the object form
 // ({ id, price }) or a plain list of ids, and a plain id gets price 0. Prices
-// are always 0 in v1, whatever is stored or sent.
-export function normalizeOfferedFormats(values) {
+// stay free until payout setup is complete.
+export function normalizeOfferedFormats(
+  values,
+  payoutReady = false,
+  config = pricingConfig,
+) {
   const list = Array.isArray(values) ? values : [];
   const ids = normalizeMentorFormats(
     list.map((item) => (item && typeof item === "object" ? item.id : item)),
   );
-  return ids.map((id) => ({ id, price: 0 }));
+  return ids.map((id) => {
+    const price = list.find((item) => item?.id === id)?.price || 0;
+    return { id, price: payoutReady && validPrice(price, config) ? price : 0 };
+  });
 }
 
 export function canUpgrade(from, to) {

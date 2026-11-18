@@ -65,7 +65,7 @@ Mentors don't get a startup partnership out of the platform, so Synergy gives th
 | Visible impact           | Founder follow-ups show what founders actually did with their advice                                |
 | Recognition              | Badges (Verified, Top Mentor) and downloadable certificates of mentoring hours                      |
 | Early access to startups | Investor-type mentors see promising teams early                                                     |
-| Paid sessions (future)   | Version 1 is volunteer-only; a later version may let mentors charge, with a platform fee            |
+| Paid sessions (future)   | v1.1 supports free and paid formats through Synergy checkout, with a 15% platform fee            |
 
 ### Platform Admin / Moderator (internal role)
 
@@ -98,7 +98,7 @@ Founders act on mentor advice, so a fake or unqualified mentor does more damage 
 5. **Accepted formats.** Which engagement types they take: Quick Ask, Doc/Pitch Review, Single Session, Office Hours, Ongoing Advisory (see Section 10).
 6. **Preferences.** Startup stages and industries they most want to help.
 7. **Conflict-of-interest disclosure.** Companies they advise, work for, or invest in, so they aren't matched with direct competitors.
-8. **Mentor guidelines agreement.** A short code of conduct: respect founder confidentiality, no equity or payment requests inside the platform, show up to booked sessions.
+8. **Mentor guidelines agreement.** A short code of conduct: respect founder confidentiality, no equity or off-platform payment requests, show up to booked sessions.
 
 ## 5. The Matching Engine, In Detail
 
@@ -268,7 +268,7 @@ Mentors and founders are rated on different things:
 ### Mentor-specific safety rules
 
 - **No-show policy.** Repeated no-shows by either side lower trust and can trigger temporary request limits.
-- **No equity or payment requests inside the platform in version 1.** Prevents "I'll help you for 5% of your company" situations.
+- **Paid mentoring must use Synergy checkout. Equity requests are prohibited.** Prevents "I'll help you for 5% of your company" situations.
 - **Confidentiality.** Mentors agree not to share founders' private information or ideas.
 - **Conflict-of-interest checks.** Mentors are not matched with direct competitors of companies they disclosed.
 - **Block and report** for both sides.

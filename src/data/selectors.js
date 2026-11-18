@@ -1,3 +1,8 @@
+import {
+  isMentorRoom,
+  mentorSessions,
+  mentorshipNextAction,
+} from "./mentor-room.js";
 import { reviewDeadline, terminalStatuses } from "./collaboration.js";
 import { normalizeProfile } from "./profile-content.js";
 export const profileFieldNames = {
@@ -127,10 +132,15 @@ export function scheduleLabel(schedule) {
 
 export function upcomingSessions(state, now = new Date()) {
   return activeRooms(state)
-    .filter((room) => room.milestones.session?.schedule)
     .flatMap((room) =>
-      (
-        room.milestones.session.schedules || [room.milestones.session.schedule]
+      (isMentorRoom(room)
+        ? mentorSessions(room).filter(
+            (session) => !session.cancelledAt && !session.outcome,
+          )
+        : room.milestones.session?.schedules ||
+          (room.milestones.session?.schedule
+            ? [room.milestones.session.schedule]
+            : [])
       ).map((schedule) => ({ room, schedule })),
     )
     .filter(({ schedule }) => scheduleInstant(schedule) > now)
@@ -138,6 +148,7 @@ export function upcomingSessions(state, now = new Date()) {
 }
 
 export function scheduleInstant(schedule) {
+  if (schedule.startsAt) return new Date(schedule.startsAt);
   if (!schedule.timeZone) return new Date(`${schedule.date}T${schedule.time}`);
   try {
     const target = Date.parse(`${schedule.date}T${schedule.time}:00Z`);
@@ -201,6 +212,7 @@ export const milestoneDate = (date) => {
 
 // The single answer to "what happens next, and whose turn is it?" for a room.
 export function roomNextAction(room, partner = "your collaborator") {
+  if (isMentorRoom(room)) return mentorshipNextAction(room);
   if (!room || room.status === "cancelled")
     return { mine: false, done: true, text: "This collaboration is closed." };
   const deadline = shortDate(reviewDeadline(room));

@@ -8,9 +8,20 @@ export function configuration(env = process.env) {
   const production = env.NODE_ENV === "production";
   const demoMode = env.SYNERGY_DEMO_MODE !== "false";
   const file = resolve(env.SYNERGY_DATA_FILE || ".data/synergy.sqlite");
+  if (env.PAYMENTS_PROVIDER && env.PAYMENTS_PROVIDER !== "simulated")
+    throw new Error(
+      "Live payments require the P2 provider integration and release checks.",
+    );
   const config = {
     production,
     demoMode,
+    paymentsProvider: env.PAYMENTS_PROVIDER || "simulated",
+    paymentsWebhookSecret: env.PAYMENTS_WEBHOOK_SECRET || "",
+    emailProvider: demoMode ? "stub" : env.EMAIL_PROVIDER || "stub",
+    brevoApiKey: env.BREVO_API_KEY || "",
+    emailFrom: env.EMAIL_FROM || "",
+    brevoWebhookSecret: env.BREVO_WEBHOOK_SECRET || "",
+    publicUrl: env.SYNERGY_PUBLIC_URL || "",
     requireVerification: env.SYNERGY_REQUIRE_VERIFICATION === "true",
     file,
     backupDirectory: env.SYNERGY_BACKUP_DIR
@@ -35,5 +46,31 @@ export function configuration(env = process.env) {
     config.backupIntervalHours < 1
   )
     throw new Error("SYNERGY_BACKUP_INTERVAL_HOURS must be at least 1.");
+  if (!["stub", "brevo"].includes(config.emailProvider))
+    throw new Error("EMAIL_PROVIDER must be stub or brevo.");
+  if (config.emailProvider === "brevo") {
+    if (
+      !config.brevoApiKey ||
+      !config.emailFrom ||
+      config.brevoWebhookSecret.length < 32
+    )
+      throw new Error(
+        "Brevo requires BREVO_API_KEY, EMAIL_FROM and a BREVO_WEBHOOK_SECRET of at least 32 characters.",
+      );
+    let origin;
+    try {
+      origin = new URL(config.publicUrl);
+    } catch {
+      throw new Error("Set SYNERGY_PUBLIC_URL to your HTTPS frontend.");
+    }
+    if (
+      origin.protocol !== "https:" ||
+      origin.username ||
+      origin.password ||
+      origin.search ||
+      origin.hash
+    )
+      throw new Error("Set SYNERGY_PUBLIC_URL to your HTTPS frontend.");
+  }
   return config;
 }

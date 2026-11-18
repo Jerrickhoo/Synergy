@@ -1,3 +1,5 @@
+import { mentorEmailKinds } from "../data/mentor-email.js";
+import { PaymentSettings } from "../components/Payments.jsx";
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
@@ -151,6 +153,7 @@ export default function SettingsPage() {
         }
       />
       {state.role === "mentor" && <MentoringSettings />}
+      <PaymentSettings />
       <section className="card panel settings-section appearance-settings">
         <h2>Appearance</h2>
         <p>Choose Light or Dark for this browser. Light is the default.</p>
@@ -230,11 +233,103 @@ export default function SettingsPage() {
             A digest collects match suggestions and partner activity into one
             summary on Updates instead of separate alerts.
           </p>
+          {state.role === "mentor" && (
+            <SelectField
+              id="mentor-request-email"
+              name="mentorRequestEmail"
+              label="New mentorship request alerts"
+              defaultValue={prefs.mentorRequestEmail || "daily"}
+              options={[
+                {
+                  value: "daily",
+                  label: `Daily at ${String(state.mentorConfig?.digestHour ?? 8).padStart(2, "0")}:00 in your time zone`,
+                },
+                { value: "instant", label: "As requests arrive" },
+              ]}
+            />
+          )}
+          <fieldset className="checkbox-group">
+            <legend>Mentorship emails</legend>
+            <input
+              type="hidden"
+              name="mentorshipEmailPreferences"
+              value="yes"
+            />
+            {Object.entries(mentorEmailKinds)
+              .filter(
+                ([key]) =>
+                  state.role === "mentor" ||
+                  ![
+                    "request",
+                    "mentor-approved",
+                    "guidelines-required",
+                  ].includes(key),
+              )
+              .map(([key, label]) => (
+                <label className="checkbox-label" key={key}>
+                  <input
+                    type="checkbox"
+                    name={`email-${key}`}
+                    defaultChecked={
+                      prefs.mentorEmailKinds?.[key] !== false &&
+                      !state.mentorEmailStatus?.unsubscribedKinds?.includes(key)
+                    }
+                  />{" "}
+                  {label}
+                </label>
+              ))}
+            {(state.mentorEmailStatus?.bouncedAt ||
+              state.mentorEmailStatus?.unsubscribedAt) && (
+              <p>
+                Email delivery to this address is paused. Your notices are
+                available in Updates.
+              </p>
+            )}
+          </fieldset>
           <button className="btn" disabled={state.busy}>
             Save notification preferences
           </button>
         </form>
       </section>
+      {state.role === "mentor" && (
+        <section className="card panel section-gap">
+          <h2>Mentoring survey</h2>
+          <form
+            data-form="mentorship-survey"
+            className="mentor-request-form"
+            onSubmit={onSubmit}
+          >
+            <fieldset>
+              <legend>
+                Would you charge for any format if Synergy handled payments?
+              </legend>
+              <label>
+                <input
+                  type="radio"
+                  name="wouldCharge"
+                  value="yes"
+                  required
+                  defaultChecked={state.mentorshipSurvey?.wouldCharge === true}
+                />{" "}
+                Yes
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="wouldCharge"
+                  value="no"
+                  required
+                  defaultChecked={state.mentorshipSurvey?.wouldCharge === false}
+                />{" "}
+                No
+              </label>
+            </fieldset>
+            <button className="btn" disabled={state.busy}>
+              Save survey response
+            </button>
+          </form>
+        </section>
+      )}
       {error && (
         <div className="connection-banner" role="alert">
           <p>{error}</p>

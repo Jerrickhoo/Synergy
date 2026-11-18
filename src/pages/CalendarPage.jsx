@@ -1,3 +1,7 @@
+import {
+  CalendarFeed,
+  OfficeHoursManager,
+} from "../components/OfficeHours.jsx";
 import SelectField from "../components/SelectField.jsx";
 import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
@@ -95,6 +99,8 @@ function CalendarContent() {
         title="Calendar"
         intro="Sessions and deadlines across your collaborations."
       />
+      {state.role === "mentor" && <OfficeHoursManager />}
+      <CalendarFeed />
       <div className="calendar-controls">
         <div
           className="calendar-view-switch"

@@ -1,5 +1,7 @@
+import { isMentorRoom } from "../data/mentor-room.js";
 import { Fragment, useEffect, useRef } from "react";
 import { useApp } from "../state/AppContext.jsx";
+import ReportCollaborator from "./ReportCollaborator.jsx";
 import Avatar from "../components/Avatar.jsx";
 export default function ChatPanel({ room }) {
   const { onSubmit, state, model } = useApp();
@@ -53,6 +55,14 @@ export default function ChatPanel({ room }) {
                     : message.time}
                 </span>
                 {message.text}
+                {message.who === "partner" &&
+                  message.safetyFlags?.length > 0 && (
+                    <ReportCollaborator
+                      person={partner}
+                      messageId={message.id}
+                      compact
+                    />
+                  )}
               </div>
               {message.who === "me" ? (
                 <Avatar
@@ -68,21 +78,26 @@ export default function ChatPanel({ room }) {
         ))}
       </div>
       {"\n          "}
-      <form
-        className="chat-compose"
-        id="chat-form"
-        onSubmit={(event) => onSubmit(event)}
-      >
-        <input
-          id="chat-input"
-          name="message"
-          placeholder="Write a message…"
-          aria-label="Write a message"
-        />
-        <button className="btn primary" type="submit" disabled={state.busy}>
-          Send
-        </button>
-      </form>
+      {isMentorRoom(room) &&
+      ["launched", "reviewed", "cancelled"].includes(room.status) ? (
+        <p>This chat is read-only.</p>
+      ) : (
+        <form
+          className="chat-compose"
+          id="chat-form"
+          onSubmit={(event) => onSubmit(event)}
+        >
+          <input
+            id="chat-input"
+            name="message"
+            placeholder="Write a message…"
+            aria-label="Write a message"
+          />
+          <button className="btn primary" type="submit" disabled={state.busy}>
+            Send
+          </button>
+        </form>
+      )}
     </section>
   );
 }

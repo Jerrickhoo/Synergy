@@ -2,7 +2,7 @@
 // the privacy notice, is docs/product/MENTOR-GUIDELINES.md. Keep both in step
 // and raise `version` (and mentorConfig.guidelinesVersion) on any change.
 export const mentorGuidelines = {
-  version: 1,
+  version: 2,
   sections: [
     {
       title: "Keep founders' information confidential",
@@ -12,9 +12,9 @@ export const mentorGuidelines = {
       ],
     },
     {
-      title: "Mentoring is free. No payment and no equity",
+      title: "Use Synergy checkout. No equity",
       points: [
-        "Don't ask for or accept money, gifts, fees, equity or advisory shares for mentoring, or move off Synergy to arrange payment.",
+        "Paid mentoring must use Synergy checkout. Do not request off-platform payments, gifts, equity or advisory shares.",
         "If you'd like to invest in or hire a founder you mentor, say so openly and add it to your conflicts. The founder can say no without it affecting your help.",
       ],
     },

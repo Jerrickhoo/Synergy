@@ -1,6 +1,6 @@
 # Prototype deployment
 
-The app runs without external API keys. The sign-in screen accepts any non-empty credentials and provides a founder/mentor dropdown at the bottom right; no signup or email verification is required. Email and AI integrations have been removed from the code and hosting configuration.
+The local demo runs without external API keys. Choose Founder or Mentor in Prototype role and use made-up credentials to enter the sample workspace.
 
 ## Local or built preview
 
@@ -38,7 +38,7 @@ The default data file is `.data/synergy.sqlite`; explicit JSON paths are also su
 
 Files are limited to 5 MB each and 50 MB uploaded per account. Allowed formats are PDF, PNG, JPEG, WebP and UTF-8 text. Downloads require a session and room membership. Files are served as downloads. Uploads are not antivirus-scanned.
 
-Moderation is granted only to local accounts explicitly listed in `SYNERGY_ADMIN_EMAILS`. Role-preview accounts receive no administrator privileges. Affiliation review, reports, vocabulary and matching settings remain available. Notifications are in-app only.
+Moderation is granted only to local accounts explicitly listed in `SYNERGY_ADMIN_EMAILS`. Role-preview accounts receive no administrator privileges. Affiliation review, reports, vocabulary and matching settings remain available. Keep the moderator list empty in a public demo and use a separate controlled workspace for moderation walkthroughs.
 
 `SYNERGY_REQUIRE_VERIFICATION` defaults to `false` locally and is `true` in `render.yaml`. With gating enabled, local password accounts need moderator-verified affiliation before sending or accepting introductions. Configure at least one reachable moderator before inviting real accounts. Accelerator, university, community or referral evidence is accepted through the existing request form; no business domain or email verification is claimed. Demo previews are exempt.
 
@@ -46,7 +46,7 @@ Moderation deadlines are three weekdays after submission, preserving the UTC sub
 
 Password recovery remains unavailable, by owner decision on 7 November 2026. A founder who loses a local password cannot reset it in the app. Do not direct them to an email reset or promise a moderator reset: neither exists. Authenticated users can change their password in Settings. A future recovery flow needs a defined identity check, authorized moderator handling or actual email delivery, a single-use expiring token, session revocation and an audit trail. This gap is documented instead of introducing an unreviewed recovery bypass. Keep exports and tested backups, but a backup is not a password-reset procedure.
 
-Email delivery remains a boundary only. `server/delivery.js` stores deduplicated outbox records with account, kind, payload, availability and status in the same database transaction as notification bookkeeping. Needs-reply items enqueue immediately; digest records enqueue per daily/weekly period. `dispatchOutbox(db, sender, now)` accepts an injected sender; the default stub leaves records pending and records that email is not configured. No dispatcher runs automatically, no email is sent, and the UI never marks email delivered. A future worker must load and commit storage safely under the single-writer constraint, handle retries/retention and connect an approved delivery provider. In-app digests are available immediately on Updates; email scheduling is not implemented.
+The local demo uses the email stub and sends no email. The workspace still keeps in-app Updates and records pending notices in the outbox. A separate staging workspace can use Brevo as described under Mentorship email.
 
 ## Acceptance checks
 
@@ -59,3 +59,17 @@ Run `npm run backup -- /absolute/backup/directory` (PowerShell: `npm.cmd run bac
 Verify a snapshot with `node server/backup.js --verify /absolute/backup/snapshot`. Copy verified snapshots to a separate storage location and apply a retention policy. This command does not configure off-site storage or a managed backup service.
 
 To restore: stop the server; preserve the current database/uploads as a rollback copy; verify the selected backup; copy its `synergy.json` and `uploads` directory together into a new data directory; set `SYNERGY_DATA_FILE` to that copy; then start a single server and sign in to check profiles, rooms and evidence downloads. Restoring ends existing sessions. Regression tests open a copied backup as a workspace and detect modified evidence bytes.
+
+## Mentorship email
+
+Mentorship email defaults to the local stub. To validate transactional email on staging, use a staging workspace with demo mode disabled and a verified sender and sending domain. Configure the domain's SPF, DKIM and DMARC records in Brevo. Set `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY`, `EMAIL_FROM`, `SYNERGY_PUBLIC_URL` and a random `BREVO_WEBHOOK_SECRET` of at least 32 characters in the staging secret store. Use the public HTTPS frontend origin for links and ensure its `/api` requests reach the same workspace. [Brevo transactional email guide](https://developers.brevo.com/docs/send-a-transactional-email)
+
+Register a transactional webhook at `/api/email/brevo-webhook` for `hardBounce`, `invalid`, `blocked`, `spam` and `unsubscribed`. Configure bearer authorization with the same webhook secret. The workspace checks it before applying suppression. It retries temporary send failures and stops sending to suppressed addresses. [Brevo secure webhook setup](https://developers.brevo.com/docs/secured-webhooks)
+
+Use dedicated staging accounts to send and accept a mentorship request. Switch one mentor to instant email and verify the other receives a digest at the configured time in their time zone. Confirm the links open the right request or room and that the email contains only notice details. Verify a per-kind unsubscribe and a bounce suppression using the staging provider. The regular server process runs the maintenance and delivery job every minute.
+
+## v1.1 payment simulation
+
+Set PAYMENTS_PROVIDER=simulated. Set a private PAYMENTS_WEBHOOK_SECRET to enable POST /api/payments/webhook. Callbacks carry x-payment-signature, the lowercase hexadecimal HMAC-SHA256 of the exact request body. Bodies contain a distinct id, a saved providerRef and a result of success, failure or expiry. Repeated event IDs are ignored.
+
+Payment records and provider simulation state live in the workspace database and use the normal database backup. The simulation transfers no real funds. Configuration rejects live provider values. Complete the [P2 requirements](../product/V1.1-IMPLEMENTATION.md) before connecting a live marketplace provider.

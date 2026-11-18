@@ -1,8 +1,8 @@
 # Synergy mentor guidelines
 
-Version 1. You accept these guidelines before you can receive mentorship requests on Synergy. They apply to every mentor, including people who are both a founder and a mentor.
+Version 2. You accept these guidelines before you can receive mentorship requests on Synergy. They apply to every mentor, including people who are both a founder and a mentor.
 
-Founders bring you real problems from companies they care about. These guidelines exist so they can do that safely, and so your time as a volunteer is respected in return. Each rule below says what we expect and what happens if it isn't followed.
+Founders bring you real problems from companies they care about. These guidelines exist so they can do that safely, and so your mentoring time is respected in return. Each rule below says what we expect and what happens if it isn't followed.
 
 ## 1. Keep founders' information confidential
 
@@ -13,11 +13,11 @@ What a founder shares with you is shared with you alone. That includes their req
 - After an engagement ends, keep treating what you learned as confidential.
 - If you think you received something by mistake, tell the founder and don't use it.
 
-## 2. Mentoring is free. No payment and no equity
+## 2. Use Synergy checkout. No equity
 
-In this version of Synergy, all mentoring is volunteer work.
+Mentors may offer free or paid formats. Payment must use Synergy checkout.
 
-- Don't ask for, suggest or accept money, gifts, fees, retainers, equity, advisory shares or options in return for mentoring.
+- Use the listed format price and Synergy checkout for paid mentoring. Do not ask for gifts, equity, advisory shares or options.
 - Don't move a conversation off Synergy to arrange payment, for example through GCash, Maya, bank transfer, PayPal, Viber or WhatsApp.
 - Don't make your help depend on anything in return, including a future investment, a job or an introduction to your company.
 - If you would like to invest in, work with or hire a founder you mentor, say so openly in the mentorship room and add it to your conflicts of interest. The founder can say no, and saying no must not change the help they get from you.
@@ -89,7 +89,7 @@ Synergy handles personal information under the Philippine Data Privacy Act of 20
 
 - **Who sees a request.** A founder's request is visible only to the founder and the mentor it was sent to. Referred mentors don't see it unless the founder sends it to them.
 - **How long it's kept.** If a request is declined, expires or is returned, the mentor's copy of its content is deleted after 30 days. Only the founder's name, the status, the reason and the dates are kept.
-- **Emails.** Emails about requests never include what the founder wrote, only that a request arrived, with a link.
+- **Emails.** Request emails contain a notice and a link. Manage delivery in Settings or unsubscribe from an individual notice type using the link in its email.
 - **What others see about you.** Your Impact Profile shows your sessions, the founders you've helped, your ratings and your badges. Your no-show rate is shown publicly only as "Reliable", and your conflicts list is never shown to anyone.
 - **Deleting your account** removes your mentor profile, your office hours, the notes you wrote and any request content not shared with you as part of an engagement. Ratings and session counts are kept in anonymous form, so the other person's history stays correct.
 

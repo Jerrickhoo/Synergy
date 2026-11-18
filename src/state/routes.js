@@ -3,6 +3,10 @@ const paths = {
   home: "",
   discover: "matches",
   waiting: "waiting",
+  requests: "requests",
+  mentees: "mentees",
+  impact: "impact",
+  "impact-certificate": "impact/certificate",
   rooms: "rooms",
   calendar: "calendar",
   profile: "profile",
@@ -15,10 +19,14 @@ const paths = {
 
 export function parseRoute(hash) {
   try {
-    const path = (hash || "#/").replace(/^#\/?/, "").replace(/\/$/, "");
+    const [raw, query] = (hash || "#/").replace(/^#\/?/, "").split("?");
+    const path = raw.replace(/\/$/, "");
     if (path === "login") return { page: "login" };
     const simple = Object.entries(paths).find(([, value]) => value === path);
-    if (simple) return { page: simple[0] };
+    if (simple) {
+      const requestId = new URLSearchParams(query).get("request");
+      return { page: simple[0], ...(requestId && { requestId }) };
+    }
     const match = path.match(/^(matches|rooms)\/([^/]+)(\/review)?$/);
     if (match && !(match[1] === "matches" && match[3]))
       return {
@@ -29,6 +37,10 @@ export function parseRoute(hash) {
               ? "review"
               : "room-detail",
         id: decodeURIComponent(match[2]),
+        ...(query && {
+          referralId: new URLSearchParams(query).get("referral"),
+          tab: new URLSearchParams(query).get("tab"),
+        }),
       };
   } catch {
     /* Malformed encoded identifiers are invalid routes. */
@@ -40,11 +52,13 @@ export function routeHash(state) {
   if (!state.authenticated && !["signup", "onboarding"].includes(state.page))
     return "#/login";
   if (state.page === "match-detail")
-    return `#/matches/${encodeURIComponent(state.activeMatch || "unavailable")}`;
+    return `#/matches/${encodeURIComponent(state.activeMatch || "unavailable")}${state.mentorReferralId ? `?referral=${encodeURIComponent(state.mentorReferralId)}` : ""}`;
   if (["room-detail", "review"].includes(state.page))
     return `#/rooms/${encodeURIComponent(state.activeRoomId || "unavailable")}${state.page === "review" ? "/review" : ""}`;
   if (state.page === "not-found") return state.routePath || "#/unavailable";
-  return `#/${paths[state.page] ?? ""}`;
+  const request =
+    ["waiting", "requests"].includes(state.page) && state.activeMentorRequest;
+  return `#/${paths[state.page] ?? ""}${request ? `?request=${encodeURIComponent(request)}` : ""}`;
 }
 
 export function applyRoute(state, route) {
@@ -54,6 +68,9 @@ export function applyRoute(state, route) {
   state.notificationOpen = false;
   state.profileEditing = false;
   state.formErrors = null;
+  state.mentorshipActionError = null;
+  state.mentorReferralId = route.referralId || null;
+  state.activeMentorRequest = route.requestId || null;
   if (route.page === "login") {
     state.authenticated = false;
     state.page = "home";
@@ -64,7 +81,9 @@ export function applyRoute(state, route) {
     return;
   }
   state.page =
-    route.page === "onboarding" && !state.onboarding.signup
+    route.page === "onboarding" &&
+    !state.onboarding.signup &&
+    !state.authenticated
       ? "signup"
       : route.page;
   if (route.page === "match-detail") state.activeMatch = route.id;
@@ -72,7 +91,8 @@ export function applyRoute(state, route) {
     state.activeRoomId = route.id;
     const room = state.rooms?.[route.id];
     state.roomTab =
-      (room?.role === state.role && roomNextAction(room).tab) || "terms";
+      (room?.role === state.role && (route.tab || roomNextAction(room).tab)) ||
+      "terms";
   }
   state.routePath = route.path;
 }

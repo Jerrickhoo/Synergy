@@ -1,3 +1,5 @@
+import MentorshipRoom from "../components/MentorshipRoom.jsx";
+import { isMentorRoom } from "../data/mentor-room.js";
 import ReportCollaborator from "../components/ReportCollaborator.jsx";
 import ChatPanel from "../components/ChatPanel.jsx";
 import MilestonesPanel from "../components/MilestonesPanel.jsx";
@@ -87,6 +89,16 @@ function NowBar({ room, partnerName }) {
 }
 
 export default function RoomDetailPage() {
+  const { model } = useApp();
+  const room = model.activeRoom();
+  return isMentorRoom(room) ? (
+    <MentorshipRoom key={room.id} room={room} />
+  ) : (
+    <ExchangeRoom />
+  );
+}
+
+function ExchangeRoom() {
   const { state, model, onAction, onTabKeyDown } = useApp();
   const { allPeople, roleName, currentAgreement, activeRoom, roomStatusLabel } =
     model;

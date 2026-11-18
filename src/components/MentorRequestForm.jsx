@@ -1,0 +1,262 @@
+import { useState } from "react";
+import { useApp } from "../state/AppContext.jsx";
+import { priceLabel } from "../data/pricing.js";
+import { mentorFormat } from "../data/mentor-formats.js";
+import { unavailableText } from "../data/mentor-rules.js";
+import {
+  requestFields,
+  requestSuggestions,
+} from "../data/request-assistant.js";
+import VerificationGate from "./VerificationGate.jsx";
+import { verificationRequired } from "../data/collaboration.js";
+
+export function MentorAlternatives({ alternatives, referralId }) {
+  const { onAction } = useApp();
+  if (!alternatives?.length) return null;
+  return (
+    <div className="mentoring-alternatives">
+      <h3>
+        {referralId ? "Suggested mentors" : "Other mentors taking requests"}
+      </h3>
+      <ul>
+        {alternatives.map((mentor) => (
+          <li key={mentor.id}>
+            <span>
+              <strong>{mentor.name}</strong> · {mentor.score}% match
+            </span>
+            <button
+              className="btn small"
+              aria-label={`${referralId ? "Ask" : "View match"}, ${mentor.name}`}
+              onClick={() =>
+                onAction({ action: "match-detail", id: mentor.id, referralId })
+              }
+            >
+              {referralId ? "Ask" : "View match"}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export default function MentorRequestForm({ person, referral, alternatives }) {
+  const { state, onAction } = useApp();
+  const formats = (person.availableFormats || []).filter(
+    (id) => id !== "office-hours",
+  );
+  const [draft, setDraft] = useState(() => ({
+    problem: referral?.problem || "",
+    tried: referral?.tried || "",
+    question: referral?.question || "",
+    desiredOutcome: referral?.desiredOutcome || "",
+    format: formats.includes(referral?.format)
+      ? referral.format
+      : formats[0] || "",
+    sharpenedFrom: null,
+  }));
+  const [linksText, setLinksText] = useState(referral?.links?.join("\n") || "");
+  const links = linksText.split(/\s+/).filter(Boolean);
+  const assistant = requestSuggestions({ ...draft, links }, formats);
+  const pending = state.mentorRequests?.find(
+    (entry) => entry.partnerId === person.id && entry.status === "pending",
+  );
+  const errors =
+    state.formErrors?.scope === "send-request" && state.formErrors.fields;
+  const actionError =
+    state.mentorshipActionError?.id === person.id &&
+    state.mentorshipActionError;
+  const locked = verificationRequired(state);
+  const change = (field, value) =>
+    setDraft((old) => ({ ...old, [field]: value }));
+  if (pending)
+    return (
+      <>
+        <h2>Mentorship request sent</h2>
+        <p>Waiting for {person.name} to reply.</p>
+        <button
+          className="btn"
+          onClick={() =>
+            onAction({
+              action: "mentor-request-link",
+              page: "waiting",
+              requestId: pending.id,
+            })
+          }
+        >
+          View request
+        </button>
+      </>
+    );
+  if (!formats.length)
+    return (
+      <>
+        <h2>Mentorship requests</h2>
+        <p>
+          {unavailableText(person.reason, person.name) ||
+            "This mentor is currently unavailable."}
+        </p>
+        <MentorAlternatives alternatives={alternatives} />
+      </>
+    );
+  return (
+    <>
+      <h2>Request mentorship</h2>
+      {referral && (
+        <p>
+          Review what you want to share with {person.name} before sending your
+          request.
+        </p>
+      )}
+      {actionError && (
+        <div className="warning-note" role="status">
+          {actionError.message}
+        </div>
+      )}
+      <MentorAlternatives alternatives={actionError?.alternatives} />
+      <form
+        className="mentor-request-form"
+        onSubmit={(event) =>
+          onAction(
+            {
+              action: "send-request",
+              id: person.id,
+              values: { ...draft, links, referralId: referral?.id },
+            },
+            event,
+          )
+        }
+      >
+        {Object.entries(requestFields).map(([key, label]) => (
+          <div className="field" key={key}>
+            <label htmlFor={`mentor-request-${key}`}>{label}</label>
+            <textarea
+              id={`mentor-request-${key}`}
+              required
+              minLength={20}
+              maxLength={1000}
+              aria-invalid={Boolean(errors?.[key])}
+              aria-describedby={`mentor-request-${key}-help`}
+              value={draft[key]}
+              onChange={(event) => change(key, event.target.value)}
+            />
+            <p id={`mentor-request-${key}-help`} className="field-help">
+              {errors?.[key] || "20 to 1,000 characters"}
+            </p>
+          </div>
+        ))}
+        <div className="field">
+          <label htmlFor="mentor-request-outcome">
+            Desired outcome (optional)
+          </label>
+          <textarea
+            id="mentor-request-outcome"
+            maxLength={1000}
+            value={draft.desiredOutcome}
+            aria-invalid={Boolean(errors?.desiredOutcome)}
+            onChange={(event) => change("desiredOutcome", event.target.value)}
+          />
+          {errors?.desiredOutcome && (
+            <p className="field-help">{errors.desiredOutcome}</p>
+          )}
+        </div>
+        <div className="field">
+          <label htmlFor="mentor-request-format">
+            Which format do you prefer?
+          </label>
+          <select
+            id="mentor-request-format"
+            value={draft.format}
+            onChange={(event) => change("format", event.target.value)}
+            required
+          >
+            {formats.map((id) => {
+              const format = mentorFormat(id);
+              return (
+                <option key={id} value={id}>
+                  {format.label} · {format.effort} ·{" "}
+                  {priceLabel(
+                    person.formats?.find((item) => item.id === id)?.price || 0,
+                  )}
+                </option>
+              );
+            })}
+          </select>
+          {person.formats
+            ?.filter(({ id }) => id !== "office-hours" && !formats.includes(id))
+            .map(({ id }) => (
+              <p key={id} className="field-help">
+                {mentorFormat(id).label} unavailable.{" "}
+                {unavailableText(person.formatReasons?.[id], person.name)}
+              </p>
+            ))}
+        </div>
+        <div className="field">
+          <label htmlFor="mentor-request-links">Links (optional)</label>
+          <textarea
+            id="mentor-request-links"
+            rows={2}
+            value={linksText}
+            aria-describedby="mentor-request-links-help"
+            aria-invalid={Boolean(errors?.links)}
+            onChange={(event) => setLinksText(event.target.value)}
+          />
+          <p className="field-help" id="mentor-request-links-help">
+            {errors?.links || "Add up to five links, one per line."}
+          </p>
+        </div>
+        <section className="mentoring-banner" aria-label="Request assistant">
+          <h3>Request quality {assistant.score}/100</h3>
+          {assistant.reasons.length > 0 && (
+            <ul>
+              {assistant.reasons.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          )}
+          {assistant.rewrite && (
+            <>
+              <p>{assistant.rewrite}</p>
+              <button
+                type="button"
+                className="btn small"
+                onClick={() =>
+                  setDraft((old) => ({
+                    ...old,
+                    question: assistant.rewrite.slice(0, 1000),
+                    sharpenedFrom: old.sharpenedFrom || old.question,
+                  }))
+                }
+              >
+                Use suggested question
+              </button>
+            </>
+          )}
+          {assistant.format && assistant.format.id !== draft.format && (
+            <button
+              type="button"
+              className="btn small"
+              onClick={() => change("format", assistant.format.id)}
+            >
+              Choose {assistant.format.label}
+            </button>
+          )}
+        </section>
+        {locked && <VerificationGate />}
+        <button className="btn primary full" disabled={state.busy || locked}>
+          {state.busy ? "Sending…" : "Send mentorship request"}
+        </button>
+        <p className="field-help">Only {person.name} will see this request.</p>
+        <details className="field-help">
+          <summary>Who sees this request?</summary>
+          <p>
+            A referral shares mentor suggestions with you. You choose whether to
+            send a new request. If this request is declined, expires or is
+            returned, the mentor's copy of the answers is removed after{" "}
+            {state.mentorConfig?.requestContentRetentionDays ?? 30} days.
+          </p>
+        </details>
+      </form>
+    </>
+  );
+}

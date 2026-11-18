@@ -1,3 +1,4 @@
+import { mentorRequestValues } from "./mentor-request-fixtures.js";
 import { selectValue, confirmSignOut } from "./ui-helpers.js";
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
@@ -175,14 +176,20 @@ test("stakeholders can sign in with any credentials and choose their prototype r
     ),
   ).toBe(true);
   const selector = await page.getByLabel("Prototype role").boundingBox();
-  expect(selector.x + selector.width / 2).toBeGreaterThan(180);
+  const signIn = await page
+    .getByRole("button", { name: "Sign in", exact: true })
+    .boundingBox();
+  expect(selector.x).toBeGreaterThanOrEqual(0);
   expect(selector.x + selector.width).toBeLessThanOrEqual(360);
-  expect(selector.y + selector.height).toBeGreaterThan(850);
+  expect(selector.y + selector.height).toBeLessThan(signIn.y);
+  await page.getByLabel("Prototype role").focus();
+  await page.keyboard.press("Tab");
+  await expect(page.getByLabel("Email address")).toBeFocused();
   await page.screenshot({
     path: testInfo.outputPath("welcome-mobile.png"),
     fullPage: true,
   });
-  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.setViewportSize({ width: 360, height: 780 });
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByLabel("Email address")).toHaveAttribute(
     "aria-invalid",
@@ -191,8 +198,10 @@ test("stakeholders can sign in with any credentials and choose their prototype r
   await expect(page.locator("#app-shell")).toHaveCount(0);
   await page.getByLabel("Email address").fill("anything at all");
   await page.getByLabel("Password", { exact: true }).fill("x");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.locator(".toast-error")).toBeVisible();
+  await page.getByRole("button", { name: "Sign in", exact: true }).dblclick();
   await expect(page.locator("#app-shell")).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(page.locator("#login-shell")).toHaveCount(0);
   await page.screenshot({
     path: testInfo.outputPath("home.png"),
@@ -294,7 +303,13 @@ for (const role of ["founder", "mentor"])
     const response = await request.post("/api/demo", { data: { role } });
     const user = decode(await response.text());
     const person =
-      user.state.directory[role === "founder" ? "mentors" : "founders"][0];
+      role === "founder"
+        ? user.state.directory.mentors.find((candidate) =>
+            candidate.availableFormats?.some(
+              (format) => format !== "office-hours",
+            ),
+          )
+        : user.state.directory.founders[0];
     const headers = { Authorization: `Bearer ${user.token}` };
     const command = { role, action: "simulate-acceptance", id: person.id };
     const notPending = await request.post("/api/action", {
@@ -310,29 +325,57 @@ for (const role of ["founder", "mentor"])
     await page.goto(
       `/?review=${Date.now()}#/matches/${encodeURIComponent(person.id)}`,
     );
-    await page
-      .getByRole("button", { name: "Send introduction", exact: true })
-      .click();
-    const introduction = page.locator(".introduction-row").filter({
-      has: page.getByRole("heading", { name: person.name, exact: true }),
-    });
-    await expect(introduction).toContainText("Prototype only");
-    await introduction
-      .getByRole("button", {
-        name: `Simulate acceptance from ${person.name}`,
-        exact: true,
-      })
-      .click();
+    if (role === "founder") {
+      await page
+        .getByLabel("What's the problem?")
+        .fill(mentorRequestValues.problem);
+      await page
+        .getByLabel("What have you already tried?")
+        .fill(mentorRequestValues.tried);
+      await page
+        .getByLabel("What specific question do you want answered?")
+        .fill(mentorRequestValues.question);
+      await page
+        .getByRole("button", { name: "Send mentorship request" })
+        .click();
+      await page
+        .getByRole("button", { name: "Simulate acceptance", exact: true })
+        .click();
+    } else {
+      await page
+        .getByRole("button", { name: "Send introduction", exact: true })
+        .click();
+      const introduction = page.locator(".introduction-row").filter({
+        has: page.getByRole("heading", { name: person.name, exact: true }),
+      });
+      await expect(introduction).toContainText("Prototype only");
+      await introduction
+        .getByRole("button", {
+          name: `Simulate acceptance from ${person.name}`,
+          exact: true,
+        })
+        .click();
+    }
     await expect(page).toHaveURL(/#\/rooms\//);
     await expect(
-      page.getByRole("tab", { name: "Terms", exact: true }),
+      page.getByRole("tab", { name: "Overview", exact: true }),
     ).toBeVisible();
+    if (role === "founder") {
+      await expect(
+        page.getByText("Waiting for the mentor to confirm the goal", {
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Share preparation" }),
+      ).toBeVisible();
+    }
     const stateResponse = await request.get("/api/state", { headers });
     const state = decode(await stateResponse.text()).state;
     const room = Object.values(state.rooms)[0];
     expect(Object.keys(state.rooms)).toHaveLength(1);
-    expect(room.terms.locked).toBe(false);
-    expect(room.terms.partnerLocked).toBe(false);
+    expect(room.template.version).toBe(4);
+    expect(room.review.me).toBe(false);
     for (const action of ["demo-partner-confirm", "demo-partner-review"]) {
       const denied = await request.post("/api/action", {
         headers,
@@ -353,20 +396,55 @@ for (const role of ["founder", "mentor"])
     await expect(
       page.getByText(
         role === "mentor"
-          ? "No pending requests."
-          : "No pending introductions.",
+          ? "No new mentorship requests"
+          : "No pending introductions for founder exchanges.",
         { exact: false },
       ),
     ).toBeVisible();
     await page.goto("/#/");
-    await expect(
-      page.getByRole("button", { name: /^Active Deal Rooms/ }),
-    ).toContainText("1");
+    if (role === "mentor")
+      await expect(
+        page.getByRole("heading", { name: "Active mentees" }),
+      ).toBeVisible();
+    else
+      await expect(
+        page.getByRole("button", { name: /^Active Deal Rooms/ }),
+      ).toContainText("1");
     await page.goto("/#/updates");
     await expect(
       page.getByText(
-        `${person.name} accepted your introduction. Your room is ready.`,
+        role === "founder"
+          ? `${person.name} accepted your mentorship request.`
+          : `${person.name} accepted your introduction. Your room is ready.`,
         { exact: true },
       ),
     ).toBeVisible();
   });
+
+test("preview sign-in waits for the workspace and recovers after a failed mode check", async ({
+  page,
+}) => {
+  let recover = false;
+  let finishFirstCheck;
+  const firstCheck = new Promise((resolve) => {
+    finishFirstCheck = resolve;
+  });
+  await page.route("**/api/capabilities", async (route) => {
+    if (recover) return route.continue();
+    await firstCheck;
+    await route.abort();
+  });
+  await page.goto("/");
+  await expect(page.getByRole("status")).toContainText("Connecting to Synergy");
+  await expect(page.getByRole("button", { name: "Sign in" })).toHaveCount(0);
+  finishFirstCheck();
+  await expect(page.getByRole("alert")).toHaveText(
+    "The workspace is unavailable.",
+  );
+  recover = true;
+  await page.getByRole("button", { name: "Retry connection" }).click();
+  await expect(page.getByLabel("Prototype role")).toHaveText("Founder");
+  await expect(
+    page.getByText(/Use any made-up email and password/),
+  ).toBeVisible();
+});

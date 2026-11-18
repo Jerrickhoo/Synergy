@@ -1,3 +1,4 @@
+import { mentorRequestValues } from "./mentor-request-fixtures.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, readFileSync, writeFileSync } from "node:fs";
@@ -37,6 +38,7 @@ function fixture(t, options = {}) {
   const file = join(dir, "workspace.json");
   const clock = { value: Date.now() };
   const w = createWorkspace(file, {
+    mentorApprovalRequired: false,
     adminEmails: ["moderator@example.com"],
     now: () => clock.value,
     ...options,
@@ -67,7 +69,7 @@ function fixture(t, options = {}) {
       w.act(u.token, {
         role,
         form: "accept-guidelines",
-        values: { version: 1 },
+        values: { version: 2 },
       });
     return u;
   };
@@ -105,11 +107,39 @@ function fixture(t, options = {}) {
     });
   };
   const pair = (format) => {
-    act(a, { action: "interest", id: `${b.state.accountId}:${b.role}` });
+    if (b.role === "mentor")
+      act(b, {
+        form: "mentor-capacity",
+        values: {
+          maxMentees: 3,
+          monthlyHours: 4,
+          maxOpenAsync: 3,
+          responseDays: 3,
+          "format-single-session": "on",
+          "format-ongoing-advisory": "on",
+          timeZone: "Asia/Manila",
+        },
+      });
+    act(a, {
+      action: b.role === "mentor" ? "send-request" : "interest",
+      id: `${b.state.accountId}:${b.role}`,
+      values:
+        b.role === "mentor"
+          ? {
+              ...mentorRequestValues,
+              format:
+                format === "ongoing" ? "ongoing-advisory" : "single-session",
+            }
+          : undefined,
+    });
     const id = act(b, {
-      action: "accept-interest",
+      action: b.role === "mentor" ? "accept-request" : "accept-interest",
       id: `${a.state.accountId}:founder`,
     }).state.activeRoomId;
+    if (b.role === "mentor") {
+      act(b, { action: "confirm-goal", activeRoomId: id });
+      return id;
+    }
     act(a, {
       action: "lock-terms",
       activeRoomId: id,
@@ -274,93 +304,90 @@ test("last mutual confirmation launches atomically, notifies both, and undo enfo
   );
 });
 
-test("ongoing mentorship runs weekly series, blind cycle reviews, consensus continuation and finish", (t) => {
-  const { w, a, b, act, pair, finish } = fixture(t, { mentorship: true });
-  const id = pair("ongoing");
-  const details = () =>
-    act(a, {
-      form: "cycle-details",
-      activeRoomId: id,
-      values: {
-        goals: "Validate next flow",
-        summary: "Reviewed onboarding and assigned actions",
-      },
-    });
-  details();
-  finish(id);
-  let room = w.get(a.token).state.rooms[id];
-  assert.equal(room.status, "in-progress");
-  assert.equal(room.cycle.phase, "review");
-  assert.equal(room.milestones.session.schedules.length, 8);
+test("ongoing advisory reserves check-ins and uses blind cycle reviews for continuation and finish", (t) => {
+  const { a, b, w, act, pair, clock } = fixture(t, { mentorship: true });
+  const activeRoomId = pair("ongoing");
+  const room = (u) => w.get(u.token, u.role).state.rooms[activeRoomId];
+  assert.equal(room(b).cycle.checkIns, 4);
+  const date = new Date(clock.value + 2 * 86400000).toISOString().slice(0, 10);
+  act(a, {
+    form: "propose-check-in-time",
+    activeRoomId,
+    values: { date, time: "10:00", timeZone: "Asia/Manila" },
+  });
+  act(b, { action: "confirm-check-in-time", activeRoomId });
+  const sessions = room(a).milestones.checkins.schedules;
+  assert.equal(sessions.length, 4);
+  assert.equal(
+    Date.parse(sessions[1].startsAt) - Date.parse(sessions[0].startsAt),
+    14 * 86400000,
+  );
+  for (const [scheduleIndex, session] of sessions.entries()) {
+    clock.value = Date.parse(session.startsAt) + 60000;
+    for (const u of [a, b])
+      act(u, {
+        action: "report-attendance",
+        activeRoomId,
+        values: { scheduleIndex, status: "held" },
+      });
+  }
+  assert.equal(room(a).cycle.phase, "review");
   act(a, {
     form: "cycle-review",
-    activeRoomId: id,
-    values: { rating: "4", note: "Private cycle feedback" },
+    activeRoomId,
+    values: { rating: 4, note: "Private founder rating" },
   });
-  assert.equal(
-    w.get(b.token, b.role).state.rooms[id].cycle.reviews[a.state.accountId],
-    undefined,
-  );
-  assert.throws(
-    () =>
-      act(a, {
-        action: "cycle-decision",
-        activeRoomId: id,
-        values: { decision: "continue" },
-      }),
-    /Both private/,
-  );
-  act(b, {
-    form: "cycle-review",
-    activeRoomId: id,
-    values: { rating: "5", note: "Helpful cycle" },
-  });
+  assert.equal(room(b).cycle.reviews[a.state.accountId], undefined);
+  act(b, { form: "cycle-review", activeRoomId, values: { rating: 5 } });
+  assert.equal(room(b).cycle.reviews[a.state.accountId].rating, 4);
   for (const u of [a, b])
     act(u, {
       action: "cycle-decision",
-      activeRoomId: id,
+      activeRoomId,
       values: { decision: "continue" },
     });
-  room = w.get(a.token).state.rooms[id];
-  assert.equal(room.cycle.number, 2);
-  assert.equal(room.cycleHistory.length, 1);
-  assert.equal(room.cycleHistory[0].milestones.session.schedules.length, 8);
-  assert.equal(
-    room.cycleHistory[0].milestones.guidance.attachment,
-    "Shared proof",
-  );
-  assert.equal(
-    room.cycleHistory[0].reviews[b.state.accountId].note,
-    "Helpful cycle",
-  );
-  assert.equal(room.milestones.session.schedule, undefined);
-  details();
-  finish(id);
-  for (const u of [a, b])
-    act(u, { form: "cycle-review", activeRoomId: id, values: { rating: "4" } });
+  assert.equal(room(a).cycle.number, 2);
+  assert.equal(room(a).cycleHistory.length, 1);
   act(a, {
-    action: "cycle-decision",
-    activeRoomId: id,
-    values: { decision: "finish" },
+    action: "end-mentorship",
+    activeRoomId,
+    values: { reason: "The founder has a clear path forward." },
   });
-  assert.equal(w.get(a.token).state.rooms[id].status, "in-progress");
-  act(b, {
-    action: "cycle-decision",
-    activeRoomId: id,
-    values: { decision: "continue" },
-  });
-  assert.equal(w.get(a.token).state.rooms[id].status, "launched");
-  for (const u of [a, b])
-    act(u, { form: "review-form", activeRoomId: id, values: { rating: "5" } });
-  assert.equal(w.get(a.token).state.rooms[id].status, "reviewed");
+  assert.equal(room(b).status, "launched");
+  assert.equal(w.get(b.token, b.role).state.mentorUsage.activeMentees, 0);
 });
 
-test("one-off mentorship completes automatically after an eight-session weekly series", (t) => {
-  const { w, a, pair, finish } = fixture(t, { mentorship: true });
-  const id = pair("one-off");
-  finish(id);
-  assert.equal(w.get(a.token).state.rooms[id].status, "launched");
-  assert.equal(w.get(a.token).state.rooms[id].cycle, undefined);
+test("single session attendance resolves after silence and a late follow-up lifts the limit", (t) => {
+  const { a, b, w, act, pair, clock } = fixture(t, { mentorship: true });
+  const activeRoomId = pair("one-off");
+  const date = new Date(clock.value + 2 * 86400000).toISOString().slice(0, 10);
+  act(a, {
+    form: "schedule",
+    activeRoomId,
+    values: {
+      date,
+      time: "10:00",
+      timeZone: "Asia/Manila",
+      durationMinutes: 45,
+    },
+  });
+  const session = w.get(a.token, a.role).state.rooms[activeRoomId].milestones
+    .held.schedules[0];
+  clock.value = Date.parse(session.startsAt) + 4 * 86400000;
+  assert.equal(
+    w.get(a.token, a.role).state.rooms[activeRoomId].milestones.held
+      .schedules[0].outcome,
+    "held",
+  );
+  assert.equal(w.get(b.token, b.role).state.mentorUsage.activeMentees, 0);
+  clock.value += 22 * 86400000;
+  assert.equal(w.get(a.token, a.role).state.mentorRequestLimit, 1);
+  act(a, {
+    action: "submit-followup",
+    activeRoomId,
+    values: { summary: "Our new flow improved completion." },
+  });
+  assert.equal(w.get(a.token, a.role).state.mentorRequestLimit, 3);
 });
 
 test("quiet-deal reminders use an injected clock and needs-reply alerts stay immediate", (t) => {
@@ -487,122 +514,71 @@ test("old launched rooms backfill timestamps, expire and preserve matching algor
   }
 });
 
-test("a moderator's final confirmation opens an ongoing cycle review for both participants", (t) => {
-  const { w, a, b, admin, act, pair, finish } = fixture(t, {
-    mentorship: true,
-  });
-  const id = pair("ongoing");
+test("a moderator resolves conflicting attendance statements for both participants", (t) => {
+  const { a, b, admin, w, act, pair, clock } = fixture(t, { mentorship: true });
+  const activeRoomId = pair("one-off");
+  const date = new Date(clock.value + 2 * 86400000).toISOString().slice(0, 10);
   act(a, {
-    form: "cycle-details",
-    activeRoomId: id,
-    values: {
-      goals: "Validate onboarding",
-      summary: "Session and next steps recorded",
-    },
+    form: "schedule",
+    activeRoomId,
+    values: { date, time: "10:00", timeZone: "Asia/Manila" },
   });
-  finish(id, true);
+  const session = w.get(a.token, a.role).state.rooms[activeRoomId].milestones
+    .held.schedules[0];
+  clock.value = Date.parse(session.startsAt) + 60000;
+  act(a, {
+    action: "report-attendance",
+    activeRoomId,
+    values: { scheduleIndex: 0, status: "held" },
+  });
   act(b, {
-    action: "dispute",
-    activeRoomId: id,
-    id: "reviewed",
-    values: { reason: "Confirm the reflection" },
+    action: "report-attendance",
+    activeRoomId,
+    values: { scheduleIndex: 0, status: "partner-absent" },
   });
-  act(a, { action: "escalate-dispute", activeRoomId: id, id: "reviewed" });
-  const report = w.get(admin.token).state.moderation.reports[0];
+  assert.equal(
+    w.get(admin.token, admin.role).state.moderation.sessionDisputes.length,
+    1,
+  );
+  assert.throws(
+    () =>
+      act(a, { action: "resolve-session-dispute", activeRoomId, values: {} }),
+    /Moderator access/,
+  );
   act(admin, {
-    form: "moderation",
-    values: {
-      kind: "report",
-      id: report.id,
-      decision: "resolved",
-      note: "Reflection evidence confirmed",
-      remedy: "confirm-milestone",
-    },
+    action: "resolve-session-dispute",
+    activeRoomId,
+    values: { accountId: b.state.accountId, scheduleIndex: 0, outcome: "held" },
   });
-  for (const u of [a, b])
-    assert.equal(w.get(u.token, u.role).state.rooms[id].cycle.phase, "review");
+  for (const partner of [a, b])
+    assert.equal(
+      w.get(partner.token, partner.role).state.rooms[activeRoomId].milestones
+        .held.schedules[0].outcome,
+      "held",
+    );
 });
 
-test("fictional preview partners review cycles and respond to Continue and Finish", (t) => {
+test("fictional preview acceptance opens a v4 room with its request goal", (t) => {
   const { w, act } = fixture(t, { demoMode: true });
   const demo = w.openDemo("founder");
   demo.role = "founder";
-  const person = demo.state.directory.mentors[0];
+  const mentor = demo.state.directory.mentors.find((person) =>
+    person.availableFormats.includes("single-session"),
+  );
   act(demo, {
-    action: "interest",
-    id: person.id,
-    engagementType: "mentorship",
+    action: "send-request",
+    id: mentor.id,
+    values: mentorRequestValues,
   });
-  const id = act(demo, { action: "simulate-acceptance", id: person.id }).state
-    .activeRoomId;
-  act(demo, {
-    action: "lock-terms",
-    activeRoomId: id,
-    values: { ...terms, format: "ongoing" },
-  });
-  for (const decision of ["continue", "finish"]) {
-    act(demo, {
-      form: "cycle-details",
-      activeRoomId: id,
-      values: {
-        goals: "Validate onboarding",
-        summary: "Shared check-in summary",
-      },
-    });
-    act(demo, {
-      form: "schedule",
-      activeRoomId: id,
-      values: {
-        date: "2030-01-08",
-        time: "10:00",
-        timeZone: "Asia/Manila",
-        count: "8",
-        durationMinutes: "45",
-      },
-    });
-    for (const [key, item] of Object.entries(
-      w.get(demo.token).state.rooms[id].milestones,
-    )) {
-      if (item.evidence)
-        act(demo, {
-          form: "evidence",
-          activeRoomId: id,
-          id: key,
-          values: { attachment: "Prototype proof" },
-        });
-      act(demo, { action: "confirm-milestone", activeRoomId: id, id: key });
-    }
-    act(demo, {
-      form: "cycle-review",
-      activeRoomId: id,
-      values: { rating: "4" },
-    });
-    assert.ok(
-      w.get(demo.token).state.rooms[id].cycle.reviews[person.accountId],
-    );
-    assert.throws(
-      () =>
-        act(demo, {
-          form: "evidence",
-          activeRoomId: id,
-          id: "guidance",
-          values: { attachment: "Changed proof" },
-        }),
-      /locked after a private cycle review/,
-    );
-    const result = act(demo, {
-      action: "cycle-decision",
-      activeRoomId: id,
-      values: { decision },
-    }).state;
-    assert.equal(
-      result.rooms[id].status,
-      decision === "finish" ? "launched" : "in-progress",
-    );
-    assert.equal(result.rooms[id].cycle.number, 2);
-  }
-  act(demo, { form: "review-form", activeRoomId: id, values: { rating: "5" } });
-  assert.equal(w.get(demo.token).state.rooms[id].status, "reviewed");
+  const accepted = act(demo, {
+    action: "simulate-acceptance",
+    id: mentor.id,
+  }).state;
+  const room = accepted.rooms[accepted.activeRoomId];
+  assert.equal(room.template.version, 4);
+  assert.equal(room.terms.draft.goal, mentorRequestValues.question);
+  assert.equal(room.review.me, false);
+  assert.equal(room.review.partner, false);
 });
 
 test("outbox is durable and idempotent, stub never reports delivery, sender can be injected", async () => {

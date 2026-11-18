@@ -1,3 +1,4 @@
+import { mentorRequestValues } from "./mentor-request-fixtures.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -385,6 +386,7 @@ function fixture(t, options = {}) {
   });
   const file = join(dir, "data", "workspace.json");
   const workspace = createWorkspace(file, {
+    mentorApprovalRequired: false,
     adminEmails: ["moderator@example.com"],
     ...options,
   });
@@ -421,7 +423,7 @@ function fixture(t, options = {}) {
     act(u, {
       role: "mentor",
       form: "accept-guidelines",
-      values: { version: 1 },
+      values: { version: 2 },
     });
   const pair = () => {
     act(a, { action: "interest", id: `${b.state.accountId}:founder` });
@@ -791,7 +793,7 @@ test("due dates and unread notifications survive restart and respect roles", (t)
   );
 });
 
-test("mentorship can be rescheduled as a weekly series and clears confirmations for both partners", (t) => {
+test("single sessions can be moved, with late cancellations recorded in both copies", (t) => {
   const { workspace: w, a, b, act, file } = fixture(t);
   act(b, {
     role: "mentor",
@@ -805,56 +807,47 @@ test("mentorship can be rescheduled as a weekly series and clears confirmations 
       startups: "EdTech",
     },
   });
-  act(a, { action: "interest", id: `${b.state.accountId}:mentor` });
+  act(a, {
+    action: "interest",
+    values: mentorRequestValues,
+    id: `${b.state.accountId}:mentor`,
+  });
   const id = act(b, {
     role: "mentor",
     action: "accept-interest",
     id: `${a.state.accountId}:founder`,
   }).state.activeRoomId;
-  act(a, { action: "lock-terms", activeRoomId: id, values: terms });
-  act(b, { role: "mentor", action: "accept-terms", activeRoomId: id });
-  const values = {
-    date: "2035-04-01",
-    time: "10:00",
-    count: "3",
-    durationMinutes: "45",
-  };
-  act(a, {
-    form: "schedule",
-    activeRoomId: id,
-    values,
-    timeZone: "Asia/Manila",
-  });
-  for (const [u, role] of [
-    [a, "founder"],
-    [b, "mentor"],
-  ])
-    act(u, {
-      role,
-      action: "confirm-milestone",
-      activeRoomId: id,
-      id: "session",
-    });
-  act(a, {
-    form: "schedule",
-    activeRoomId: id,
-    values: { ...values, date: "2035-04-02" },
-    timeZone: "Asia/Manila",
-  });
-  const room = w.get(b.token, "mentor").state.rooms[id];
-  assert.equal(room.milestones.session.me, false);
-  assert.equal(room.milestones.session.partner, false);
-  assert.equal(room.milestones.session.schedules.length, 3);
-  assert.ok(
-    room.milestones.session.schedules.every(
-      (schedule) => schedule.durationMinutes === 45,
-    ),
+  assert.throws(
+    () => act(a, { action: "lock-terms", activeRoomId: id, values: terms }),
+    /mentorship room controls/,
   );
-  assert.equal(room.milestones.session.schedules[2].date, "2035-04-16");
-  assert.equal(upcomingSessions(w.get(a.token).state).length, 3);
+  act(b, { role: "mentor", action: "confirm-goal", activeRoomId: id });
+  const timeZone = "Asia/Manila";
+  act(a, {
+    form: "schedule",
+    activeRoomId: id,
+    values: {
+      date: "2035-04-01",
+      time: "10:00",
+      durationMinutes: "45",
+      timeZone,
+    },
+  });
+  for (const date of ["2035-04-02", "2035-04-03"])
+    act(a, {
+      action: "reschedule-session",
+      activeRoomId: id,
+      values: { scheduleIndex: 0, date, time: "10:00", timeZone },
+    });
+  const room = w.get(b.token, "mentor").state.rooms[id];
+  const [session] = room.milestones.held.schedules;
+  assert.equal(session.reschedules.founder, 2);
+  assert.equal(room.mentorship.sessionHistory[0].lateCancel, true);
+  assert.equal(room.mentorship.sessionHistory[0].cancelledBy, "founder");
+  assert.equal(upcomingSessions(w.get(a.token).state).length, 1);
   assert.equal(
-    scheduleInstant(room.milestones.session.schedule).toISOString(),
-    "2035-04-02T02:00:00.000Z",
+    scheduleInstant(session).toISOString(),
+    "2035-04-03T02:00:00.000Z",
   );
   assert.ok(
     decode(readFileSync(file, "utf8")).accounts[b.state.accountId].state.rooms[

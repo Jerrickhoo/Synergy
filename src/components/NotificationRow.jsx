@@ -21,9 +21,17 @@ export default function NotificationRow({ item, now, compact = false }) {
   const { state, model, onAction } = useApp();
   const [kind, icon] = notificationKind(item.kind);
   const destination = notificationDestination(item, state, model.rolePeople());
+  const alternatives = item.alternatives?.filter(({ id }) =>
+    model.rolePeople().some((person) => person.id === id && person.available),
+  );
   const date = new Date(Date.parse(item.timestamp));
   const validDate = Number.isFinite(date.getTime());
   const actionable = destination.command || !item.read;
+  const open = async (command) => {
+    if (state.notificationOpen) onAction({ action: "toggle-notifications" });
+    await onAction(command);
+    if (!item.read) onAction({ action: "read-notifications", id: item.id });
+  };
   return (
     <article
       className={`notification-entry update-row ${item.read ? "read" : "unread"} ${needsAction(item) ? "update-urgent" : ""} ${compact ? "update-compact" : ""}`}
@@ -73,19 +81,29 @@ export default function NotificationRow({ item, now, compact = false }) {
               .join(" · ")}
           </p>
         )}
+        {alternatives?.length > 0 && (
+          <div className="mentoring-alternatives">
+            <p>Suggested mentors</p>
+            <ul>
+              {alternatives.map(({ id, name }) => (
+                <li key={id}>
+                  <button
+                    className="btn small"
+                    onClick={() => open({ action: "match-detail", id })}
+                  >
+                    {name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {actionable && (
           <div className="update-actions">
             {destination.command && (
               <button
                 className="btn primary small"
-                onClick={async () => {
-                  if (state.notificationOpen)
-                    onAction({ action: "toggle-notifications" });
-                  await onAction(destination.command);
-                  // Opening an update counts as reading it.
-                  if (!item.read)
-                    onAction({ action: "read-notifications", id: item.id });
-                }}
+                onClick={() => open(destination.command)}
               >
                 {destination.label}
               </button>

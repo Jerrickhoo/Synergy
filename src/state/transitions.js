@@ -414,6 +414,8 @@ export function transition(state, payload) {
     state.confirmation = "";
     if (payload.page !== "profile") state.profileEditing = false;
     state.page = payload.page;
+    state.activeMentorRequest = payload.requestId || null;
+    state.mentorshipActionError = null;
     state.notificationOpen = false;
     state.moreOpen = false;
     if (state.page === "rooms")
@@ -550,6 +552,8 @@ export function transition(state, payload) {
       tag,
     );
   } else if (action === "match-detail") {
+    state.mentorReferralId = payload.referralId || null;
+    state.mentorshipActionError = null;
     state.activeMatch = payload.id;
     state.page = "match-detail";
   } else if (action === "open-room") {

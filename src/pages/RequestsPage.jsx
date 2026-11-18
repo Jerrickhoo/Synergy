@@ -1,0 +1,389 @@
+import ReportCollaborator from "../components/ReportCollaborator.jsx";
+import { priceLabel } from "../data/pricing.js";
+import BlockCollaborator from "../components/BlockCollaborator.jsx";
+import { FounderTrackRecord } from "../components/MentorImpact.jsx";
+import { useEffect, useState } from "react";
+import { useApp } from "../state/AppContext.jsx";
+import PageHeader from "../components/PageHeader.jsx";
+import Introductions from "../components/Introductions.jsx";
+import { MentorAlternatives } from "../components/MentorRequestForm.jsx";
+import { mentorFormat } from "../data/mentor-formats.js";
+import { requestFields, requestReasons } from "../data/request-assistant.js";
+
+const declineReasons = ["outside-expertise", "no-slots", "not-a-fit", "other"];
+const formatLabel = (request) =>
+  mentorFormat(request.format)?.label || "Mentorship";
+const pendingTime = (expiry) => {
+  const hours = Math.max(
+    1,
+    Math.ceil((Date.parse(expiry) - Date.now()) / 3600000),
+  );
+  const days = Math.ceil(hours / 24);
+  return hours <= 24
+    ? `Expires in ${hours} ${hours === 1 ? "hour" : "hours"}`
+    : `Expires in ${days} days`;
+};
+
+export function RequestCard({ request }) {
+  const { state, model, onAction } = useApp();
+  const founder = model
+    .rolePeople()
+    .find((person) => person.id === request.partnerId);
+  const [mode, setMode] = useState("");
+  const [reason, setReason] = useState(declineReasons[0]);
+  const [message, setMessage] = useState("");
+  const [selected, setSelected] = useState([]);
+  const choices = state.referralChoices?.[request.id] || [];
+  const error =
+    state.mentorshipActionError?.id === request.partnerId &&
+    state.mentorshipActionError;
+  const format = mentorFormat(request.format);
+  const act = (action, event, values) =>
+    onAction(
+      {
+        action,
+        id: request.partnerId,
+        requestId: request.id,
+        values,
+      },
+      event,
+    );
+  return (
+    <article
+      className="card panel mentor-request-card"
+      id={`request-${request.id}`}
+      tabIndex={-1}
+    >
+      <h2>{request.name}</h2>
+      <p>{priceLabel(request.price || 0)}</p>
+      <p className="muted">
+        {formatLabel(request)} · {format?.effort} ·{" "}
+        {pendingTime(request.expiresAt)}
+      </p>
+      <p>
+        {request.score}% match
+        {request.matchReason ? ` · ${request.matchReason}` : ""}
+      </p>
+      <FounderTrackRecord trackRecord={request.trackRecord} />
+      {request.conflictWarning && (
+        <p className="warning-note">{request.conflictWarning}</p>
+      )}
+      {request.kind === "legacy-note" ? (
+        <div>
+          <p>Sent before structured requests</p>
+          {request.note && <blockquote>{request.note}</blockquote>}
+        </div>
+      ) : (
+        <dl className="mentor-request-answers">
+          {Object.entries(requestFields).map(([id, label]) => (
+            <div key={id}>
+              <dt>{label}</dt>
+              <dd>{request[id]}</dd>
+            </div>
+          ))}
+          {request.desiredOutcome && (
+            <div>
+              <dt>Desired outcome</dt>
+              <dd>{request.desiredOutcome}</dd>
+            </div>
+          )}
+          {request.links.length > 0 && (
+            <div>
+              <dt>Links</dt>
+              <dd>
+                <ul>
+                  {request.links.map((link, index) => (
+                    <li key={`${link}-${index}`}>
+                      <a href={link} target="_blank" rel="noreferrer">
+                        {link}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </dd>
+            </div>
+          )}
+        </dl>
+      )}
+      {founder && (
+        <div className="mentor-request-controls">
+          <ReportCollaborator person={founder} compact />
+          <BlockCollaborator person={founder} />
+        </div>
+      )}
+      {error && (
+        <div className="warning-note" role="status">
+          <p>{error.message}</p>
+          {error.reason === "request-closed" ||
+          error.reason === "request-changed" ||
+          error.reason === "unavailable" ? (
+            <button
+              className="btn small"
+              onClick={() => window.location.reload()}
+            >
+              Refresh requests
+            </button>
+          ) : error.reason ? (
+            <p>
+              You can update your{" "}
+              <button
+                className="link-btn"
+                onClick={() => onAction({ page: "settings" })}
+              >
+                mentoring settings
+              </button>
+              , decline, or suggest another mentor using Refer.
+            </p>
+          ) : null}
+        </div>
+      )}
+      <div className="mentor-request-controls">
+        <button
+          className="btn primary"
+          disabled={state.busy}
+          onClick={(event) => act("accept-request", event)}
+        >
+          Accept
+        </button>
+        <button
+          className="btn"
+          disabled={state.busy}
+          aria-expanded={mode === "decline"}
+          onClick={() => setMode(mode === "decline" ? "" : "decline")}
+        >
+          Decline
+        </button>
+        <button
+          className="btn"
+          disabled={state.busy}
+          aria-expanded={mode === "refer"}
+          onClick={() => setMode(mode === "refer" ? "" : "refer")}
+        >
+          Refer
+        </button>
+      </div>
+      {mode === "decline" && (
+        <form
+          className="mentor-request-form"
+          onSubmit={(event) =>
+            act("decline-request", event, { reason, message })
+          }
+        >
+          <label htmlFor={`decline-${request.id}`}>Reason</label>
+          <select
+            id={`decline-${request.id}`}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+          >
+            {declineReasons.map((id) => (
+              <option key={id} value={id}>
+                {requestReasons[id]}
+              </option>
+            ))}
+          </select>
+          <label htmlFor={`decline-message-${request.id}`}>
+            Message to the founder (optional)
+          </label>
+          <textarea
+            id={`decline-message-${request.id}`}
+            value={message}
+            maxLength={280}
+            onChange={(event) => setMessage(event.target.value)}
+          />
+          <button className="btn" disabled={state.busy}>
+            Send decline
+          </button>
+        </form>
+      )}
+      {mode === "refer" && (
+        <form
+          className="mentor-request-form"
+          onSubmit={(event) =>
+            act("refer-request", event, { mentorIds: selected })
+          }
+        >
+          <fieldset>
+            <legend>
+              Suggest up to {state.mentorConfig?.maxReferrals || 3} mentors
+            </legend>
+            <p>The founder decides whether to share their request with them.</p>
+            {choices.length ? (
+              choices.map((mentor) => (
+                <label key={mentor.id}>
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(mentor.id)}
+                    disabled={
+                      !selected.includes(mentor.id) &&
+                      selected.length >= (state.mentorConfig?.maxReferrals || 3)
+                    }
+                    onChange={(event) =>
+                      setSelected(
+                        event.target.checked
+                          ? [...selected, mentor.id]
+                          : selected.filter((id) => id !== mentor.id),
+                      )
+                    }
+                  />
+                  {mentor.name} · {mentor.score}% match
+                </label>
+              ))
+            ) : (
+              <p>No suggested mentors are currently available.</p>
+            )}
+          </fieldset>
+          <button className="btn" disabled={state.busy || !selected.length}>
+            Send referral
+          </button>
+        </form>
+      )}
+    </article>
+  );
+}
+
+export function SentMentorRequests() {
+  const { state, onAction, model } = useApp();
+  const records = state.mentorRequests || [];
+  useRequestFocus(state.activeMentorRequest);
+  if (!records.length) return null;
+  const pending = records.filter(
+    (request) => request.status === "pending",
+  ).length;
+  const referred = records.filter(
+    (request) => request.status === "referred" && request.alternatives.length,
+  ).length;
+  const details = [
+    pending && `${pending} waiting for a reply`,
+    referred && `${referred} with mentor suggestions`,
+  ].filter(Boolean);
+  return (
+    <section
+      className="mentor-requests-list"
+      aria-label="Sent mentorship requests"
+    >
+      <h2>Mentorship requests</h2>
+      {details.length > 0 && <p>{details.join(" · ")}</p>}
+      {records.map((request) => (
+        <article
+          className="card panel mentor-request-card"
+          key={request.id}
+          id={`request-${request.id}`}
+          tabIndex={-1}
+        >
+          <h3>{request.name}</h3>
+          <p className="muted">
+            {formatLabel(request)} ·{" "}
+            <span className="request-status">{request.status}</span>
+            {request.status === "pending"
+              ? ` · ${pendingTime(request.expiresAt)}`
+              : ""}
+          </p>
+          {request.reason && (
+            <p>{requestReasons[request.reason] || request.reason}</p>
+          )}
+          {request.status === "expired" && (
+            <p>The mentor's response window ended.</p>
+          )}
+          {request.message && <blockquote>{request.message}</blockquote>}
+          {request.cooldownUntil &&
+            Date.parse(request.cooldownUntil) > Date.now() && (
+              <p>
+                You can ask again after{" "}
+                {new Date(request.cooldownUntil).toLocaleDateString()}.
+              </p>
+            )}
+          {request.status === "pending" && (
+            <div className="mentor-request-controls">
+              <button
+                className="btn"
+                disabled={state.busy}
+                onClick={(event) =>
+                  onAction(
+                    {
+                      action: "withdraw-request",
+                      id: request.partnerId,
+                      requestId: request.id,
+                    },
+                    event,
+                  )
+                }
+              >
+                Withdraw
+              </button>
+              {model
+                .rolePeople()
+                .find((person) => person.id === request.partnerId)
+                ?.canSimulateAcceptance && (
+                <button
+                  className="btn"
+                  disabled={state.busy}
+                  onClick={(event) =>
+                    onAction(
+                      { action: "simulate-acceptance", id: request.partnerId },
+                      event,
+                    )
+                  }
+                >
+                  Simulate acceptance
+                </button>
+              )}
+            </div>
+          )}
+          {request.status === "accepted" && state.rooms[request.roomId] && (
+            <button
+              className="btn"
+              onClick={() =>
+                onAction({ action: "open-room", id: request.roomId })
+              }
+            >
+              Open mentorship room
+            </button>
+          )}
+          <MentorAlternatives
+            alternatives={request.alternatives}
+            referralId={request.status === "referred" ? request.id : null}
+          />
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function useRequestFocus(id) {
+  useEffect(() => {
+    if (id) document.getElementById(`request-${id}`)?.focus();
+  }, [id]);
+}
+
+export default function RequestsPage() {
+  const { state, onAction } = useApp();
+  const records = state.mentorRequests || [];
+  useRequestFocus(state.activeMentorRequest);
+  if (state.role !== "mentor") return <SentMentorRequests />;
+  return (
+    <div className="page page-enter">
+      <PageHeader
+        title="Requests"
+        intro={
+          records.length
+            ? `${records.length} waiting for your reply`
+            : "No new mentorship requests"
+        }
+      />
+      <div className="mentor-requests-list">
+        {records.map((request) => (
+          <RequestCard key={request.id} request={request} />
+        ))}
+        {[...state.incomingByRole.mentor, ...state.waitingByRole.mentor].some(
+          (id) => !state.introductionMetaByRole.mentor[id]?.kind,
+        ) && <Introductions />}
+      </div>
+      <button
+        className="btn section-gap"
+        onClick={() => onAction({ page: "discover" })}
+      >
+        Browse startups
+      </button>
+    </div>
+  );
+}

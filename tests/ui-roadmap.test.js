@@ -1,3 +1,4 @@
+import { mentorRequestValues } from "./mentor-request-fixtures.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
@@ -54,7 +55,7 @@ function signup(workspace, name, role = "founder") {
     workspace.act(user.token, {
       role,
       form: "accept-guidelines",
-      values: { version: 1 },
+      values: { version: 2 },
     });
   return user;
 }
@@ -371,6 +372,10 @@ for (const role of ["founder", "mentor"])
     assert.throws(() => act(workspace, user, command));
     act(workspace, user, {
       action: "interest",
+      values: {
+        ...mentorRequestValues,
+        format: person.availableFormats?.[0] || mentorRequestValues.format,
+      },
       id: person.id,
       engagementType: "mentorship",
     });
@@ -384,8 +389,8 @@ for (const role of ["founder", "mentor"])
     const room = Object.values(accepted.rooms)[0];
     assert.equal(Object.keys(accepted.rooms).length, 1);
     assert.equal(room.type, "mentorship");
-    assert.equal(room.terms.locked, false);
-    assert.equal(room.terms.partnerLocked, false);
+    assert.equal(room.template.version, 4);
+    assert.equal(room.review.me, false);
     assert.equal(room.review.partner, false);
     assert.equal(accepted.waitingByRole[role].size, 0);
     assert.equal(accepted.interestByRole[role].size, 0);
@@ -448,6 +453,7 @@ test("simulation rejects real actors, real targets, other previews, withdrawn, h
   );
   act(workspace, user, {
     action: "interest",
+    values: { ...mentorRequestValues, format: person.availableFormats[0] },
     id: person.id,
     engagementType: "mentorship",
   });
@@ -459,6 +465,7 @@ test("simulation rejects real actors, real targets, other previews, withdrawn, h
   );
   act(workspace, user, {
     action: "interest",
+    values: { ...mentorRequestValues, format: person.availableFormats[0] },
     id: person.id,
     engagementType: "mentorship",
   });
@@ -471,6 +478,7 @@ test("simulation rejects real actors, real targets, other previews, withdrawn, h
   workspace.accounts.visibility(user.token, true);
   act(workspace, user, {
     action: "interest",
+    values: { ...mentorRequestValues, format: person.availableFormats[0] },
     id: person.id,
     engagementType: "mentorship",
   });

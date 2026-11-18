@@ -2,26 +2,17 @@
   "mentorship": {
     "id": "mentorship",
     "name": "Mentorship",
-    "version": 3,
-    "fields": [
-      {
-        "id": "format",
-        "label": "Mentorship format",
-        "type": "select",
-        "options": [
-          ["one-off", "One-off session"],
-          ["ongoing", "Ongoing check-ins"]
-        ],
-        "help": "One-off ends after the guidance is delivered. Ongoing repeats check-ins until you both choose to finish."
-      },
-      {
-        "id": "cadence",
-        "label": "Session cadence",
-        "type": "text",
-        "placeholder": "For example: one 45-minute call, or every two weeks"
-      }
+    "version": 4,
+    "formats": [
+      "quick-ask",
+      "doc-review",
+      "single-session",
+      "office-hours",
+      "ongoing-advisory"
     ],
-    "milestones": [
+    "fields": [],
+    "milestones": [],
+    "legacyMilestones": [
       {
         "id": "goals",
         "title": "Goals defined",

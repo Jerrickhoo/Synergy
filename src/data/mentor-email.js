@@ -1,0 +1,15 @@
+export const mentorEmailKinds = {
+  "payment-due": "Payment due",
+  "payment-lapsed": "Payment expired",
+  "payment-received": "Payment received",
+  "payout-released": "Payout released",
+  refund: "Payment refund",
+  "payment-dispute": "Payment dispute",
+  request: "New mentorship requests",
+  accepted: "Accepted mentorship requests",
+  "session-reminder": "Session reminders",
+  "attendance-needed": "Attendance reminders",
+  "followup-due": "Founder follow-ups",
+  "mentor-approved": "Mentor approval",
+  "guidelines-required": "Mentor guidelines",
+};

@@ -1,4 +1,4 @@
-﻿import {
+import {
   createContext,
   useCallback,
   useContext,
@@ -15,6 +15,7 @@ import { transition } from "./transitions.js";
 import { applyRoute, parseRoute, routeHash } from "./routes.js";
 import { fetchWithDeadline } from "./request.js";
 import { decode } from "./serialization.js";
+import { paymentActionNames } from "../data/pricing.js";
 import {
   errorTitle,
   connectionInterrupted,
@@ -58,9 +59,59 @@ const dataKeys = [
   "verification",
   "myTagProposals",
   "mentorUsage",
+  "mentorConfig",
+  "mentorApplication",
+  "mentorSuspension",
+  "mentorshipSurvey",
+  "mentorEmailStatus",
+  "mentorRequests",
+  "referralChoices",
+  "mentorRequestLimit",
+  "calendarToken",
+  "pricingConfig",
+  "pricingHistory",
+  "paymentRecords",
+  "paymentCheckout",
+  "paymentCheckoutData",
+  "paymentModeration",
 ];
 const remoteActions = new Set([
+  ...paymentActionNames,
   "choose-role",
+  "mentor-onboarding-save",
+  "mentor-onboarding-back",
+  "approve-mentor",
+  "suspend-mentor",
+  "reinstate-mentor",
+  "lift-limit",
+  "reject-mentor",
+  "open-office-slot",
+  "set-office-preferred-time",
+  "close-office-slot",
+  "skip-office-date",
+  "book-office-hours",
+  "rebook-office-slot",
+  "calendar-link",
+  "send-request",
+  "accept-request",
+  "confirm-goal",
+  "confirm-check-in-time",
+  "report-attendance",
+  "reschedule-session",
+  "cancel-session",
+  "resolve-session-dispute",
+  "deliver-answer",
+  "rate-answer",
+  "log-revision",
+  "submit-followup",
+  "propose-upgrade",
+  "accept-upgrade",
+  "decline-upgrade",
+  "end-mentorship",
+  "set-testimonial-public",
+  "decline-request",
+  "refer-request",
+  "withdraw-request",
   "save",
   "interest",
   "cancel-interest",
@@ -142,12 +193,25 @@ const reducer = (state, payload) =>
             draft.profileEditing = false;
           }
           if (payload.command.form === "report-form") draft.reportOpen = false;
+          if (
+            payload.command.action === "mentor-onboarding-save" &&
+            payload.state.mentorApplication?.status === "pending"
+          )
+            draft.page = "home";
           if (payload.command.action === "choose-role") {
             draft.role = payload.state.role;
-            if (payload.command.goHome) draft.page = "home";
+            if (payload.command.goHome)
+              draft.page =
+                payload.state.mentorApplication?.status === "draft"
+                  ? "onboarding"
+                  : "home";
           }
           if (
             [
+              "book-office-hours",
+              "simulate-payment",
+              "send-request",
+              "accept-request",
               "interest",
               "accept-interest",
               "simulate-acceptance",
@@ -157,7 +221,10 @@ const reducer = (state, payload) =>
             draft.page = payload.state.page;
             draft.activeRoomId = payload.state.activeRoomId;
             draft.activeWaitingMatch = payload.state.activeWaitingMatch;
-            draft.roomTab = "terms";
+            if (payload.command.action === "send-request")
+              draft.activeMentorRequest =
+                payload.state.activeMentorRequest || null;
+            draft.roomTab = payload.state.roomTab || "terms";
             draft.rating = 0;
           }
           if (
@@ -179,8 +246,12 @@ const reducer = (state, payload) =>
           }
         }
       }
-    } else if (payload.action === "request-status") draft.busy = payload.busy;
-    else if (payload.action === "request-error") {
+    } else if (payload.action === "request-status") {
+      draft.busy = payload.busy;
+      if (payload.busy) draft.mentorshipActionError = null;
+    } else if (payload.action === "request-error") {
+      if (payload.mentorError)
+        draft.mentorshipActionError = payload.mentorError;
       if (payload.connectionIssue && draft.authenticated)
         connectionInterrupted(draft, {
           scope: payload.scope,
@@ -233,9 +304,27 @@ const reducer = (state, payload) =>
   });
 
 export function AppProvider({ children }) {
+  const [workspaceConnection, setWorkspaceConnection] = useState("loading");
+  const [connectionAttempt, setConnectionAttempt] = useState(0);
   const [restoreTick, setRestoreTick] = useState(0);
   const [signOutOpen, setSignOutOpen] = useState(false);
+  const [mentorshipWarning, setMentorshipWarning] = useState(null);
   const [signOutError, setSignOutError] = useState("");
+  const requestedPath = useRef(
+    (() => {
+      const route = parseRoute(window.location.hash);
+      return [
+        "requests",
+        "waiting",
+        "room-detail",
+        "review",
+        "settings",
+        "onboarding",
+      ].includes(route.page)
+        ? window.location.hash
+        : "";
+    })(),
+  );
   const signOutReturn = useRef(null);
   const token = useRef(sessionStorage.getItem("synergy-session"));
   const revision = useRef(-1);
@@ -298,6 +387,8 @@ export function AppProvider({ children }) {
           status: response.status,
           fields: result.fields,
           challenge: result.challenge,
+          reason: result.reason,
+          alternatives: result.alternatives,
         },
       );
     return result;
@@ -306,19 +397,37 @@ export function AppProvider({ children }) {
     token.current = result.token;
     sessionStorage.setItem("synergy-session", result.token);
     revision.current = result.revision;
-    window.history.replaceState(null, "", "#/");
+    const target =
+      requestedPath.current ||
+      (result.state.mentorApplication?.status === "draft"
+        ? "#/onboarding"
+        : "#/");
+    requestedPath.current = "";
+    window.history.replaceState(null, "", target);
     dispatch({
       action: "restore",
       state: result.state,
     });
   }
   useEffect(() => {
+    let stopped = false;
     request("capabilities")
-      .then((integrations) =>
-        dispatch({ action: "capabilities", integrations }),
-      )
-      .catch(() => {});
-  }, []);
+      .then((integrations) => {
+        if (stopped) return;
+        if (typeof integrations?.demoMode !== "boolean") {
+          setWorkspaceConnection("unavailable");
+          return;
+        }
+        dispatch({ action: "capabilities", integrations });
+        setWorkspaceConnection("ready");
+      })
+      .catch(() => {
+        if (!stopped) setWorkspaceConnection("unavailable");
+      });
+    return () => {
+      stopped = true;
+    };
+  }, [connectionAttempt]);
   useEffect(() => {
     if (!token.current) return;
     let stopped = false;
@@ -451,6 +560,8 @@ export function AppProvider({ children }) {
     state.activeRoomId,
     state.routeTick,
     state.routePath,
+    state.activeMentorRequest,
+    state.mentorReferralId,
   ]);
 
   async function send(command, trigger) {
@@ -499,11 +610,30 @@ export function AppProvider({ children }) {
       }
       return true;
     } catch (error) {
+      if (error.reason === "mentor-safety-warning") {
+        setMentorshipWarning({
+          command,
+          roomId: payload.activeRoomId,
+          role: payload.role,
+          message: error.message,
+        });
+        return false;
+      }
       dispatch({
         action: "request-error",
         message: error.message || "Could not save. Please try again.",
         fields: error.fields,
-        scope: command.form,
+        scope: command.form || command.action,
+        mentorError:
+          command.action?.endsWith("-request") ||
+          command.action === "book-office-hours"
+            ? {
+                id: command.id,
+                message: error.message,
+                reason: error.reason,
+                alternatives: error.alternatives,
+              }
+            : null,
         connectionIssue: error.connectionIssue,
       });
       return false;
@@ -592,7 +722,11 @@ export function AppProvider({ children }) {
       !payload.engagementType &&
       !state.incomingByRole[state.role].has(payload.id)
     ) {
-      dispatch({ action: "match-detail", id: payload.id });
+      dispatch({
+        action: "match-detail",
+        id: payload.id,
+        referralId: payload.referralId,
+      });
       return;
     }
     if (payload.action === "open-verification") {
@@ -797,9 +931,34 @@ export function AppProvider({ children }) {
     <AppContext.Provider
       value={{
         retryRestore: () => setRestoreTick((value) => value + 1),
+        workspaceConnection,
+        retryConnection: () => {
+          setWorkspaceConnection("loading");
+          setConnectionAttempt((attempt) => attempt + 1);
+        },
         state,
         signOutOpen,
         signOutError,
+        mentorshipWarning,
+        dismissMentorshipWarning: () => setMentorshipWarning(null),
+        confirmMentorshipWarning: async () => {
+          const warning = mentorshipWarning;
+          if (
+            !warning ||
+            warning.roomId !== state.activeRoomId ||
+            warning.role !== state.role
+          ) {
+            setMentorshipWarning(null);
+            return;
+          }
+          setMentorshipWarning(null);
+          const success = await send({
+            ...warning.command,
+            values: { ...warning.command.values, acknowledgeSafety: true },
+          });
+          if (success && warning.command.form === "chat-form")
+            document.getElementById("chat-form")?.reset();
+        },
         notify,
         dismissToast,
         onInvalid,

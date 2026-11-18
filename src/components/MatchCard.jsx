@@ -1,4 +1,6 @@
-﻿import TrustSummary from "./TrustSummary.jsx";
+import { MentorshipBadges } from "./MentorImpact.jsx";
+import { FormatPrices } from "./Payments.jsx";
+import TrustSummary from "./TrustSummary.jsx";
 import { useApp } from "../state/AppContext.jsx";
 import Avatar from "./Avatar.jsx";
 import VerificationGate from "./VerificationGate.jsx";
@@ -58,6 +60,7 @@ export default function MatchCard({ person, large = false }) {
       }}
     >
       <div className="preview-heading">
+        {mentor && <FormatPrices person={person} />}
         <Avatar
           image={person.image}
           name={person.name}
@@ -152,6 +155,28 @@ export default function MatchCard({ person, large = false }) {
       {trustLine(person) && (
         <p className="preview-trust">{trustLine(person)}</p>
       )}
+      <MentorshipBadges badges={person.badges} />
+      {mentor && !mentoring && person.available === false && !existingRoom && (
+        <p className="match-unavailable">
+          {unavailableText(person.reason, person.name)}
+        </p>
+      )}
+      {connection && (
+        <p className="preview-connection">
+          <Icon name={incoming ? "inbox" : "check"} />
+          {existingRoom?.type === "mentorship"
+            ? "You have a Mentorship Room together"
+            : connection}
+        </p>
+      )}
+      {!existingRoom && verificationRequired(state) && (
+        <>
+          <button className="btn small" disabled>
+            Verify to send introductions
+          </button>
+          <VerificationGate />
+        </>
+      )}
       <div className="preview-footer">
         <button
           className="preview-fit interactive-surface"
@@ -184,25 +209,6 @@ export default function MatchCard({ person, large = false }) {
           <span className="visually-hidden">: {person.name}</span>
         </button>
       </div>
-      {mentor && !mentoring && person.available === false && !existingRoom && (
-        <p className="match-unavailable">
-          {unavailableText(person.reason, person.name)}
-        </p>
-      )}
-      {connection && (
-        <p className="preview-connection">
-          <Icon name={incoming ? "inbox" : "check"} />
-          {connection}
-        </p>
-      )}
-      {!existingRoom && verificationRequired(state) && (
-        <>
-          <button className="btn small" disabled>
-            Verify to send introductions
-          </button>
-          <VerificationGate />
-        </>
-      )}
       {fitOpen && (
         <Overlay
           id={`match-why-${person.id}`}
