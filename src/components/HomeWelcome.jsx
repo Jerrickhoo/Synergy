@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
-import { homeNextStep } from "../data/home.js";
-import { activeRooms } from "../data/selectors.js";
+import { homeNextStep, primaryNeed } from "../data/home.js";
+import { activeRooms, profileKeys } from "../data/selectors.js";
 import Confirmation from "./Confirmation.jsx";
 import Icon from "./Icon.jsx";
 
@@ -31,7 +31,17 @@ function statusLine(state, model) {
         ? `${one(suggested, "startup", "startups")} could use your expertise.`
         : `${one(suggested, "person fits", "people fit")} what you need right now.`,
     };
-  return { text: "Finish your profile so people can find you." };
+  const profile = state.profiles[state.role];
+  const incomplete = profileKeys(state.role).some(
+    (key) => !String(profile[key] || "").trim(),
+  );
+  if (incomplete)
+    return { text: "Finish your profile so people can find you." };
+  const need = primaryNeed(profile);
+  return {
+    text: need ? `No close matches yet for ${need}.` : "No close matches yet.",
+    browse: true,
+  };
 }
 
 // Greetings by time of day; one is picked per visit so it never flickers.
@@ -91,6 +101,20 @@ export default function HomeWelcome() {
               <strong className="home-status-count">{status.count}</strong>
             ) : null}{" "}
             {status.text}
+            {status.browse && (
+              <>
+                {" "}
+                <button
+                  className="link-btn"
+                  onClick={() => {
+                    onAction({ page: "discover" });
+                    onAction({ action: "match-tab", tab: "browse" });
+                  }}
+                >
+                  Browse all profiles
+                </button>
+              </>
+            )}
           </span>
         </p>
       </header>

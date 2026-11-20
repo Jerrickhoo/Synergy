@@ -11,6 +11,7 @@ import { randomUUID } from "node:crypto";
 import {
   closeCategories,
   defaultVocabulary,
+  offersNeed,
   reviewDeadline,
   suggestTags,
   terminalStatuses,
@@ -125,6 +126,11 @@ export function createFeatures({
     Boolean(options.adminEmails?.includes(account.email));
   const vocabulary = () =>
     [...new Set([...defaultVocabulary, ...(db().approvedTags || [])])].sort();
+  // The eligible directory for the viewer's role, as used by match suggestions.
+  const alertPeople = (state) =>
+    state.role === "mentor"
+      ? state.directory.mentorStartups
+      : [...state.directory.founders, ...state.directory.mentors];
   function notifications(account, state, time = now(), rawRequests = false) {
     const activity = state.activity
       .filter((item) => item.role === state.role)
@@ -149,9 +155,22 @@ export function createFeatures({
         ...timing,
         role: state.role,
       });
-    for (const person of state.role === "mentor"
-      ? state.directory.mentorStartups
-      : [...state.directory.founders, ...state.directory.mentors]) {
+    for (const alert of account.matchAlerts?.[state.role] || []) {
+      const baseline = new Set(alert.baseline || []);
+      for (const person of alertPeople(state))
+        if (
+          !baseline.has(person.id) &&
+          offersNeed(person, alert.need, vocabulary())
+        )
+          add(
+            `match-alert:${alert.need.toLowerCase()}:${person.id}`,
+            `${person.name} offers ${alert.need}.`,
+            null,
+            "match",
+            person.id,
+          );
+    }
+    for (const person of alertPeople(state)) {
       if (person.score >= 70)
         add(
           `match:${person.id}`,
@@ -644,6 +663,9 @@ export function createFeatures({
       mentorEmailKinds: {},
       ...(account.notificationPreferences || {}),
     };
+    state.matchAlerts = (account.matchAlerts?.[state.role] || []).map(
+      ({ need, since }) => ({ need, since }),
+    );
     state.myTagProposals = (db().tagProposals || [])
       .filter((tag) => tag.accountId === account.id)
       .map(({ id, label, status, note }) => ({ id, label, status, note }));
@@ -794,6 +816,7 @@ export function createFeatures({
     "engagement-template",
     "matching-config",
     "notification-preferences",
+    "match-alert",
     "mentor-config",
     "mentorship-survey",
     "send-back",
@@ -1597,6 +1620,40 @@ export function createFeatures({
             (kind) => values[`email-${kind}`] !== "on",
           );
       state.toast = "Notification preferences saved.";
+    } else if (input.form === "match-alert") {
+      // "Get notified when someone offers <need>" reuses match-suggestion
+      // Updates. Profiles that already offer it are the baseline, so only
+      // people who appear or change later produce an update.
+      const need = text("need").slice(0, 100);
+      if (need.length < 2) fail("Choose the help you want to hear about.");
+      const role = state.role;
+      account.matchAlerts ||= { founder: [], mentor: [] };
+      const alerts = (account.matchAlerts[role] || []).filter(
+        (alert) => alert.need.toLowerCase() !== need.toLowerCase(),
+      );
+      if (values.enabled === "off") {
+        account.matchAlerts[role] = alerts;
+        state.toast = `Stopped notifications for ${need}.`;
+      } else {
+        if (alerts.length >= 10)
+          fail("Remove a match alert before adding another.");
+        account.matchAlerts[role] = [
+          ...alerts,
+          {
+            need,
+            since: new Date(now()).toISOString(),
+            baseline: alertPeople(state)
+              .filter((person) => offersNeed(person, need, vocabulary()))
+              .map((person) => person.id),
+          },
+        ];
+        account.notificationPreferences = {
+          ...defaultPreferences,
+          ...(account.notificationPreferences || {}),
+          match: true,
+        };
+        state.toast = `We'll add an Update when someone offers ${need}.`;
+      }
     } else if (input.action === "read-notifications") {
       const ids = state.notifications
         .filter((item) => !input.id || item.id === input.id)

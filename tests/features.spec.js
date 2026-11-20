@@ -156,7 +156,10 @@ test("Settings role switching restores custom-select drafts and community disclo
   await act(request, u, { action: "choose-role", roleChoice: "founder" });
   await open(page, u, "profile");
   await expect(
-    page.getByRole("progressbar", { name: "Profile complete", exact: true }),
+    page.getByRole("progressbar", {
+      name: "Required profile details",
+      exact: true,
+    }),
   ).toHaveCount(1);
   await expect(page.getByLabel("I'm here as a", { exact: true })).toHaveCount(
     0,
@@ -209,7 +212,10 @@ test("Settings role switching restores custom-select drafts and community disclo
   );
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(
-    page.getByRole("progressbar", { name: "Profile complete", exact: true }),
+    page.getByRole("progressbar", {
+      name: "Required profile details",
+      exact: true,
+    }),
   ).toHaveAttribute("aria-valuenow", "100");
   const summary = page.getByText("Standard tags", { exact: true });
   const organization =

@@ -28,6 +28,7 @@ import CalendarPage from "./pages/CalendarPage.jsx";
 import Icon from "./components/Icon.jsx";
 import MentorshipWarning from "./components/MentorshipWarning.jsx";
 import SignOutDialog from "./components/SignOutDialog.jsx";
+import FirstRunChoice from "./components/FirstRunChoice.jsx";
 
 const pages = {
   calendar: CalendarPage,
@@ -100,6 +101,7 @@ export default function App() {
     state.activeMatch,
     state.authenticated,
     state.restoring,
+    state.firstRunChoice,
   ]);
   if (state.restoring)
     return (
@@ -172,6 +174,10 @@ export default function App() {
       </button>
       {!state.authenticated && !authPage ? (
         <Login />
+      ) : state.firstRunChoice && state.role === "founder" ? (
+        <main id="main-content" tabIndex={-1} ref={mainRef}>
+          <FirstRunChoice />
+        </main>
       ) : (
         <>
           <div

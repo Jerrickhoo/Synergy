@@ -25,14 +25,23 @@ export default function TrustSummary({ person, detailed = false }) {
           detailed && <span className="muted">Not verified yet</span>
         )}
       </div>
-      {detailed && fresh && <h3>New to Synergy</h3>}
-      <p>
-        {trust.completed} completed ·{" "}
-        {trust.averageRating === null
-          ? "No ratings yet"
-          : `${trust.averageRating}/5 from ${reviews} review${reviews === 1 ? "" : "s"}${reviews < 3 ? " (small sample)" : ""}`}
-      </p>
-      {detailed && (
+      {detailed && fresh ? (
+        // One line for a newcomer instead of a badge, a heading, a zero count
+        // and empty history.
+        <p>
+          {person.kind === "Mentor"
+            ? "New mentor · no completed sessions yet"
+            : "New to Synergy · no completed collaborations yet"}
+        </p>
+      ) : (
+        <p>
+          {trust.completed} completed ·{" "}
+          {trust.averageRating === null
+            ? "No ratings yet"
+            : `${trust.averageRating}/5 from ${reviews} review${reviews === 1 ? "" : "s"}${reviews < 3 ? " (small sample)" : ""}`}
+        </p>
+      )}
+      {detailed && !fresh && (
         <>
           <p className="muted">
             {!trust.closed

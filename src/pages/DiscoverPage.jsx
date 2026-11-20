@@ -9,6 +9,51 @@ import Overlay from "../components/Overlay.jsx";
 import ScoreGuide from "../components/ScoreGuide.jsx";
 import SelectField from "../components/SelectField.jsx";
 import { profileKeys, profileFieldNames } from "../data/selectors.js";
+import { closestProfiles, primaryNeed } from "../data/home.js";
+
+// One opt-in that adds a match-suggestion Update when a profile offering the
+// founder's first need appears. Preferences live in Settings.
+function MatchAlert({ need }) {
+  const { state, onAction, onSubmit } = useApp();
+  const [sending, setSending] = useState(false);
+  const on = (state.matchAlerts || []).some(
+    (alert) => alert.need.toLowerCase() === need.toLowerCase(),
+  );
+  const submit = async (enabled) => {
+    const form = document.createElement("form");
+    form.dataset.form = "match-alert";
+    for (const [name, value] of Object.entries({ need, enabled })) {
+      const input = document.createElement("input");
+      input.name = name;
+      input.value = value;
+      form.append(input);
+    }
+    setSending(true);
+    await onSubmit({ preventDefault() {}, currentTarget: form });
+    setSending(false);
+  };
+  return on ? (
+    <p className="match-alert-on" role="status">
+      <Icon name="check" /> You’ll get an Update when someone offers {need}.{" "}
+      <button
+        className="link-btn"
+        onClick={() => onAction({ page: "settings" })}
+      >
+        Notification preferences
+      </button>
+    </p>
+  ) : (
+    <button
+      className="btn"
+      disabled={state.busy}
+      aria-busy={sending}
+      onClick={() => submit("on")}
+    >
+      {sending && <span className="spinner" aria-hidden="true" />}
+      Get notified when someone offers {need}
+    </button>
+  );
+}
 export default function DiscoverPage() {
   const { state, model, onAction, onFilter, onTabKeyDown } = useApp();
   const [page, setPage] = useState(1);
@@ -57,7 +102,7 @@ export default function DiscoverPage() {
   const hasFilters =
     advancedCount > 0 ||
     state.matchFilters.type !== "all" ||
-    Boolean(state.matchFilters.search);
+    Boolean(state.matchFilters.search.trim());
   const { suggestedMatches, browsePeople, rolePeople, savedMatches } = model;
   const savedCount = rolePeople().filter((person) =>
     savedMatches().has(person.id),
@@ -105,6 +150,8 @@ export default function DiscoverPage() {
   const shortlistEmpty = state.matchTab === "saved" && !candidates.length;
   const suggestionsEmpty =
     state.matchTab === "suggested" && !hasFilters && !list.length;
+  const closest = suggestionsEmpty ? closestProfiles(state) : [];
+  const need = primaryNeed(state.profiles[state.role]);
   const emptyCopy = shortlistEmpty
     ? "You haven’t saved anyone yet. Bookmark a match to keep it close."
     : suggestionsEmpty
@@ -489,6 +536,20 @@ export default function DiscoverPage() {
                     Clear filters
                   </button>
                 )}
+                {suggestionsEmpty && !missing.length && need && (
+                  <MatchAlert need={need} />
+                )}
+              </section>
+            )}
+            {suggestionsEmpty && closest.length > 0 && (
+              <section
+                className="closest-profiles"
+                aria-labelledby="closest-profiles-title"
+              >
+                <h3 id="closest-profiles-title">Closest profiles so far</h3>
+                {closest.map((person) => (
+                  <MatchCard key={person.id} person={person} large={true} />
+                ))}
               </section>
             )}
           </div>

@@ -106,7 +106,7 @@ export function notificationDestination(item, state, people) {
               : item.kind === "followup-due"
                 ? "Add your follow-up"
                 : room.type === "mentorship"
-                  ? "Open mentorship room"
+                  ? "Open room"
                   : "Open Deal Room",
         context: partner
           ? `With ${partner.name}`

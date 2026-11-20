@@ -4,7 +4,9 @@ import { useApp } from "../state/AppContext.jsx";
 import ReportCollaborator from "./ReportCollaborator.jsx";
 import Avatar from "../components/Avatar.jsx";
 export default function ChatPanel({ room }) {
-  const { onSubmit, state, model } = useApp();
+  const { onSubmit, onAction, state, model } = useApp();
+  const chatError =
+    state.formErrors?.scope === "chat-form" && state.formErrors.fields.message;
   const partner = model
     .allPeople()
     .find((person) => person.id === room.partnerId);
@@ -85,17 +87,39 @@ export default function ChatPanel({ room }) {
         <form
           className="chat-compose"
           id="chat-form"
-          onSubmit={(event) => onSubmit(event)}
+          noValidate
+          onSubmit={(event) => {
+            // An empty message never reaches the server.
+            if (!event.currentTarget.elements.message.value.trim()) {
+              event.preventDefault();
+              onAction({
+                action: "request-error",
+                scope: "chat-form",
+                fields: { message: "Write a message before sending." },
+                message: "Write a message before sending.",
+              });
+              event.currentTarget.elements.message.focus();
+              return;
+            }
+            onSubmit(event);
+          }}
         >
           <input
             id="chat-input"
             name="message"
             placeholder="Write a message…"
             aria-label="Write a message"
+            aria-invalid={Boolean(chatError)}
+            aria-describedby={chatError ? "chat-input-error" : undefined}
           />
           <button className="btn primary" type="submit" disabled={state.busy}>
             Send
           </button>
+          {chatError && (
+            <p id="chat-input-error" className="field-help field-error">
+              {chatError}
+            </p>
+          )}
         </form>
       )}
     </section>

@@ -14,9 +14,13 @@ test("prototype discovery preserves filters, sort, saved profiles and image fall
       "Role previews are for browsing sample profiles. Preview accounts cannot connect with each other.",
     ),
   ).toBeVisible();
-  await page.getByLabel("Email address").fill("directory review");
+  // Preview emails are validated; first-run founders choose the sample.
+  await page.getByLabel("Email address").fill("directory-review@example.com");
   await page.getByLabel("Password", { exact: true }).fill("preview");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Explore with a sample startup", exact: true })
+    .click();
   await page
     .getByRole("navigation", { name: "Main navigation" })
     .getByRole("button", { name: "Matches", exact: true })
@@ -196,10 +200,13 @@ test("stakeholders can sign in with any credentials and choose their prototype r
     "true",
   );
   await expect(page.locator("#app-shell")).toHaveCount(0);
-  await page.getByLabel("Email address").fill("anything at all");
+  await page.getByLabel("Email address").fill("anything@example.com");
   await page.getByLabel("Password", { exact: true }).fill("x");
   await expect(page.locator(".toast-error")).toBeVisible();
   await page.getByRole("button", { name: "Sign in", exact: true }).dblclick();
+  await page
+    .getByRole("button", { name: "Explore with a sample startup", exact: true })
+    .click();
   await expect(page.locator("#app-shell")).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(page.locator("#login-shell")).toHaveCount(0);
@@ -248,7 +255,7 @@ test("stakeholders can sign in with any credentials and choose their prototype r
     page.getByRole("heading", { name: "Sign in to Synergy" }),
   ).toBeVisible();
   await selectValue(page.getByLabel("Prototype role"), "mentor");
-  await page.getByLabel("Email address").fill("another pretend login");
+  await page.getByLabel("Email address").fill("another-pretend@example.com");
   await page.getByLabel("Password", { exact: true }).fill("?");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.locator("#app-shell")).toBeVisible();
@@ -292,7 +299,11 @@ test("stakeholders can sign in with any credentials and choose their prototype r
     page.getByRole("heading", { name: "Sign in to Synergy" }),
   ).toBeVisible();
   expect(externalRequests).toEqual([]);
-  expect(demoRequests).toEqual([{ role: "founder" }, { role: "mentor" }]);
+  // Same credentials return to the same account, so they travel with the role.
+  expect(demoRequests).toEqual([
+    { role: "founder", email: "anything@example.com", password: "x" },
+    { role: "mentor", email: "another-pretend@example.com", password: "?" },
+  ]);
 });
 
 for (const role of ["founder", "mentor"])
@@ -445,6 +456,282 @@ test("preview sign-in waits for the workspace and recovers after a failed mode c
   await page.getByRole("button", { name: "Retry connection" }).click();
   await expect(page.getByLabel("Prototype role")).toHaveText("Founder");
   await expect(
-    page.getByText(/Use any made-up email and password/),
+    page.getByText(
+      "Use any email and password. Sign in with the same ones to come back to your work.",
+    ),
+  ).toBeVisible();
+});
+
+// Founder first-run review fixes (A1, B1, B2, D1–D9).
+async function signInPreview(page, email, password, role = "founder") {
+  if (role !== "founder")
+    await selectValue(page.getByLabel("Prototype role"), role);
+  await page.getByLabel("Email address").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+}
+async function api(request, token, data) {
+  const response = await request.post("/api/action", {
+    headers: { Authorization: `Bearer ${token}` },
+    data,
+  });
+  expect(response.ok(), await response.text()).toBe(true);
+  return decode(await response.text()).state;
+}
+const shiftly =
+  "Shiftly is staff scheduling software for independent restaurants. We are a seed-stage team of 6 with 40 paying restaurants, but churn spikes after month two. We need help with pricing strategy and customer retention. We can offer intros to restaurant operators and product feedback.";
+
+test("a preview founder sets up their own startup and returns to it from a new tab", async ({
+  page,
+  request,
+}) => {
+  const email = `return-${Date.now()}@example.com`;
+  await page.goto("/");
+  await signInPreview(page, email, "same-password");
+  await expect(
+    page.getByRole("heading", { name: "How do you want to start?" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Set up my startup", exact: true })
+    .click();
+  const description = page.getByLabel("Your description", { exact: true });
+  await expect(description).toBeFocused();
+  await expect(description).toHaveValue("");
+  await expect(page.getByLabel("About me")).toHaveValue("");
+  await description.fill(shiftly);
+  await page
+    .getByRole("button", { name: "Suggest profile details", exact: true })
+    .click();
+  const review = page.getByRole("group", { name: "Fields to update" });
+  await expect(review.getByRole("checkbox", { name: /^Stage/ })).toBeChecked();
+  await expect(review).not.toContainText("Technical Development");
+  await page
+    .getByRole("button", { name: "Apply suggestions", exact: true })
+    .click();
+  await expect(
+    page.getByRole("status").filter({ hasText: /^Updated:/ }),
+  ).toContainText("Select Save profile to keep these changes.");
+  await expect(page.getByLabel("Team size")).toHaveValue("6");
+  await expect(page.getByLabel("What I need")).toHaveValue(
+    /customer retention/,
+  );
+  await page.getByLabel("Your name").fill("Jordan Lee");
+  await page.getByRole("button", { name: "Save profile", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
+  await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
+  await expect(
+    page.getByRole("progressbar", { name: "Required profile details" }),
+  ).toHaveAttribute("aria-valuenow", "100");
+
+  // A room to deep-link to from the new tab.
+  const token = await page.evaluate(() =>
+    sessionStorage.getItem("synergy-session"),
+  );
+  const state = decode(
+    await (
+      await request.get("/api/state?role=founder", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+    ).text(),
+  ).state;
+  const mentor = state.directory.mentors.find((person) =>
+    person.availableFormats?.includes("single-session"),
+  );
+  await api(request, token, {
+    role: "founder",
+    action: "send-request",
+    id: mentor.id,
+    values: { ...mentorRequestValues, format: "single-session" },
+  });
+  const roomId = (
+    await api(request, token, {
+      role: "founder",
+      action: "simulate-acceptance",
+      id: mentor.id,
+    })
+  ).activeRoomId;
+
+  const tab = await page.context().newPage();
+  await tab.goto(`/#/rooms/${roomId}`);
+  await signInPreview(tab, email.toUpperCase(), "wrong-password");
+  await expect(
+    tab
+      .getByText(
+        "That email is already used in this preview. Use the same password as before, or a different email.",
+      )
+      .first(),
+  ).toBeVisible();
+  await expect(tab.locator("#app-shell")).toHaveCount(0);
+  await tab.getByLabel("Password", { exact: true }).fill("same-password");
+  await tab.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(tab).toHaveURL(new RegExp(`#/rooms/${roomId}`));
+  await expect(
+    tab.getByRole("heading", { name: "Mentorship room", exact: true }),
+  ).toBeVisible();
+  await tab.goto("/#/profile");
+  await expect(
+    tab.getByRole("heading", { name: "Jordan Lee", exact: true }),
+  ).toBeVisible();
+  await expect(tab.getByText("SaaS", { exact: true })).toBeVisible();
+  await tab.close();
+});
+
+test("Apply suggestions lists each change and writes only the checked fields", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await signInPreview(page, `apply-${Date.now()}@example.com`, "pw");
+  await page
+    .getByRole("button", { name: "Explore with a sample startup", exact: true })
+    .click();
+  await expect(page.locator("#app-shell")).toBeVisible();
+  await page.goto("/#/profile");
+  await page.getByRole("button", { name: "Edit profile", exact: true }).click();
+  const description = page.getByLabel("Your description", { exact: true });
+  await expect(description).toHaveValue("");
+  await expect(description).toHaveAttribute("placeholder", /For example/);
+  await description.fill(
+    "We are a seed-stage team of 6 building budgeting tools. We need pricing strategy.",
+  );
+  await page
+    .getByRole("button", { name: "Suggest profile details", exact: true })
+    .click();
+  const review = page.getByRole("group", { name: "Fields to update" });
+  // Sample values are replaceable, so their suggestions start checked.
+  const stage = review.getByRole("checkbox", { name: /^Stage/ });
+  await expect(stage).toBeChecked();
+  await expect(review.getByText("Pre-seed")).toBeVisible();
+  await expect(review.getByText("Seed", { exact: true })).toBeVisible();
+  const team = review.getByRole("checkbox", { name: /^Team size/ });
+  await expect(team).toBeChecked();
+  await team.uncheck();
+  await expect(page.getByText(/fills empty fields only/)).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Apply suggestions", exact: true })
+    .click();
+  const note = page.getByRole("status").filter({ hasText: /^Updated:/ });
+  await expect(note).toContainText("Stage");
+  await expect(note).not.toContainText("Team size");
+  await expect(note).toContainText(
+    "Select Save profile to keep these changes.",
+  );
+  await expect(page.getByLabel("Stage")).toHaveText("Seed");
+  await expect(page.getByLabel("Team size")).toHaveValue("4");
+  // The checklist uses the save validator: an invalid team size is not ticked.
+  await page.getByLabel("Team size").fill("-3");
+  await expect(
+    page
+      .locator(".profile-checklist")
+      .getByText("Team size must be a positive whole number."),
+  ).toBeVisible();
+});
+
+test("a founder request shows inline errors, keeps its draft and reaches a prepared session", async ({
+  page,
+  request,
+}) => {
+  const user = decode(
+    await (
+      await request.post("/api/demo", { data: { role: "founder" } })
+    ).text(),
+  );
+  const mentor = user.state.directory.mentors.find((person) =>
+    person.availableFormats?.includes("single-session"),
+  );
+  await page.goto("/");
+  await page.evaluate(
+    (token) => sessionStorage.setItem("synergy-session", token),
+    user.token,
+  );
+  await page.goto(
+    `/?draft=${Date.now()}#/matches/${encodeURIComponent(mentor.id)}`,
+  );
+  await page.getByRole("button", { name: "Send mentorship request" }).click();
+  const problem = page.getByLabel("What's the problem?");
+  for (const label of [
+    "What's the problem?",
+    "What have you already tried?",
+    "What specific question do you want answered?",
+  ])
+    await expect(page.getByLabel(label)).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+  await expect(page.getByText("Add at least 20 characters.")).toHaveCount(3);
+  await expect(problem).toBeFocused();
+  await problem.fill(mentorRequestValues.problem);
+  await expect(problem).toHaveAttribute("aria-invalid", "false");
+  await page.reload();
+  await expect(page.getByLabel("What's the problem?")).toHaveValue(
+    mentorRequestValues.problem,
+  );
+  await page
+    .getByLabel("What have you already tried?")
+    .fill(mentorRequestValues.tried);
+  await page
+    .getByLabel("What specific question do you want answered?")
+    .fill(mentorRequestValues.question);
+  await page.getByRole("button", { name: "Send mentorship request" }).click();
+  await expect(page).toHaveURL(/#\/waiting/);
+  const card = page.locator(".mentor-request-card").first();
+  await expect(card).toContainText(
+    /usually replies within \d+ days?\. You’ll see the reply in Updates\./,
+  );
+  await card.getByText("View request", { exact: true }).click();
+  await expect(card.getByText(mentorRequestValues.question)).toBeVisible();
+  await expect(card.getByText("Format", { exact: true })).toBeVisible();
+  await card
+    .getByRole("button", { name: "Simulate acceptance", exact: true })
+    .click();
+  await expect(page).toHaveURL(/#\/rooms\//);
+  await expect(
+    page.getByRole("button", { name: "Report collaborator" }),
+  ).toBeHidden();
+  await expect(
+    page.getByRole("button", { name: "Share preparation" }),
+  ).toHaveClass(/primary/);
+  await expect(
+    page.getByText("Share your deck, metrics and links before your session."),
+  ).toBeVisible();
+  await expect(
+    page.locator(".mentor-stage-line li.done").first(),
+  ).toContainText("Requested");
+  await page.getByRole("tab", { name: "Schedule", exact: true }).click();
+  await expect(
+    page.getByText(
+      `You can pick a time once ${mentor.name} confirms the goal.`,
+    ),
+  ).toBeVisible();
+  await page.getByRole("tab", { name: "Overview", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Simulate mentor confirming the goal" })
+    .click();
+  await expect(
+    page.locator(".mentor-stage-line [aria-current=step]"),
+  ).toContainText("Goal Confirmed");
+  await page.getByRole("tab", { name: "Chat", exact: true }).click();
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByLabel("Write a message")).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  await expect(page.locator(".toast-error")).toContainText(
+    "Couldn't send your message",
+  );
+  await page.getByRole("tab", { name: "Schedule", exact: true }).click();
+  const date = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10);
+  await page.locator("#single-session-date").fill(date);
+  await page.locator("#single-session-time").fill("10:00");
+  await page.getByRole("button", { name: "Schedule session" }).click();
+  await expect(page.locator(".mentor-session")).toHaveCount(1);
+  await page.getByRole("tab", { name: "Overview", exact: true }).click();
+  await page.getByLabel("Deck").fill("https://example.com/deck");
+  await page.getByRole("button", { name: "Share preparation" }).click();
+  await expect(page.getByText("Prep shared", { exact: true })).toBeVisible();
+  await page.getByText("Safety", { exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Report collaborator" }),
   ).toBeVisible();
 });

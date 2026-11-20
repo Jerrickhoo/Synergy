@@ -119,15 +119,19 @@ export default function RoomsPage() {
                     color={partner?.color || ""}
                   />
                   <div>
-                    <h2>
-                      {room.type === "mentorship"
-                        ? "Mentorship Engagement"
-                        : room.engagementType}
-                    </h2>
-                    <p className="panel-subtitle">
-                      {"With "}
-                      {partner?.name || room.partnerId}
-                    </p>
+                    {room.type === "mentorship" ? (
+                      <h2>
+                        Mentorship with {partner?.name || "your collaborator"}
+                      </h2>
+                    ) : (
+                      <>
+                        <h2>{room.engagementType}</h2>
+                        <p className="panel-subtitle">
+                          {"With "}
+                          {partner?.name || room.partnerId}
+                        </p>
+                      </>
+                    )}
                   </div>
                   <span
                     className={`status ${["launched", "reviewed"].includes(room.status) ? "green" : ""}`}
@@ -187,7 +191,7 @@ export default function RoomsPage() {
                     }
                   >
                     {room.type === "mentorship"
-                      ? "Open mentorship"
+                      ? "Open room"
                       : "Open Deal Room"}
                     <span className="visually-hidden">
                       {" "}

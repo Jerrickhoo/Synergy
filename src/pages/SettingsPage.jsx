@@ -290,6 +290,36 @@ export default function SettingsPage() {
             Save notification preferences
           </button>
         </form>
+        {state.matchAlerts?.length > 0 && (
+          <section
+            className="match-alerts"
+            aria-labelledby="match-alerts-title"
+          >
+            <h3 id="match-alerts-title">Match alerts</h3>
+            <p className="field-help">
+              These add a match suggestion to Updates when someone new offers
+              the help you asked for.
+            </p>
+            <ul>
+              {state.matchAlerts.map((alert) => (
+                <li key={alert.need}>
+                  <span>Someone offers {alert.need}</span>
+                  <form data-form="match-alert" onSubmit={onSubmit}>
+                    <input type="hidden" name="need" value={alert.need} />
+                    <input type="hidden" name="enabled" value="off" />
+                    <button className="link-btn" disabled={state.busy}>
+                      Stop
+                      <span className="visually-hidden">
+                        {" "}
+                        alerts for {alert.need}
+                      </span>
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </section>
       {state.role === "mentor" && (
         <section className="card panel section-gap">

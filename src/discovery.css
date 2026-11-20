@@ -186,8 +186,23 @@
 }
 .preview-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
+}
+/* A mentor's format prices take their own row under the name, so the name
+   keeps its width on phones. */
+.preview-heading > ul {
+  order: 1;
+  display: flex;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: var(--font-caption);
 }
 .preview-heading .avatar {
   width: 46px;

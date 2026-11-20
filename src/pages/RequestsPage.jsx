@@ -24,6 +24,58 @@ const pendingTime = (expiry) => {
     : `Expires in ${days} days`;
 };
 
+// What the founder sent, so a pending request can be reread while waiting.
+function SentRequestDetails({ request }) {
+  return (
+    <details className="sent-request-details">
+      <summary>View request</summary>
+      <dl className="mentor-request-answers">
+        {Object.entries(requestFields)
+          .filter(([key]) => request[key])
+          .map(([key, label]) => (
+            <div key={key}>
+              <dt>{label}</dt>
+              <dd className="preserve-lines">{request[key]}</dd>
+            </div>
+          ))}
+        {request.desiredOutcome && (
+          <div>
+            <dt>Desired outcome</dt>
+            <dd className="preserve-lines">{request.desiredOutcome}</dd>
+          </div>
+        )}
+        <div>
+          <dt>Format</dt>
+          <dd>
+            {formatLabel(request)} · {priceLabel(request.price || 0)}
+          </dd>
+        </div>
+        {request.links?.length > 0 && (
+          <div>
+            <dt>Links</dt>
+            <dd>
+              <ul className="sent-request-links">
+                {request.links.map((link) => (
+                  <li key={link}>{link}</li>
+                ))}
+              </ul>
+            </dd>
+          </div>
+        )}
+      </dl>
+    </details>
+  );
+}
+
+// "David usually replies within 3 days. You'll see the reply in Updates."
+function replyLine(request, mentor) {
+  const first = String(request.name || "The mentor").split(" ")[0];
+  const days = mentor?.responseDays;
+  return days
+    ? `${first} usually replies within ${days} ${days === 1 ? "day" : "days"}. You’ll see the reply in Updates.`
+    : `You’ll see ${first}’s reply in Updates.`;
+}
+
 export function RequestCard({ request }) {
   const { state, model, onAction } = useApp();
   const founder = model
@@ -278,6 +330,19 @@ export function SentMentorRequests() {
               ? ` · ${pendingTime(request.expiresAt)}`
               : ""}
           </p>
+          {request.status === "pending" && (
+            <>
+              <p>
+                {replyLine(
+                  request,
+                  model
+                    .rolePeople()
+                    .find((person) => person.id === request.partnerId),
+                )}
+              </p>
+              <SentRequestDetails request={request} />
+            </>
+          )}
           {request.reason && (
             <p>{requestReasons[request.reason] || request.reason}</p>
           )}
@@ -336,7 +401,7 @@ export function SentMentorRequests() {
                 onAction({ action: "open-room", id: request.roomId })
               }
             >
-              Open mentorship room
+              Open room
             </button>
           )}
           <MentorAlternatives

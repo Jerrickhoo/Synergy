@@ -191,7 +191,7 @@ function ExchangeRoom() {
       />
     );
   const roomTitle =
-    room.type === "mentorship" ? "Mentorship Engagement" : room.engagementType;
+    room.type === "mentorship" ? "Mentorship room" : room.engagementType;
   const prototypePartner =
     state.integrations?.demoMode && state.integrations?.guest;
   return (

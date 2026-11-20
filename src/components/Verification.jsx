@@ -27,6 +27,8 @@ export default function Verification() {
   const { state, onSubmit } = useApp();
   const status = state.affiliation?.status || "none";
   const [title, detail] = statusCopy[status] || statusCopy.none;
+  // Without moderators nobody can review a request, so none is offered.
+  const reviewable = Boolean(state.integrations?.moderation);
   return (
     <section
       className="card panel profile-section verification-section section-gap"
@@ -56,13 +58,16 @@ export default function Verification() {
       {state.affiliation?.note && status !== "pending" && (
         <p className="muted">Moderator note: {state.affiliation.note}</p>
       )}
-      {!state.integrations?.moderation && (
-        <p className="muted">
-          A workspace owner must configure moderator access before requests can
-          be reviewed.
+      {!reviewable && status !== "verified" && (
+        <p className="info-note">
+          Verification requests are not available in this workspace yet because
+          no moderator is set up to review them.{" "}
+          {state.integrations?.requireVerification
+            ? "Ask the workspace owner to add a moderator."
+            : "You can still browse, match and request mentorship."}
         </p>
       )}
-      {status !== "verified" && status !== "pending" && (
+      {reviewable && status !== "verified" && status !== "pending" && (
         <form
           data-form="affiliation-request"
           className="grid"

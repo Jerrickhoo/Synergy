@@ -8,7 +8,7 @@ import {
 import { mentorshipActions } from "./mentorship.js";
 import { roomNextAction } from "./selectors.js";
 import { createModel } from "./model.js";
-import { verificationRequired } from "./collaboration.js";
+import { defaultVocabulary, verificationRequired } from "./collaboration.js";
 
 export const partnerName = (state, room) =>
   createModel(state)
@@ -108,4 +108,31 @@ export function homeNextStep(state, now = new Date()) {
     label: mentor ? "Explore startups" : "Explore matches",
     command: { page: "discover" },
   };
+}
+
+// The first thing a founder asked for, for empty states and match alerts:
+// their first standard tag, else the first item of What I need.
+export function primaryNeed(profile = {}) {
+  const tagged = String(profile.needTags || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const written = String(profile.need || "")
+    .split(/,|\s+and\s+/i)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const need = tagged[0] || written[0] || "";
+  return defaultVocabulary.includes(need) ? need.toLowerCase() : need;
+}
+
+// The best eligible profiles below the suggestion threshold, with real scores.
+export function closestProfiles(state, count = 3) {
+  const model = createModel(state);
+  return model
+    .matches()
+    .filter(
+      (person) =>
+        person.score > 0 && !model.existingRoomFor(state.role, person.id),
+    )
+    .slice(0, count);
 }

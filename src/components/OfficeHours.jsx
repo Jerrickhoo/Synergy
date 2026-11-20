@@ -290,6 +290,7 @@ export function OfficeHoursBooking({ person }) {
       ) : (
         <form
           className="mentor-request-form"
+          data-form="book-office-hours"
           onSubmit={(event) =>
             onAction(
               {

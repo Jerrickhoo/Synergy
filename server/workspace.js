@@ -11,6 +11,10 @@ import {
 } from "node:crypto";
 import { createInitialState, createModel } from "../src/data/model.js";
 import {
+  sampleFounderName,
+  sampleFounderProfile,
+} from "../src/data/profile-assistant.js";
+import {
   profileCompleteness,
   roomProgress,
   launchBlockers,
@@ -656,6 +660,19 @@ export function createWorkspace(file, options = {}) {
   });
   const mentorshipRooms = createMentorshipRooms({
     accounts: () => db.accounts,
+    // Prototype only, with the same gate as simulate-acceptance: demo mode, a
+    // preview account and a server-verified fictional fixture partner.
+    canSimulatePartner(account, room) {
+      const partner = db.accounts[room.partnerAccountId];
+      return Boolean(
+        options.demoMode &&
+        account.demo &&
+        !account.demoSample &&
+        partner?.demo &&
+        partner.demoSample &&
+        !partner.deletedAt,
+      );
+    },
     config: mentorSettings,
     now,
     capacity: (...args) => mentorUsage(...args),
@@ -1149,6 +1166,9 @@ export function createWorkspace(file, options = {}) {
       moderation: Boolean(options.adminEmails?.length),
       requireVerification: Boolean(options.requireVerification),
     };
+    state.firstRunChoice = Boolean(
+      account.firstRunChoice && state.role === "founder",
+    );
     state.introductionTypesByRole ||= { founder: {}, mentor: {} };
     state.introductionMetaByRole ||= { founder: {}, mentor: {} };
     state.introHistoryByRole ||= { founder: [], mentor: [] };
@@ -1189,6 +1209,14 @@ export function createWorkspace(file, options = {}) {
         const item = person(other, otherRole, state);
         if (conflict?.level === "warn" && state.role === "mentor")
           item.conflictWarning = conflict.text;
+        // Display hint only; each simulated action re-checks on the server.
+        item.prototypePartner = Boolean(
+          options.demoMode &&
+          account.demo &&
+          !account.demoSample &&
+          other.demo &&
+          other.demoSample,
+        );
         item.canSimulateAcceptance = Boolean(
           options.demoMode &&
           account.demo &&
@@ -1434,6 +1462,126 @@ export function createWorkspace(file, options = {}) {
       candidate: bytes,
       expected: account?.passwordHash,
     });
+  }
+  // Role-preview accounts. With credentials, the same email and password lead
+  // back to the same preview account; without them (scripts and tests) every
+  // call opens a fresh account as before. The preview email lives apart from
+  // `email` so password sign-in and signup never see preview accounts.
+  const previewMismatch =
+    "That email is already used in this preview. Use the same password as before, or a different email.";
+  const previewEmail = (value) =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase();
+  const findPreview = (email) =>
+    Object.values(db.accounts).find(
+      (item) =>
+        item.demo &&
+        !item.demoSample &&
+        !item.deletedAt &&
+        item.previewEmail === email,
+    );
+  function seedPreview(state, role, { sample = true } = {}) {
+    state.role = role;
+    state.profileDone = true;
+    state.accountName = role === "founder" ? sampleFounderName : "David Park";
+    Object.assign(state.profiles.founder, sampleFounderProfile);
+    Object.assign(state.profiles.mentor, {
+      bio: "Helping early teams improve their products and find traction.",
+      offer: "Product strategy, Growth, Onboarding guidance",
+      need: "Early teams, Product challenges",
+      expertise: "Product strategy, Growth",
+      availability: "Monthly sessions",
+      startups: "Idea and pre-seed teams",
+      image: "/demo/avatars/david.svg",
+      noConflicts: true,
+      // The guided preview starts ready to mentor. Real mentors accept the
+      // guidelines themselves from Settings.
+      guidelinesVersion: mentorSettings().guidelinesVersion,
+      guidelinesAcceptedAt: new Date(now()).toISOString(),
+    });
+    if (!sample) blankFounder(state);
+  }
+  // "Set up my startup": no persona name, image or sample company.
+  function blankFounder(state) {
+    const empty = createInitialState().profiles.founder;
+    state.profiles.founder = { ...empty };
+    state.profileDone = false;
+    if (state.accountName === sampleFounderName) state.accountName = "";
+  }
+  function openDemo(role, credentials, derived) {
+    if (!options.demoMode) fail("Demo access is disabled.", 404);
+    if (!roles.includes(role)) fail("Choose a founder or mentor preview.");
+    const given =
+      credentials && typeof credentials === "object" ? credentials : null;
+    let email = "";
+    let password = "";
+    if (given) {
+      email = previewEmail(given.email);
+      password = typeof given.password === "string" ? given.password : "";
+      const errors = {};
+      if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+        errors.email = "Enter a valid email address, like you@example.com.";
+      if (!password.trim()) errors.password = "Enter a password.";
+      else if (password.length > 1024)
+        errors.password = "Use a password with at most 1,024 characters.";
+      if (Object.keys(errors).length)
+        fail("Check your sign-in details.", 400, errors);
+      const existing = findPreview(email);
+      if (existing) {
+        if (derived && derived.expected !== existing.passwordHash)
+          fail("Account changed. Sign in again.", 401);
+        const candidate =
+          derived?.candidate || scryptSync(password, existing.salt, 64);
+        if (
+          !timingSafeEqual(candidate, Buffer.from(existing.passwordHash, "hex"))
+        )
+          fail(previewMismatch, 401, { password: previewMismatch });
+        existing.state.role = role;
+        save();
+        return openSession(existing);
+      }
+    }
+    const state = createInitialState();
+    const salt = given
+      ? derived?.salt || randomBytes(16).toString("hex")
+      : randomBytes(16).toString("hex");
+    const account = {
+      id: randomUUID(),
+      demo: true,
+      notificationPreferences: { ...defaultPreferences },
+      email: `demo-${randomUUID()}@example.invalid`,
+      salt,
+      passwordHash: given
+        ? (derived?.candidate || scryptSync(password, salt, 64)).toString("hex")
+        : randomBytes(64).toString("hex"),
+      state,
+    };
+    if (given) account.previewEmail = email;
+    // A founder who signs in with their own credentials chooses between a
+    // blank startup and the sample one before seeing the workspace.
+    if (given && role === "founder") account.firstRunChoice = true;
+    seedPreview(state, role, { sample: given?.sample !== false });
+    state.accountEmail = given ? email : account.email;
+    db.accounts[account.id] = account;
+    save();
+    return openSession(account);
+  }
+  // Prototype only: the first-run choice for a new founder preview account.
+  function chooseFirstRun(account, input) {
+    if (!options.demoMode || !account.demo || !account.firstRunChoice)
+      fail("This choice is no longer available.", 409);
+    const start = input.values?.start;
+    if (!["blank", "sample"].includes(start))
+      fail("Choose to set up your startup or explore with a sample.");
+    delete account.firstRunChoice;
+    const state = prepare(account, "founder");
+    if (start === "blank") blankFounder(state);
+    state.formErrors = null;
+    state.directory = createInitialState().directory;
+    account.state = state;
+    save();
+    return response(account, "founder");
   }
   const allowedActions = new Set([
     "choose-role",
@@ -1944,6 +2092,8 @@ export function createWorkspace(file, options = {}) {
   }
   function actInternal(token, input, uploadedFile, avatar) {
     const account = authenticate(token);
+    if (input.action === "first-run-choice")
+      return chooseFirstRun(account, input);
     if (paymentActions.has(input.action)) {
       if (!roles.includes(input.role) || input.form)
         fail("Choose a role and one action.");
@@ -2806,49 +2956,25 @@ export function createWorkspace(file, options = {}) {
     features,
     login,
     loginAsync,
-    openDemo(role) {
-      if (!options.demoMode) fail("Demo access is disabled.", 404);
-      if (!roles.includes(role)) fail("Choose a founder or mentor preview.");
-      const state = createInitialState();
-      const account = {
-        id: randomUUID(),
-        demo: true,
-        notificationPreferences: { ...defaultPreferences },
-        email: `demo-${randomUUID()}@example.invalid`,
-        salt: randomBytes(16).toString("hex"),
-        passwordHash: randomBytes(64).toString("hex"),
-        state,
-      };
-      state.role = role;
-      state.accountName = role === "founder" ? "Maria Santos" : "David Park";
-      state.accountEmail = account.email;
-      state.profileDone = true;
-      Object.assign(state.profiles.founder, {
-        bio: "Building a budgeting app that helps students manage their money.",
-        offer: "Beta testing, Student user insights",
-        need: "Product strategy, Onboarding guidance",
-        industry: "FinTech",
-        stage: "pre-seed",
-        teamSize: "4",
-        image: "/demo/avatars/maria.svg",
+    openDemo,
+    async openDemoAsync(role, credentials) {
+      // Hash off the event loop first, exactly like loginAsync, then reuse the
+      // synchronous rules so tests and the API share one implementation.
+      if (!credentials || typeof credentials !== "object")
+        return openDemo(role);
+      const email = previewEmail(credentials.email);
+      const existing = email && findPreview(email);
+      const salt = existing?.salt || randomBytes(16).toString("hex");
+      const bytes = await promisify(scrypt)(
+        String(credentials.password ?? ""),
+        salt,
+        64,
+      );
+      return openDemo(role, credentials, {
+        salt,
+        candidate: bytes,
+        expected: existing?.passwordHash,
       });
-      Object.assign(state.profiles.mentor, {
-        bio: "Helping early teams improve their products and find traction.",
-        offer: "Product strategy, Growth, Onboarding guidance",
-        need: "Early teams, Product challenges",
-        expertise: "Product strategy, Growth",
-        availability: "Monthly sessions",
-        startups: "Idea and pre-seed teams",
-        image: "/demo/avatars/david.svg",
-        noConflicts: true,
-        // The guided preview starts ready to mentor. Real mentors accept the
-        // guidelines themselves from Settings.
-        guidelinesVersion: mentorSettings().guidelinesVersion,
-        guidelinesAcceptedAt: new Date(now()).toISOString(),
-      });
-      db.accounts[account.id] = account;
-      save();
-      return openSession(account);
     },
     act,
     authorizeProfile(token, input, size = 0) {

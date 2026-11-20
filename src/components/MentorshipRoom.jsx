@@ -8,6 +8,8 @@ import TaskBoard from "./TaskBoard.jsx";
 import ChatPanel from "./ChatPanel.jsx";
 import BlockCollaborator from "./BlockCollaborator.jsx";
 import ReportCollaborator from "./ReportCollaborator.jsx";
+import FormErrors from "./FormErrors.jsx";
+import Icon from "./Icon.jsx";
 import { mentorFormat } from "../data/mentor-formats.js";
 import {
   attendanceOpen,
@@ -36,11 +38,18 @@ const outcomes = {
   disputed: "Attendance under review",
 };
 
-function RoomForm({ command, fields, label, reset = false, disabled = false }) {
+function RoomForm({
+  command,
+  fields,
+  label,
+  reset = false,
+  disabled = false,
+  primary = false,
+}) {
   const { onAction, onSubmit, state } = useApp();
   return (
     <form
-      data-form={command.form}
+      data-form={command.form || command.action}
       data-id={command.id}
       className="mentor-request-form"
       onSubmit={async (event) => {
@@ -60,8 +69,12 @@ function RoomForm({ command, fields, label, reset = false, disabled = false }) {
         if (success && reset) form.reset();
       }}
     >
+      <FormErrors scope={command.form || command.action} />
       {fields}
-      <button className="btn" disabled={state.busy || disabled}>
+      <button
+        className={primary ? "btn primary" : "btn"}
+        disabled={state.busy || disabled}
+      >
         {state.busy ? "Saving…" : label}
       </button>
     </form>
@@ -142,6 +155,9 @@ function PrepChecklist({ room, closed, doc = false }) {
   const { onUpload, state } = useApp();
   const prep = room.mentorship.prep;
   const shared = doc ? room.milestones.uploaded?.attachment : prep?.sharedAt;
+  const scheduled = mentorSessions(room).some(
+    (session) => !session.cancelledAt && !session.outcome,
+  );
   return (
     <section className="card panel">
       <h2>{doc ? "Review materials" : "Session prep"}</h2>
@@ -175,8 +191,9 @@ function PrepChecklist({ room, closed, doc = false }) {
         <>
           {!doc && (
             <p>
-              Share your deck, metrics and links at least 24 hours before the
-              session.
+              {scheduled
+                ? "Share your deck, metrics and links at least 24 hours before the session."
+                : "Share your deck, metrics and links before your session."}
             </p>
           )}
           <form
@@ -222,6 +239,7 @@ function PrepChecklist({ room, closed, doc = false }) {
                 </>
               }
               label="Share preparation"
+              primary={!shared}
             />
           )}
         </>
@@ -536,7 +554,7 @@ function Upgrade({ room }) {
   );
 }
 
-function Schedule({ room, closed }) {
+function Schedule({ room, closed, partner }) {
   const sessions = mentorSessions(room);
   const format = roomFormat(room);
   const goal = room.milestones[goalMilestone(room)]?.me;
@@ -571,7 +589,15 @@ function Schedule({ room, closed }) {
   return (
     <section className="card panel mentor-requests-list">
       <h2>Schedule</h2>
-      {!sessions.length && <p>No sessions scheduled yet.</p>}
+      {!sessions.length && (
+        <p>
+          {!goal && !closed && format === "single-session"
+            ? room.role === "founder"
+              ? `You can pick a time once ${partner?.name || "your mentor"} confirms the goal.`
+              : "Confirm the goal on Overview, then pick a time together."
+            : "No sessions scheduled yet."}
+        </p>
+      )}
       {!closed &&
         room.role === "founder" &&
         format === "office-hours" &&
@@ -771,7 +797,7 @@ export default function MentorshipRoom({ room }) {
   return (
     <div className="page room-detail-page page-enter">
       <PageHeader
-        title="Mentorship Room"
+        title="Mentorship room"
         intro={`${format.label} with ${partner?.name || "your collaborator"}`}
         actions={
           <button
@@ -784,15 +810,25 @@ export default function MentorshipRoom({ room }) {
           </button>
         }
       />
-      <ol className="mentor-stage-line" aria-label="Mentorship stages">
-        {stage.stages.map((label, index) => (
-          <li
-            key={label}
-            aria-current={index === stage.index ? "step" : undefined}
-          >
-            {label}
-          </li>
-        ))}
+      <ol className="mentor-stage-line" aria-label="Mentorship progress">
+        {stage.stages.map((label, index) => {
+          const done = index < stage.index;
+          const current = index === stage.index;
+          return (
+            <li
+              key={label}
+              className={done ? "done" : current ? "current" : undefined}
+              aria-current={current ? "step" : undefined}
+            >
+              <span className="mentor-stage-mark" aria-hidden="true">
+                {done && <Icon name="check" />}
+              </span>
+              {label}
+              {/* aria-current already announces the current step. */}
+              {done && <span className="visually-hidden">, completed</span>}
+            </li>
+          );
+        })}
       </ol>
       {room.closeReason && <p className="warning-note">{room.closeReason}</p>}
       <p>
@@ -885,6 +921,21 @@ export default function MentorshipRoom({ room }) {
                     }
                   />
                 )}
+              {!closed &&
+                room.role === "founder" &&
+                partner?.prototypePartner &&
+                room.milestones[goalMilestone(room)] &&
+                !room.milestones[goalMilestone(room)].me && (
+                  <div className="prototype-acceptance">
+                    <p className="field-help">
+                      Prototype only: {partner.name} is a fictional mentor.
+                      Simulate them confirming this goal to continue.
+                    </p>
+                    <RoomAction action="simulate-goal-confirmation">
+                      Simulate mentor confirming the goal
+                    </RoomAction>
+                  </div>
+                )}
             </section>
             {format.sync || format.id === "doc-review" ? (
               <PrepChecklist room={room} closed={closed} doc={!format.sync} />
@@ -975,7 +1026,9 @@ export default function MentorshipRoom({ room }) {
             )}
           </>
         )}
-        {tab === "schedule" && <Schedule room={room} closed={closed} />}
+        {tab === "schedule" && (
+          <Schedule room={room} closed={closed} partner={partner} />
+        )}
         {tab === "notes" && (
           <SessionNotes room={room} closed={closed} partner={partner} />
         )}
@@ -990,10 +1043,15 @@ export default function MentorshipRoom({ room }) {
         )}
       </div>
       {partner && (
-        <div className="section-gap">
-          <ReportCollaborator person={partner} />
+        <details className="room-safety section-gap">
+          <summary>Safety</summary>
+          <p className="field-help">
+            Report a concern privately to moderators, or block further contact.
+            Reporting does not block.
+          </p>
+          <ReportCollaborator person={partner} quiet />
           <BlockCollaborator person={partner} />
-        </div>
+        </details>
       )}
     </div>
   );

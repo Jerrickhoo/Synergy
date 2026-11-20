@@ -927,3 +927,184 @@ ol.stage-line {
     font-size: var(--text-xs);
   }
 }
+
+/* Founder first-run review fixes (fix/founder-first-run). Tokens only. */
+
+/* B1: first-run choice for a new founder preview account. */
+.first-run {
+  min-height: 100dvh;
+  background: var(--canvas);
+}
+.first-run-header {
+  display: flex;
+  align-items: center;
+  padding: var(--space-5) var(--page-gutter);
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+.first-run-body {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: var(--space-7) var(--page-gutter);
+}
+.first-run-body h1 {
+  font-size: var(--font-display);
+  text-wrap: balance;
+}
+.first-run-body .intro {
+  margin-top: var(--space-2);
+  text-wrap: pretty;
+}
+.first-run-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+.first-run-option {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+.first-run-option h2 {
+  font-size: var(--font-title);
+  text-wrap: balance;
+}
+.first-run-option p {
+  color: var(--muted);
+  text-wrap: pretty;
+}
+.first-run-option .btn {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+/* C2: closest profiles under an empty Suggested list, and match alerts. */
+.closest-profiles {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+.closest-profiles h3 {
+  font-size: var(--font-title);
+  text-wrap: balance;
+}
+.match-alert-on {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.match-alerts {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+.match-alerts ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.match-alerts li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+/* D7: report and block sit in a quiet disclosure at the end of the room. */
+.room-safety {
+  display: grid;
+  gap: var(--space-3);
+  color: var(--muted);
+}
+.room-safety[open] {
+  padding-bottom: var(--space-2);
+}
+.room-safety > summary {
+  font-size: var(--font-caption);
+  font-weight: 600;
+  cursor: pointer;
+}
+.room-safety > .btn {
+  justify-self: start;
+}
+
+/* B2/B4: assistant review list and checklist validation messages. */
+.assistant-review {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.assistant-review legend {
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+}
+.assistant-review-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+.assistant-review-row input {
+  margin-top: var(--space-1);
+}
+.assistant-review-copy {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.assistant-review-change {
+  overflow-wrap: break-word;
+  text-wrap: pretty;
+}
+.assistant-applied {
+  color: var(--green-dark);
+  font-weight: 600;
+}
+.profile-checklist-label {
+  display: grid;
+  gap: var(--space-1);
+}
+.profile-checklist-error {
+  color: var(--danger-text);
+  font-size: var(--font-caption);
+  font-weight: 400;
+}
+.profile-optional-left {
+  color: var(--muted);
+  font-size: var(--font-caption);
+  text-wrap: pretty;
+}
+
+/* D9: the empty-message error sits under the chat input. */
+.chat-compose {
+  flex-wrap: wrap;
+}
+.chat-compose .field-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* D3: a pending request can be reread from its card. */
+.sent-request-details {
+  display: grid;
+  gap: var(--space-2);
+}
+.sent-request-details > summary {
+  font-weight: 600;
+  cursor: pointer;
+}
+.sent-request-links {
+  margin: 0;
+  padding-left: var(--space-4);
+  overflow-wrap: anywhere;
+}

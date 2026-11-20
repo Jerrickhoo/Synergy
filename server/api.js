@@ -233,7 +233,15 @@ export function createApi({
               attempts.delete(storedKey);
         attempts.set(key, [...recent, now]);
         if (url.pathname === "/api/demo")
-          return send(200, workspace.openDemo(input.role));
+          return send(
+            200,
+            await workspace.openDemoAsync(
+              input.role,
+              "email" in input || "password" in input
+                ? { email: input.email, password: input.password }
+                : undefined,
+            ),
+          );
         if (url.pathname.startsWith("/api/account/")) {
           if (url.pathname === "/api/account/visibility")
             return send(

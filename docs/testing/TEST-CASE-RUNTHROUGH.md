@@ -20,7 +20,7 @@ npm.cmd run dev
 
 Open the URL printed by Vite, normally `http://localhost:5173`. Run TC-01 and the discovery checks TC-13 through TC-18 in this mode. The fictional directory contains 14 startups and 10 mentors. Open Rafael Lim’s profile to see weekly Office Hours and Impact from three fictional completed engagements.
 
-Role previews cannot discover or connect with one another. Do not use them to test acceptance, shared rooms or two-party reviews. Each simulated sign-in creates a separate preview account; use refresh to retain the current session while testing it.
+Role previews cannot discover or connect with one another. Do not use them to test acceptance, shared rooms or two-party reviews. Signing in with new credentials creates a preview account; signing in again with the same email and password returns to it from any tab. Use a different email for a fresh account.
 
 ### Pass B: shared workflows with local accounts
 
@@ -82,12 +82,14 @@ Copy the row for each case. Include the tested commit or working-tree version, t
 
 **Mode:** Pass A.
 
-1. Submit the sign-in form empty and inspect the field errors.
-2. Enter any non-empty email text and password. Choose **Founder** in **Prototype role** and select **Sign in**.
-3. Visit Home, Matches and Profile, then refresh.
-4. Sign out through the confirmation dialog, then repeat with **Mentor**.
+1. Submit the sign-in form empty and inspect the field errors. Then try `notanemail` as the email.
+2. Enter a new email address and any password. Choose **Founder** in **Prototype role** and select **Sign in**.
+3. Choose **Explore with a sample startup**. Visit Home, Matches and Profile, then refresh.
+4. Open a new tab and sign in with the same email and a different password, then with the same password.
+5. Sign out through the confirmation dialog, then repeat with a new email and **Mentor**.
+6. Sign in with another new email as **Founder** and choose **Set up my startup**.
 
-**Expected:** Empty inputs are rejected. Non-empty preview credentials work without real email validation or delivery. The selected role opens with an editable sample profile; refresh retains the current session. Mentor views use mentoring language. No sample rooms, messages, ratings or activity are inserted. Preview help explains the connection limitation.
+**Expected:** Empty inputs and `notanemail` are rejected. Any well-formed email works without delivery. A new founder account asks how to start; the sample opens Maria Santos’s editable profile, refresh retains the session, and the new tab with the same credentials returns to the same profile and rooms. A different password shows “That email is already used in this preview. Use the same password as before, or a different email.” and creates nothing. Mentor previews open ready to mentor without the choice. **Set up my startup** opens Edit profile with an empty, focused description box and no persona name or photo. No sample rooms, messages, ratings or activity are inserted. Preview help explains the connection limitation.
 
 ### TC-02 - Local signup validation
 

@@ -34,7 +34,9 @@ export default function Topbar() {
         <div className="workspace-heading">
           <span>Workspace</span>
           <span aria-hidden="true">/</span>
-          <strong>{pageLabel(state.page, state.role)}</strong>
+          <strong>
+            {pageLabel(state.page, state.role, model.activeRoom()?.type)}
+          </strong>
         </div>
       )}
       <div ref={actionsRef} className="top-actions">

@@ -48,7 +48,13 @@ export default function Login() {
             onSubmit={(event) => {
               if (demoMode) {
                 event.preventDefault();
-                onAction({ action: "enter-demo", roleChoice: prototypeRole });
+                const values = new FormData(event.currentTarget);
+                onAction({
+                  action: "enter-demo",
+                  roleChoice: prototypeRole,
+                  email: String(values.get("email") || ""),
+                  password: String(values.get("password") || ""),
+                });
               } else onSubmit(event);
             }}
           >
@@ -79,7 +85,8 @@ export default function Login() {
                   </SelectField>
                 </div>
                 <p className="field-help" id="demo-password-help">
-                  Use any made-up email and password to explore the prototype.
+                  Use any email and password. Sign in with the same ones to come
+                  back to your work.
                 </p>
               </>
             )}
@@ -89,9 +96,9 @@ export default function Login() {
               <input
                 id="login-email"
                 name="email"
-                type={demoMode ? "text" : "email"}
+                type="email"
                 inputMode="email"
-                autoComplete={demoMode ? "off" : "username"}
+                autoComplete="username"
                 placeholder="you@yourstartup.com"
                 required
               />
@@ -106,7 +113,7 @@ export default function Login() {
                   id="login-password"
                   name="password"
                   type={state.passwordVisible ? "text" : "password"}
-                  autoComplete={demoMode ? "off" : "current-password"}
+                  autoComplete="current-password"
                   placeholder="Enter your password"
                   required
                   minLength={demoMode ? undefined : 4}

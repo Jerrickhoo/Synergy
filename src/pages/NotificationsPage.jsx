@@ -121,7 +121,10 @@ export default function NotificationsPage() {
     setFilter(value);
   };
   const now = useUpdateClock();
-  const items = (state.notifications || []).filter((item) => !item.muted);
+  // Updates shows what others did and what needs you. Your own actions stay
+  // in Home's recent activity.
+  const others = (state.notifications || []).filter((item) => !item.self);
+  const items = others.filter((item) => !item.muted);
   const unread = items.filter((item) => !item.read).length;
   const actions = items.filter(needsAction);
   const rest = items.filter((item) => !needsAction(item));
@@ -176,11 +179,7 @@ export default function NotificationsPage() {
           </div>
         </section>
       )}
-      <Digest
-        items={state.notifications || []}
-        prefs={state.notificationPreferences}
-        now={now}
-      />
+      <Digest items={others} prefs={state.notificationPreferences} now={now} />
       <div className="updates-toolbar">
         <div className="update-filters" role="group" aria-label="Update filter">
           <button

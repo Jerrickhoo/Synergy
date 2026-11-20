@@ -173,7 +173,7 @@ for (const initiator of ["founder", "mentor"]) {
         })
         .click();
       await expect(
-        inbox.getByRole("heading", { name: "Mentorship Room", exact: true }),
+        inbox.getByRole("heading", { name: "Mentorship room", exact: true }),
       ).toBeVisible();
       await expect(
         inbox.getByRole("tab", { name: "Terms", exact: true }),

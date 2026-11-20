@@ -144,7 +144,8 @@ test("the profile assistant reads the §4 description and asks about ambiguity",
     "We're a 4-person team building a budgeting app for students, about 8 months in, and we're looking for people to actually try it out and tell us what's broken.",
   );
   assert.deepEqual(maria.needs.sort(), ["Beta Testers", "Product Feedback"]);
-  assert.ok(maria.offers.includes("Technical Development"));
+  // Being a team that builds something is not an offer until it is stated.
+  assert.deepEqual(maria.offers, []);
   assert.equal(maria.teamSize, "4");
   assert.equal(maria.stage, "pre-seed");
   assert.equal(maria.industry, "FinTech");

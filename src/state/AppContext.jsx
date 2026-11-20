@@ -15,6 +15,7 @@ import { transition } from "./transitions.js";
 import { applyRoute, parseRoute, routeHash } from "./routes.js";
 import { fetchWithDeadline } from "./request.js";
 import { decode } from "./serialization.js";
+import { validateCredentials } from "./validation.js";
 import { paymentActionNames } from "../data/pricing.js";
 import {
   errorTitle,
@@ -74,10 +75,13 @@ const dataKeys = [
   "paymentCheckout",
   "paymentCheckoutData",
   "paymentModeration",
+  "firstRunChoice",
+  "matchAlerts",
 ];
 const remoteActions = new Set([
   ...paymentActionNames,
   "choose-role",
+  "first-run-choice",
   "mentor-onboarding-save",
   "mentor-onboarding-back",
   "approve-mentor",
@@ -95,6 +99,7 @@ const remoteActions = new Set([
   "send-request",
   "accept-request",
   "confirm-goal",
+  "simulate-goal-confirmation",
   "confirm-check-in-time",
   "report-attendance",
   "reschedule-session",
@@ -672,9 +677,36 @@ export function AppProvider({ children }) {
       pending.current = true;
       dispatch({ action: "request-status", busy: true });
       try {
-        acceptSession(await request("demo", { role: payload.roleChoice }));
+        const email = String(payload.email || "").trim();
+        const errors = validateCredentials({
+          email,
+          password: payload.password || "",
+        });
+        // Preview passwords may be short; only the format rules apply here.
+        if (errors.password && payload.password) delete errors.password;
+        if (Object.keys(errors).length) {
+          dispatch({
+            action: "request-error",
+            scope: "login-form",
+            fields: errors,
+            message: "Check your sign-in details.",
+          });
+          return;
+        }
+        acceptSession(
+          await request("demo", {
+            role: payload.roleChoice,
+            email,
+            password: payload.password,
+          }),
+        );
       } catch (error) {
-        dispatch({ action: "request-error", message: error.message });
+        dispatch({
+          action: "request-error",
+          scope: "login-form",
+          fields: error.fields,
+          message: error.message,
+        });
       } finally {
         pending.current = false;
         dispatch({ action: "request-status", busy: false });

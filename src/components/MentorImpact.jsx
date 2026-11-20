@@ -5,8 +5,10 @@ const percent = (value) => `${Math.round(value * 100)}%`;
 const hours = (value) => `${Number(value.toFixed(1))} h`;
 const rating = (value) => `${value.toFixed(1)}/5`;
 
-function Metric({ data, label, format = String, min }) {
-  const visible = data?.value != null && data.count >= min;
+const hasData = (data, min) => data?.value != null && data.count >= min;
+function Metric({ data, label, format = String, min, hideEmpty = false }) {
+  const visible = hasData(data, min);
+  if (hideEmpty && !visible) return null;
   return (
     <div>
       <dt>{label}</dt>
@@ -72,43 +74,85 @@ export function FounderTrackRecord({ trackRecord, own = false }) {
   );
 }
 
-export default function MentorImpact({ trust, privateView = false }) {
+// Public profiles hide tiles without enough data (and the "New Mentor" badge,
+// which the trust line already states); the mentor's own view shows them all.
+export default function MentorImpact({
+  trust,
+  privateView = false,
+  hideEmpty = false,
+}) {
   const { state } = useApp();
   const min = state.mentorConfig?.minDataPoints || mentorConfig.minDataPoints;
   if (!trust) return null;
+  const badges = hideEmpty
+    ? (trust.badges || []).filter((badge) => badge !== "New Mentor")
+    : trust.badges;
+  const metrics = [
+    trust.sessions,
+    trust.founders,
+    trust.averageRating,
+    trust.topSkills,
+    trust.followThrough,
+    trust.responseRate,
+    trust.responseHours,
+  ];
+  if (
+    hideEmpty &&
+    !metrics.some((data) => hasData(data, min)) &&
+    !badges?.length &&
+    !trust.reliable &&
+    !trust.testimonials?.length &&
+    !trust.highlights?.length
+  )
+    return null;
   return (
     <section className="card panel section-gap">
       <h2>Mentoring impact</h2>
-      <MentorshipBadges badges={trust.badges} reliable={trust.reliable} />
+      <MentorshipBadges badges={badges} reliable={trust.reliable} />
       <dl className="impact-stats">
-        <Metric label="Sessions held" data={trust.sessions} min={min} />
-        <Metric label="Founders helped" data={trust.founders} min={min} />
+        <Metric
+          label="Sessions held"
+          hideEmpty={hideEmpty}
+          data={trust.sessions}
+          min={min}
+        />
+        <Metric
+          label="Founders helped"
+          hideEmpty={hideEmpty}
+          data={trust.founders}
+          min={min}
+        />
         <Metric
           label="Average rating"
+          hideEmpty={hideEmpty}
           data={trust.averageRating}
           format={rating}
           min={min}
         />
         <Metric
           label="Top-rated skills"
+          hideEmpty={hideEmpty}
           data={trust.topSkills}
           format={(items) => items.join(", ") || "No topics recorded"}
           min={min}
         />
         <Metric
           label="Follow-through rate"
+          hideEmpty={hideEmpty}
           data={trust.followThrough}
           format={percent}
           min={min}
         />
         <Metric
           label="Request response rate"
+          hideEmpty={hideEmpty}
           data={trust.responseRate}
           format={percent}
           min={min}
         />
         <Metric
           label="Median response time"
+          hideEmpty={hideEmpty}
           data={trust.responseHours}
           format={hours}
           min={min}

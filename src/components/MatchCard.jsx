@@ -34,7 +34,10 @@ export default function MatchCard({ person, large = false }) {
   const mentor = person.kind === "Mentor";
   const youGet = person.exchange?.youGet || [];
   const theyGet = person.exchange?.theyGet || [];
-  // Fall back to the profile's own words when no shared tags were found.
+  // Fall back to the profile's own words when no shared tags were found. The
+  // labels then describe that profile, not an exchange with you.
+  const fallbackGets = !youGet.length;
+  const fallbackGives = !theyGet.length;
   const gets = youGet.length
     ? youGet
     : (mentoring ? person.need : person.offer)?.slice(0, 2) || [];
@@ -124,7 +127,13 @@ export default function MatchCard({ person, large = false }) {
         <dl className="preview-exchange">
           {gets.length > 0 && (
             <div>
-              <dt>{mentoring ? "Needs guidance with" : "You get"}</dt>
+              <dt>
+                {mentoring
+                  ? "Needs guidance with"
+                  : fallbackGets
+                    ? "They offer"
+                    : "You get"}
+              </dt>
               <dd>
                 <Tags values={gets} color="green" />
               </dd>
@@ -132,7 +141,13 @@ export default function MatchCard({ person, large = false }) {
           )}
           {gives.length > 0 && (
             <div>
-              <dt>{mentoring ? "They offer" : "They get"}</dt>
+              <dt>
+                {mentoring
+                  ? "They offer"
+                  : fallbackGives
+                    ? "They’re looking for"
+                    : "They get"}
+              </dt>
               <dd>
                 <Tags values={gives} />
               </dd>
@@ -165,7 +180,7 @@ export default function MatchCard({ person, large = false }) {
         <p className="preview-connection">
           <Icon name={incoming ? "inbox" : "check"} />
           {existingRoom?.type === "mentorship"
-            ? "You have a Mentorship Room together"
+            ? "You have a mentorship room together"
             : connection}
         </p>
       )}

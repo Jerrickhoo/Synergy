@@ -319,23 +319,51 @@
   text-transform: capitalize;
 }
 
+/* D8: mentorship stages read as progress, not as buttons: filled with a check
+   when done, an accent ring when current, a neutral ring when still ahead. */
 .mentor-stage-line {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2, 0.5rem);
-  list-style: none;
+  gap: var(--space-2) var(--space-5);
+  margin: var(--space-4) 0;
   padding: 0;
+  list-style: none;
 }
-
 .mentor-stage-line li {
-  padding: 0.4rem 0.65rem;
-  border-radius: var(--radius-sm, 0.5rem);
-  border: 1px solid var(--line);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: var(--font-caption);
 }
-
-.mentor-stage-line [aria-current="step"] {
-  font-weight: 700;
-  border-color: currentColor;
+.mentor-stage-mark {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: var(--space-5);
+  height: var(--space-5);
+  border: 2px solid var(--control-border);
+  border-radius: var(--radius-full);
+  color: var(--on-accent);
+}
+.mentor-stage-mark svg {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+.mentor-stage-line li.done {
+  color: var(--ink);
+}
+.mentor-stage-line li.done .mentor-stage-mark {
+  border-color: var(--accent-solid);
+  background: var(--accent-solid);
+}
+.mentor-stage-line li.current .mentor-stage-mark {
+  border-color: var(--accent-solid);
+  background: var(--green-soft);
+}
+.mentor-stage-line li.current {
+  color: var(--green-dark);
+  font-weight: 600;
 }
 
 .mentor-session {

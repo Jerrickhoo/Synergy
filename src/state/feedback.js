@@ -3,6 +3,8 @@ const formTitles = {
   "signup-form": "Couldn't create your account",
   "profile-form": "Couldn't save your profile",
   schedule: "Couldn't schedule your session",
+  "send-request": "Couldn't send your request",
+  "chat-form": "Couldn't send your message",
 };
 
 export const connectionMessage =
@@ -64,13 +66,21 @@ export function formValidation(form) {
           input.dataset.validationLabel ||
           "This field";
         const validity = input.validity;
-        const message = validity.valueMissing
-          ? `${label} is required.`
-          : validity.typeMismatch && input.type === "email"
-            ? "Enter a valid email address, like you@example.com."
-            : validity.tooShort
-              ? `Use at least ${input.minLength} characters for ${label.toLowerCase()}.`
-              : input.validationMessage;
+        // A field can name its own requirement, e.g. "Add at least 20 characters."
+        const custom =
+          input.dataset.validationMessage &&
+          (validity.valueMissing || validity.tooShort)
+            ? input.dataset.validationMessage
+            : "";
+        const message = custom
+          ? custom
+          : validity.valueMissing
+            ? `${label} is required.`
+            : validity.typeMismatch && input.type === "email"
+              ? "Enter a valid email address, like you@example.com."
+              : validity.tooShort
+                ? `Use at least ${input.minLength} characters for ${label.toLowerCase()}.`
+                : input.validationMessage;
         return [fieldName(input), message];
       }),
   );

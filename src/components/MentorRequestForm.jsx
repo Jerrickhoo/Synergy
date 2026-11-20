@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
+import { useDraft } from "../state/useDraft.js";
 import { priceLabel } from "../data/pricing.js";
 import { mentorFormat } from "../data/mentor-formats.js";
 import { unavailableText } from "../data/mentor-rules.js";
@@ -45,17 +45,29 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
   const formats = (person.availableFormats || []).filter(
     (id) => id !== "office-hours",
   );
-  const [draft, setDraft] = useState(() => ({
-    problem: referral?.problem || "",
-    tried: referral?.tried || "",
-    question: referral?.question || "",
-    desiredOutcome: referral?.desiredOutcome || "",
-    format: formats.includes(referral?.format)
-      ? referral.format
-      : formats[0] || "",
-    sharpenedFrom: null,
-  }));
-  const [linksText, setLinksText] = useState(referral?.links?.join("\n") || "");
+  // A half-written request survives a refresh in this tab. It is kept per
+  // account, role and mentor, and cleared once the request is sent.
+  const saved = useDraft(
+    `${state.accountId}:mentor-request:${state.role}:${person.id}`,
+    {
+      problem: referral?.problem || "",
+      tried: referral?.tried || "",
+      question: referral?.question || "",
+      desiredOutcome: referral?.desiredOutcome || "",
+      format: formats.includes(referral?.format)
+        ? referral.format
+        : formats[0] || "",
+      sharpenedFrom: null,
+      linksText: referral?.links?.join("\n") || "",
+    },
+  );
+  const { linksText, ...draft } = saved.values;
+  if (!formats.includes(draft.format)) draft.format = formats[0] || "";
+  const setDraft = (update) => {
+    const next = typeof update === "function" ? update(saved.values) : update;
+    saved.update({ ...saved.values, ...next });
+  };
+  const setLinksText = (value) => setDraft({ linksText: value });
   const links = linksText.split(/\s+/).filter(Boolean);
   const assistant = requestSuggestions({ ...draft, links }, formats);
   const pending = state.mentorRequests?.find(
@@ -116,31 +128,56 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
       <MentorAlternatives alternatives={actionError?.alternatives} />
       <form
         className="mentor-request-form"
-        onSubmit={(event) =>
-          onAction(
-            {
-              action: "send-request",
-              id: person.id,
-              values: { ...draft, links, referralId: referral?.id },
-            },
-            event,
-          )
-        }
+        data-form="send-request"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          // Spaces alone pass the browser's checks; name the fields instead.
+          const short = Object.fromEntries(
+            Object.keys(requestFields)
+              .filter((key) => draft[key].trim().length < 20)
+              .map((key) => [key, "Add at least 20 characters."]),
+          );
+          if (Object.keys(short).length) {
+            onAction({
+              action: "request-error",
+              scope: "send-request",
+              fields: short,
+              message: "Review the highlighted details and try again.",
+            });
+            document
+              .getElementById(`mentor-request-${Object.keys(short)[0]}`)
+              ?.focus();
+            return;
+          }
+          const sent = await onAction({
+            action: "send-request",
+            id: person.id,
+            values: { ...draft, links, referralId: referral?.id },
+          });
+          if (sent) saved.clear();
+        }}
       >
         {Object.entries(requestFields).map(([key, label]) => (
           <div className="field" key={key}>
             <label htmlFor={`mentor-request-${key}`}>{label}</label>
             <textarea
               id={`mentor-request-${key}`}
+              name={key}
               required
               minLength={20}
               maxLength={1000}
+              data-validation-message="Add at least 20 characters."
               aria-invalid={Boolean(errors?.[key])}
               aria-describedby={`mentor-request-${key}-help`}
               value={draft[key]}
               onChange={(event) => change(key, event.target.value)}
             />
-            <p id={`mentor-request-${key}-help`} className="field-help">
+            <p
+              id={`mentor-request-${key}-help`}
+              className={
+                errors?.[key] ? "field-help field-error" : "field-help"
+              }
+            >
               {errors?.[key] || "20 to 1,000 characters"}
             </p>
           </div>
@@ -151,6 +188,7 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
           </label>
           <textarea
             id="mentor-request-outcome"
+            name="desiredOutcome"
             maxLength={1000}
             value={draft.desiredOutcome}
             aria-invalid={Boolean(errors?.desiredOutcome)}
@@ -166,6 +204,7 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
           </label>
           <select
             id="mentor-request-format"
+            name="format"
             value={draft.format}
             onChange={(event) => change("format", event.target.value)}
             required
@@ -195,6 +234,7 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
           <label htmlFor="mentor-request-links">Links (optional)</label>
           <textarea
             id="mentor-request-links"
+            name="links"
             rows={2}
             value={linksText}
             aria-describedby="mentor-request-links-help"

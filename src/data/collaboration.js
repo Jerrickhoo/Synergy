@@ -113,6 +113,24 @@ export function canonicalTags(text, vocabulary = defaultVocabulary) {
   );
 }
 export const suggestTags = canonicalTags;
+// Whether a directory profile offers a need. Standard tags are compared when
+// the need maps to one; otherwise the founder's own wording is searched.
+export function offersNeed(person, need, vocabulary = defaultVocabulary) {
+  const wanted = canonicalTags(need, vocabulary);
+  const offered = [
+    ...(person?.offer || []),
+    person?.expertise || "",
+    person?.topics || "",
+  ].join(", ");
+  if (wanted.length)
+    return canonicalTags(offered, vocabulary).some((tag) =>
+      wanted.includes(tag),
+    );
+  const words = String(need || "")
+    .trim()
+    .toLowerCase();
+  return Boolean(words) && offered.toLowerCase().includes(words);
+}
 const reviewWindowMs = 14 * 86400000;
 export const reviewDeadline = (room, windowMs = reviewWindowMs) =>
   room?.launchedAt

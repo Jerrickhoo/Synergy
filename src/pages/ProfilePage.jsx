@@ -28,6 +28,17 @@ import CommunityRequests from "../components/CommunityRequests.jsx";
 import Icon from "../components/Icon.jsx";
 import ProfilePhoto from "../components/ProfilePhoto.jsx";
 import { normalizeProfile } from "../data/profile-content.js";
+import { validateProfile } from "../state/validation.js";
+
+// After a successful save, return to the top of the profile so the result is
+// visible. Reduced-motion users jump instead of scrolling.
+function returnToTop() {
+  requestAnimationFrame(() => {
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: reduce ? "instant" : "smooth" });
+    document.querySelector("#content h1")?.focus({ preventScroll: true });
+  });
+}
 
 export default function ProfilePage() {
   const { state } = useApp();
@@ -162,8 +173,17 @@ function ProfileChecklist({ items }) {
                 onClick={() => focusField(item.target)}
               >
                 <span className="profile-checklist-mark" aria-hidden="true" />
-                {item.label}
-                <span className="visually-hidden">, still to add</span>
+                <span className="profile-checklist-label">
+                  {item.label}
+                  {item.error && (
+                    <small className="profile-checklist-error">
+                      {item.error}
+                    </small>
+                  )}
+                </span>
+                <span className="visually-hidden">
+                  {item.error ? ", needs a valid value" : ", still to add"}
+                </span>
                 <Icon name="arrow" />
               </button>
             )}
@@ -200,6 +220,9 @@ function ProfileContent() {
   const [photoReading, setPhotoReading] = useState(false);
   // Remounts the uncontrolled fields after the assistant fills the draft.
   const [formKey, setFormKey] = useState(0);
+  // The assistant's text and result note survive that remount.
+  const [assistantText, setAssistantText] = useState("");
+  const [assistantNote, setAssistantNote] = useState("");
   const founder = state.role === "founder";
   const savedProfile = normalizeProfile(state.profiles[state.role]);
   const draft = useDraft(`${state.accountId}:profile:${state.role}`, {
@@ -212,14 +235,21 @@ function ProfileContent() {
   const missing = profileKeys(state.role).filter(
     (key) => !String(savedProfile[key] || "").trim(),
   );
+  // The checklist uses the same validator as Save, so an invalid value such
+  // as a negative team size is never ticked.
+  const draftErrors = validateProfile(draft.values, state.role);
   const checklist = requiredFields
     .filter(([key]) => profileKeys(state.role).includes(key))
-    .map(([key, label, target]) => ({
-      key,
-      label,
-      target,
-      done: Boolean(String(draft.values[key] || "").trim()),
-    }));
+    .map(([key, label, target]) => {
+      const filled = Boolean(String(draft.values[key] || "").trim());
+      return {
+        key,
+        label,
+        target,
+        done: filled && !draftErrors[key],
+        error: filled ? draftErrors[key] : "",
+      };
+    });
   const optionalAdded = [
     "goals",
     "engagementPreference",
@@ -334,7 +364,11 @@ function ProfileContent() {
             const success = await onSubmit(event, {
               image: draft.values.image || "",
             });
-            if (success) draft.clear();
+            if (success) {
+              draft.clear();
+              setAssistantNote("");
+              returnToTop();
+            }
           }}
         >
           <div className="profile-edit-main">
@@ -342,8 +376,12 @@ function ProfileContent() {
             {founder && (
               <ProfileAssistant
                 values={draft.values}
-                onApply={(applied) => {
+                text={assistantText}
+                onTextChange={setAssistantText}
+                note={assistantNote}
+                onApply={(applied, note) => {
                   draft.update({ ...draft.values, ...applied });
+                  setAssistantNote(note);
                   setFormKey((key) => key + 1);
                 }}
               />

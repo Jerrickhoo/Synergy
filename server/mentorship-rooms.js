@@ -32,6 +32,7 @@ import {
 
 export const mentorshipActions = new Set([
   "confirm-goal",
+  "simulate-goal-confirmation",
   "confirm-check-in-time",
   "report-attendance",
   "reschedule-session",
@@ -87,6 +88,7 @@ function preserveSessions(room) {
 
 export function createMentorshipRooms({
   accounts,
+  canSimulatePartner = () => false,
   config,
   now,
   capacity,
@@ -108,6 +110,19 @@ export function createMentorshipRooms({
     room.role === "founder"
       ? { ...account, state }
       : accounts()[room.partnerAccountId];
+
+  // The one confirm-goal rule, shared by the mentor's action and the
+  // prototype simulation.
+  function confirmGoal(room, proposed) {
+    const field = goalMilestone(room);
+    if (!room.milestones[field] || room.milestones[field].me)
+      fail("The goal is already confirmed.");
+    const goal = proposed || room.terms.draft.goal;
+    if (!goal) fail("Add a goal to confirm.");
+    room.terms.draft.goal = goal;
+    if (room.cycle) room.cycle.goals = goal;
+    setMentorMilestone(room, field);
+  }
 
   function startReview(room, at = stamp()) {
     if (room.mentorship.reviewOpenedAt) return;
@@ -476,17 +491,26 @@ export function createMentorshipRooms({
     let tab = "overview";
     if (command === "confirm-goal") {
       requireRole("mentor");
-      const field = goalMilestone(room);
-      need(
-        room.milestones[field] && !room.milestones[field].me,
-        "The goal is already confirmed.",
-      );
-      const goal = text(values, "goal", 1000) || room.terms.draft.goal;
-      need(goal, "Add a goal to confirm.");
-      room.terms.draft.goal = goal;
-      if (room.cycle) room.cycle.goals = goal;
-      setMentorMilestone(room, field);
+      confirmGoal(room, text(values, "goal", 1000));
       message = "Mentorship goal confirmed.";
+    } else if (command === "simulate-goal-confirmation") {
+      // Prototype only: the fictional mentor confirms the goal the founder
+      // already sent, through the same rule as a real confirmation.
+      requireRole("founder");
+      need(
+        canSimulatePartner(account, room),
+        "Goal confirmation can be simulated only with a fictional prototype mentor.",
+        403,
+      );
+      confirmGoal(room, "");
+      const mentorName = mentor?.state.accountName || "The mentor";
+      message = `${mentorName} confirmed the mentorship goal.`;
+      // The founder sees this as the mentor's update; the fixture gets none.
+      event({ state }, room.role, message, room.id, { kind, tab });
+      room.updatedAt = stamp();
+      state.toast = message;
+      mirror(account, state, room, "", { kind, tab });
+      return;
     } else if (command === "schedule") {
       need(
         format === "single-session",

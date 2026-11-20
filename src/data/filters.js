@@ -5,6 +5,10 @@ export function validMinimumFit(value) {
   );
 }
 export function filterPeople(people, filters) {
+  // Surrounding spaces are ignored; a search of only spaces is no filter.
+  const search = String(filters.search || "")
+    .trim()
+    .toLowerCase();
   return people.filter((person) => {
     const haystack = [
       person.name,
@@ -20,7 +24,7 @@ export function filterPeople(people, filters) {
       .join(" ")
       .toLowerCase();
     return (
-      haystack.includes(filters.search.toLowerCase()) &&
+      (!search || haystack.includes(search)) &&
       (filters.type === "all" || person.kind === filters.type) &&
       (filters.industry === "all" ||
         person.sector.toLowerCase().includes(filters.industry.toLowerCase())) &&
@@ -43,9 +47,11 @@ export function filterPeople(people, filters) {
 const mentorPageLabels = {
   waiting: "Requests",
   rooms: "Mentees",
-  "room-detail": "Mentorship Room",
+  "room-detail": "Mentorship room",
 };
-export const pageLabel = (page, role) =>
+// A mentorship room is always a "Mentorship room", whichever role opens it.
+export const pageLabel = (page, role, roomType) =>
+  (page === "room-detail" && roomType === "mentorship" && "Mentorship room") ||
   (role === "mentor" && mentorPageLabels[page]) ||
   {
     settings: "Account settings",

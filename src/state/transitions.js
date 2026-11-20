@@ -497,6 +497,14 @@ export function transition(state, payload) {
     state.page = "profile";
     state.profileEditing = true;
     state.moreOpen = false;
+  } else if (action === "start-profile-setup") {
+    // First run: open Edit profile with the description box ready to type in.
+    state.formErrors = null;
+    state.page = "profile";
+    state.profileEditing = true;
+    state.assistantFocus = true;
+  } else if (action === "assistant-focused") {
+    state.assistantFocus = false;
   } else if (action === "cancel-profile-edit") {
     state.profileEditing = false;
   } else if (action === "clear-filters") {

@@ -8,6 +8,7 @@ export default function ReportCollaborator({
   initialOpen = false,
   messageId,
   compact = false,
+  quiet = false,
   onClose,
 }) {
   const { state, onSubmit, onAction } = useApp();
@@ -27,7 +28,7 @@ export default function ReportCollaborator({
     <>
       {!initialOpen && (
         <button
-          className={compact ? "link-btn" : "btn full"}
+          className={compact ? "link-btn" : quiet ? "btn" : "btn full"}
           onClick={() => {
             onAction({ action: "clear-form-errors", scope: "report-form" });
             setError("");

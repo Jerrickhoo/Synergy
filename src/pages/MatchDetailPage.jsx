@@ -155,7 +155,9 @@ function MatchDetail() {
           <p className="identity-summary preserve-lines">
             {person.summary || "An introduction has not been added yet."}
           </p>
-          <MentorshipBadges badges={person.badges} />
+          <MentorshipBadges
+            badges={person.badges?.filter((badge) => badge !== "New Mentor")}
+          />
           <div className="identity-metadata">
             {person.affiliation && (
               <span className="badge-verified">
@@ -250,7 +252,7 @@ function MatchDetail() {
               <h2>
                 {existingRoom
                   ? existingRoom.type === "mentorship"
-                    ? "Continue in your Mentorship Room"
+                    ? "Continue in your mentorship room"
                     : "Continue in your Deal Room"
                   : incoming
                     ? `${person.name} wants to work with you`
@@ -263,7 +265,7 @@ function MatchDetail() {
               <p>
                 {existingRoom
                   ? existingRoom.type === "mentorship"
-                    ? "Open your Mentorship Room to pick up where you left off."
+                    ? "Open your mentorship room to pick up where you left off."
                     : "Your shared Deal Room has the agreed terms and next steps."
                   : incoming
                     ? `Accepting opens a Deal Room where you agree terms together. Nothing is committed until you both accept the terms.`
@@ -400,7 +402,7 @@ function MatchDetail() {
               >
                 {existingRoom
                   ? existingRoom.type === "mentorship"
-                    ? "Open Mentorship Room"
+                    ? "Open room"
                     : "Open Deal Room"
                   : verificationRequired(state)
                     ? "Verify to send introductions"
@@ -581,7 +583,7 @@ function MatchDetail() {
             <TrustSummary person={person} detailed />
             {person.mentorImpact && <FormatPrices person={person} />}
             {person.mentorImpact && (
-              <MentorImpact trust={person.mentorImpact} />
+              <MentorImpact trust={person.mentorImpact} hideEmpty />
             )}
           </section>
         </div>

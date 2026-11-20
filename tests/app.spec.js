@@ -214,7 +214,10 @@ test("fresh workspace has one setup action and no sample records", async ({
   ).toBeVisible();
   await navigate(page, "Profile");
   await expect(
-    page.getByRole("progressbar", { name: "Profile complete", exact: true }),
+    page.getByRole("progressbar", {
+      name: "Required profile details",
+      exact: true,
+    }),
   ).toHaveAttribute("aria-valuenow", "0");
   await expect(
     page
@@ -258,7 +261,10 @@ test("blank profile fields, validation, saving and cancel work with user details
     .fill("Building a tool to help local communities.");
   await page.getByRole("button", { name: "Save profile", exact: true }).click();
   await expect(
-    page.getByRole("progressbar", { name: "Profile complete", exact: true }),
+    page.getByRole("progressbar", {
+      name: "Required profile details",
+      exact: true,
+    }),
   ).toHaveAttribute("aria-valuenow", "100");
   await expect(page.locator(".toast-success")).toContainText(
     "Your profile has been updated.",
@@ -309,7 +315,10 @@ test("custom profile selects retain native required validation and failed-save d
   await selectValue(stage, "idea");
   await page.getByRole("button", { name: "Save profile", exact: true }).click();
   await expect(
-    page.getByRole("progressbar", { name: "Profile complete", exact: true }),
+    page.getByRole("progressbar", {
+      name: "Required profile details",
+      exact: true,
+    }),
   ).toHaveAttribute("aria-valuenow", "100");
   await page.getByRole("button", { name: "Edit profile", exact: true }).click();
   await selectValue(stage, "growth");

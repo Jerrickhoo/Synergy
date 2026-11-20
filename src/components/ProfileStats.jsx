@@ -1,11 +1,21 @@
 import { useApp } from "../state/AppContext.jsx";
 import { profileCompleteness } from "../data/selectors.js";
+// Optional details are listed separately so 100% never implies they are done.
+const optionalDetails = (profile, role) =>
+  [
+    ["goals", "Collaboration goals"],
+    ["engagementPreference", "Engagement preference"],
+    role === "founder" && ["audienceSize", "Audience size"],
+  ]
+    .filter(Boolean)
+    .filter(([key]) => !String(profile[key] || "").trim())
+    .map(([, label]) => label);
+
 export default function ProfileStats() {
   const { state } = useApp();
-  const completeness = profileCompleteness(
-    state.profiles[state.role],
-    state.role,
-  );
+  const profile = state.profiles[state.role];
+  const completeness = profileCompleteness(profile, state.role);
+  const optional = optionalDetails(profile, state.role);
   const history = state.trustHistoryByRole[state.role];
   const average = state.trustSummary
     ? (state.trustSummary.averageRating ?? "—")
@@ -32,7 +42,7 @@ export default function ProfileStats() {
         <div
           className="profile-completion-ring"
           role="progressbar"
-          aria-label="Profile complete"
+          aria-label="Required profile details"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={completeness}
@@ -40,7 +50,12 @@ export default function ProfileStats() {
         >
           <strong aria-hidden="true">{completeness}%</strong>
         </div>
-        <span aria-hidden="true">Profile complete</span>
+        <span aria-hidden="true">Required details</span>
+        {optional.length > 0 && (
+          <span className="profile-optional-left">
+            Optional, not added: {optional.join(", ")}
+          </span>
+        )}
       </div>
     </div>
   );
