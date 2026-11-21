@@ -124,10 +124,39 @@ export function launchBlockers(room) {
   return reasons;
 }
 
-export function scheduleLabel(schedule) {
-  return schedule
-    ? `${schedule.date} · ${schedule.time} (${schedule.timeZone})`
-    : "Not scheduled";
+const viewerZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+// The one session-time format: viewer locale, weekday, date and time in the
+// viewer's zone ("Wed, Nov 25 · 10:00 AM"). The zone is named only when the
+// session was set in another zone, or when `showZone` asks for it. Accepts a
+// stored schedule ({ date, time, timeZone }), a Date or an ISO string.
+export function scheduleLabel(
+  schedule,
+  { zone = viewerZone(), timeOnly = false, showZone = false } = {},
+) {
+  if (!schedule) return "Not scheduled";
+  const instant =
+    schedule instanceof Date || typeof schedule === "string"
+      ? new Date(schedule)
+      : schedule.date
+        ? scheduleInstant(schedule)
+        : new Date(schedule.startsAt);
+  if (Number.isNaN(instant.getTime())) return "Not scheduled";
+  const named =
+    showZone || Boolean(schedule.timeZone && schedule.timeZone !== zone);
+  const time = instant.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: zone,
+    ...(named && { timeZoneName: "short" }),
+  });
+  if (timeOnly) return time;
+  const date = instant.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: zone,
+  });
+  return `${date} · ${time}`;
 }
 
 export function upcomingSessions(state, now = new Date()) {

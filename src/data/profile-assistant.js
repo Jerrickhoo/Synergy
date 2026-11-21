@@ -13,6 +13,14 @@ export const sampleFounderProfile = Object.freeze({
 });
 export const sampleFounderName = "Maria Santos";
 
+// Maria's illustrated photo belongs to the sample persona: a founder who
+// renames the profile gets their own initials avatar instead.
+export const withoutSampleImage = (name, image = "") =>
+  image === sampleFounderProfile.image &&
+  String(name ?? "").trim() !== sampleFounderName
+    ? ""
+    : image;
+
 // A suggestion replaces a field that is empty or still holds the sample value.
 export const replaceable = (key, current) => {
   const value = String(current ?? "").trim();
@@ -74,6 +82,14 @@ const items = (phrase) =>
     .split(/,\s*|\s+(?:and|or|plus)\s+/i)
     .map((part) => part.trim())
     .filter(Boolean);
+// "pricing strategy and customer retention" → "Pricing strategy, Customer retention".
+const sentenceCase = (item) => item.charAt(0).toUpperCase() + item.slice(1);
+const listed = (phrases) =>
+  [...new Set(phrases.flatMap(items).map(sentenceCase))].join(", ");
+// "Shiftly is …", "BarLabs builds …": a capitalised name that opens the text.
+const startupNamePattern =
+  /^([A-Z][\w&'.-]*(?:\s+[A-Z][\w&'.-]*){0,2})\s+(?:is|builds|helps|makes|creates)\b/;
+const notNames = new Set(["We", "Our", "I", "It", "This", "The", "My", "That"]);
 const tidy = (phrase) =>
   phrase
     .replace(/^[\s,:]+|[.\s]+$/g, "")
@@ -133,7 +149,9 @@ export function analyzeDescription(text, vocabulary = defaultVocabulary) {
     }
   }
   for (const tag of needs) offers.delete(tag);
-  const needText = needPhrases.join(", ");
+  const needText = listed(needPhrases);
+  const named = source.match(startupNamePattern)?.[1] || "";
+  const startupName = notNames.has(named.split(" ")[0]) ? "" : named;
   const team =
     lower.match(/\b(\d{1,4})[- ]person\b/) ||
     lower.match(/team of (\d{1,4})/) ||
@@ -142,18 +160,21 @@ export function analyzeDescription(text, vocabulary = defaultVocabulary) {
   const audience = lower.match(
     /\b(\d[\d,]{1,9})\s+(active\s+)?(student\s+)?(users|subscribers|readers|members|customers)\b/,
   );
+  // "pre-seed" contains "seed", so it is checked first.
   const stage = /\bgrowth stage|series [abc]\b/.test(lower)
     ? "growth"
-    : /\bseed round|raised (a )?seed|\bseed\b/.test(lower)
-      ? "seed"
-      : /\bidea\b|just an idea|not built yet/.test(lower)
-        ? "idea"
-        : months || /\bmvp\b|prototype|beta/.test(lower)
-          ? "pre-seed"
-          : "";
+    : /\bpre[- ]?seed\b/.test(lower)
+      ? "pre-seed"
+      : /\bseed round|raised (a )?seed|\bseed\b/.test(lower)
+        ? "seed"
+        : /\bidea\b|just an idea|not built yet/.test(lower)
+          ? "idea"
+          : months || /\bmvp\b|prototype|beta/.test(lower)
+            ? "pre-seed"
+            : "";
   const industry = industries.find(([, pattern]) => pattern.test(lower))?.[0];
   // Clarifying questions are about the help the founder asked for.
-  const asked = needText.toLowerCase();
+  const asked = needPhrases.join(", ").toLowerCase();
   const questions = ambiguities
     .filter((item) => item.pattern.test(asked))
     .filter((item) => !item.options.every((option) => needs.has(option)))
@@ -171,7 +192,8 @@ export function analyzeDescription(text, vocabulary = defaultVocabulary) {
     needs: [...needs],
     offers: [...offers],
     needText,
-    offerText: offerPhrases.join(", "),
+    offerText: listed(offerPhrases),
+    startupName,
     teamSize: team ? team[1] : "",
     stage,
     industry: industry || "",

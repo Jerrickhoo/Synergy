@@ -4,12 +4,14 @@ import PageHeader from "../components/PageHeader.jsx";
 import NotificationRow, {
   useUpdateClock,
 } from "../components/NotificationRow.jsx";
-import { groupNotifications, needsAction } from "../data/notifications.js";
+import {
+  digestContent,
+  groupNotifications,
+  needsAction,
+} from "../data/notifications.js";
 import Icon from "../components/Icon.jsx";
 import Avatar from "../components/Avatar.jsx";
 import { matchReason } from "../data/profile-presentation.js";
-
-const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
 function digestPeriod(daily, now) {
   if (daily) return "Last 24 hours";
@@ -22,25 +24,18 @@ function digestPeriod(daily, now) {
 }
 
 function Digest({ items, prefs, now }) {
-  const { onAction, model } = useApp();
+  const { state, onAction, model } = useApp();
   if (!prefs || prefs.digest === "off") return null;
   const daily = prefs.digest === "daily";
   const span = daily ? 86400000 : 7 * 86400000;
-  const recent = items.filter(
-    (item) => item.digested && now - Date.parse(item.timestamp) <= span,
-  );
-  const people = model.rolePeople();
-  const seen = new Set();
-  const matches = recent
-    .filter((item) => item.kind === "match")
-    .map((item) => people.find((person) => person.id === item.matchId))
-    .filter((person) => person && !seen.has(person.id) && seen.add(person.id))
-    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
-  const activity = recent.filter((item) => item.kind !== "match");
-  const summary = [
-    matches.length && plural(matches.length, "new match suggestion"),
-    activity.length && plural(activity.length, "collaboration update"),
-  ].filter(Boolean);
+  // Count what Updates lists for this period, so the summary matches the rows.
+  const { matches, summary } = digestContent(items, {
+    people: model.rolePeople(),
+    rooms: state.rooms,
+    role: state.role,
+    now,
+    span,
+  });
   return (
     <section className="digest-card" aria-labelledby="digest-title">
       <div className="digest-head">
@@ -48,7 +43,9 @@ function Digest({ items, prefs, now }) {
           <h2 id="digest-title">Your {daily ? "daily" : "weekly"} digest</h2>
           <p className="digest-summary">
             {summary.length
-              ? summary.join(" and ")
+              ? new Intl.ListFormat("en", { type: "conjunction" }).format(
+                  summary,
+                )
               : `Nothing new ${daily ? "today" : "this week"}`}
             <span className="digest-period"> · {digestPeriod(daily, now)}</span>
           </p>
@@ -104,7 +101,8 @@ function Digest({ items, prefs, now }) {
         </ol>
       )}
       <p className="digest-note">
-        Match suggestions and collaboration activity are bundled here.
+        The digest lists strong matches, match alerts and collaboration
+        activity. Matches shows every suggestion.
       </p>
     </section>
   );

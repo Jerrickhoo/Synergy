@@ -29,6 +29,7 @@ import Icon from "../components/Icon.jsx";
 import ProfilePhoto from "../components/ProfilePhoto.jsx";
 import { normalizeProfile } from "../data/profile-content.js";
 import { validateProfile } from "../state/validation.js";
+import { withoutSampleImage } from "../data/profile-assistant.js";
 
 // After a successful save, return to the top of the profile so the result is
 // visible. Reduced-motion users jump instead of scrolling.
@@ -121,6 +122,7 @@ function EditSection({ title, intro, disabled, children }) {
 }
 // Form order for the checklist; profileKeys decides which keys apply.
 const requiredFields = [
+  ["name", "Your name", "profile-name"],
   ["bio", "About me", "profile-bio"],
   ["industry", "Industry", "profile-industry"],
   ["stage", "Stage", "profile-stage"],
@@ -238,8 +240,9 @@ function ProfileContent() {
   // The checklist uses the same validator as Save, so an invalid value such
   // as a negative team size is never ticked.
   const draftErrors = validateProfile(draft.values, state.role);
+  // Your name is required by Save for every role, alongside the role's keys.
   const checklist = requiredFields
-    .filter(([key]) => profileKeys(state.role).includes(key))
+    .filter(([key]) => key === "name" || profileKeys(state.role).includes(key))
     .map(([key, label, target]) => {
       const filled = Boolean(String(draft.values[key] || "").trim());
       return {
@@ -362,7 +365,10 @@ function ProfileContent() {
             event.preventDefault();
             if (event.nativeEvent.submitter?.id !== "save-profile") return;
             const success = await onSubmit(event, {
-              image: draft.values.image || "",
+              image: withoutSampleImage(
+                draft.values.name ?? state.accountName,
+                draft.values.image || "",
+              ),
             });
             if (success) {
               draft.clear();

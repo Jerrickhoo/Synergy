@@ -63,10 +63,11 @@ test("A1: the same preview email and password return the same account", async (t
     again.state.profiles.founder.bio,
     "Shiftly schedules restaurant staff.",
   );
-  // The chosen role applies to the returning account.
+  // Another role needs confirmation first (round 2, C1), then applies.
   const asMentor = workspace.openDemo("mentor", {
     email: "FOUNDER@shiftly.io",
     password: "pw",
+    confirmRoleSwitch: true,
   });
   assert.equal(asMentor.state.accountId, first.state.accountId);
   assert.equal(asMentor.state.role, "mentor");
@@ -204,10 +205,10 @@ test("B3: offers come only from offer phrasing, and unmatched needs stay in the 
   assert.deepEqual(shiftly.offers, ["Product Feedback"]);
   assert.equal(
     shiftly.offerText,
-    "intros to restaurant operators and product feedback",
+    "Intros to restaurant operators, Product feedback",
   );
   assert.deepEqual(shiftly.needs, ["Pricing Strategy"]);
-  assert.match(shiftly.needText, /customer retention/);
+  assert.match(shiftly.needText, /Customer retention/);
   assert.deepEqual(shiftly.unmatched, ["customer retention"]);
   assert.equal(shiftly.stage, "seed");
   assert.equal(shiftly.teamSize, "6");

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Icon from "./Icon.jsx";
+import { scheduleLabel } from "../data/selectors.js";
 import {
   notificationKind,
   notificationDestination,
@@ -67,15 +68,7 @@ export default function NotificationRow({ item, now, compact = false }) {
                   day: "numeric",
                   month: "short",
                 })}`,
-              item.sessionAt &&
-                `Session ${new Date(item.sessionAt).toLocaleString(undefined, {
-                  weekday: "short",
-                  day: "numeric",
-                  month: "short",
-                  hour: "numeric",
-                  minute: "2-digit",
-                  timeZoneName: "short",
-                })}`,
+              item.sessionAt && `Session ${scheduleLabel(item.sessionAt)}`,
             ]
               .filter(Boolean)
               .join(" · ")}

@@ -28,7 +28,7 @@ export default function HomePage() {
       <Introductions compact />
       {rooms.length > 0 && (
         <section className="card panel section-gap">
-          <h2>Your deals</h2>
+          <h2>Your collaborations</h2>
           <ul className="deal-rows">
             {rooms.slice(0, 5).map((room) => {
               const name = partnerName(state, room);
@@ -73,7 +73,12 @@ export default function HomePage() {
                     }
                   >
                     {next.mine ? next.action || "Open" : "Open"}
-                    <span className="visually-hidden"> {name} Deal Room</span>
+                    <span className="visually-hidden">
+                      :{" "}
+                      {room.type === "mentorship"
+                        ? `Mentorship with ${name}`
+                        : `${room.engagementType} with ${name}`}
+                    </span>
                   </button>
                 </li>
               );

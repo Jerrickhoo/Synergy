@@ -69,6 +69,7 @@ import {
   canonicalTags,
   reviewDeadline,
   ongoingMentorship,
+  needItems,
   ensureCycle,
   moderationDueAt,
   resolveCycleDecisions,
@@ -175,6 +176,8 @@ export function scoreProfile(
 ) {
   mine = normalizeProfile(mine);
   theirs = normalizeProfile(theirs);
+  // Your stated needs, one item each, before tags and text are merged below.
+  const myNeedItems = needItems(mine);
   mine = {
     ...mine,
     offer: `${mine.offer || ""} ${mine.offerTags || ""}`,
@@ -193,6 +196,16 @@ export function scoreProfile(
       given = tagged(offers);
     const shared = [...wanted].filter((tag) => given.has(tag));
     return { ratio: wanted.size ? shared.length / wanted.size : 0, shared };
+  };
+  // The need items the word overlap in Need fit matched, in your own wording.
+  // An item counts only when every one of its words is in their offer, so
+  // "Product strategy" never reads as covering "Pricing strategy".
+  const wordsCovered = (offers) => {
+    const given = tokens(offers);
+    return myNeedItems.filter((item) => {
+      const words = [...tokens(item)];
+      return words.length > 0 && words.every((word) => given.has(word));
+    });
   };
   const forwardTags = covered(mine.need, theirs.offer),
     reverseTags = covered(theirs.need, mine.offer);
@@ -327,8 +340,14 @@ export function scoreProfile(
       ? {
           youGet: founder === mine ? mentorTags : [],
           theyGet: founder === theirs ? mentorTags : [],
+          matchedNeeds:
+            founder === mine ? wordsCovered(mentorProfile.offer) : [],
         }
-      : { youGet: forwardTags.shared, theyGet: reverseTags.shared },
+      : {
+          youGet: forwardTags.shared,
+          theyGet: reverseTags.shared,
+          matchedNeeds: wordsCovered(theirs.offer),
+        },
     matchingVersion: config.version,
     matchingAlgorithm: "reciprocal-v3",
     factorWeights: weights,
@@ -1537,6 +1556,16 @@ export function createWorkspace(file, options = {}) {
           !timingSafeEqual(candidate, Buffer.from(existing.passwordHash, "hex"))
         )
           fail(previewMismatch, 401, { password: previewMismatch });
+        // The role is account-wide, so every open tab follows a change. Ask
+        // first; the password was checked, so the current role is not leaked.
+        const current = existing.state.role;
+        if (current !== role && given.confirmRoleSwitch !== true)
+          fail(
+            `You were last using Synergy as a ${current}. Switch to ${role}? Other open tabs will switch too.`,
+            409,
+            undefined,
+            { reason: "role-switch", currentRole: current },
+          );
         existing.state.role = role;
         save();
         return openSession(existing);
@@ -3077,7 +3106,13 @@ export function createWorkspace(file, options = {}) {
           !candidate.deletedAt && candidate.calendarToken === token,
       );
       if (!account) fail("This calendar link is unavailable.", 404);
-      return calendarIcs(account.state, now(), selected);
+      // Each event names the other participant, as the viewer knows them.
+      return calendarIcs(
+        account.state,
+        now(),
+        selected,
+        (room) => db.accounts[room.partnerAccountId]?.state.accountName,
+      );
     },
     get: (token, role) => response(authenticate(token), role),
     poll(token, role, since, key) {

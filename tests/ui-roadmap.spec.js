@@ -504,6 +504,73 @@ test("exact fit draft Apply/Reset, clamped cards, saved synchronization and sepa
   ).toBe(true);
 });
 
+test("price filters are validated, counted as active and cleared by Clear filters", async ({
+  page,
+  request,
+}) => {
+  const user = await account(request, "founder", "PriceFilter");
+  await account(request, "founder", "PricePeer");
+  await open(page, user, "matches");
+  await page.getByRole("tab", { name: "Browse all", exact: true }).click();
+  const filters = page.getByRole("button", { name: /^Filters/ });
+  const show = page.getByRole("button", { name: "Show matches", exact: true });
+  await filters.click();
+  const price = page.getByRole("spinbutton", { name: "Maximum price in PHP" });
+  for (const invalid of ["-100", "-0.5"]) {
+    await price.fill(invalid);
+    await expect(price).toHaveAttribute("aria-invalid", "true");
+    await expect(
+      page.getByRole("alert").filter({
+        hasText: "Enter a price of 0 or more, or leave it empty.",
+      }),
+    ).toBeVisible();
+    await expect(show).toBeDisabled();
+  }
+  await price.fill("");
+  await expect(price).toHaveAttribute("aria-invalid", "false");
+  await expect(show).toBeEnabled();
+  // Minimum fit is still validated alongside it.
+  await page.getByRole("spinbutton", { name: "Minimum fit (%)" }).fill("101");
+  await expect(show).toBeDisabled();
+  await page.getByRole("spinbutton", { name: "Minimum fit (%)" }).fill("0");
+  await price.fill("0");
+  await page.getByLabel("Free only").check();
+  await show.click();
+  // Both price filters count, and the list offers Clear filters.
+  await expect(filters).toHaveAccessibleName(/^Filters\s*2$/);
+  await expect(
+    page.getByRole("button", { name: "Clear filters", exact: true }).first(),
+  ).toBeVisible();
+  // A startup has no paid or free mentoring formats, so it is filtered out.
+  await page
+    .getByRole("searchbox", { name: "Search matches" })
+    .fill("PricePeer");
+  await expect(
+    page.getByRole("heading", { name: "No matches found", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Closest profiles so far")).toHaveCount(0);
+  await page
+    .locator(".empty-state")
+    .getByRole("button", { name: "Clear filters", exact: true })
+    .click();
+  await expect(filters).toHaveAccessibleName(/^Filters$/);
+  await page
+    .getByRole("searchbox", { name: "Search matches" })
+    .fill("PricePeer");
+  await expect(
+    page.locator(".match-card").filter({ hasText: "PricePeer" }).first(),
+  ).toBeVisible();
+  // Reset in the dialog clears the price filters too.
+  await filters.click();
+  await price.fill("5");
+  await page.getByLabel("Free only").check();
+  await page
+    .getByRole("button", { name: "Reset filters", exact: true })
+    .click();
+  await expect(price).toHaveValue("");
+  await expect(page.getByLabel("Free only")).not.toBeChecked();
+});
+
 const unreadLabel = (count) =>
   count ? `Notifications, ${count} unread` : "Notifications";
 test("Updates actions keep read state, chronology and header counts synchronized through failures, preview and zoom", async ({

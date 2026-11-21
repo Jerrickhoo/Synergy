@@ -24,6 +24,13 @@ export default function FirstRunChoice() {
     <div className="first-run">
       <header className="first-run-header">
         <Brand compact />
+        <button
+          className="link-btn"
+          disabled={state.busy}
+          onClick={(event) => onAction({ action: "request-sign-out" }, event)}
+        >
+          Sign out
+        </button>
       </header>
       <section
         className="first-run-body page-enter"

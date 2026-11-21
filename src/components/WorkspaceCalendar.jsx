@@ -1,5 +1,6 @@
 ﻿import { useLayoutEffect, useRef, useState, useId } from "react";
 import Icon from "./Icon.jsx";
+import { scheduleLabel } from "../data/selectors.js";
 import {
   localDateKey,
   dateFromKey,
@@ -201,7 +202,7 @@ export default function WorkspaceCalendar({
                               key={item.id || i}
                             >
                               {item.kind === "session" && item.instant
-                                ? `${item.instant.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} `
+                                ? `${scheduleLabel(item.instant, { timeOnly: true })} `
                                 : ""}
                               {item.kind === "task"
                                 ? "Task: "

@@ -18,7 +18,7 @@ $env:SYNERGY_DATA_FILE = ".data/manual-preview-$([guid]::NewGuid()).sqlite"
 npm.cmd run dev
 ```
 
-Open the URL printed by Vite, normally `http://localhost:5173`. Run TC-01 and the discovery checks TC-13 through TC-18 in this mode. The fictional directory contains 14 startups and 10 mentors. Open Rafael Lim’s profile to see weekly Office Hours and Impact from three fictional completed engagements.
+Open the URL printed by Vite, normally `http://localhost:5173`. Run TC-01 and the discovery checks TC-13 through TC-18 in this mode. The fictional directory contains 15 startups and 14 mentors, and every standard tag is offered by at least two of them. Open Rafael Lim’s profile to see weekly Office Hours and Impact from three fictional completed engagements.
 
 Role previews cannot discover or connect with one another. Do not use them to test acceptance, shared rooms or two-party reviews. Signing in with new credentials creates a preview account; signing in again with the same email and password returns to it from any tab. Use a different email for a fresh account.
 
@@ -87,9 +87,10 @@ Copy the row for each case. Include the tested commit or working-tree version, t
 3. Choose **Explore with a sample startup**. Visit Home, Matches and Profile, then refresh.
 4. Open a new tab and sign in with the same email and a different password, then with the same password.
 5. Sign out through the confirmation dialog, then repeat with a new email and **Mentor**.
-6. Sign in with another new email as **Founder** and choose **Set up my startup**.
+6. Sign in with another new email as **Founder** and choose **Set up my startup**. Describe “Shiftly is staff scheduling software for independent restaurants. We are a seed-stage team of 6 with 40 paying restaurants, but churn spikes after month two. We need help with pricing strategy and customer retention. We can offer intros to restaurant operators and product feedback.”, select **Suggest profile details** and review the list.
+7. With that founder signed in, open a room in one tab, then sign in from a second tab with the same credentials as **Mentor**. Confirm the switch, return to the first tab and refresh.
 
-**Expected:** Empty inputs and `notanemail` are rejected. Any well-formed email works without delivery. A new founder account asks how to start; the sample opens Maria Santos’s editable profile, refresh retains the session, and the new tab with the same credentials returns to the same profile and rooms. A different password shows “That email is already used in this preview. Use the same password as before, or a different email.” and creates nothing. Mentor previews open ready to mentor without the choice. **Set up my startup** opens Edit profile with an empty, focused description box and no persona name or photo. No sample rooms, messages, ratings or activity are inserted. Preview help explains the connection limitation.
+**Expected:** Empty inputs and `notanemail` are rejected. Any well-formed email works without delivery. A new founder account asks how to start; the sample opens Maria Santos’s editable profile, refresh retains the session, and the new tab with the same credentials returns to the same profile and rooms. A different password shows “That email is already used in this preview. Use the same password as before, or a different email.” and creates nothing. Mentor previews open ready to mentor without the choice. **Set up my startup** opens Edit profile with an empty, focused description box and no persona name or photo. The review suggests Startup name “Shiftly”, What I need “Pricing strategy, Customer retention” and Stage Seed (“Pre-seed” descriptions stay Pre-seed), and the checklist lists Your name until it is filled. Suggestions then include pricing and retention mentors only. Signing in as the other role shows “You were last using Synergy as a founder. Switch to mentor? Other open tabs will switch too.” After switching, the first tab’s room reads “This room belongs to your founder profile” with **Switch to founder**, which reopens it. No sample rooms, messages, ratings or activity are inserted. Preview help explains the connection limitation.
 
 ### TC-02 - Local signup validation
 
@@ -189,7 +190,7 @@ Copy the row for each case. Include the tested commit or working-tree version, t
 2. Search for the prepared partner names in Browse all.
 3. In Pass A, inspect the fictional directory as both roles.
 
-**Expected:** Eligible completed local profiles can find each other in Pass B. Suggested requires at least 30% fit; Browse all can include weak or zero-fit profiles. Mentors discover startups to support. Do not require the same numerical fit for every dataset or role.
+**Expected:** Eligible completed local profiles can find each other in Pass B. Suggested requires at least 30% fit and at least one stated need the profile offers; Browse all can include weak or zero-fit profiles. Mentors discover startups to support. Do not require the same numerical fit for every dataset or role.
 
 ### TC-12 - Public match detail
 

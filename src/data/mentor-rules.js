@@ -5,6 +5,7 @@ import { isMentorRoom, mentorSessions, roomFormat } from "./mentor-room.js";
 import { scheduleInstant } from "./selectors.js";
 import { terminalStatuses } from "./collaboration.js";
 import {
+  advisoryCycle,
   mentorFormat,
   mentorFormatIds,
   normalizeOfferedFormats,
@@ -46,8 +47,8 @@ export const mentorConfig = {
   followupRemindDays: [14, 17, 21],
   followupOverdueDays: 21,
   // Ongoing Advisory
-  cycleWeeks: 8,
-  checkInsPerCycle: 4,
+  cycleWeeks: advisoryCycle.weeks,
+  checkInsPerCycle: advisoryCycle.checkIns,
   checkInMinutes: 45,
   // Reviews and impact
   reviewWindowDays: 14,

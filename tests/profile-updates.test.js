@@ -138,7 +138,10 @@ test("update destinations check visibility and role membership with useful fallb
       other: { id: "other", role: "mentor" },
     },
   };
-  const people = [{ id: "p", name: "Partner", sector: "EdTech" }];
+  const people = [
+    { id: "p", name: "Partner", sector: "EdTech" },
+    { id: "q", name: "Other", sector: "SaaS" },
+  ];
   assert.equal(
     notificationDestination({ roomId: "one", tab: "milestones" }, state, people)
       .command.tab,
@@ -157,8 +160,14 @@ test("update destinations check visibility and role membership with useful fallb
     notificationDestination({ roomId: "missing" }, state, people).label,
     "View Deal Rooms",
   );
+  // Round 3: a match update for someone you already have a room with opens it.
+  assert.deepEqual(notificationDestination({ matchId: "p" }, state, people), {
+    label: "Open Deal Room",
+    context: "With Partner",
+    command: { action: "open-room", id: "one" },
+  });
   assert.equal(
-    notificationDestination({ matchId: "p" }, state, people).label,
+    notificationDestination({ matchId: "q" }, state, people).label,
     "View match",
   );
   assert.equal(

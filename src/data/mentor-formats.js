@@ -4,6 +4,10 @@
 // need evidence or mutual confirmation (the * in the spec).
 
 import { validPrice, pricingConfig } from "./pricing.js";
+
+// Default Ongoing Advisory cycle. mentorConfig reads these, and the format's
+// effort label states them.
+export const advisoryCycle = { weeks: 8, checkIns: 4 };
 export const mentorFormats = [
   {
     id: "quick-ask",
@@ -69,7 +73,7 @@ export const mentorFormats = [
     label: "Ongoing Advisory",
     summary:
       "Recurring check-ins over one to three months toward a bigger goal.",
-    effort: "Highest",
+    effort: `${advisoryCycle.checkIns} check-ins over ${advisoryCycle.weeks} weeks`,
     effortMinutes: 240,
     sync: true,
     milestones: [

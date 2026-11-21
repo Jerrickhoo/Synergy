@@ -29,6 +29,7 @@ import Icon from "./components/Icon.jsx";
 import MentorshipWarning from "./components/MentorshipWarning.jsx";
 import SignOutDialog from "./components/SignOutDialog.jsx";
 import FirstRunChoice from "./components/FirstRunChoice.jsx";
+import OtherRoleNotice from "./components/OtherRoleNotice.jsx";
 
 const pages = {
   calendar: CalendarPage,
@@ -89,6 +90,12 @@ export default function App() {
   const Page = pages[state.page];
   const unavailableRoom =
     ["room-detail", "review"].includes(state.page) && !model.activeRoom();
+  // A room this account holds under its other role, e.g. after another tab
+  // switched the account's role.
+  const otherRoleRoom =
+    unavailableRoom &&
+    state.rooms[state.activeRoomId]?.role !== state.role &&
+    state.rooms[state.activeRoomId]?.role;
   // Move route focus before the browser can accept input. A passive effect can
   // steal focus from a just-opened form in WebKit and lose the user's typing.
   useLayoutEffect(() => {
@@ -207,7 +214,9 @@ export default function App() {
                 id="content"
                 key={`${state.page}:${state.role}:${state.activeRoomId}`}
               >
-                {unavailableRoom ? (
+                {otherRoleRoom ? (
+                  <OtherRoleNotice role={otherRoleRoom} />
+                ) : unavailableRoom ? (
                   <Unavailable room />
                 ) : Page ? (
                   <Page />

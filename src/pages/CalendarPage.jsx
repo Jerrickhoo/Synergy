@@ -5,7 +5,7 @@ import {
 import SelectField from "../components/SelectField.jsx";
 import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
-import { activeRooms } from "../data/selectors.js";
+import { activeRooms, scheduleLabel } from "../data/selectors.js";
 import {
   calendarEvents,
   localDateKey,
@@ -26,11 +26,7 @@ function CalendarEvent({ event, partnerName, openEvent }) {
     >
       <span className="agenda-kind">
         {event.kind === "session"
-          ? event.instant.toLocaleTimeString(undefined, {
-              hour: "numeric",
-              minute: "2-digit",
-              timeZoneName: "short",
-            })
+          ? scheduleLabel(event.instant, { timeOnly: true, showZone: true })
           : event.kind === "milestone"
             ? "Milestone due · UTC"
             : "Task deadline"}

@@ -1,21 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { priceLabel } from "../data/pricing.js";
 import { useApp } from "../state/AppContext.jsx";
 import { verificationRequired } from "../data/collaboration.js";
 import VerificationGate from "./VerificationGate.jsx";
+import { scheduleLabel } from "../data/selectors.js";
 
-const zone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
-const slotLabel = (slot) => {
-  const local = new Date(slot.startsAt).toLocaleString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
-  return `${local} · ${slot.durationMinutes} min${zone() !== slot.timeZone ? ` (${slot.time} ${slot.timeZone})` : ""}`;
-};
+const slotLabel = (slot) =>
+  `${scheduleLabel(slot)} · ${slot.durationMinutes} min`;
 
 function OfficeSlot({ slot }) {
   const { onAction, state } = useApp();
@@ -211,25 +202,68 @@ export function CalendarFeed({ room, session }) {
   const { onAction, state } = useApp();
   const token = state.calendarToken;
   const path = token ? `/api/calendar/${token}.ics` : null;
-  const refresh = (reset, event) =>
-    onAction({ action: "calendar-link", values: { reset } }, event);
+  // The spinner belongs to the session button that was clicked.
+  const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
+  const [startDownload, setStartDownload] = useState(false);
+  const link = useRef(null);
+  // The private path arrives with the next state, so the file is fetched from
+  // the link once it renders: one click creates the path and downloads.
+  useEffect(() => {
+    if (!startDownload || !link.current) return;
+    setStartDownload(false);
+    link.current.click();
+    link.current.focus();
+  }, [startDownload, path]);
+  const refresh = async (reset, event) => {
+    setPending(true);
+    setFailed(false);
+    try {
+      const ok = await onAction(
+        { action: "calendar-link", values: { reset } },
+        event,
+      );
+      if (session && ok) {
+        setDownloaded(true);
+        setStartDownload(true);
+      } else if (session) setFailed(true);
+    } finally {
+      setPending(false);
+    }
+  };
   if (session)
     return path ? (
       <a
+        ref={link}
         className="btn small"
         href={`${path}?session=${encodeURIComponent(`${room.id}-${session.id}`)}`}
         download
+        onClick={() => setDownloaded(true)}
       >
-        Download .ics
+        {downloaded ? "Download .ics again" : "Get calendar file"}
       </a>
     ) : (
-      <button
-        className="btn small"
-        disabled={state.busy}
-        onClick={(event) => refresh(false, event)}
-      >
-        Enable calendar download
-      </button>
+      <span className="calendar-file">
+        <button
+          className="btn small"
+          disabled={state.busy}
+          aria-describedby={failed ? `calendar-error-${session.id}` : undefined}
+          onClick={(event) => refresh(false, event)}
+        >
+          {pending && <span className="spinner" aria-hidden="true" />}
+          Get calendar file
+        </button>
+        {failed && (
+          <span
+            id={`calendar-error-${session.id}`}
+            className="field-error"
+            role="alert"
+          >
+            Couldn’t create the calendar file. Try again.
+          </span>
+        )}
+      </span>
     );
   return (
     <section className="card panel section-gap">

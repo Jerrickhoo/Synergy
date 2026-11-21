@@ -1,5 +1,5 @@
 import { mentorFormat, normalizeMentorFormat } from "./mentor-formats.js";
-import { scheduleInstant } from "./selectors.js";
+import { scheduleInstant, scheduleLabel } from "./selectors.js";
 
 export const hourMs = 3600000;
 export const dayMs = 24 * hourMs;
@@ -220,6 +220,19 @@ export function migrateMentorship(room, now = Date.now()) {
   return true;
 }
 
+// Progress marks: stages up to the last one reached are done, the next is
+// current, and a closed or finished room has no current step.
+export function stageMarks(room) {
+  const { stages, index } = mentorshipStage(room);
+  return stages.map((label, position) => ({
+    label,
+    done: position <= index,
+    current: position === index + 1 && room.status !== "cancelled",
+  }));
+}
+
+// `index` is the last stage reached; the next one (if any) is current.
+// `label` names where the mentorship stands for lists.
 export function mentorshipStage(room) {
   const format = roomFormat(room);
   const complete = (id) =>
@@ -273,8 +286,13 @@ export function mentorshipStage(room) {
   else if (complete(deliveredMilestone(room))) index = 2;
   if (room.status === "reviewed") index = stages.length - 1;
   if (room.payment?.status === "due" && !room.payment.upgrade) {
+    // Payment is a step still ahead: Accepted is the last one reached.
     stages.splice(2, 0, "Awaiting payment");
-    index = 2;
+    return {
+      stages,
+      index: 1,
+      label: room.status === "cancelled" ? "Closed" : "Awaiting payment",
+    };
   }
   return {
     stages,
@@ -391,6 +409,27 @@ export function mentorshipNextAction(room) {
       mine: room.role === "founder",
       text: "Arrange a session",
       tab: "schedule",
+    };
+  // A founder with a session coming up still has prep to share.
+  const upcoming = mentorSessions(room)
+    .filter(
+      (session) =>
+        !session.cancelledAt &&
+        !session.outcome &&
+        scheduleInstant(session) > new Date(),
+    )
+    .sort((a, b) => scheduleInstant(a) - scheduleInstant(b))[0];
+  if (
+    room.role === "founder" &&
+    format.sync &&
+    upcoming &&
+    !room.mentorship.prep?.sharedAt
+  )
+    return {
+      mine: true,
+      text: `Share your prep before ${scheduleLabel(upcoming)}`,
+      action: "Share prep",
+      tab: "overview",
     };
   return { mine: false, text: "Nothing needed from you", tab: "overview" };
 }

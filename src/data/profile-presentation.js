@@ -54,13 +54,24 @@ const factorPhrase = {
   6: "the formats open now",
 };
 const profileFactorCount = 5;
+// What this profile offers of your needs: shared standard tags, or else the
+// need items Need fit matched word for word. Cards and match details both use
+// it, so they always name the same help. Empty when Need fit is 0.
+export function offeredToYou(person) {
+  const youGet = person.exchange?.youGet || [];
+  if (youGet.length) return youGet;
+  const need = person.factorScores?.[0];
+  return typeof need === "number" && need > 0
+    ? person.exchange?.matchedNeeds || []
+    : [];
+}
 // Lead with the exchange, then name any weak factor plainly (I-10).
 export function fitSummary(person, factors) {
   const rows = fitFactors(person, factors);
   if (rows.every((row) => row.score === null))
     return "There is not enough information to explain this fit yet. Read the profile and ask about the help you need.";
   const need = rows.find((row) => row.index === 0);
-  const youGet = person.exchange?.youGet || [];
+  const youGet = offeredToYou(person);
   const theyGet = person.exchange?.theyGet || [];
   const lead =
     youGet.length && theyGet.length
@@ -97,12 +108,16 @@ export function fitSummary(person, factors) {
 }
 // One-line reason for cards.
 export function matchReason(person) {
-  const youGet = person.exchange?.youGet || [];
+  const youGet = offeredToYou(person);
   const theyGet = person.exchange?.theyGet || [];
   if (person.audienceWarning) return person.audienceWarning;
   if (youGet.length && theyGet.length)
     return `Two-way fit: ${youGet[0]} for ${theyGet[0]}`;
   if (youGet.length) return `Offers what you need: ${youGet.join(", ")}`;
+  // Match details call a 30–64% Need fit an overlap, so the card does too.
+  const need = person.factorScores?.[0];
+  if (typeof need === "number" && need >= 30 && need < 65)
+    return "Needs and offers partly overlap";
   const best = (person.why || [])
     .map((label, index) => [label, index])
     .find(([label, index]) => label === "Strong" && index < profileFactorCount);

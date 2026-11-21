@@ -5,10 +5,21 @@ import FormErrors from "./FormErrors.jsx";
 import { useApp } from "../state/AppContext.jsx";
 import Icon from "./Icon.jsx";
 import Toast from "./Toast.jsx";
+import Overlay from "./Overlay.jsx";
+
+const roleWord = { founder: "founder", mentor: "mentor" };
 export default function Login() {
   const { state, onAction, onSubmit } = useApp();
   const demoMode = Boolean(state.integrations?.demoMode);
   const [prototypeRole, setPrototypeRole] = useState("founder");
+  // A returning preview account last used in the other role.
+  const [roleSwitch, setRoleSwitch] = useState(null);
+  const enter = async (command) => {
+    const result = await onAction(command);
+    if (result?.roleSwitch)
+      setRoleSwitch({ command, current: result.roleSwitch });
+    return result;
+  };
   return (
     <main
       id="login-shell"
@@ -49,7 +60,7 @@ export default function Login() {
               if (demoMode) {
                 event.preventDefault();
                 const values = new FormData(event.currentTarget);
-                onAction({
+                enter({
                   action: "enter-demo",
                   roleChoice: prototypeRole,
                   email: String(values.get("email") || ""),
@@ -183,6 +194,52 @@ export default function Login() {
         {"\n    "}
       </div>
       {"\n  "}
+      {roleSwitch && (
+        <Overlay
+          id="role-switch-dialog"
+          title={`Switch to ${roleWord[roleSwitch.command.roleChoice]}?`}
+          initialFocusSelector="#confirm-role-switch"
+          busy={state.busy}
+          onClose={() => setRoleSwitch(null)}
+          footer={
+            <>
+              <button
+                className="btn"
+                disabled={state.busy}
+                onClick={async () => {
+                  const result = await enter({
+                    ...roleSwitch.command,
+                    roleChoice: roleSwitch.current,
+                  });
+                  if (!result?.roleSwitch) setRoleSwitch(null);
+                }}
+              >
+                Continue as {roleWord[roleSwitch.current]}
+              </button>
+              <button
+                id="confirm-role-switch"
+                className="btn primary"
+                disabled={state.busy}
+                onClick={async () => {
+                  await enter({
+                    ...roleSwitch.command,
+                    confirmRoleSwitch: true,
+                  });
+                  setRoleSwitch(null);
+                }}
+              >
+                {state.busy && <span className="spinner" aria-hidden="true" />}
+                Switch to {roleWord[roleSwitch.command.roleChoice]}
+              </button>
+            </>
+          }
+        >
+          <p>
+            You were last using Synergy as a {roleWord[roleSwitch.current]}.
+            Other open tabs will switch too.
+          </p>
+        </Overlay>
+      )}
     </main>
   );
 }

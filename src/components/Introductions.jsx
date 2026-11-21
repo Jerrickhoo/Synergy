@@ -4,7 +4,11 @@ import VerificationGate from "./VerificationGate.jsx";
 import { verificationRequired } from "../data/collaboration.js";
 import SimulateAcceptance from "./SimulateAcceptance.jsx";
 import DeclineIntroduction from "./DeclineIntroduction.jsx";
-import { matchReason, stageLabel } from "../data/profile-presentation.js";
+import {
+  matchReason,
+  offeredToYou,
+  stageLabel,
+} from "../data/profile-presentation.js";
 
 const dayMs = 86400000;
 const dateText = (iso) =>
@@ -37,7 +41,7 @@ function IntroductionRow({ person, incoming }) {
   const { state, onAction } = useApp();
   const meta = state.introductionMetaByRole?.[state.role]?.[person.id];
   const type = person.engagement;
-  const youGet = person.exchange?.youGet || [];
+  const youGet = offeredToYou(person);
   return (
     <article className="introduction-row">
       <Avatar

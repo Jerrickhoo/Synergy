@@ -12,6 +12,7 @@ import Overlay from "./Overlay.jsx";
 import { unavailableText } from "../data/mentor-rules.js";
 import {
   matchReason,
+  offeredToYou,
   stageLabel,
   trustLine,
 } from "../data/profile-presentation.js";
@@ -32,10 +33,10 @@ export default function MatchCard({ person, large = false }) {
   const incoming = state.incomingByRole[state.role].has(person.id);
   const mentoring = state.role === "mentor";
   const mentor = person.kind === "Mentor";
-  const youGet = person.exchange?.youGet || [];
+  const youGet = offeredToYou(person);
   const theyGet = person.exchange?.theyGet || [];
-  // Fall back to the profile's own words when no shared tags were found. The
-  // labels then describe that profile, not an exchange with you.
+  // Fall back to the profile's own words only when none of your needs
+  // matched. The labels then describe that profile, not an exchange with you.
   const fallbackGets = !youGet.length;
   const fallbackGives = !theyGet.length;
   const gets = youGet.length
@@ -170,7 +171,11 @@ export default function MatchCard({ person, large = false }) {
       {trustLine(person) && (
         <p className="preview-trust">{trustLine(person)}</p>
       )}
-      <MentorshipBadges badges={person.badges} />
+      {/* Nearly every sample mentor is new, so "New Mentor" can't help choose
+          between cards; the match details page keeps the trust line. */}
+      <MentorshipBadges
+        badges={person.badges?.filter((badge) => badge !== "New Mentor")}
+      />
       {mentor && !mentoring && person.available === false && !existingRoom && (
         <p className="match-unavailable">
           {unavailableText(person.reason, person.name)}

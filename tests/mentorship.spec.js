@@ -181,9 +181,15 @@ for (const initiator of ["founder", "mentor"]) {
       const id = (await state(request, receiver)).activeRoomId;
       if (initiator === "founder") {
         await inbox.getByRole("button", { name: "Confirm goal" }).click();
+        // The confirmed goal is checked; holding the session is current.
         await expect(
-          inbox.getByText("Goal Confirmed", { exact: true }),
-        ).toHaveAttribute("aria-current", "step");
+          inbox
+            .locator(".mentor-stage-line li.done")
+            .filter({ hasText: "Goal Confirmed" }),
+        ).toHaveCount(1);
+        await expect(
+          inbox.locator(".mentor-stage-line [aria-current=step]"),
+        ).toHaveText("Session Held");
       }
       await page.goto(`/#/rooms/${id}`);
       await page.getByRole("tab", { name: "Notes" }).click();

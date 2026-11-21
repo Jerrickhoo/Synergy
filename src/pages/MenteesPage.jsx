@@ -32,7 +32,7 @@ export function MenteeRow({ room, partner }) {
           onAction({ action: "open-room", id: room.id, tab: next.tab })
         }
       >
-        Open mentorship
+        Open room
       </button>
     </article>
   );

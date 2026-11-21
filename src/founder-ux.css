@@ -938,6 +938,8 @@ ol.stage-line {
 .first-run-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
   padding: var(--space-5) var(--page-gutter);
   background: var(--paper);
   border-bottom: 1px solid var(--line);
@@ -1107,4 +1109,29 @@ ol.stage-line {
   margin: 0;
   padding-left: var(--space-4);
   overflow-wrap: anywhere;
+}
+
+/* Round 2, A3: a need no suggestion covers, with its match-alert opt-in. */
+.match-gap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  grid-column: 1 / -1;
+  margin-top: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-lg);
+}
+.match-gap p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+/* Round 4: the session calendar button keeps its error beside it. */
+.calendar-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }

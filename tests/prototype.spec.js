@@ -85,13 +85,14 @@ test("prototype discovery preserves filters, sort, saved profiles and image fall
   await page.getByRole("button", { name: "Filters", exact: true }).click();
   await selectValue(page.getByLabel("Filter by type"), "Mentor");
   await page.getByRole("button", { name: "Show matches", exact: true }).click();
-  await expect(page.locator(".match-card")).toHaveCount(10);
+  // 14 sample mentors since directory version 10: the first page shows 12.
+  await expect(page.locator(".match-card")).toHaveCount(12);
   await page.getByRole("button", { name: /^Filters/ }).click();
   await expect(page.getByLabel("Filter by type")).toHaveText("Mentors");
   await selectValue(page.getByLabel("Filter by type"), "Startup");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: /^Filters/ })).toBeFocused();
-  await expect(page.locator(".match-card")).toHaveCount(10);
+  await expect(page.locator(".match-card")).toHaveCount(12);
   const first = page.locator(".match-card").first();
   const why = first.getByRole("button", { name: /Why this match/ });
   await why.click();
@@ -504,6 +505,10 @@ test("a preview founder sets up their own startup and returns to it from a new t
     .click();
   const review = page.getByRole("group", { name: "Fields to update" });
   await expect(review.getByRole("checkbox", { name: /^Stage/ })).toBeChecked();
+  await expect(
+    review.getByRole("checkbox", { name: /^Startup name/ }),
+  ).toBeChecked();
+  await expect(review).toContainText("Pricing strategy, Customer retention");
   await expect(review).not.toContainText("Technical Development");
   await page
     .getByRole("button", { name: "Apply suggestions", exact: true })
@@ -513,9 +518,15 @@ test("a preview founder sets up their own startup and returns to it from a new t
   ).toContainText("Select Save profile to keep these changes.");
   await expect(page.getByLabel("Team size")).toHaveValue("6");
   await expect(page.getByLabel("What I need")).toHaveValue(
-    /customer retention/,
+    "Pricing strategy, Customer retention",
   );
+  await expect(page.getByLabel("Startup name")).toHaveValue("Shiftly");
+  // Save requires a name, so the checklist does too.
+  const checklist = page.locator(".profile-checklist");
+  await expect(checklist).toContainText("Your name, still to add");
+  await expect(checklist).not.toContainText("Every required detail");
   await page.getByLabel("Your name").fill("Jordan Lee");
+  await expect(checklist).toContainText("Every required detail is filled in.");
   await page.getByRole("button", { name: "Save profile", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Your profile", exact: true }),
@@ -524,6 +535,28 @@ test("a preview founder sets up their own startup and returns to it from a new t
   await expect(
     page.getByRole("progressbar", { name: "Required profile details" }),
   ).toHaveAttribute("aria-valuenow", "100");
+
+  // Round 3: Hana's card names the need she covers, as her match page does,
+  // and sample cards carry no "New Mentor" badge.
+  await page.goto("/#/matches");
+  const hana = page
+    .locator("article.match-card")
+    .filter({ has: page.getByRole("heading", { name: "Hana Sato" }) });
+  await expect(hana.locator(".preview-reason")).toHaveText(
+    "Offers what you need: Customer retention",
+  );
+  await expect(hana.locator(".preview-exchange dt")).toHaveText(["You get"]);
+  await expect(hana.locator(".preview-exchange dd")).toHaveText([
+    "Customer retention",
+  ]);
+  await expect(page.locator(".match-card .mentorship-badges")).toHaveCount(0);
+  await hana.getByRole("button", { name: /^View match/ }).click();
+  await expect(page.locator(".fit-section")).toContainText(
+    "They offer what you need: Customer retention.",
+  );
+  await expect(
+    page.getByText("New mentor · no completed sessions yet"),
+  ).toBeVisible();
 
   // A room to deep-link to from the new tab.
   const token = await page.evaluate(() =>
@@ -571,9 +604,11 @@ test("a preview founder sets up their own startup and returns to it from a new t
     tab.getByRole("heading", { name: "Mentorship room", exact: true }),
   ).toBeVisible();
   await tab.goto("/#/profile");
+  // The suggested startup name leads, with the founder beside it.
   await expect(
-    tab.getByRole("heading", { name: "Jordan Lee", exact: true }),
+    tab.getByRole("heading", { name: "Shiftly", exact: true }),
   ).toBeVisible();
+  await expect(tab.getByText("Founder: Jordan Lee")).toBeVisible();
   await expect(tab.getByText("SaaS", { exact: true })).toBeVisible();
   await tab.close();
 });
@@ -709,8 +744,13 @@ test("a founder request shows inline errors, keeps its draft and reaches a prepa
     .getByRole("button", { name: "Simulate mentor confirming the goal" })
     .click();
   await expect(
+    page
+      .locator(".mentor-stage-line li.done")
+      .filter({ hasText: "Goal Confirmed" }),
+  ).toHaveCount(1);
+  await expect(
     page.locator(".mentor-stage-line [aria-current=step]"),
-  ).toContainText("Goal Confirmed");
+  ).toHaveText("Session Held");
   await page.getByRole("tab", { name: "Chat", exact: true }).click();
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.getByLabel("Write a message")).toHaveAttribute(
@@ -726,12 +766,99 @@ test("a founder request shows inline errors, keeps its draft and reaches a prepa
   await page.locator("#single-session-time").fill("10:00");
   await page.getByRole("button", { name: "Schedule session" }).click();
   await expect(page.locator(".mentor-session")).toHaveCount(1);
-  await page.getByRole("tab", { name: "Overview", exact: true }).click();
+  // The next step asks for prep before the session, and opens Overview.
+  const nextStep = page.locator(".room-next-step");
+  await expect(nextStep).toContainText(
+    /^Share your prep before \w{3}, \w{3} \d+ · /,
+  );
+  await nextStep
+    .getByRole("button", { name: /^Share your prep before/ })
+    .click();
+  await expect(
+    page.getByRole("tab", { name: "Overview", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
   await page.getByLabel("Deck").fill("https://example.com/deck");
   await page.getByRole("button", { name: "Share preparation" }).click();
   await expect(page.getByText("Prep shared", { exact: true })).toBeVisible();
+  await expect(nextStep).toHaveText("Nothing needed from you");
   await page.getByText("Safety", { exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Report collaborator" }),
   ).toBeVisible();
+});
+
+test("signing in as the other role asks first, and a founder room offers the switch back", async ({
+  page,
+  request,
+}) => {
+  const email = `roles-${Date.now()}@example.com`;
+  await page.goto("/");
+  await signInPreview(page, email, "pw");
+  await page
+    .getByRole("button", { name: "Explore with a sample startup", exact: true })
+    .click();
+  await expect(page.locator("#app-shell")).toBeVisible();
+  const token = await page.evaluate(() =>
+    sessionStorage.getItem("synergy-session"),
+  );
+  const state = decode(
+    await (
+      await request.get("/api/state?role=founder", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+    ).text(),
+  ).state;
+  const mentor = state.directory.mentors.find((person) =>
+    person.availableFormats?.includes("single-session"),
+  );
+  await api(request, token, {
+    role: "founder",
+    action: "send-request",
+    id: mentor.id,
+    values: { ...mentorRequestValues, format: "single-session" },
+  });
+  const roomId = (
+    await api(request, token, {
+      role: "founder",
+      action: "simulate-acceptance",
+      id: mentor.id,
+    })
+  ).activeRoomId;
+  await page.goto(`/?room=${Date.now()}#/rooms/${roomId}`);
+  await expect(
+    page.getByRole("heading", { name: "Mentorship room", exact: true }),
+  ).toBeVisible();
+
+  const tab = await page.context().newPage();
+  await tab.goto("/");
+  await signInPreview(tab, email, "pw", "mentor");
+  const dialog = tab.getByRole("dialog", { name: "Switch to mentor?" });
+  // The title asks the question; the body gives the context only (round 3).
+  await expect(dialog.locator("p")).toHaveText(
+    "You were last using Synergy as a founder. Other open tabs will switch too.",
+  );
+  await expect(tab.locator("#app-shell")).toHaveCount(0);
+  await dialog
+    .getByRole("button", { name: "Switch to mentor", exact: true })
+    .click();
+  await expect(tab.locator("#app-shell")).toBeVisible();
+  await expect(
+    tab.getByRole("button", { name: /Mentor$/ }).first(),
+  ).toBeVisible();
+  await tab.close();
+
+  // The founder tab's next load is in mentor mode; the room offers a way back.
+  await page.reload();
+  await expect(
+    page.getByRole("heading", {
+      name: "This room belongs to your founder profile",
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Switch to founder", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Mentorship room", exact: true }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`#/rooms/${roomId}`));
 });

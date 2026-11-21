@@ -91,7 +91,8 @@ export default function TaskBoard({ room, partner }) {
           disabled={closed || state.busy}
           onClick={() => openEditor({ status: "todo", priority: "normal" })}
         >
-          + Add task
+          <Icon name="plus" />
+          Add task
         </button>
       </div>
       <div className="board-toolbar">
@@ -141,7 +142,7 @@ export default function TaskBoard({ room, partner }) {
         >
           <FormErrors scope={editor.id ? "task-update" : "task-create"} />
           <div className="section-heading">
-            <h3>{editor.id ? "Edit task" : "A new step forward"}</h3>
+            <h3>{editor.id ? "Edit task" : "New task"}</h3>
             <button
               type="button"
               className="icon-btn"
@@ -297,7 +298,7 @@ export default function TaskBoard({ room, partner }) {
                   disabled={closed || state.busy}
                   onClick={() => openEditor({ status, priority: "normal" })}
                 >
-                  +
+                  <Icon name="plus" />
                 </button>
               </div>
               <div className="task-card-list">
@@ -398,9 +399,7 @@ export default function TaskBoard({ room, partner }) {
                 })}
                 {!cards.length && (
                   <div className="task-column-empty">
-                    <span aria-hidden="true">
-                      {status === "done" ? "✓" : "+"}
-                    </span>
+                    <Icon name={status === "done" ? "check" : "plus"} />
                     <p>
                       {query || mine
                         ? "No matching tasks"
@@ -419,7 +418,8 @@ export default function TaskBoard({ room, partner }) {
                   disabled={state.busy}
                   onClick={() => openEditor({ status, priority: "normal" })}
                 >
-                  + Add a task
+                  <Icon name="plus" />
+                  Add a task
                 </button>
               )}
             </section>

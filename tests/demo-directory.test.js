@@ -26,9 +26,10 @@ function temporary(t, extension = "json") {
 }
 
 test("demo profiles validate and sample Impact and Office Hours stay in the demo", (t) => {
-  assert.equal(demoProfiles.filter((p) => p.role === "founder").length, 14);
-  assert.equal(demoProfiles.filter((p) => p.role === "mentor").length, 10);
-  assert.equal(new Set(demoProfiles.map((p) => p.id)).size, 24);
+  // Version 10 adds four mentors and one startup so every tag is covered.
+  assert.equal(demoProfiles.filter((p) => p.role === "founder").length, 15);
+  assert.equal(demoProfiles.filter((p) => p.role === "mentor").length, 14);
+  assert.equal(new Set(demoProfiles.map((p) => p.id)).size, 29);
   for (const p of demoProfiles) {
     assert.deepEqual(validateProfile(p.profile, p.role), {}, p.id);
     if (p.profile.image)
@@ -93,7 +94,7 @@ test("reference viewers get many, few, no, and sparse mentor suggestions using r
     } else if (name === "few") assert.ok(count >= 1 && count <= 2);
     else if (name === "none") assert.equal(count, 0);
     else assert.ok(count >= 1 && count <= 2);
-    const expectedCount = scenario.role === "founder" ? 24 : 14;
+    const expectedCount = scenario.role === "founder" ? 29 : 15;
     assert.equal(model.browsePeople().length, expectedCount);
     assert.ok(model.browsePeople().some((p) => p.score < 30));
     for (const p of model.browsePeople()) {
@@ -191,7 +192,7 @@ for (const extension of ["json", "sqlite"]) {
     const workspace = createWorkspace(file, { demoMode: true });
     workspace.close();
     const refreshed = readWorkspaceSnapshot(file);
-    assert.equal(Object.keys(refreshed.accounts).length, 25);
+    assert.equal(Object.keys(refreshed.accounts).length, 30);
     const updated = refreshed.accounts[david.id];
     assert.equal(updated.demoFixture.version, demoDirectoryVersion);
     assert.equal(

@@ -19,12 +19,12 @@ Complete, validated viewer inputs live in `demoViewerScenarios` in [server/demo-
 
 | Scenario       | Viewer  | Suggested | Browse all | Distinctive inputs                                                                                                         |
 | -------------- | ------- | --------- | ---------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `many`         | Founder | 9         | 24         | FinTech, pre-seed, 4 people; needs product strategy and onboarding guidance; offers beta testing and student user insights |
-| `few`          | Founder | 2         | 24         | Logistics, seed, 9 people; needs cold chain logistics and route planning; offers warehouse research                        |
-| `none`         | Founder | 0         | 24         | SpaceTech, growth, 60 people; needs cryogenic propulsion; offers regolith spectroscopy                                     |
-| `sparseMentor` | Mentor  | 1         | 14         | Cold chain logistics and route planning; Logistics and seed startup interests                                              |
+| `many`         | Founder | 8         | 29         | FinTech, pre-seed, 4 people; needs product strategy and onboarding guidance; offers beta testing and student user insights |
+| `few`          | Founder | 1         | 29         | Logistics, seed, 9 people; needs cold chain logistics and route planning; offers warehouse research                        |
+| `none`         | Founder | 0         | 29         | SpaceTech, growth, 60 people; needs cryogenic propulsion; offers regolith spectroscopy                                     |
+| `sparseMentor` | Mentor  | 1         | 15         | Cold chain logistics and route planning; Logistics and seed startup interests                                              |
 
-The ordinary prototype founder, whose profile has no explicit goals/preference yet, receives eight suggestions. The reference founder adds those optional fields and receives nine. Additional real profiles, edited fixtures, blocked/hidden accounts, active rooms or customized matching weights can change these counts. Suggestions retain the 30% threshold, existing-room exclusion and 12-person cap. Browse all retains eligible low/zero-fit profiles and paginates by 12. Saved can include weak/zero-fit candidates.
+Counts were recomputed on 21 November 2026 for directory version 10 (15 startups, 14 mentors), where a suggestion must also cover a stated need: a founder need the profile offers, or for a mentor viewer a startup need the mentor offers. `few` drops from 2 to 1 because only Noah Tan offers cold chain logistics or route planning. The ordinary prototype founder receives eight suggestions. Additional real profiles, edited fixtures, blocked/hidden accounts, active rooms or customized matching weights can change these counts. Suggestions retain the 30% threshold, existing-room exclusion and 12-person cap, and add the need-coverage rule. Browse all retains eligible low/zero-fit profiles and paginates by 12. Saved can include weak/zero-fit candidates.
 
 ## Safe fixture refresh
 

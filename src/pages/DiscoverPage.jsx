@@ -1,7 +1,15 @@
 import InviteCollaborator from "../components/InviteCollaborator.jsx";
 import { useState, useEffect } from "react";
 import { useApp } from "../state/AppContext.jsx";
-import { filterPeople, validMinimumFit } from "../data/filters.js";
+import {
+  activeFilterCount,
+  defaultMatchFilters,
+  emptyStateKind,
+  filterPeople,
+  hasActiveFilters,
+  validMaxPrice,
+  validMinimumFit,
+} from "../data/filters.js";
 import MatchCard from "../components/MatchCard.jsx";
 import Icon from "../components/Icon.jsx";
 import PageHeader from "../components/PageHeader.jsx";
@@ -9,7 +17,7 @@ import Overlay from "../components/Overlay.jsx";
 import ScoreGuide from "../components/ScoreGuide.jsx";
 import SelectField from "../components/SelectField.jsx";
 import { profileKeys, profileFieldNames } from "../data/selectors.js";
-import { closestProfiles, primaryNeed } from "../data/home.js";
+import { closestProfiles, needLabel, uncoveredNeeds } from "../data/home.js";
 
 // One opt-in that adds a match-suggestion Update when a profile offering the
 // founder's first need appears. Preferences live in Settings.
@@ -61,17 +69,14 @@ export default function DiscoverPage() {
   useEffect(() => {
     setPage(1);
   }, [state.matchTab, JSON.stringify(state.matchFilters), sort]);
-  const advancedCount = [
-    state.matchFilters.type !== "all",
-    state.matchFilters.industry !== "all",
-    Number(state.matchFilters.score) > 0,
-    state.matchFilters.engagement !== "all",
-    state.matchFilters.availableNow,
-  ].filter(Boolean).length;
+  const advancedCount = activeFilterCount(state.matchFilters);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState(state.matchFilters);
   const [fitInputInvalid, setFitInputInvalid] = useState(false);
   const fitValid = validMinimumFit(draftFilters.score) && !fitInputInvalid;
+  const [priceInputInvalid, setPriceInputInvalid] = useState(false);
+  const priceValid = validMaxPrice(draftFilters.maxPrice) && !priceInputInvalid;
+  const draftValid = fitValid && priceValid;
   const [guideOpen, setGuideOpen] = useState(false);
   const missing = profileKeys(state.role).filter(
     (key) => !String(state.profiles[state.role][key] || "").trim(),
@@ -99,10 +104,7 @@ export default function DiscoverPage() {
   );
   const updateDraft = (key, value) =>
     setDraftFilters((current) => ({ ...current, [key]: value }));
-  const hasFilters =
-    advancedCount > 0 ||
-    state.matchFilters.type !== "all" ||
-    Boolean(state.matchFilters.search.trim());
+  const hasFilters = hasActiveFilters(state.matchFilters);
   const { suggestedMatches, browsePeople, rolePeople, savedMatches } = model;
   const savedCount = rolePeople().filter((person) =>
     savedMatches().has(person.id),
@@ -147,11 +149,24 @@ export default function DiscoverPage() {
         .filter(Boolean),
     ),
   ].sort();
-  const shortlistEmpty = state.matchTab === "saved" && !candidates.length;
-  const suggestionsEmpty =
-    state.matchTab === "suggested" && !hasFilters && !list.length;
+  const emptyKind = emptyStateKind({
+    tab: state.matchTab,
+    filters: state.matchFilters,
+    candidates,
+    list,
+  });
+  const shortlistEmpty = emptyKind === "shortlist";
+  const suggestionsEmpty = emptyKind === "suggestions";
   const closest = suggestionsEmpty ? closestProfiles(state) : [];
-  const need = primaryNeed(state.profiles[state.role]);
+  // The first stated need no suggestion covers gets the match-alert opt-in.
+  const [gap] = missing.length ? [] : uncoveredNeeds(state);
+  const need = gap && needLabel(gap);
+  const showGap =
+    need &&
+    !suggestionsEmpty &&
+    state.matchTab === "suggested" &&
+    !hasFilters &&
+    list.length > 0;
   const emptyCopy = shortlistEmpty
     ? "You haven’t saved anyone yet. Bookmark a match to keep it close."
     : suggestionsEmpty
@@ -254,6 +269,7 @@ export default function DiscoverPage() {
             onClick={() => {
               setDraftFilters({ ...state.matchFilters });
               setFitInputInvalid(false);
+              setPriceInputInvalid(false);
               setFiltersOpen(true);
             }}
           >
@@ -280,13 +296,11 @@ export default function DiscoverPage() {
                     className="link-btn"
                     onClick={() => {
                       setFitInputInvalid(false);
+                      setPriceInputInvalid(false);
+                      // Reset keeps the search; it clears the dialog only.
                       setDraftFilters({
-                        ...draftFilters,
-                        type: "all",
-                        industry: "all",
-                        score: "0",
-                        engagement: "all",
-                        availableNow: false,
+                        ...defaultMatchFilters,
+                        search: draftFilters.search,
                       });
                     }}
                   >
@@ -294,9 +308,9 @@ export default function DiscoverPage() {
                   </button>
                   <button
                     className="btn primary"
-                    disabled={!fitValid}
+                    disabled={!draftValid}
                     onClick={() => {
-                      if (!fitValid) return;
+                      if (!draftValid) return;
                       for (const key of [
                         "type",
                         "industry",
@@ -331,17 +345,42 @@ export default function DiscoverPage() {
                       />
                       Free only
                     </label>
-                    <label>
-                      Maximum price in PHP
+                    <div className="field">
+                      <label htmlFor="max-price-filter">
+                        Maximum price in PHP
+                      </label>
                       <input
                         type="number"
                         min="0"
+                        step="any"
+                        inputMode="decimal"
+                        id="max-price-filter"
+                        aria-invalid={!priceValid}
+                        aria-describedby="max-price-filter-help max-price-filter-error"
                         value={draftFilters.maxPrice || ""}
-                        onChange={(e) =>
-                          updateDraft("maxPrice", e.target.value)
+                        onInput={(event) =>
+                          setPriceInputInvalid(
+                            event.currentTarget.validity.badInput,
+                          )
                         }
+                        onChange={(event) => {
+                          setPriceInputInvalid(event.target.validity.badInput);
+                          updateDraft("maxPrice", event.target.value);
+                        }}
                       />
-                    </label>
+                      <p id="max-price-filter-help" className="field-help">
+                        Leave empty for any price.
+                      </p>
+                      <p
+                        id="max-price-filter-error"
+                        className="field-error"
+                        role={!priceValid ? "alert" : undefined}
+                      >
+                        {!priceValid
+                          ? "Enter a price of 0 or more, or leave it empty."
+                          : ""}
+                      </p>
+                    </div>
                   </>
                 )}
                 {state.role === "founder" && (
@@ -536,9 +575,13 @@ export default function DiscoverPage() {
                     Clear filters
                   </button>
                 )}
-                {suggestionsEmpty && !missing.length && need && (
-                  <MatchAlert need={need} />
-                )}
+                {suggestionsEmpty && need && <MatchAlert need={need} />}
+              </section>
+            )}
+            {showGap && (
+              <section className="match-gap" aria-label="Needs without a match">
+                <p>No suggestion covers {need} yet.</p>
+                <MatchAlert need={need} />
               </section>
             )}
             {suggestionsEmpty && closest.length > 0 && (

@@ -9,6 +9,7 @@ const toggle = (list, value) =>
     : [...list, value];
 
 const fieldLabels = {
+  startupName: "Startup name",
   bio: "About me",
   need: "What I need",
   offer: "What I offer",
@@ -63,6 +64,7 @@ export default function ProfileAssistant({
   ];
   const suggestions = result
     ? [
+        ["startupName", result.startupName],
         ["bio", text.trim()],
         ["need", result.needText || chosenNeeds.join(", ")],
         ["offer", result.offerText || offers.join(", ")],

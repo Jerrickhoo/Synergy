@@ -4,6 +4,7 @@ import { profileOptions } from "../data/collaboration.js";
 import { errorTitle, publishToast } from "./feedback.js";
 import { weeklySchedules } from "../data/planning.js";
 import { normalizeProfile } from "../data/profile-content.js";
+import { defaultMatchFilters, restoreMatchFilters } from "../data/filters.js";
 import {
   launchBlockers,
   profileCompleteness,
@@ -135,6 +136,10 @@ export function transition(state, payload) {
     state.matchFilters[payload.key] = payload.value;
     return;
   }
+  if (payload.action === "restore-filters") {
+    state.matchFilters = restoreMatchFilters(payload.filters);
+    return;
+  }
   if (payload.action === "set-rating") {
     state.rating = payload.value;
     return;
@@ -176,12 +181,8 @@ export function transition(state, payload) {
   }
   if (payload.action === "header-search") {
     state.matchFilters = {
+      ...defaultMatchFilters,
       search: String(payload.query || "").trim(),
-      type: "all",
-      industry: "all",
-      score: "0",
-      engagement: "all",
-      availableNow: false,
     };
     state.matchTab = "browse";
     state.page = "discover";
@@ -508,14 +509,7 @@ export function transition(state, payload) {
   } else if (action === "cancel-profile-edit") {
     state.profileEditing = false;
   } else if (action === "clear-filters") {
-    state.matchFilters = {
-      search: "",
-      type: "all",
-      industry: "all",
-      score: "0",
-      engagement: "all",
-      availableNow: false,
-    };
+    state.matchFilters = { ...defaultMatchFilters };
   } else if (action === "match-tab") {
     state.matchTab = payload.tab || "suggested";
   } else if (action === "select-waiting") {

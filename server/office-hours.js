@@ -634,12 +634,25 @@ export function createOfficeHours({
   };
 }
 
+const eventTitle = (room, name) => {
+  const officeHours = roomFormat(room) === "office-hours";
+  const other = String(name || "").trim();
+  if (!other)
+    return officeHours ? "Mentorship Office Hours" : "Mentorship session";
+  return `${officeHours ? "Office Hours" : "Mentorship"} with ${other}`;
+};
 const icsDate = (iso) =>
   new Date(iso)
     .toISOString()
     .replace(/[-:]/g, "")
     .replace(/\.\d{3}Z$/, "Z");
-export function calendarIcs(state, now, selected) {
+// RFC 5545 TEXT: backslash, semicolon and comma are escaped; no line breaks.
+const icsText = (value) =>
+  String(value)
+    .replace(/[\\;,]/g, (character) => "\\" + character)
+    .replace(/[\r\n]+/g, " ");
+// partnerName(room) gives the other participant's name from the viewer's side.
+export function calendarIcs(state, now, selected, partnerName = () => "") {
   const header = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -664,7 +677,7 @@ export function calendarIcs(state, now, selected) {
             `DTSTAMP:${icsDate(room.updatedAt || now)}`,
             `DTSTART:${icsDate(start)}`,
             `DTEND:${icsDate(start + session.durationMinutes * 60000)}`,
-            `SUMMARY:${roomFormat(room) === "office-hours" ? "Mentorship Office Hours" : "Mentorship session"}`,
+            `SUMMARY:${icsText(eventTitle(room, partnerName(room)))}`,
             "END:VEVENT",
           ];
         }),

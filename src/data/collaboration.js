@@ -131,6 +131,33 @@ export function offersNeed(person, need, vocabulary = defaultVocabulary) {
     .toLowerCase();
   return Boolean(words) && offered.toLowerCase().includes(words);
 }
+// A profile's stated needs as separate items: standard tags first, then each
+// comma/"and"-separated phrase of What I need, without repeats.
+export function needItems(profile = {}) {
+  const items = [
+    ...String(profile.needTags || "").split(","),
+    ...String(profile.need || "").split(/,|;|\s+and\s+/i),
+  ]
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = item.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+// The viewer's stated needs that a directory profile offers. Uses the scored
+// exchange tags and the same phrase check as match alerts; scores are untouched.
+export function coveredNeeds(person, profile, vocabulary = defaultVocabulary) {
+  const shared = new Set(person?.exchange?.youGet || []);
+  return needItems(profile).filter(
+    (item) =>
+      canonicalTags(item, vocabulary).some((tag) => shared.has(tag)) ||
+      offersNeed(person, item, vocabulary),
+  );
+}
 const reviewWindowMs = 14 * 86400000;
 export const reviewDeadline = (room, windowMs = reviewWindowMs) =>
   room?.launchedAt

@@ -63,7 +63,10 @@ test("Office Hours booking is atomic, displays local time and produces a private
   await page.getByRole("button", { name: "Create calendar link" }).click();
   const path = await page.getByLabel("Private calendar link").inputValue();
   const feed = await request.get(path);
-  expect(await feed.text()).toContain("SUMMARY:Mentorship Office Hours");
+  // The mentor's feed names the founder who booked, from the mentor's side.
+  expect(await feed.text()).toContain(
+    "SUMMARY:Office Hours with OfficeFounder Audit",
+  );
   for (const width of [1440, 768, 390, 360]) {
     await page.setViewportSize({ width, height: 900 });
     await expect

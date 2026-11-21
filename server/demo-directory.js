@@ -101,7 +101,7 @@ export const legacyDemoProfiles = [
   },
 ];
 
-export const demoDirectoryVersion = 9;
+export const demoDirectoryVersion = 10;
 const startup = (
   id,
   name,
@@ -246,6 +246,43 @@ const baseDemoProfiles = [
     "Build circular textile supply chains",
     "Manufacturing advisor focused on materials reuse and supplier relationships.",
   ),
+  // Version 10: every standard tag is offered by at least two sample profiles.
+  mentor(
+    "marcus-webb",
+    "Marcus Webb",
+    "Pricing strategy, Monetization, B2B SaaS packaging, Fundraising",
+    "SaaS, B2B, seed, growth",
+    "Price B2B software so customers stay and expand",
+    "Former SaaS revenue lead helping seed teams set prices, plans and upgrade paths.",
+    "Twice a month",
+  ),
+  mentor(
+    "hana-sato",
+    "Hana Sato",
+    "Customer retention, Churn analysis, Product feedback",
+    "SaaS, Consumer, seed, growth",
+    "Keep customers past their first months",
+    "Customer success mentor who helps small teams find why customers leave and fix it.",
+    "Weekly sessions",
+  ),
+  mentor(
+    "diego-alvarez",
+    "Diego Alvarez",
+    "Go-to-market, Distribution partnerships, Pricing strategy, Co-marketing",
+    "SaaS, Marketplace, Consumer, pre-seed, seed",
+    "Find the first repeatable sales channel",
+    "Go-to-market advisor helping early teams choose channels, partners and launch prices.",
+    "Monthly sessions",
+  ),
+  mentor(
+    "grace-liu",
+    "Grace Liu",
+    "Product design, Interaction design, Product feedback",
+    "EdTech, Consumer, SaaS, idea, pre-seed",
+    "Turn early feedback into clearer product design",
+    "Product designer helping founders run feedback sessions and simplify their first screens.",
+    "Twice a month",
+  ),
   startup(
     "campuskit",
     "CampusKit",
@@ -375,6 +412,18 @@ const baseDemoProfiles = [
     "Measure coastal salinity",
     "Coastal sensors for long-running ocean measurements.",
     "ongoing",
+  ),
+  startup(
+    "shelfshare",
+    "ShelfShare",
+    "Marketplace",
+    "seed",
+    "6",
+    "Retail distribution, Packaging design, Co-marketing",
+    "Pricing strategy, Customer retention",
+    "Grow repeat orders from independent shops",
+    "A marketplace placing local food brands on independent grocery shelves.",
+    "either",
   ),
 ];
 

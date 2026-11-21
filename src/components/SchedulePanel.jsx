@@ -2,7 +2,7 @@ import SelectField from "./SelectField.jsx";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import { terminalStatuses } from "../data/collaboration.js";
-import { scheduleInstant } from "../data/selectors.js";
+import { scheduleInstant, scheduleLabel } from "../data/selectors.js";
 import { validateSchedule } from "../state/validation.js";
 import WorkspaceCalendar from "./WorkspaceCalendar.jsx";
 import {
@@ -101,16 +101,7 @@ function SessionPlanner({ room, partner }) {
     scheduleInstant({ ...values, time: value }) <= new Date() ||
     Number.isNaN(scheduleInstant({ ...values, time: value }).getTime());
   const fullTime = (instant, zone = timeZone) =>
-    instant.toLocaleString(undefined, {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      timeZone: zone,
-      timeZoneName: "shortOffset",
-    });
+    scheduleLabel(instant, { zone, showZone: zone !== deviceTimeZone });
   return (
     <section className="schedule-workspace focused-scheduler">
       <div className="tool-heading">

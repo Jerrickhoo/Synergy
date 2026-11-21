@@ -16,6 +16,7 @@ import { applyRoute, parseRoute, routeHash } from "./routes.js";
 import { fetchWithDeadline } from "./request.js";
 import { decode } from "./serialization.js";
 import { validateCredentials } from "./validation.js";
+import { useMatchFilterMemory } from "./useMatchFilterMemory.js";
 import { paymentActionNames } from "../data/pricing.js";
 import {
   errorTitle,
@@ -343,6 +344,7 @@ export function AppProvider({ children }) {
     return initial;
   });
   const model = useMemo(() => createModel(state), [state]);
+  useMatchFilterMemory(state, dispatch);
   useEffect(() => {
     if (!state.authenticated) setSignOutOpen(false);
   }, [state.authenticated]);
@@ -350,6 +352,22 @@ export function AppProvider({ children }) {
     () => dispatch({ action: "clear-toast" }),
     [],
   );
+  // Error toasts have no timer, so leaving the page clears one that was
+  // already showing. A toast raised by the navigation itself stays.
+  const lastView = useRef({ view: "", toastId: 0 });
+  useEffect(() => {
+    const view = `${state.page}:${state.activeRoomId || ""}`;
+    const before = lastView.current;
+    if (
+      before.view &&
+      view !== before.view &&
+      state.toastType === "error" &&
+      state.toast &&
+      state.toastId === before.toastId
+    )
+      dispatch({ action: "clear-toast" });
+    lastView.current = { view, toastId: state.toastId };
+  }, [state.page, state.activeRoomId, state.toastId]);
   const notify = useCallback(
     (message, type = "success", title = "") =>
       dispatch({ action: "set-toast", message, type, title }),
@@ -393,6 +411,7 @@ export function AppProvider({ children }) {
           fields: result.fields,
           challenge: result.challenge,
           reason: result.reason,
+          currentRole: result.currentRole,
           alternatives: result.alternatives,
         },
       );
@@ -698,14 +717,19 @@ export function AppProvider({ children }) {
             role: payload.roleChoice,
             email,
             password: payload.password,
+            ...(payload.confirmRoleSwitch && { confirmRoleSwitch: true }),
           }),
         );
       } catch (error) {
+        // A returning account in another role: the sign-in form confirms.
+        if (error.reason === "role-switch")
+          return { roleSwitch: error.currentRole };
+        // Field messages show once, beside their fields; the toast stays short.
         dispatch({
           action: "request-error",
           scope: "login-form",
           fields: error.fields,
-          message: error.message,
+          message: error.fields ? "Check your sign-in details." : error.message,
         });
       } finally {
         pending.current = false;

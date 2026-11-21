@@ -3,12 +3,17 @@ import {
   attentionItems,
   profileCompleteness,
   upcomingSessions,
-  scheduleInstant,
+  scheduleLabel,
 } from "./selectors.js";
 import { mentorshipActions } from "./mentorship.js";
 import { roomNextAction } from "./selectors.js";
 import { createModel } from "./model.js";
-import { defaultVocabulary, verificationRequired } from "./collaboration.js";
+import {
+  coveredNeeds,
+  defaultVocabulary,
+  needItems,
+  verificationRequired,
+} from "./collaboration.js";
 
 export const partnerName = (state, room) =>
   createModel(state)
@@ -51,10 +56,7 @@ export function homeNextStep(state, now = new Date()) {
   if (next)
     return {
       title: "Prepare for your next session",
-      detail: scheduleInstant(next.schedule).toLocaleString([], {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }),
+      detail: scheduleLabel(next.schedule),
       label: "View session",
       command: { action: "open-room", id: next.room.id, tab: "schedule" },
     };
@@ -121,8 +123,17 @@ export function primaryNeed(profile = {}) {
     .split(/,|\s+and\s+/i)
     .map((item) => item.trim())
     .filter(Boolean);
-  const need = tagged[0] || written[0] || "";
-  return defaultVocabulary.includes(need) ? need.toLowerCase() : need;
+  return needLabel(tagged[0] || written[0] || "");
+}
+
+// A need as it reads mid-sentence: standard tags and sentence-case items are
+// lowercased ("pricing strategy"); acronyms and names keep their capitals.
+export function needLabel(item = "") {
+  if (defaultVocabulary.includes(item)) return item.toLowerCase();
+  const [first = "", ...rest] = item.split(" ");
+  return /^[A-Z][a-z]+$/.test(first)
+    ? [first.toLowerCase(), ...rest].join(" ")
+    : item;
 }
 
 // The best eligible profiles below the suggestion threshold, with real scores.
@@ -135,4 +146,17 @@ export function closestProfiles(state, count = 3) {
         person.score > 0 && !model.existingRoomFor(state.role, person.id),
     )
     .slice(0, count);
+}
+
+// A founder's stated needs that none of the current suggestions covers.
+export function uncoveredNeeds(state) {
+  if (state.role !== "founder") return [];
+  const profile = state.profiles.founder;
+  const covered = new Set(
+    createModel(state)
+      .suggestedMatches()
+      .flatMap((person) => coveredNeeds(person, profile))
+      .map((item) => item.toLowerCase()),
+  );
+  return needItems(profile).filter((item) => !covered.has(item.toLowerCase()));
 }

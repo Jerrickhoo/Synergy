@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { CheckoutPanel } from "./Payments.jsx";
 import { priceLabel } from "../data/pricing.js";
 import { useApp } from "../state/AppContext.jsx";
@@ -8,7 +8,6 @@ import TaskBoard from "./TaskBoard.jsx";
 import ChatPanel from "./ChatPanel.jsx";
 import BlockCollaborator from "./BlockCollaborator.jsx";
 import ReportCollaborator from "./ReportCollaborator.jsx";
-import FormErrors from "./FormErrors.jsx";
 import Icon from "./Icon.jsx";
 import { mentorFormat } from "../data/mentor-formats.js";
 import {
@@ -19,7 +18,7 @@ import {
   goalMilestone,
   mentorSessions,
   mentorshipNextAction,
-  mentorshipStage,
+  stageMarks,
   noteSessions,
   roomFormat,
 } from "../data/mentor-room.js";
@@ -37,6 +36,10 @@ const outcomes = {
   "no-show-both": "Both participants missed it",
   disputed: "Attendance under review",
 };
+
+// Room forms share their error scope with their fields, which show any error
+// for themselves inline.
+const RoomFormScope = createContext("");
 
 function RoomForm({
   command,
@@ -69,8 +72,9 @@ function RoomForm({
         if (success && reset) form.reset();
       }}
     >
-      <FormErrors scope={command.form || command.action} />
-      {fields}
+      <RoomFormScope.Provider value={command.form || command.action}>
+        {fields}
+      </RoomFormScope.Provider>
       <button
         className={primary ? "btn primary" : "btn"}
         disabled={state.busy || disabled}
@@ -103,6 +107,16 @@ function RoomField({
   type = "textarea",
   maxLength = 3000,
 }) {
+  const { state } = useApp();
+  const scope = useContext(RoomFormScope);
+  const error =
+    scope && state.formErrors?.scope === scope
+      ? state.formErrors.fields?.[name]
+      : "";
+  const invalid = {
+    "aria-invalid": error ? true : undefined,
+    "aria-describedby": error ? `${id}-error` : undefined,
+  };
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
@@ -113,6 +127,7 @@ function RoomField({
           defaultValue={value}
           maxLength={maxLength}
           required={required}
+          {...invalid}
         />
       ) : (
         <input
@@ -121,7 +136,13 @@ function RoomField({
           type={type}
           defaultValue={value}
           required={required}
+          {...invalid}
         />
+      )}
+      {error && (
+        <p id={`${id}-error`} className="field-help field-error">
+          {error}
+        </p>
       )}
     </div>
   );
@@ -660,12 +681,8 @@ function Schedule({ room, closed, partner }) {
             )}
             {partnerZone !== zone && (
               <p className="field-help">
-                {scheduleInstant(session).toLocaleString(undefined, {
-                  timeZone: partnerZone,
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                })}{" "}
-                ({partnerZone})
+                Their time:{" "}
+                {scheduleLabel(session, { zone: partnerZone, showZone: true })}
               </p>
             )}
             {((open && future) || retry) && (
@@ -784,7 +801,6 @@ export default function MentorshipRoom({ room }) {
   const format = mentorFormat(roomFormat(room));
   const info = room.mentorship;
   const closed = ["launched", "reviewed", "cancelled"].includes(room.status);
-  const stage = mentorshipStage(room);
   const next = mentorshipNextAction(room);
   const tabs = [
     ["overview", "Overview"],
@@ -811,28 +827,34 @@ export default function MentorshipRoom({ room }) {
         }
       />
       <ol className="mentor-stage-line" aria-label="Mentorship progress">
-        {stage.stages.map((label, index) => {
-          const done = index < stage.index;
-          const current = index === stage.index;
-          return (
-            <li
-              key={label}
-              className={done ? "done" : current ? "current" : undefined}
-              aria-current={current ? "step" : undefined}
-            >
-              <span className="mentor-stage-mark" aria-hidden="true">
-                {done && <Icon name="check" />}
-              </span>
-              {label}
-              {/* aria-current already announces the current step. */}
-              {done && <span className="visually-hidden">, completed</span>}
-            </li>
-          );
-        })}
+        {stageMarks(room).map(({ label, done, current }) => (
+          <li
+            key={label}
+            className={done ? "done" : current ? "current" : undefined}
+            aria-current={current ? "step" : undefined}
+          >
+            <span className="mentor-stage-mark" aria-hidden="true">
+              {done && <Icon name="check" />}
+            </span>
+            {label}
+            {/* aria-current already announces the current step. */}
+            {done && <span className="visually-hidden">, completed</span>}
+          </li>
+        ))}
       </ol>
       {room.closeReason && <p className="warning-note">{room.closeReason}</p>}
-      <p>
-        {next.text}{" "}
+      <p className="room-next-step">
+        {/* The next step opens its tab when it lives somewhere else. */}
+        {next.tab && next.tab !== tab && !next.done ? (
+          <button
+            className="link-btn"
+            onClick={() => onAction({ action: "room-tab", tab: next.tab })}
+          >
+            {next.text}
+          </button>
+        ) : (
+          next.text
+        )}{" "}
         {next.review && (
           <button
             className="btn small"

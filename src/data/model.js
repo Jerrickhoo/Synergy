@@ -1,6 +1,7 @@
 import defaultTemplates from "./engagement-templates.json" with { type: "json" };
-import { terminalStatuses } from "./collaboration.js";
+import { coveredNeeds, offersNeed, terminalStatuses } from "./collaboration.js";
 import { mentorDefaults } from "./mentor-rules.js";
+import { defaultMatchFilters } from "./filters.js";
 export function createModel(state) {
   const people = state.directory;
   const allPeople = () => [
@@ -150,7 +151,10 @@ export function createModel(state) {
           cancelled: "Closed",
         }[status];
   const matches = () =>
-    [...peopleForRole()].sort((first, second) => second.score - first.score);
+    [...peopleForRole()].sort(
+      (first, second) =>
+        second.score - first.score || first.name.localeCompare(second.name),
+    );
   const browsePeople = () =>
     state.role === "founder"
       ? [...peopleForRole(), ...people.browseFounders]
@@ -197,11 +201,29 @@ export function createModel(state) {
         room.partnerId === partnerId &&
         !terminalStatuses.includes(room.status),
     );
+  // A suggestion needs enough fit and real help with a stated need: for a
+  // founder, a need of theirs the profile offers; for a mentor, a startup need
+  // the mentor offers.
+  const coversNeed = (person) => {
+    const own = state.profiles[state.role] || {};
+    if (state.role === "founder") return coveredNeeds(person, own).length > 0;
+    const mentor = {
+      offer: [own.offer || "", own.offerTags || ""],
+      expertise: own.expertise,
+      topics: own.topics,
+    };
+    return (
+      (person.exchange?.theyGet || []).length > 0 ||
+      (person.need || []).some((item) => offersNeed(mentor, item))
+    );
+  };
   const suggestedMatches = () =>
     matches()
       .filter(
         (person) =>
-          person.score >= 30 && !existingRoomFor(state.role, person.id),
+          person.score >= 30 &&
+          !existingRoomFor(state.role, person.id) &&
+          coversNeed(person),
       )
       .slice(0, 12);
   return {
@@ -220,6 +242,7 @@ export function createModel(state) {
     roomStatusLabel,
     matches,
     suggestedMatches,
+    coversNeed,
     browsePeople,
     rolePeople,
     savedMatches,
@@ -281,16 +304,7 @@ export function createInitialState() {
       browseFounders: [],
       browseMentorStartups: [],
     },
-    matchFilters: {
-      search: "",
-      type: "all",
-      industry: "all",
-      score: "0",
-      engagement: "all",
-      availableNow: false,
-      freeOnly: false,
-      maxPrice: "",
-    },
+    matchFilters: { ...defaultMatchFilters },
     profileEditing: false,
     onboarding: {
       verified: false,

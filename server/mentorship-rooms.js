@@ -326,7 +326,9 @@ export function createMentorshipRooms({
       !validTimeZone(timeZone) ||
       ![15, 30, 45, 60].includes(durationMinutes)
     )
-      fail("Choose a valid session date, time, duration and time zone.");
+      fail("Choose a valid session date, time, duration and time zone.", 400, {
+        date: "Choose a valid date and time.",
+      });
     const schedule = {
       id: randomUUID(),
       date,
@@ -336,7 +338,9 @@ export function createMentorshipRooms({
     };
     const starts = scheduleInstant(schedule).getTime();
     if (!Number.isFinite(starts) || starts <= now())
-      fail("Choose a time in the future.");
+      fail("Choose a time in the future.", 400, {
+        date: "Choose a date and time in the future.",
+      });
     return appointment(schedule);
   }
 

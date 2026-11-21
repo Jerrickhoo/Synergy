@@ -1,3 +1,5 @@
+import { terminalStatuses } from "./collaboration.js";
+
 const kinds = {
   "payment-due": ["Payment due", "clock"],
   "payment-lapsed": ["Payment expired", "clock"],
@@ -127,6 +129,14 @@ export function notificationDestination(item, state, people) {
   }
   if (item.matchId) {
     const person = people.find((p) => p.id === item.matchId);
+    // An older match update for someone you now work with opens that room.
+    const room = openRoomWith(state.rooms, state.role, item.matchId);
+    if (room)
+      return {
+        label: room.type === "mentorship" ? "Open room" : "Open Deal Room",
+        context: person ? `With ${person.name}` : "Collaboration",
+        command: { action: "open-room", id: room.id },
+      };
     return person
       ? {
           label: "View match",
@@ -140,6 +150,46 @@ export function notificationDestination(item, state, people) {
         };
   }
   return {};
+}
+const openRoomWith = (rooms, role, partnerId) =>
+  Object.values(rooms || {}).find(
+    (room) =>
+      room.role === role &&
+      room.partnerId === partnerId &&
+      !terminalStatuses.includes(room.status),
+  );
+const counted = (count, one, many) => `${count} ${count === 1 ? one : many}`;
+// The digest for one period: match updates as people, newest-best first, and
+// the rest as activity. People you already have an open room with are left
+// out, as Suggested leaves them out. Match updates come from 70%+ profile fits
+// and from match alerts, and the summary names which, so a lower suggestion
+// missing here isn't a surprise.
+export function digestContent(items, { people, rooms, role, now, span }) {
+  const recent = items.filter(
+    (item) => !item.muted && now - Date.parse(item.timestamp) <= span,
+  );
+  const seen = new Set();
+  const matches = recent
+    .filter((item) => item.kind === "match")
+    .map((item) => people.find((person) => person.id === item.matchId))
+    .filter(
+      (person) =>
+        person &&
+        !openRoomWith(rooms, role, person.id) &&
+        !seen.has(person.id) &&
+        seen.add(person.id),
+    )
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+  const strong = matches.filter((person) => person.score >= 70).length;
+  const alerts = matches.length - strong;
+  const activity = recent.filter((item) => item.kind !== "match");
+  const summary = [
+    strong && `${counted(strong, "strong match", "strong matches")} (70%+ fit)`,
+    alerts && counted(alerts, "match alert", "match alerts"),
+    activity.length &&
+      counted(activity.length, "collaboration update", "collaboration updates"),
+  ].filter(Boolean);
+  return { matches, activity, summary };
 }
 export function relativeTime(timestamp, now = Date.now()) {
   const time = Date.parse(timestamp);

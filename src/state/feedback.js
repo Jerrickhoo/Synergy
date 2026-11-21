@@ -5,6 +5,10 @@ const formTitles = {
   schedule: "Couldn't schedule your session",
   "send-request": "Couldn't send your request",
   "chat-form": "Couldn't send your message",
+  "session-note": "Couldn't add your note",
+  "task-create": "Couldn't save the task",
+  "task-update": "Couldn't save the task",
+  "calendar-link": "Couldn't create the calendar file",
 };
 
 export const connectionMessage =

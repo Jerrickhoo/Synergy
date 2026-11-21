@@ -238,7 +238,11 @@ export function createApi({
             await workspace.openDemoAsync(
               input.role,
               "email" in input || "password" in input
-                ? { email: input.email, password: input.password }
+                ? {
+                    email: input.email,
+                    password: input.password,
+                    confirmRoleSwitch: input.confirmRoleSwitch === true,
+                  }
                 : undefined,
             ),
           );

@@ -128,9 +128,14 @@
   width: 28px;
   height: 28px;
   min-height: 28px;
-  font-size: 21px;
+  padding: 0;
   border: 0;
   background: transparent;
+}
+/* Same icon size as icons inside text buttons. */
+.task-column-heading .icon-btn > .icon {
+  width: 16px;
+  height: 16px;
 }
 .column-dot {
   width: 7px;
@@ -280,8 +285,7 @@
   text-align: center;
   color: var(--muted);
 }
-.task-column-empty > span {
-  font-size: 24px;
+.task-column-empty > .icon {
   color: var(--muted);
 }
 .task-column-empty p {
@@ -289,6 +293,9 @@
   margin: 10px 0;
 }
 .add-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   border: 0;
   background: transparent;
   width: 100%;
@@ -296,6 +303,10 @@
   padding: 14px 6px 2px;
   font-size: 12px;
   color: var(--muted);
+}
+.add-card > .icon {
+  width: 16px;
+  height: 16px;
 }
 .add-card:hover {
   color: var(--green);

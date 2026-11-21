@@ -20,9 +20,11 @@ import SimulateAcceptance from "../components/SimulateAcceptance.jsx";
 import ReportCollaborator from "../components/ReportCollaborator.jsx";
 import defaultTemplates from "../data/engagement-templates.json" with { type: "json" };
 import { ownUnavailableText, unavailableText } from "../data/mentor-rules.js";
+import OtherRoleNotice from "../components/OtherRoleNotice.jsx";
 import {
   fitFactors,
   fitSummary,
+  offeredToYou,
   stageLabel,
   preferenceLabel,
 } from "../data/profile-presentation.js";
@@ -59,6 +61,14 @@ function MatchDetail() {
         .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
         .slice(0, state.mentorConfig?.alternativesCount ?? 3)
     : [];
+  // Mentors only match startups, so a mentor link seen as a mentor belongs to
+  // this account's founder profile.
+  if (
+    !person &&
+    state.role === "mentor" &&
+    String(state.activeMatch || "").endsWith(":mentor")
+  )
+    return <OtherRoleNotice role="founder" kind="match" />;
   if (!person)
     return (
       <div className="page page-enter">
@@ -109,7 +119,7 @@ function MatchDetail() {
   );
   const myAudience = Number(state.profiles.founder?.audienceSize);
   const swapWithoutAudience = chosenType === "marketing" && !(myAudience > 0);
-  const youGet = person.exchange?.youGet || [];
+  const youGet = offeredToYou(person);
   const theyGet = person.exchange?.theyGet || [];
   // A mentor who can't take requests (paused, full, guidelines) blocks sending
   // here, and a mentor whose own limits are full can't accept. The server
