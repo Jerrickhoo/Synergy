@@ -8,6 +8,7 @@ import {
 import { mentorshipActions } from "./mentorship.js";
 import { roomNextAction } from "./selectors.js";
 import { createModel } from "./model.js";
+import { cooldownActive } from "./mentor-rules.js";
 import {
   coveredNeeds,
   defaultVocabulary,
@@ -137,13 +138,17 @@ export function needLabel(item = "") {
 }
 
 // The best eligible profiles below the suggestion threshold, with real scores.
+// A mentor who declined this founder is left out until the cooldown ends, as
+// in Suggested (Nov 22, round 3).
 export function closestProfiles(state, count = 3) {
   const model = createModel(state);
   return model
     .matches()
     .filter(
       (person) =>
-        person.score > 0 && !model.existingRoomFor(state.role, person.id),
+        person.score > 0 &&
+        !model.existingRoomFor(state.role, person.id) &&
+        !cooldownActive(person.cooldownUntil),
     )
     .slice(0, count);
 }

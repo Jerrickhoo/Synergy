@@ -23,9 +23,18 @@ export default function TaskBoard({ room, partner }) {
   const editorOpener = useRef(null);
   const closed = terminalStatuses.includes(room.status);
   const tasks = room.tasks || [];
+  // Mentorship rooms keep founder-owned action items (roadmap Phase 3): either
+  // side adds them, the founder owns them and only the founder marks one done.
+  // (Nov 22, round 2) Mentors are never offered Done: no status option, no
+  // move-menu entry and no drop target. Exchange rooms keep the task board.
+  const mentoring = room.type === "mentorship";
+  const canFinish = !mentoring || room.role === "founder";
+  const noun = mentoring ? "action item" : "task";
+  const statusOptions = (current) =>
+    columns.filter(([id]) => canFinish || id !== "done" || current === "done");
   const shown = tasks.filter(
     (task) =>
-      (!mine || task.assignee === state.accountId) &&
+      (mentoring || !mine || task.assignee === state.accountId) &&
       `${task.title} ${task.description}`
         .toLowerCase()
         .includes(query.toLowerCase()),
@@ -67,32 +76,41 @@ export default function TaskBoard({ room, partner }) {
       return false;
     }
   }
+  const founderId =
+    room.role === "founder" ? state.accountId : room.partnerAccountId;
+  const founderName =
+    room.role === "founder" ? state.accountName : partner?.name || "Founder";
+  const newItem = (status) => ({
+    status,
+    priority: "normal",
+    ...(mentoring && { assignee: founderId }),
+  });
   return (
-    <section className="task-workspace" aria-label="Collaboration task board">
+    <section
+      className="task-workspace"
+      aria-label={mentoring ? "Action items" : "Collaboration task board"}
+    >
       <div className="tool-heading">
         <div>
-          <span className="eyebrow">
-            {room.type === "mentorship"
-              ? "Shared mentoring actions"
-              : "Shared tasks"}
-          </span>
           <h2>
-            {room.type === "mentorship"
-              ? "Prepare, follow up and keep moving."
+            {mentoring
+              ? "What the founder will do next"
               : "Break milestones into tasks."}
           </h2>
           <p className="muted">
-            Break shared milestones into small, actionable tasks.
+            {mentoring
+              ? `${room.role === "founder" ? "You own" : `${founderName} owns`} each action item. ${room.role === "founder" ? "Mark items done as you finish them; your follow-up reports on them." : "Only the founder marks an item done."}`
+              : "Break shared milestones into small, actionable tasks."}
           </p>
         </div>
         <button
           ref={addButton}
           className="btn primary"
           disabled={closed || state.busy}
-          onClick={() => openEditor({ status: "todo", priority: "normal" })}
+          onClick={() => openEditor(newItem("todo"))}
         >
           <Icon name="plus" />
-          Add task
+          {mentoring ? "Add action item" : "Add task"}
         </button>
       </div>
       <div className="board-toolbar">
@@ -100,19 +118,21 @@ export default function TaskBoard({ room, partner }) {
           <Icon name="search" />
           <input
             type="search"
-            aria-label="Search tasks"
-            placeholder="Find a task…"
+            aria-label={`Search ${noun}s`}
+            placeholder={mentoring ? "Find an action item…" : "Find a task…"}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
-        <button
-          className={`btn small ${mine ? "active-filter" : ""}`}
-          aria-pressed={mine}
-          onClick={() => setMine(!mine)}
-        >
-          Assigned to me
-        </button>
+        {!mentoring && (
+          <button
+            className={`btn small ${mine ? "active-filter" : ""}`}
+            aria-pressed={mine}
+            onClick={() => setMine(!mine)}
+          >
+            Assigned to me
+          </button>
+        )}
         <span className="board-completion">
           {done} of {tasks.length} complete{" "}
           <span className="board-progress" aria-hidden="true">
@@ -126,8 +146,9 @@ export default function TaskBoard({ room, partner }) {
       </div>
       {closed && (
         <p className="tool-notice">
-          This collaboration is complete or closed. Its task board is available
-          to view.
+          {mentoring
+            ? "This mentorship is complete or closed. Its action items are available to view."
+            : "This collaboration is complete or closed. Its task board is available to view."}
         </p>
       )}
       {editor && (
@@ -142,11 +163,19 @@ export default function TaskBoard({ room, partner }) {
         >
           <FormErrors scope={editor.id ? "task-update" : "task-create"} />
           <div className="section-heading">
-            <h3>{editor.id ? "Edit task" : "New task"}</h3>
+            <h3>
+              {mentoring
+                ? editor.id
+                  ? "Edit action item"
+                  : "New action item"
+                : editor.id
+                  ? "Edit task"
+                  : "New task"}
+            </h3>
             <button
               type="button"
               className="icon-btn"
-              aria-label="Close task editor"
+              aria-label={`Close ${noun} editor`}
               onClick={closeEditor}
             >
               <Icon name="close" />
@@ -154,7 +183,9 @@ export default function TaskBoard({ room, partner }) {
           </div>
           <input type="hidden" name="version" value={editor.version || ""} />
           <div className="field">
-            <label htmlFor="task-title">Task title</label>
+            <label htmlFor="task-title">
+              {mentoring ? "Action item" : "Task title"}
+            </label>
             <input
               autoFocus
               id="task-title"
@@ -178,35 +209,56 @@ export default function TaskBoard({ room, partner }) {
           </div>
           <div className="task-fields">
             <div className="field">
-              <label htmlFor="task-status">Status</label>
-              <SelectField
-                id="task-status"
-                name="status"
-                defaultValue={editor.status}
-              >
-                {columns.map(([id, label]) => (
-                  <option key={id} value={id}>
-                    {label}
+              {!canFinish && editor.status === "done" ? (
+                <>
+                  <strong>Status</strong>
+                  <p>Done</p>
+                  <input type="hidden" name="status" value="done" />
+                </>
+              ) : (
+                <>
+                  <label htmlFor="task-status">Status</label>
+                  <SelectField
+                    id="task-status"
+                    name="status"
+                    defaultValue={editor.status}
+                  >
+                    {statusOptions(editor.status).map(([id, label]) => (
+                      <option key={id} value={id}>
+                        {label}
+                      </option>
+                    ))}
+                  </SelectField>
+                </>
+              )}
+            </div>
+            {mentoring ? (
+              <div className="field">
+                <strong>Owner</strong>
+                <p>
+                  {founderName}
+                  {room.role === "founder" ? " (you)" : ""}
+                </p>
+                <input type="hidden" name="assignee" value={founderId} />
+              </div>
+            ) : (
+              <div className="field">
+                <label htmlFor="task-owner">Owner</label>
+                <SelectField
+                  id="task-owner"
+                  name="assignee"
+                  defaultValue={editor.assignee || ""}
+                >
+                  <option value="">Unassigned</option>
+                  <option value={state.accountId}>
+                    {state.accountName} (you)
                   </option>
-                ))}
-              </SelectField>
-            </div>
-            <div className="field">
-              <label htmlFor="task-owner">Owner</label>
-              <SelectField
-                id="task-owner"
-                name="assignee"
-                defaultValue={editor.assignee || ""}
-              >
-                <option value="">Unassigned</option>
-                <option value={state.accountId}>
-                  {state.accountName} (you)
-                </option>
-                <option value={room.partnerAccountId}>
-                  {partner?.name || "Collaborator"}
-                </option>
-              </SelectField>
-            </div>
+                  <option value={room.partnerAccountId}>
+                    {partner?.name || "Collaborator"}
+                  </option>
+                </SelectField>
+              </div>
+            )}
             <div className="field">
               <label htmlFor="task-priority">Priority</label>
               <SelectField
@@ -246,7 +298,7 @@ export default function TaskBoard({ room, partner }) {
           </div>
           <div className="task-editor-actions">
             <button className="btn primary" disabled={state.busy || closed}>
-              {editor.id ? "Save changes" : "Create task"}
+              {editor.id ? "Save changes" : `Create ${noun}`}
             </button>
             <button type="button" className="btn" onClick={closeEditor}>
               Cancel
@@ -261,7 +313,7 @@ export default function TaskBoard({ room, partner }) {
                   else if (await mutate("task-delete", editor)) closeEditor();
                 }}
               >
-                {deletePrompt ? "Confirm delete" : "Delete task"}
+                {deletePrompt ? "Confirm delete" : `Delete ${noun}`}
               </button>
             )}
           </div>
@@ -270,19 +322,21 @@ export default function TaskBoard({ room, partner }) {
       <div className="task-board">
         {columns.map(([status, label]) => {
           const cards = shown.filter((task) => task.status === status);
+          // A mentor can't finish an item, so Done is never a drop target.
+          const droppable = !closed && (canFinish || status !== "done");
           return (
             <section
               key={status}
-              className={`task-column column-${status} ${dragging ? "drop-ready" : ""}`}
-              aria-label={`${label} tasks`}
+              className={`task-column column-${status} ${dragging && droppable ? "drop-ready" : ""}`}
+              aria-label={`${label} ${noun}s`}
               onDragOver={(event) => {
-                if (dragging && !closed) event.preventDefault();
+                if (dragging && droppable) event.preventDefault();
               }}
               onDrop={async (event) => {
                 event.preventDefault();
                 const task = tasks.find((item) => item.id === dragging);
                 setDragging("");
-                if (task && task.status !== status && !state.busy && !closed)
+                if (droppable && task && task.status !== status && !state.busy)
                   await mutate("task-update", task, { status });
               }}
             >
@@ -292,14 +346,16 @@ export default function TaskBoard({ room, partner }) {
                   {label}
                   <span className="column-count">{cards.length}</span>
                 </h3>
-                <button
-                  className="icon-btn"
-                  aria-label={`Add task to ${label}`}
-                  disabled={closed || state.busy}
-                  onClick={() => openEditor({ status, priority: "normal" })}
-                >
-                  <Icon name="plus" />
-                </button>
+                {droppable && (
+                  <button
+                    className="icon-btn"
+                    aria-label={`Add ${noun} to ${label}`}
+                    disabled={state.busy}
+                    onClick={() => openEditor(newItem(status))}
+                  >
+                    <Icon name="plus" />
+                  </button>
+                )}
               </div>
               <div className="task-card-list">
                 {cards.map((task) => {
@@ -311,7 +367,11 @@ export default function TaskBoard({ room, partner }) {
                     <article
                       className="task-card"
                       key={task.id}
-                      draggable={!closed && !state.busy}
+                      draggable={
+                        !closed &&
+                        !state.busy &&
+                        (canFinish || task.status !== "done")
+                      }
                       onDragStart={(event) => {
                         event.dataTransfer.setData("text/plain", task.id);
                         setDragging(task.id);
@@ -375,25 +435,29 @@ export default function TaskBoard({ room, partner }) {
                             : "—"}
                         </span>
                       </div>
-                      <label className="task-move">
-                        <span className="sr-only">Move {task.title}</span>
-                        <SelectField
-                          aria-label={`Status of ${task.title}`}
-                          value={status}
-                          disabled={closed || state.busy}
-                          onChange={(event) =>
-                            mutate("task-update", task, {
-                              status: event.target.value,
-                            })
-                          }
-                        >
-                          {columns.map(([id, name]) => (
-                            <option key={id} value={id}>
-                              {name}
-                            </option>
-                          ))}
-                        </SelectField>
-                      </label>
+                      {!canFinish && status === "done" ? (
+                        <p className="task-move muted">Done by {founderName}</p>
+                      ) : (
+                        <label className="task-move">
+                          <span className="sr-only">Move {task.title}</span>
+                          <SelectField
+                            aria-label={`Status of ${task.title}`}
+                            value={status}
+                            disabled={closed || state.busy}
+                            onChange={(event) =>
+                              mutate("task-update", task, {
+                                status: event.target.value,
+                              })
+                            }
+                          >
+                            {statusOptions(status).map(([id, name]) => (
+                              <option key={id} value={id}>
+                                {name}
+                              </option>
+                            ))}
+                          </SelectField>
+                        </label>
+                      )}
                     </article>
                   );
                 })}
@@ -401,25 +465,27 @@ export default function TaskBoard({ room, partner }) {
                   <div className="task-column-empty">
                     <Icon name={status === "done" ? "check" : "plus"} />
                     <p>
-                      {query || mine
-                        ? "No matching tasks"
+                      {query || (mine && !mentoring)
+                        ? `No matching ${noun}s`
                         : status === "done"
-                          ? "Good work lands here."
+                          ? canFinish
+                            ? "Good work lands here."
+                            : `${founderName} moves finished items here.`
                           : status === "doing"
                             ? "Ready when you are."
-                            : "Start with one small task."}
+                            : `Start with one small ${noun}.`}
                     </p>
                   </div>
                 )}
               </div>
-              {!closed && (
+              {droppable && (
                 <button
                   className="add-card"
                   disabled={state.busy}
-                  onClick={() => openEditor({ status, priority: "normal" })}
+                  onClick={() => openEditor(newItem(status))}
                 >
                   <Icon name="plus" />
-                  Add a task
+                  {mentoring ? "Add an action item" : "Add a task"}
                 </button>
               )}
             </section>
@@ -427,8 +493,11 @@ export default function TaskBoard({ room, partner }) {
         })}
       </div>
       <p className="board-hint">
-        Drag cards between columns or use their status menu. Tasks help organize
-        work; milestones still need both collaborators’ confirmation.
+        {!mentoring
+          ? "Drag cards between columns or use their status menu. Tasks help organize work; milestones still need both collaborators’ confirmation."
+          : canFinish
+            ? "Drag items between columns or use their status menu."
+            : `Drag items between To do and In progress, or use their status menu. ${founderName} marks items done.`}
       </p>
     </section>
   );

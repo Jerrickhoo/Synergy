@@ -95,6 +95,9 @@ test("ongoing advisory exposes goals, fixed check-ins and blind cycle reviews", 
   });
   await page.reload();
   await page.getByRole("tab", { name: "Overview" }).click();
+  // Each 1–5 scale is chosen explicitly; nothing defaults to 5.
+  for (const label of ["Usefulness", "Clarity", "Responsiveness"])
+    await page.getByLabel(label, { exact: true }).selectOption("4");
   await page.getByLabel("Cycle review note").fill("Helpful cycle");
   await page
     .getByRole("button", { name: "Submit private cycle review" })

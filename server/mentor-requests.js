@@ -3,10 +3,12 @@ import { terminalStatuses } from "../src/data/collaboration.js";
 import { followupEngagement } from "../src/data/mentor-room.js";
 import { profileCompleteness } from "../src/data/selectors.js";
 import {
+  cooldownText,
   ownUnavailableText,
   unavailableText,
 } from "../src/data/mentor-rules.js";
 import {
+  declineMessageLimit,
   requestFields,
   requestLink,
   requestQuality,
@@ -362,7 +364,7 @@ export function createMentorRequests({
       );
       if (cooled)
         blocked(
-          `You can ask this mentor again after ${new Date(cooled.cooldownUntil).toLocaleDateString("en-PH", { timeZone: mentor.state.profiles.mentor.timeZone })}. Try another mentor in the meantime.`,
+          `${cooldownText(cooled.cooldownUntil, { now: now(), timeZone: mentor.state.profiles.mentor.timeZone })}. Try another mentor in the meantime.`,
           "cooldown",
         );
       const format = values.format;
@@ -373,8 +375,12 @@ export function createMentorRequests({
         const reason =
           person.reason || person.formatReasons[format] || "format-unavailable";
         blocked(
-          unavailableText(reason, person.name) ||
-            "Choose another available format.",
+          unavailableText(reason, person.name, {
+            format: person.reason ? undefined : format,
+            month: person.reason
+              ? person.reasonMonth
+              : person.formatReasonMonths?.[format],
+          }) || "Choose another available format.",
           reason,
         );
       }
@@ -470,12 +476,20 @@ export function createMentorRequests({
       if (!Object.hasOwn(config().cooldownDays, reason))
         fail("Choose a reason for declining.");
       const days = config().cooldownDays[reason];
+      const message =
+        typeof values.message === "string" ? values.message.trim() : "";
+      // Never cut a message off silently; the mentor shortens it instead.
+      if (message.length > declineMessageLimit)
+        fail(
+          `Message to the founder: shorten it to ${declineMessageLimit} characters (now ${message.length}).`,
+          400,
+          {
+            message: `Shorten it to ${declineMessageLimit} characters (now ${message.length}).`,
+          },
+        );
       settle(founder, mentor, meta, "declined", {
         reason,
-        message:
-          typeof values.message === "string"
-            ? values.message.trim().slice(0, 280)
-            : "",
+        message,
         cooldownUntil: days ? new Date(now() + days * day).toISOString() : null,
         alternatives: alternatives(),
       });

@@ -1,15 +1,18 @@
 import { randomUUID } from "node:crypto";
 import {
-  capacityLimits,
+  capacityErrorMessage,
+  capacityErrors,
   conflictRelations,
-  responseDayOptions,
-  validTimeZone,
 } from "../src/data/mentor-rules.js";
 import {
   mentorFormatIds,
   normalizeOfferedFormats,
 } from "../src/data/mentor-formats.js";
-import { mentorApplicationSteps } from "../src/data/mentor-onboarding.js";
+import {
+  bioLimit,
+  experienceLimit,
+  mentorApplicationSteps,
+} from "../src/data/mentor-onboarding.js";
 import { dayMs } from "../src/data/mentor-room.js";
 
 export const applicationActions = new Set([
@@ -27,6 +30,23 @@ const fresh = () => ({
   verification: null,
 });
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function applicationProfile(profile = {}) {
+  return {
+    topics: profile.topics || "",
+    formats: (profile.formats || []).map((format) => format.id),
+    capacity: profile.capacity || null,
+    timeZone: profile.timeZone || "",
+    pastExperience: profile.pastExperience || "",
+    bio: profile.bio || "",
+    stages: profile.stages || [],
+    industries: profile.industries || [],
+    conflicts: (profile.conflicts || []).map(
+      ({ company, relation, industry }) => ({ company, relation, industry }),
+    ),
+    noConflicts: Boolean(profile.noConflicts),
+  };
+}
 
 export function approvalDeadline(timestamp, businessDays) {
   let date = Date.parse(timestamp);
@@ -132,20 +152,10 @@ export function createMentorOnboarding({
       profile.expertise = profile.topics;
       profile.offer ||= profile.topics;
     } else if (step === 2) {
-      const capacity = { ...profile.capacity };
-      for (const [key, [min, max]] of Object.entries(capacityLimits)) {
-        const value = Number(values[key]);
-        if (!Number.isInteger(value) || value < min || value > max)
-          fail(`Choose ${min} to ${max} for ${key}.`);
-        capacity[key] = value;
-      }
-      const responseDays = Number(values.responseDays);
-      if (
-        !responseDayOptions.includes(responseDays) ||
-        !validTimeZone(values.timeZone)
-      )
-        fail("Choose a valid response time and time zone.");
-      profile.capacity = { ...capacity, responseDays };
+      const { errors, capacity } = capacityErrors(values);
+      if (Object.keys(errors).length)
+        fail(capacityErrorMessage(errors), 400, errors);
+      profile.capacity = { ...profile.capacity, ...capacity };
       profile.timeZone = values.timeZone;
     } else if (step === 3) {
       const requested = Array.isArray(values.formats) ? values.formats : [];
@@ -197,11 +207,20 @@ export function createMentorOnboarding({
       profile.guidelinesVersion = c.guidelinesVersion;
       profile.guidelinesGraceUntil = null;
     } else if (step === 6) {
-      const experience = clean(values.experience, 1500);
-      if (experience) {
-        profile.pastExperience = experience;
-        profile.bio ||= experience;
-      }
+      // The summary is past experience only. The introduction founders read
+      // first is its own optional answer, never a copy of the summary.
+      const errors = {};
+      const experience =
+        typeof values.experience === "string" ? values.experience.trim() : "";
+      const bio = typeof values.bio === "string" ? values.bio.trim() : "";
+      if (experience.length > experienceLimit)
+        errors.experience = `Experience summary: shorten it to ${experienceLimit.toLocaleString("en")} characters (now ${experience.length.toLocaleString("en")}).`;
+      if (bio.length > bioLimit)
+        errors.bio = `Short introduction: shorten it to ${bioLimit.toLocaleString("en")} characters (now ${bio.length.toLocaleString("en")}).`;
+      if (Object.keys(errors).length)
+        fail(Object.values(errors).join(" "), 400, errors);
+      if (experience) profile.pastExperience = experience;
+      if (bio) profile.bio = bio;
     } else {
       profile.stages = clean(values.stages, 250)
         .split(",")
@@ -331,6 +350,9 @@ export function createMentorOnboarding({
         accountId: account.id,
         name: account.state.accountName,
         ...account.mentorApplication,
+        // What the mentor entered, so a moderator can judge the application
+        // beside its verification evidence. Only moderators see this queue.
+        profile: applicationProfile(account.state.profiles.mentor),
         overdue: Date.parse(account.mentorApplication.dueAt) < now(),
         waitHours: Math.max(
           0,

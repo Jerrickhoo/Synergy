@@ -5,42 +5,19 @@ import FormErrors from "./FormErrors.jsx";
 import { mentorFormats } from "../data/mentor-formats.js";
 import { mentorGuidelines } from "../data/mentor-guidelines.js";
 import {
+  capacityFieldLabels,
   capacityLimits,
+  capacityUsageText,
+  closedFormatsLine,
   conflictRelations,
   mentorConfig,
   ownUnavailableText,
   responseDayOptions,
+  timeZoneOptions,
 } from "../data/mentor-rules.js";
+import { dayKeyIn, formatDate, nextDayKey } from "../data/dates.js";
 
-const fallbackZones = [
-  "Asia/Manila",
-  "Asia/Singapore",
-  "Asia/Tokyo",
-  "Australia/Sydney",
-  "Europe/London",
-  "America/New_York",
-  "America/Los_Angeles",
-  "UTC",
-];
-function timeZones(current) {
-  let zones = fallbackZones;
-  try {
-    zones = Intl.supportedValuesOf("timeZone");
-  } catch {
-    /* Older browsers list the common zones only. */
-  }
-  const device = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  return [...new Set([current, device, ...zones].filter(Boolean))].sort();
-}
-const date = (value) =>
-  value
-    ? new Date(value).toLocaleDateString("en", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })
-    : "";
-const hours = (minutes) => Math.round((minutes / 60) * 10) / 10;
+const date = (value) => (value ? formatDate(value, { year: true }) : "");
 
 function SubmitButton({ busy, primary = false, children, busyText }) {
   return (
@@ -122,7 +99,14 @@ export default function MentoringSettings() {
             <input type="hidden" name="paused" value="on" />
             <div className="field">
               <label htmlFor="paused-until">Resume on (optional)</label>
-              <input id="paused-until" name="pausedUntil" type="date" />
+              {/* (Nov 22, round 2) The earliest resume day is tomorrow in
+                  the mentor's time zone; the server checks it too. */}
+              <input
+                id="paused-until"
+                name="pausedUntil"
+                type="date"
+                min={nextDayKey(dayKeyIn(Date.now(), mentor.timeZone))}
+              />
             </div>
             <SubmitButton busy={busy("set-mentor-pause")} busyText="Pausing…">
               Pause new requests
@@ -140,20 +124,19 @@ export default function MentoringSettings() {
       >
         <h3>Capacity</h3>
         {usage && (
-          <p className="mentoring-usage">
-            You're using {usage.activeMentees} of {capacity.maxMentees} mentee
-            slots and {hours(usage.minutesCommitted)} of {capacity.monthlyHours}{" "}
-            hours this month.
+          <p className="mentoring-usage" role="status">
+            {capacityUsageText(usage, capacity)}
           </p>
         )}
+        {usage && closedFormatsLine(usage) && (
+          <p className="mentor-closed-line">{closedFormatsLine(usage)}</p>
+        )}
         <div className="mentoring-fields">
-          {[
-            ["maxMentees", "Mentees at once"],
-            ["monthlyHours", "Hours per month"],
-            ["maxOpenAsync", "Open quick asks and reviews"],
-          ].map(([key, label]) => (
+          {["maxMentees", "monthlyHours", "maxOpenAsync"].map((key) => (
             <div className="field" key={key}>
-              <label htmlFor={`capacity-${key}`}>{label}</label>
+              <label htmlFor={`capacity-${key}`}>
+                {capacityFieldLabels[key]}
+              </label>
               <input
                 id={`capacity-${key}`}
                 name={key}
@@ -170,7 +153,7 @@ export default function MentoringSettings() {
           <SelectField
             id="capacity-response"
             name="responseDays"
-            label="I reply within"
+            label={capacityFieldLabels.responseDays}
             defaultValue={String(capacity.responseDays)}
             options={responseDayOptions.map((days) => ({
               value: String(days),
@@ -206,10 +189,7 @@ export default function MentoringSettings() {
           name="timeZone"
           label="Time zone"
           defaultValue={mentor.timeZone}
-          options={timeZones(mentor.timeZone).map((zone) => ({
-            value: zone,
-            label: zone.replaceAll("_", " "),
-          }))}
+          options={timeZoneOptions(mentor.timeZone)}
         />
         <FormErrors scope="mentor-capacity" />
         <SubmitButton busy={busy("mentor-capacity")} busyText="Saving…">

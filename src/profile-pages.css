@@ -18,6 +18,9 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   grid-template-areas: "identity actions" "content actions";
+  /* The tall action panel spans both rows; its extra height belongs to the
+     reading column, not the identity row, so no gap opens under the header. */
+  grid-template-rows: auto 1fr;
   gap: 24px;
   align-items: start;
 }
@@ -63,6 +66,14 @@
   margin: 22px 0;
   color: var(--muted);
   line-height: 1.75;
+}
+.identity-summary.clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+  margin-bottom: var(--space-2);
 }
 .identity-metadata {
   display: flex;
@@ -335,6 +346,17 @@
 }
 .profile-side-column .profile-stat span {
   font-size: 12px;
+}
+/* The ring's label and the optional list share one column beside the ring,
+   so neither is squeezed into breaking mid-word. */
+.profile-stat-copy {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: normal;
+  word-break: normal;
+  text-wrap: pretty;
 }
 .profile-side-column .link-btn {
   display: flex;
@@ -1673,6 +1695,7 @@ button.profile-checklist-item > svg {
   .match-detail-layout {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: "identity" "actions" "content";
+    grid-template-rows: none;
   }
   .match-action-panel {
     position: static;

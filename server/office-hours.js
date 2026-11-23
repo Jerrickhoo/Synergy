@@ -1,9 +1,14 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import {
+  formatHours,
+  formatList,
+  hoursLimitMonth,
   mentorCommitments,
   mentorMonthKey,
   validTimeZone,
 } from "../src/data/mentor-rules.js";
+import { mentorFormat } from "../src/data/mentor-formats.js";
+import { formatMonth } from "../src/data/dates.js";
 import {
   appointment,
   dayMs,
@@ -250,7 +255,9 @@ export function createOfficeHours({
   recordSafety = () => {},
 }) {
   const stamp = () => new Date(now()).toISOString();
-  function assertAllocation(state, slots, limit) {
+  // `opening` is the mentor's slot list before a new slot, so the refusal can
+  // say how much the new slot adds; without it the mentor is lowering hours.
+  function assertAllocation(state, slots, limit, opening) {
     const { conflict, months, unbooked } = officeAllocation(
       state,
       now(),
@@ -264,15 +271,22 @@ export function createOfficeHours({
     );
     if (exceeded) {
       const [month, minutes] = exceeded;
+      const name = formatMonth(month, now());
+      const before = opening
+        ? officeAllocation(state, now(), config(), opening).months[month] || 0
+        : 0;
+      const slotIds = [...new Set(unbooked[month].map((slot) => slot.slotId))];
       fail(
-        `These slots and sessions need ${(minutes / 60).toFixed(2)} hours in ${month}. Close open slots or raise your ${limit}-hour limit.`,
+        opening
+          ? `This slot would add ${formatHours(minutes - before)} in ${name}, but you have ${formatHours(Math.max(0, limit * 60 - before))} left. Choose a shorter slot or raise your hours in Settings.`
+          : `Your sessions and open Office Hours need ${formatHours(minutes)} in ${name}. ${
+              slotIds.length === 1
+                ? "Close 1 open Office Hours slot"
+                : `Close some of your ${slotIds.length} open Office Hours slots`
+            } in ${name} (Calendar) to lower your hours to ${limit}.`,
         409,
         undefined,
-        {
-          reason: "hours-limit",
-          month,
-          slotIds: [...new Set(unbooked[month].map((slot) => slot.slotId))],
-        },
+        { reason: "hours-limit", month, slotIds },
       );
     }
     const recurringMinutes = recurringMonthlyMinutes(
@@ -281,7 +295,9 @@ export function createOfficeHours({
     );
     if (recurringMinutes > limit * 60)
       fail(
-        `These weekly slots can need ${(recurringMinutes / 60).toFixed(2)} hours in a future month. Close open slots or raise your ${limit}-hour limit.`,
+        opening
+          ? `Weekly slots can need up to ${formatHours(recurringMinutes)} in a month with an extra week, more than your ${limit}-hour limit. Choose a shorter slot or raise your hours in Settings.`
+          : `Your weekly Office Hours can need up to ${formatHours(recurringMinutes)} in a month. Close a weekly slot in Calendar to lower your hours to ${limit}.`,
         409,
         undefined,
         {
@@ -289,6 +305,29 @@ export function createOfficeHours({
           slotIds: slots.filter((slot) => slot.recurring).map(({ id }) => id),
         },
       );
+  }
+
+  // Offered formats that have room now but would run out of hours once the
+  // new slots reserve their time, with the first month each one stops fitting.
+  function closedBySlots(state, slots) {
+    const previous = state.profiles.mentor.officeHours;
+    const before = capacity(state);
+    state.profiles.mentor.officeHours = slots;
+    const after = capacity(state);
+    const allocated = officeAllocation(state, now(), config()).months;
+    state.profiles.mentor.officeHours = previous;
+    return before.offeredFormats
+      .filter(
+        (id) =>
+          !before.formatReasons[id] &&
+          after.formatReasons[id] === "hours-limit",
+      )
+      .map((id) => ({
+        id,
+        label: mentorFormat(id).label,
+        month:
+          hoursLimitMonth(state, id, now(), config(), allocated) || after.month,
+      }));
   }
 
   function book(account, state, input, values, validateOnly = false) {
@@ -351,7 +390,7 @@ export function createOfficeHours({
         409,
       );
     if (usage.activeMentees >= usage.capacity.maxMentees)
-      fail("The mentor's mentee slots are full.", 409, undefined, {
+      fail("The mentor has no session slots open right now.", 409, undefined, {
         reason: "mentee-limit",
       });
     if (Date.parse(state.mentorshipLimits?.founder || "") > now())
@@ -560,9 +599,43 @@ export function createOfficeHours({
           409,
         );
       const next = [...profile.officeHours, slot];
-      assertAllocation(state, next, capacity(state).capacity.monthlyHours);
+      assertAllocation(
+        state,
+        next,
+        capacity(state).capacity.monthlyHours,
+        profile.officeHours,
+      );
+      const closing = closedBySlots(state, next);
+      if (
+        closing.length &&
+        values.confirmClosing !== true &&
+        values.confirmClosing !== "true"
+      ) {
+        const months = new Map();
+        for (const item of closing)
+          months.set(item.month, [
+            ...(months.get(item.month) || []),
+            item.label,
+          ]);
+        const when = [...months]
+          .map(
+            ([month, labels]) =>
+              `${formatList(labels)} to new founders in ${formatMonth(month, now())}`,
+          )
+          .join(", and ");
+        // (Nov 22, round 2) A confirmation, not a failure: nothing opens,
+        // and the answer carries the question instead of an error status.
+        state.officeSlotCheck = {
+          reason: "closes-formats",
+          message: `This slot closes ${when}. Open it anyway, or choose a shorter slot.`,
+          formats: closing,
+        };
+        return;
+      }
       profile.officeHours = next;
-      state.toast = "Office Hours slot opened.";
+      state.toast = closing.length
+        ? `Office Hours slot opened. ${formatList(closing.map((item) => item.label))} ${closing.length === 1 ? "is" : "are"} closed to new founders until you have hours free.`
+        : "Office Hours slot opened.";
     } else {
       const slot = profile.officeHours.find((item) => item.id === input.id);
       if (!slot) fail("This Office Hours slot is unavailable.", 404);
@@ -582,6 +655,19 @@ export function createOfficeHours({
         profile.officeHours = profile.officeHours.filter(
           (item) => item.id !== slot.id,
         );
+      // Only promise other times when the founder can actually book one.
+      const usage = capacity(state);
+      const otherTimes =
+        !profile.paused &&
+        ![
+          "paused",
+          "guidelines",
+          "approval-required",
+          "suspended",
+          "no-show-limit",
+        ].includes(usage.reason) &&
+        officeAvailability(state, now(), config()).length > 0;
+      let cancelled = 0;
       for (const { room, session } of bookings(state)) {
         if (
           session.officeSlotId !== slot.id ||
@@ -597,11 +683,14 @@ export function createOfficeHours({
           scheduleInstant(session).getTime() - now() <
           config().lateNoticeHours * hourMs;
         room.mentorship.slotReleased = true;
+        cancelled += 1;
         mirror(
           account,
           state,
           room,
-          "The mentor closed your Office Hours slot. View their next available times.",
+          otherTimes
+            ? "The mentor closed your Office Hours slot. Choose one of their next available times."
+            : "The mentor closed your Office Hours slot and has no other open times right now. Find another mentor in Matches.",
           {
             kind: "slot-closed",
             tab: "schedule",
@@ -609,9 +698,12 @@ export function createOfficeHours({
           },
         );
       }
-      state.toast = skip
-        ? "Office Hours date skipped."
-        : "Office Hours slot closed.";
+      const booked = cancelled
+        ? ` ${cancelled} booked ${cancelled === 1 ? "session was" : "sessions were"} cancelled and counted as a mentor cancellation.`
+        : "";
+      state.toast =
+        (skip ? "Office Hours date skipped." : "Office Hours slot closed.") +
+        booked;
     }
   }
 

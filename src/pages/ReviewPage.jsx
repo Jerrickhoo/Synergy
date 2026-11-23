@@ -1,4 +1,5 @@
-import { isMentorRoom } from "../data/mentor-room.js";
+import { isMentorRoom, reviewCategories } from "../data/mentor-room.js";
+import RatingScale from "../components/RatingScale.jsx";
 import { useState } from "react";
 import SelectField from "../components/SelectField.jsx";
 import { useApp } from "../state/AppContext.jsx";
@@ -251,20 +252,7 @@ function MentorshipReview({ room, partnerName }) {
   const { state, onSubmit, onAction } = useApp();
   const review = room.review;
   const released = review.windowClosed || (review.me && review.partner);
-  const categories =
-    room.role === "founder"
-      ? [
-          ["usefulness", "Usefulness"],
-          ["clarity", "Clarity"],
-          ["responsiveness", "Responsiveness"],
-          ...(room.payment?.amount
-            ? [["valueForMoney", "Value for money"]]
-            : []),
-        ]
-      : [
-          ["preparedness", "Preparedness"],
-          ["followThrough", "Follow-through"],
-        ];
+  const categories = reviewCategories(room);
   const open = Boolean(room.mentorship.reviewOpenedAt);
   return (
     <div className="page page-enter">
@@ -299,19 +287,16 @@ function MentorshipReview({ room, partnerName }) {
               Your feedback stays private until both people submit or the review
               window closes.
             </p>
-            {categories.map(([id, label]) => (
-              <label key={id}>
-                {label}
-                <select name={id} required defaultValue="">
-                  <option value="" disabled>
-                    Choose a rating
-                  </option>
-                  {[1, 2, 3, 4, 5].map((rating) => (
-                    <option key={rating}>{rating}</option>
-                  ))}
-                </select>
-              </label>
+            {categories.map((category) => (
+              <RatingScale key={category.id} category={category} />
             ))}
+            {room.role === "mentor" &&
+              !categories.some(({ id }) => id === "followThrough") && (
+                <p className="field-help">
+                  You'll rate follow-through after the founder's follow-up is
+                  due.
+                </p>
+              )}
             <label htmlFor="mentor-review-note">
               Private feedback (optional)
             </label>

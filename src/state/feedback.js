@@ -49,7 +49,13 @@ export function publishToast(state, message, options = {}) {
   state.toastId = (state.toastId || 0) + 1;
 }
 
-export function errorTitle(scope) {
+// Mentorship rooms call tasks action items (Nov 22, round 2).
+export function errorTitle(scope, room) {
+  if (
+    room?.type === "mentorship" &&
+    ["task-create", "task-update", "task-delete"].includes(scope)
+  )
+    return "Couldn't save the action item";
   return formTitles[scope] || "Something needs your attention";
 }
 

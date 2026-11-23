@@ -495,20 +495,22 @@ test("D4: goal simulation is refused for real founder and mentor accounts", (t) 
     action: "accept-request",
     id: `${founder.state.accountId}:founder`,
   }).state.activeRoomId;
-  const simulate = (user, role) =>
-    real.act(user.token, {
-      role,
-      action: "simulate-goal-confirmation",
-      activeRoomId: roomId,
-    });
-  assert.throws(
-    () => simulate(founder, "founder"),
-    (error) => error.status === 403,
-  );
-  assert.throws(
-    () => simulate(mentor, "mentor"),
-    (error) => error.status === 403,
-  );
+  // Session-held and review simulation use the same fictional-mentor gate.
+  for (const action of [
+    "simulate-goal-confirmation",
+    "simulate-session-held",
+  ]) {
+    const simulate = (user, role) =>
+      real.act(user.token, { role, action, activeRoomId: roomId });
+    assert.throws(
+      () => simulate(founder, "founder"),
+      (error) => error.status === 403,
+    );
+    assert.throws(
+      () => simulate(mentor, "mentor"),
+      (error) => error.status === 403,
+    );
+  }
   assert.equal(
     real.get(founder.token, "founder").state.rooms[roomId].milestones.goal.me,
     false,

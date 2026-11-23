@@ -1,5 +1,56 @@
 import { mentorFormat, normalizeMentorFormat } from "./mentor-formats.js";
 import { scheduleInstant, scheduleLabel } from "./selectors.js";
+import { moneyLabel } from "./pricing.js";
+import { formatDate, formatDateTime } from "./dates.js";
+
+// (Nov 22, round 2) While a payment is due, paying is the founder's next
+// step, before and after a failed attempt; the mentor waits for it.
+export function paymentNextAction(room, now = Date.now()) {
+  const payment = room?.payment;
+  if (
+    !payment ||
+    payment.status !== "due" ||
+    payment.upgrade ||
+    !(Date.parse(payment.dueBy) > now)
+  )
+    return null;
+  const due = formatDateTime(payment.dueBy);
+  if (room.role !== "founder")
+    return {
+      mine: false,
+      text: `Waiting for the founder's payment (due ${due})`,
+      tab: "overview",
+    };
+  const format = mentorFormat(payment.format || roomFormat(room));
+  const what = payment.cycleNumber
+    ? `advisory cycle ${payment.cycleNumber}`
+    : format?.id === "ongoing-advisory"
+      ? "advisory cycle"
+      : format?.sync === false
+        ? format.label.toLowerCase()
+        : "session";
+  return {
+    mine: true,
+    text: `${payment.failedAt ? "Payment didn't go through. " : ""}Pay ${moneyLabel(payment.amount)} by ${due} to confirm your ${what}`,
+    action: payment.failedAt ? "Retry payment" : "Pay now",
+    pay: payment.providerRef,
+    tab: "overview",
+  };
+}
+
+// (Nov 22, round 3) The server refuses room commands until a due payment is
+// held, so the room offers none of them meanwhile: paying is the founder's one
+// primary action, and preparation and goal confirmation wait.
+export const awaitingPayment = (room) =>
+  room?.payment?.status === "due" && !room.payment.upgrade;
+
+// (Nov 22, round 3) Confirming advisory check-ins names every date, so both
+// people can spot a holiday or conflict and move that one check-in. There is
+// no holiday calendar; the list is the safeguard.
+export function checkInsConfirmedText(sessions, now = Date.now()) {
+  const dates = sessions.map((session) => formatDate(session.date, { now }));
+  return `Advisory check-ins confirmed. Check-ins: ${dates.join(", ")}. Reschedule any date from Schedule.`;
+}
 
 export const hourMs = 3600000;
 export const dayMs = 24 * hourMs;
@@ -301,6 +352,37 @@ export function mentorshipStage(room) {
   };
 }
 
+// (Nov 22, round 2) A mentorship room's card line names its stage and the
+// next session, e.g. "Goal confirmed · session Thu, Nov 26", instead of the
+// exchange "25% of milestones confirmed".
+// The current stage in sentence case ("Goal confirmed"), wherever it is
+// read as text rather than as a step of the room's stage list.
+export function mentorshipStageText(room) {
+  const { label } = mentorshipStage(room);
+  return label.charAt(0) + label.slice(1).toLowerCase();
+}
+
+export function mentorshipCardSummary(room, now = Date.now()) {
+  const { stages, index } = mentorshipStage(room);
+  const stage = mentorshipStageText(room);
+  const upcoming = mentorSessions(room)
+    .filter(
+      (session) =>
+        !session.cancelledAt &&
+        !session.outcome &&
+        scheduleInstant(session).getTime() > now,
+    )
+    .sort((a, b) => scheduleInstant(a) - scheduleInstant(b))[0];
+  const kind = roomFormat(room) === "ongoing-advisory" ? "check-in" : "session";
+  return {
+    text:
+      upcoming && room.status !== "cancelled"
+        ? `${stage} · ${kind} ${formatDate(scheduleInstant(upcoming), { weekday: true, now })}`
+        : stage,
+    progress: Math.round(((index + 1) / stages.length) * 100),
+  };
+}
+
 // These are the administrative steps required from a mentor per format.
 export function requiredMentorActions(format) {
   return {
@@ -315,6 +397,67 @@ export function requiredMentorActions(format) {
       "rate",
     ],
   }[format];
+}
+
+// The 1–5 questions each side answers in a private review, with short
+// anchors for the ends of the scale. A mentor rates the founder's follow-
+// through only once there is something to judge: a Single Session follow-up
+// that is due or submitted, or the end of an advisory cycle.
+const reviewQuestions = {
+  usefulness: ["Usefulness", "Not useful", "Changed what I'll do next"],
+  clarity: ["Clarity", "Hard to follow", "Very clear"],
+  responsiveness: ["Responsiveness", "Slow or missed", "Quick and reliable"],
+  valueForMoney: ["Value for money", "Not worth it", "Well worth it"],
+  preparedness: [
+    "Preparedness",
+    "Came without context",
+    "Shared context and materials ahead",
+  ],
+  followThrough: [
+    "Follow-through",
+    "Did none of the actions",
+    "Did every action",
+  ],
+};
+export function reviewCategories(
+  room,
+  now = Date.now(),
+  { cycle = false } = {},
+) {
+  const role = room.role;
+  let ids;
+  if (role === "founder")
+    ids = [
+      "usefulness",
+      "clarity",
+      "responsiveness",
+      ...(room.payment?.amount ? ["valueForMoney"] : []),
+    ];
+  else {
+    const followup = followupEngagement(room)?.followup;
+    const due =
+      cycle ||
+      Boolean(
+        followup &&
+        (followup.submittedAt || Date.parse(followup.availableAt || "") <= now),
+      );
+    ids = ["preparedness", ...(due ? ["followThrough"] : [])];
+  }
+  return ids.map((id) => {
+    const [label, low, high] = reviewQuestions[id];
+    return { id, label, low, high };
+  });
+}
+
+// Why a mentorship room closed, in the reader's terms. Both sides of a lapsed
+// checkout see a closed room; only the founder is told how to ask again.
+export function closedRoomText(room) {
+  if (room?.status !== "cancelled") return "";
+  if (room.closeReason === "payment-lapsed")
+    return room.role === "founder"
+      ? "Checkout expired. This request is closed."
+      : "The founder's checkout expired, so this mentorship closed. The time it reserved is free again.";
+  return room.closeReason || "This mentorship is closed.";
 }
 
 export function mentorshipNextAction(room) {
@@ -332,7 +475,7 @@ export function mentorshipNextAction(room) {
       tab: "overview",
     };
   if (room.status === "cancelled")
-    return { done: true, text: "This mentorship is closed.", tab: "overview" };
+    return { done: true, text: closedRoomText(room), tab: "overview" };
   if (room.status === "reviewed")
     return {
       done: true,
@@ -340,6 +483,8 @@ export function mentorshipNextAction(room) {
       tab: "overview",
       review: true,
     };
+  const payment = paymentNextAction(room);
+  if (payment) return payment;
   if (
     room.mentorship.reviewOpenedAt &&
     !room.review.me &&
@@ -386,6 +531,36 @@ export function mentorshipNextAction(room) {
           : "Waiting for the mentor to confirm the goal",
       tab: "overview",
     };
+  // Ongoing Advisory: the founder proposes a regular time, the mentor
+  // confirms it, and that creates the cycle's check-ins.
+  if (
+    format.id === "ongoing-advisory" &&
+    room.cycle?.phase === "active" &&
+    !room.cycle.confirmedAt
+  )
+    // (Nov 22, round 2) Whoever proposed last waits; the other side confirms.
+    return room.cycle.proposedTime
+      ? (room.cycle.proposedTime.proposedBy || "founder") !== room.role
+        ? {
+            mine: true,
+            text: "Confirm the proposed check-in time",
+            action: "Confirm time",
+            tab: "schedule",
+          }
+        : {
+            mine: false,
+            text: `Waiting for the ${room.role === "founder" ? "mentor" : "founder"} to confirm the check-in time`,
+            tab: "schedule",
+          }
+      : {
+          mine: room.role === "founder",
+          text:
+            room.role === "founder"
+              ? "Propose a regular check-in time"
+              : "Waiting for the founder to propose a check-in time",
+          action: room.role === "founder" ? "Propose time" : undefined,
+          tab: "schedule",
+        };
   if (!format.sync && !room.mentorship.deliveredAt) {
     const response = format.id === "quick-ask" ? "answer" : "review";
     return {

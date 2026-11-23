@@ -1,4 +1,4 @@
-import { isMentorRoom, mentorshipStage } from "../data/mentor-room.js";
+import { isMentorRoom, mentorshipCardSummary } from "../data/mentor-room.js";
 import SelectField from "../components/SelectField.jsx";
 import { Fragment, useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
@@ -108,6 +108,10 @@ export default function RoomsPage() {
             (person) => person.id === room.partnerId,
           );
           const next = roomNextAction(room, partner?.name);
+          const summary = isMentorRoom(room)
+            ? mentorshipCardSummary(room)
+            : null;
+          const progress = summary ? summary.progress : room.progress;
           return (
             <Fragment key={room.id}>
               <article className="card room-list-card">
@@ -133,18 +137,20 @@ export default function RoomsPage() {
                       </>
                     )}
                   </div>
-                  <span
-                    className={`status ${["launched", "reviewed"].includes(room.status) ? "green" : ""}`}
-                  >
-                    {isMentorRoom(room)
-                      ? mentorshipStage(room).label
-                      : roomStatusLabel(
-                          room.status,
-                          partner?.name || room.partnerId,
-                          room.terms.confirmedByMe,
-                          room.type,
-                        )}
-                  </span>
+                  {/* (Nov 22, round 3) A mentorship card names its stage
+                      once, in the summary line below. */}
+                  {!summary && (
+                    <span
+                      className={`status ${["launched", "reviewed"].includes(room.status) ? "green" : ""}`}
+                    >
+                      {roomStatusLabel(
+                        room.status,
+                        partner?.name || room.partnerId,
+                        room.terms.confirmedByMe,
+                        room.type,
+                      )}
+                    </span>
+                  )}
                 </div>
                 <p>
                   {room.terms.draft.goal ||
@@ -156,14 +162,14 @@ export default function RoomsPage() {
                   className="progress-track"
                   role="progressbar"
                   aria-label={`Collaboration progress with ${partner?.name || room.partnerId}`}
-                  aria-valuenow={room.progress}
+                  aria-valuenow={progress}
                   aria-valuemin={0}
                   aria-valuemax={100}
                 >
                   <div
                     className="progress-fill"
                     style={{
-                      width: room.progress + "%",
+                      width: progress + "%",
                     }}
                   />
                 </div>
@@ -175,7 +181,11 @@ export default function RoomsPage() {
                   </p>
                 )}
                 <div className="completion-row">
-                  <span>{room.progress}% of milestones confirmed</span>
+                  <span>
+                    {summary
+                      ? summary.text
+                      : `${room.progress}% of milestones confirmed`}
+                  </span>
                   <button
                     className="btn primary small"
                     data-action="open-room"

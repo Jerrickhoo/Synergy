@@ -311,9 +311,9 @@ export function publicMentorshipTrust(trust, config = mentorConfig) {
       newFounder: trust.sessions.value === 0,
     };
   }
+  // Counts are facts at any size; only rates, ratings and medians wait for
+  // minDataPoints, so one data point never reads as a pattern.
   const keys = [
-    "sessions",
-    "founders",
     "averageRating",
     "topSkills",
     "followThrough",
@@ -322,6 +322,9 @@ export function publicMentorshipTrust(trust, config = mentorConfig) {
   ];
   return {
     ...Object.fromEntries(keys.map((key) => [key, expose(trust[key])])),
+    sessions: trust.sessions,
+    founders: trust.founders,
+    minutes: trust.minutes,
     badges: trust.badges,
     reliable:
       trust.noShowRate.count >= config.minDataPoints &&

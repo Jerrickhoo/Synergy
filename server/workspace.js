@@ -35,6 +35,7 @@ import {
   applicationActions,
   createMentorOnboarding,
 } from "./mentor-onboarding.js";
+import { mentorVerificationLabel } from "../src/data/mentor-onboarding.js";
 import {
   logMentorSetting,
   mentoringGate,
@@ -267,8 +268,10 @@ export function scoreProfile(
     : marketing
       ? 0
       : null;
-  const audienceGap =
-    marketing && sizes.every((n) => n > 0) && sizeFit < 0.1
+  // Audience fairness is about founder swaps; mentorship has no swap.
+  const audienceGap = mentor
+    ? ""
+    : marketing && sizes.every((n) => n > 0) && sizeFit < 0.1
       ? `Uneven swap: ${Math.max(...sizes).toLocaleString("en")} vs ${Math.min(...sizes).toLocaleString("en")} audience`
       : marketing && !sizes.every((n) => n > 0)
         ? "Audience size missing for a co-marketing swap"
@@ -332,7 +335,7 @@ export function scoreProfile(
   return {
     // A 10x audience gap makes a swap unfair (§9), so it caps the score.
     score:
-      marketing && sizes.every((n) => n > 0) && sizeFit < 0.1
+      !mentor && marketing && sizes.every((n) => n > 0) && sizeFit < 0.1
         ? Math.min(weighted, 40)
         : weighted,
     audienceWarning: audienceGap,
@@ -432,6 +435,9 @@ export function createWorkspace(file, options = {}) {
         delete state.paymentModeration;
         delete state.mentorshipSurvey;
         delete state.mentorEmailStatus;
+        delete state.mentorListing;
+        delete state.mentorVerification;
+        delete state.mentorOfficeOpenings;
         for (const room of Object.values(state.rooms))
           delete room.officeHoursSuggestions;
         for (const room of Object.values(state.rooms))
@@ -903,6 +909,48 @@ export function createWorkspace(file, options = {}) {
       : undefined;
     return capacityUsage(mentorState, time, config, allocation);
   };
+  // What founders see for a mentor: capacity plus the Office Hours slots they
+  // can book. Office Hours with no bookable slot is closed to founders. The
+  // mentor's own Home and Settings use the same result.
+  function publicMentorUsage(account) {
+    const usage = mentorUsage(account.state);
+    const officeHours =
+      usage.offeredFormats.includes("office-hours") &&
+      usage.activeMentees < usage.capacity.maxMentees &&
+      ![
+        "paused",
+        "guidelines",
+        "suspended",
+        "approval-required",
+        "no-show-limit",
+      ].includes(usage.reason)
+        ? officeAvailability(account.state, now(), mentorSettings()).filter(
+            (slot) =>
+              !Object.values(db.payments || {}).some(
+                (payment) =>
+                  payment.mentorId === account.id &&
+                  payment.hold?.occurrenceId === slot.id &&
+                  payment.status === "due" &&
+                  Date.parse(payment.dueBy) > now(),
+              ),
+          )
+        : [];
+    if (
+      usage.offeredFormats.includes("office-hours") &&
+      !usage.formatReasons["office-hours"] &&
+      !officeHours.length
+    ) {
+      usage.availableFormats = usage.availableFormats.filter(
+        (id) => id !== "office-hours",
+      );
+      usage.formatReasons["office-hours"] = "no-office-hours";
+      if (!usage.availableFormats.length && !usage.reason) {
+        usage.available = false;
+        usage.reason = "no-office-hours";
+      }
+    }
+    return { usage, officeHours };
+  }
   // Conflict of interest between a mentor account and a founder account.
   const pairConflict = (mentorAccount, founderAccount) =>
     conflictWith(
@@ -913,8 +961,17 @@ export function createWorkspace(file, options = {}) {
         sameAccount: mentorAccount.id === founderAccount.id,
       },
     );
+  // The end of a decline cooldown between a founder and a mentor, if active.
+  function cooldownUntil(founder, mentorId) {
+    const entry = (founder.state.mentorRequestsByRole?.founder || []).find(
+      (item) =>
+        item.partnerId === mentorId && Date.parse(item.cooldownUntil) > now(),
+    );
+    return entry?.cooldownUntil || null;
+  }
   // Available mentors most similar to the founder's needs, for every place a
-  // request can't go ahead (paused, full, conflict).
+  // request can't go ahead (paused, full, conflict). Mentors the founder
+  // can't ask yet (a decline cooldown) are left out.
   function similarMentors(
     founder,
     excludeId,
@@ -925,6 +982,7 @@ export function createWorkspace(file, options = {}) {
       .filter(
         (other) =>
           identity(other, "mentor") !== excludeId &&
+          !cooldownUntil(founder, identity(other, "mentor")) &&
           directoryVisible(other, founder) &&
           discoverableMentor(other) &&
           pairConflict(other, founder)?.level !== "block",
@@ -987,7 +1045,10 @@ export function createWorkspace(file, options = {}) {
         reason,
       });
     fail(
-      `${unavailableText(reason, person.name)} Try one of the suggested mentors instead.`,
+      `${unavailableText(reason, person.name, {
+        format: reason === usage.fitReasons[single] ? single : undefined,
+        month: usage.reasonMonths?.[single],
+      })} Try one of the suggested mentors instead.`,
       409,
       undefined,
       {
@@ -1000,43 +1061,19 @@ export function createWorkspace(file, options = {}) {
     const profile = normalizeProfile(account.state.profiles[role]);
     const mine = viewer.profiles[viewer.role];
     const mentorPair = role === "mentor" || viewer.role === "mentor";
-    // Availability and Format Fit describe the mentor being scored. A mentor
-    // browsing founders isn't scored on their own capacity.
-    const usage = role === "mentor" ? mentorUsage(account.state) : null;
-    const officeHours =
-      usage?.offeredFormats.includes("office-hours") &&
-      usage.activeMentees < usage.capacity.maxMentees &&
-      ![
-        "paused",
-        "guidelines",
-        "suspended",
-        "approval-required",
-        "no-show-limit",
-      ].includes(usage.reason)
-        ? officeAvailability(account.state, now(), mentorSettings()).filter(
-            (slot) =>
-              !Object.values(db.payments || {}).some(
-                (payment) =>
-                  payment.mentorId === account.id &&
-                  payment.hold?.occurrenceId === slot.id &&
-                  payment.status === "due" &&
-                  Date.parse(payment.dueBy) > now(),
-              ),
-          )
-        : [];
-    if (
-      usage?.availableFormats.includes("office-hours") &&
-      !officeHours.length
-    ) {
-      usage.availableFormats = usage.availableFormats.filter(
-        (id) => id !== "office-hours",
-      );
-      usage.formatReasons["office-hours"] = "no-office-hours";
-      if (!usage.availableFormats.length) {
-        usage.available = false;
-        usage.reason = "no-office-hours";
-      }
-    }
+    const { usage, officeHours } =
+      role === "mentor"
+        ? publicMentorUsage(account)
+        : { usage: null, officeHours: [] };
+    // Availability and Format Fit describe the mentor in a pair. A mentor
+    // browsing founders is scored on the same factors founders see for them,
+    // so both sides of one pair read the same percentage.
+    const viewerMentor =
+      role === "founder" && viewer.role === "mentor"
+        ? db.accounts[viewer.accountId]
+        : null;
+    const fitUsage =
+      usage || (viewerMentor ? publicMentorUsage(viewerMentor).usage : null);
     const marketing = [
       [mine.offer, profile.need],
       [profile.offer, mine.need],
@@ -1045,6 +1082,13 @@ export function createWorkspace(file, options = {}) {
         /marketing|audience|promotion|growth/i.test(offer) &&
         /marketing|audience|promotion|growth/i.test(need),
     );
+    // A beta-testing exchange fits when either startup wants its product
+    // tested, since any founder can test the other's product. Any other
+    // startup trade (advice, feedback, introductions) defaults to a Skill Swap.
+    const testing = [
+      `${mine.need || ""} ${mine.needTags || ""}`,
+      String(profile.need || ""),
+    ].some((need) => /beta|tester|testing/i.test(need));
     const { mentorship, ...trust } = trustSummary(
       account.state.rooms,
       role,
@@ -1092,6 +1136,8 @@ export function createWorkspace(file, options = {}) {
         availableFormats: usage.availableFormats,
         officeHours,
         formatReasons: usage.formatReasons,
+        formatReasonMonths: usage.reasonMonths,
+        reasonMonth: usage.reasonMonth,
         openSlots: usage.openSlots,
         hoursLeftThisMonth: usage.hoursLeft,
         formats: normalizeOfferedFormats(
@@ -1112,12 +1158,14 @@ export function createWorkspace(file, options = {}) {
           ? "Mentorship"
           : marketing
             ? "Co-Marketing Swap"
-            : "Beta Testing Exchange",
-      // Every startup pair can run either exchange; mentors offer mentorship.
+            : testing
+              ? "Beta Testing Exchange"
+              : "Skill Swap",
+      // Every startup pair can run any exchange; mentors offer mentorship.
       engagementTypes:
         role === "mentor" || viewer.role === "mentor"
           ? ["Mentorship"]
-          : ["Beta Testing Exchange", "Co-Marketing Swap"],
+          : ["Beta Testing Exchange", "Co-Marketing Swap", "Skill Swap"],
       emailVerified: Boolean(account.emailVerifiedAt),
       affiliation:
         account.affiliation?.status === "verified"
@@ -1125,7 +1173,15 @@ export function createWorkspace(file, options = {}) {
               organization: account.affiliation.organization,
               status: "verified",
             }
-          : null,
+          : role === "mentor" &&
+              mentorVerificationLabel(account.mentorApplication)
+            ? {
+                organization: mentorVerificationLabel(
+                  account.mentorApplication,
+                ),
+                status: "verified",
+              }
+            : null,
       trust,
       ...(role === "mentor"
         ? { mentorImpact: mentorStats }
@@ -1138,8 +1194,11 @@ export function createWorkspace(file, options = {}) {
         profile,
         mentorPair,
         db.matchingConfig || defaultMatching,
-        usage
-          ? { availability: availabilityFit(usage), format: formatFit(usage) }
+        fitUsage
+          ? {
+              availability: availabilityFit(fitUsage),
+              format: formatFit(fitUsage),
+            }
           : mentorPair
             ? null
             : undefined,
@@ -1197,15 +1256,38 @@ export function createWorkspace(file, options = {}) {
       account.affiliation?.status === "verified"
         ? "verified"
         : account.affiliation?.status || "none";
+    // A moderator-approved mentor application is the mentor's verification.
+    state.mentorVerification =
+      state.role === "mentor" &&
+      mentorVerificationLabel(account.mentorApplication)
+        ? { label: mentorVerificationLabel(account.mentorApplication) }
+        : null;
     // The mentor's own capacity, computed on the server and only shown by the
     // client (Settings, Home and Profile).
-    state.mentorUsage = mentorUsage(state);
+    state.mentorUsage = publicMentorUsage({ ...account, state }).usage;
     if (state.mentorApplication || state.mentorSuspension)
       Object.assign(state.mentorUsage, {
         available: false,
         availableFormats: [],
         reason: state.mentorSuspension ? "suspended" : "approval-required",
       });
+    // The same rule that lists a mentor in founders' Matches, so the mentor's
+    // own banners never disagree with what founders can see.
+    state.mentorListing =
+      state.role === "mentor"
+        ? {
+            listed:
+              discoverableMentor(account) &&
+              account.profileVisible !== false &&
+              !account.suspended,
+            hidden: account.profileVisible === false,
+          }
+        : null;
+    // Upcoming open (unbooked) Office Hours times for the mentor's calendar.
+    state.mentorOfficeOpenings =
+      state.role === "mentor"
+        ? officeAvailability(state, now(), mentorSettings())
+        : [];
     state.directory = createInitialState().directory;
     for (const other of Object.values(db.accounts)) {
       if (!directoryVisible(other, account)) continue;
@@ -1228,6 +1310,10 @@ export function createWorkspace(file, options = {}) {
         const item = person(other, otherRole, state);
         if (conflict?.level === "warn" && state.role === "mentor")
           item.conflictWarning = conflict.text;
+        if (state.role === "founder" && otherRole === "mentor") {
+          const until = cooldownUntil(account, item.id);
+          if (until) item.cooldownUntil = until;
+        }
         // Display hint only; each simulated action re-checks on the server.
         item.prototypePartner = Boolean(
           options.demoMode &&
@@ -1254,6 +1340,7 @@ export function createWorkspace(file, options = {}) {
           item.engagement = {
             beta: "Beta Testing Exchange",
             marketing: "Co-Marketing Swap",
+            swap: "Skill Swap",
             mentorship: "Mentorship",
           }[proposed];
         state.directory[otherRole === "mentor" ? "mentors" : "founders"].push(
@@ -1514,10 +1601,14 @@ export function createWorkspace(file, options = {}) {
       startups: "Idea and pre-seed teams",
       image: "/demo/avatars/david.svg",
       noConflicts: true,
-      // The guided preview starts ready to mentor. Real mentors accept the
-      // guidelines themselves from Settings.
-      guidelinesVersion: mentorSettings().guidelinesVersion,
-      guidelinesAcceptedAt: new Date(now()).toISOString(),
+      // The guided preview starts ready to mentor, but nobody accepted the
+      // guidelines for it: it gets the grace period, and Home asks the
+      // preview mentor to read and accept them.
+      guidelinesVersion: null,
+      guidelinesAcceptedAt: null,
+      guidelinesGraceUntil: new Date(
+        now() + mentorSettings().guidelinesGraceDays * 86400000,
+      ).toISOString(),
     });
     if (!sample) blankFounder(state);
   }
@@ -2000,6 +2091,7 @@ export function createWorkspace(file, options = {}) {
     room.engagementType = {
       beta: "Beta Testing Exchange",
       marketing: "Co-Marketing Swap",
+      swap: "Skill Swap",
       mentorship: "Mentorship",
     }[room.type];
     if (room.type === "mentorship") {
@@ -2014,9 +2106,10 @@ export function createWorkspace(file, options = {}) {
           "",
         now(),
       );
-      if (request?.question) room.mentorship.question = request.question;
-      if (request?.desiredOutcome)
-        room.mentorship.desiredOutcome = request.desiredOutcome;
+      // The whole request travels into the room, so neither side has to look
+      // back at the inbox for the problem or what was already tried.
+      for (const field of ["problem", "tried", "question", "desiredOutcome"])
+        if (request?.[field]) room.mentorship[field] = request[field];
       const mentorProfile =
         state.role === "mentor"
           ? state.profiles.mentor
@@ -2127,6 +2220,12 @@ export function createWorkspace(file, options = {}) {
       if (!roles.includes(input.role) || input.form)
         fail("Choose a role and one action.");
       const state = prepare(account, input.role);
+      // A payment action gets its own message, never the previous action's.
+      state.toast = "";
+      state.toastType = "success";
+      delete state.officeSlotCheck;
+      state.toastTitle = "";
+      state.formErrors = null;
       payments.act(account, state, input);
       account.state = state;
       save();
@@ -2147,9 +2246,21 @@ export function createWorkspace(file, options = {}) {
       )
         fail("Choose a role and submit one action or form.");
       const state = prepare(account, input.role);
+      state.toast = "";
+      state.toastType = "success";
+      delete state.officeSlotCheck;
+      state.toastTitle = "";
       state.formErrors = null;
       state.confirmation = "";
-      if (payments.intercept(account, state, input)) {
+      // Only room commands and Office Hours bookings go through the payment
+      // gate. Calendar, onboarding and safety actions carry the tab's last
+      // room id too, and an unpaid room must not block them (Nov 22, round 2).
+      const paymentGate =
+        !safetyAction &&
+        !onboardingAction &&
+        (!officeAction ||
+          ["book-office-hours", "rebook-office-slot"].includes(input.action));
+      if (paymentGate && payments.intercept(account, state, input)) {
         /* Checkout opened. */
       } else if (safetyAction) safety.act(account, state, input);
       else if (onboardingAction) onboarding.act(account, state, input);
@@ -2205,6 +2316,7 @@ export function createWorkspace(file, options = {}) {
     const state = prepare(account, input.role);
     state.toast = "";
     state.toastType = "success";
+    delete state.officeSlotCheck;
     state.toastTitle = "";
     state.confirmation = "";
     state.formErrors = null;
@@ -2464,7 +2576,7 @@ export function createWorkspace(file, options = {}) {
       const permittedTypes =
         state.role === "mentor" || person.role === "mentor"
           ? ["mentorship"]
-          : ["beta", "marketing"];
+          : ["beta", "marketing", "swap"];
       if (
         ["interest", "accept-interest"].includes(input.action) &&
         !permittedTypes.includes(proposedType)

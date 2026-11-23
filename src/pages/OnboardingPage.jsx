@@ -5,13 +5,20 @@ import FormErrors from "../components/FormErrors.jsx";
 import SignupPage from "./SignupPage.jsx";
 import { mentorFormats } from "../data/mentor-formats.js";
 import { mentorGuidelines } from "../data/mentor-guidelines.js";
+import SelectField from "../components/SelectField.jsx";
+import LimitedTextarea from "../components/LimitedTextarea.jsx";
+import TagProposal from "../components/TagProposal.jsx";
 import {
+  capacityFieldLabels,
   capacityLimits,
   conflictRelations,
   responseDayOptions,
+  timeZoneOptions,
 } from "../data/mentor-rules.js";
 import {
   approvalCopy,
+  bioLimit,
+  experienceLimit,
   mentorApplicationSteps,
 } from "../data/mentor-onboarding.js";
 
@@ -141,47 +148,48 @@ function ApplicationFields({ application, profile, config, vocabulary }) {
     case 2:
       return (
         <>
-          {Object.entries({
-            maxMentees: "Mentees at once",
-            monthlyHours: "Hours per month",
-            maxOpenAsync: "Open quick asks and reviews",
-          }).map(([id, label]) => (
-            <label key={id}>
-              {label}
+          {["maxMentees", "monthlyHours", "maxOpenAsync"].map((id) => (
+            <div className="field" key={id}>
+              <label htmlFor={`application-${id}`}>
+                {capacityFieldLabels[id]}
+              </label>
               <input
+                id={`application-${id}`}
                 type="number"
+                inputMode="numeric"
                 name={id}
                 min={capacityLimits[id][0]}
                 max={capacityLimits[id][1]}
+                step="1"
                 required
                 defaultValue={profile.capacity[id]}
               />
-            </label>
+              <p className="field-help">
+                {capacityLimits[id][0]} to {capacityLimits[id][1]}
+              </p>
+            </div>
           ))}
-          <label>
-            Response time
-            <select
-              name="responseDays"
-              defaultValue={profile.capacity.responseDays}
-            >
-              {responseDayOptions.map((day) => (
-                <option value={day} key={day}>
-                  {day} {day === 1 ? "day" : "days"}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Time zone
-            <input
-              name="timeZone"
-              required
-              defaultValue={
-                profile.timeZone ||
-                Intl.DateTimeFormat().resolvedOptions().timeZone
-              }
-            />
-          </label>
+          <SelectField
+            id="application-responseDays"
+            name="responseDays"
+            label={capacityFieldLabels.responseDays}
+            defaultValue={String(profile.capacity.responseDays)}
+            options={responseDayOptions.map((day) => ({
+              value: String(day),
+              label: `${day} ${day === 1 ? "day" : "days"}`,
+            }))}
+          />
+          {/* The same list Settings uses, so a zone is always valid. */}
+          <SelectField
+            id="application-timeZone"
+            name="timeZone"
+            label={capacityFieldLabels.timeZone}
+            defaultValue={
+              profile.timeZone ||
+              Intl.DateTimeFormat().resolvedOptions().timeZone
+            }
+            options={timeZoneOptions(profile.timeZone)}
+          />
         </>
       );
     case 3:
@@ -240,14 +248,25 @@ function ApplicationFields({ application, profile, config, vocabulary }) {
       );
     case 6:
       return (
-        <label>
-          Experience summary (optional)
-          <textarea
+        <>
+          <LimitedTextarea
+            id="application-experience"
             name="experience"
-            maxLength={1500}
+            label="Experience summary (optional)"
+            limit={experienceLimit}
             defaultValue={profile.pastExperience}
+            help="Roles, startups and projects that shape your advice. It appears as Past experience on your profile."
           />
-        </label>
+          <LimitedTextarea
+            id="application-bio"
+            name="bio"
+            label="Short introduction (optional)"
+            limit={bioLimit}
+            defaultValue={profile.bio}
+            placeholder="In two or three sentences: who you help and what founders leave a session with."
+            help="Founders read this first on your profile. You can add it later in Edit profile."
+          />
+        </>
       );
     default:
       return (
@@ -374,6 +393,21 @@ function MentorApplication({ application }) {
           </button>
         </div>
       </form>
+      {/* (Nov 22, round 2) A missing topic goes through the moderated
+          proposal path; approved tags join this list. */}
+      {step === 1 && (
+        <section
+          className="card panel section-gap"
+          aria-labelledby="expertise-proposal"
+        >
+          <h2 id="expertise-proposal">Missing a topic?</h2>
+          <p>
+            Propose a tag, for example customer retention. A moderator reviews
+            it, and once approved it appears in this list for every mentor.
+          </p>
+          <TagProposal id="application-tag" label="Topic to propose" />
+        </section>
+      )}
     </div>
   );
 }

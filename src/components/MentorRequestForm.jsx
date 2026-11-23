@@ -105,8 +105,9 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
       <>
         <h2>Mentorship requests</h2>
         <p>
-          {unavailableText(person.reason, person.name) ||
-            "This mentor is currently unavailable."}
+          {unavailableText(person.reason, person.name, {
+            month: person.reasonMonth,
+          }) || "This mentor is currently unavailable."}
         </p>
         <MentorAlternatives alternatives={alternatives} />
       </>
@@ -225,8 +226,10 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
             ?.filter(({ id }) => id !== "office-hours" && !formats.includes(id))
             .map(({ id }) => (
               <p key={id} className="field-help">
-                {mentorFormat(id).label} unavailable.{" "}
-                {unavailableText(person.formatReasons?.[id], person.name)}
+                {unavailableText(person.formatReasons?.[id], person.name, {
+                  format: id,
+                  month: person.formatReasonMonths?.[id],
+                }) || `${mentorFormat(id).label} isn't open right now.`}
               </p>
             ))}
         </div>

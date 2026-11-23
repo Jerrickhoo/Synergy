@@ -3,7 +3,7 @@ import Avatar from "../components/Avatar.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import {
   isMentorRoom,
-  mentorshipStage,
+  mentorshipStageText,
   roomFormat,
 } from "../data/mentor-room.js";
 import { mentorFormat } from "../data/mentor-formats.js";
@@ -47,7 +47,7 @@ export default function MenteesPage() {
         isMentorRoom(room) &&
         !["cancelled", "reviewed"].includes(room.status),
     ),
-    (room) => mentorshipStage(room).label,
+    (room) => mentorshipStageText(room),
   );
   if (state.role !== "mentor")
     return (

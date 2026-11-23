@@ -19,7 +19,12 @@ import Icon from "../components/Icon.jsx";
 import SimulateAcceptance from "../components/SimulateAcceptance.jsx";
 import ReportCollaborator from "../components/ReportCollaborator.jsx";
 import defaultTemplates from "../data/engagement-templates.json" with { type: "json" };
-import { ownUnavailableText, unavailableText } from "../data/mentor-rules.js";
+import {
+  cooldownActive,
+  cooldownText,
+  ownUnavailableText,
+  unavailableText,
+} from "../data/mentor-rules.js";
 import OtherRoleNotice from "../components/OtherRoleNotice.jsx";
 import {
   fitFactors,
@@ -28,10 +33,12 @@ import {
   stageLabel,
   preferenceLabel,
 } from "../data/profile-presentation.js";
+import { formatDate } from "../data/dates.js";
 
 const typeNames = {
   beta: "Beta Testing Exchange",
   marketing: "Co-Marketing Swap",
+  swap: "Skill Swap",
   mentorship: "Mentorship",
 };
 
@@ -47,20 +54,36 @@ function MatchDetail() {
   const { state, model, onAction } = useApp();
   const [engagementType, setEngagementType] = useState("");
   const [note, setNote] = useState("");
+  // Long introductions start as a few lines, so the actions stay in view.
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const person = model
     .rolePeople()
     .find((item) => item.id === state.activeMatch);
+  const longSummary = String(person?.summary || "").length > 320;
   const mentorUnavailable =
     state.role === "founder" &&
     (person
       ? person.kind === "Mentor" && person.available === false
       : state.activeMatch?.endsWith(":mentor"));
-  const alternatives = mentorUnavailable
-    ? model.people.mentors
-        .filter((item) => item.id !== state.activeMatch && item.available)
-        .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
-        .slice(0, state.mentorConfig?.alternativesCount ?? 3)
-    : [];
+  // A mentor who declined this founder can't be asked until the cooldown ends,
+  // so the request form gives way to that date and other mentors (Nov 22,
+  // round 3).
+  const cooledDown =
+    state.role === "founder" &&
+    person?.kind === "Mentor" &&
+    cooldownActive(person.cooldownUntil);
+  const alternatives =
+    mentorUnavailable || cooledDown
+      ? model.people.mentors
+          .filter(
+            (item) =>
+              item.id !== state.activeMatch &&
+              item.available &&
+              !cooldownActive(item.cooldownUntil),
+          )
+          .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+          .slice(0, state.mentorConfig?.alternativesCount ?? 3)
+      : [];
   // Mentors only match startups, so a mentor link seen as a mentor belongs to
   // this account's founder profile.
   if (
@@ -162,9 +185,22 @@ function MatchDetail() {
                 .join(" · ")}
             />
           </div>
-          <p className="identity-summary preserve-lines">
+          <p
+            className={`identity-summary preserve-lines${longSummary && !summaryOpen ? " clamped" : ""}`}
+            id="match-summary"
+          >
             {person.summary || "An introduction has not been added yet."}
           </p>
+          {longSummary && (
+            <button
+              className="link-btn"
+              aria-expanded={summaryOpen}
+              aria-controls="match-summary"
+              onClick={() => setSummaryOpen(!summaryOpen)}
+            >
+              {summaryOpen ? "Show less" : "Show more"}
+            </button>
+          )}
           <MentorshipBadges
             badges={person.badges?.filter((badge) => badge !== "New Mentor")}
           />
@@ -212,17 +248,29 @@ function MatchDetail() {
         >
           {requestForm ? (
             <>
-              {person.formats?.some(
-                (format) => format.id !== "office-hours",
-              ) && (
-                <MentorRequestForm
-                  person={person}
-                  alternatives={alternatives}
-                  referral={referral}
-                />
+              {cooledDown ? (
+                <div className="mentor-cooldown">
+                  <h2>{cooldownText(person.cooldownUntil)}</h2>
+                  <p>
+                    {person.name} declined your last request. Try another mentor
+                    in the meantime.
+                  </p>
+                  <MentorAlternatives alternatives={alternatives} />
+                </div>
+              ) : (
+                person.formats?.some(
+                  (format) => format.id !== "office-hours",
+                ) && (
+                  <MentorRequestForm
+                    person={person}
+                    alternatives={alternatives}
+                    referral={referral}
+                  />
+                )
               )}
               <OfficeHoursBooking person={person} />
               {mentorUnavailable &&
+                !cooledDown &&
                 person.formats?.every(
                   (format) => format.id === "office-hours",
                 ) && <MentorAlternatives alternatives={alternatives} />}
@@ -290,7 +338,9 @@ function MatchDetail() {
                 <div className="mentoring-banner" role="status">
                   <p>
                     {mentorUnavailable
-                      ? unavailableText(person.reason, person.name)
+                      ? unavailableText(person.reason, person.name, {
+                          month: person.reasonMonth,
+                        })
                       : ownUnavailableText(state.mentorUsage.reason)}
                   </p>
                   {ownUnavailable && (
@@ -345,6 +395,7 @@ function MatchDetail() {
                       <>
                         <option value="beta">Beta Testing Exchange</option>
                         <option value="marketing">Co-Marketing Swap</option>
+                        <option value="swap">Skill Swap</option>
                       </>
                     )}
                   </SelectField>
@@ -373,7 +424,7 @@ function MatchDetail() {
                     id="introduction-note"
                     maxLength={280}
                     value={note}
-                    placeholder={`Why ${person.name}? For example: your 600 student users are exactly who we want to test with.`}
+                    placeholder={`Why ${person.name}? For example: what you can share and what you hope to learn from them.`}
                     onChange={(event) => setNote(event.target.value)}
                   />
                   <span className="field-count">{note.length} / 280</span>
@@ -381,10 +432,8 @@ function MatchDetail() {
               )}
               {interested && !existingRoom && !incoming && meta?.sentAt && (
                 <p className="muted">
-                  Sent {new Date(meta.sentAt).toLocaleDateString()} · expires{" "}
-                  {new Date(
-                    Date.parse(meta.sentAt) + 14 * 86400000,
-                  ).toLocaleDateString()}
+                  Sent {formatDate(meta.sentAt)} · expires{" "}
+                  {formatDate(Date.parse(meta.sentAt) + 14 * 86400000)}
                 </p>
               )}
               <button
@@ -577,9 +626,12 @@ function MatchDetail() {
                 <p>{person.startups}</p>
               </div>
             )}
-            <p className="profile-preference">
-              {preferenceLabel(person.engagementPreference)}
-            </p>
+            {/* Mentors list formats instead of an exchange preference. */}
+            {!mentor && (
+              <p className="profile-preference">
+                {preferenceLabel(person.engagementPreference)}
+              </p>
+            )}
           </section>
           <section className="card panel profile-section">
             <p className="section-eyebrow">Trust</p>
@@ -591,7 +643,9 @@ function MatchDetail() {
               </div>
             )}
             <TrustSummary person={person} detailed />
-            {person.mentorImpact && <FormatPrices person={person} />}
+            {person.mentorImpact && (
+              <FormatPrices person={person} showUnavailable />
+            )}
             {person.mentorImpact && (
               <MentorImpact trust={person.mentorImpact} hideEmpty />
             )}

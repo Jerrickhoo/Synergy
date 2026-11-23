@@ -11,6 +11,7 @@ import {
   milestoneDate,
   scheduleLabel,
 } from "../data/selectors.js";
+import { formatDate } from "../data/dates.js";
 
 function blockedReason(room, agreement, id, item) {
   if (!agreement.locked || !agreement.partnerLocked)
@@ -278,14 +279,12 @@ function Milestone({ room, agreement, partnerName, id, item, index, current }) {
             )}
             {item.dispute?.escalatedAt && (
               <p className="muted">
-                With a moderator since{" "}
-                {new Date(item.dispute.escalatedAt).toLocaleDateString()}. They
-                aim to decide within 3 business days.
+                With a moderator since {formatDate(item.dispute.escalatedAt)}.
+                They aim to decide within 3 business days.
                 {item.dispute.dueAt && (
                   <>
                     {" "}
-                    Decision due by{" "}
-                    {new Date(item.dispute.dueAt).toLocaleDateString()}
+                    Decision due by {formatDate(item.dispute.dueAt)}
                     {Date.now() > Date.parse(item.dispute.dueAt)
                       ? " · Overdue"
                       : ""}

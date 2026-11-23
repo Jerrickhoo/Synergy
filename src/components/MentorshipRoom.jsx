@@ -1,5 +1,6 @@
 import { createContext, useContext, useState } from "react";
 import { CheckoutPanel } from "./Payments.jsx";
+import LinkedText from "./LinkedText.jsx";
 import { priceLabel } from "../data/pricing.js";
 import { useApp } from "../state/AppContext.jsx";
 import { CalendarFeed } from "./OfficeHours.jsx";
@@ -9,20 +10,26 @@ import ChatPanel from "./ChatPanel.jsx";
 import BlockCollaborator from "./BlockCollaborator.jsx";
 import ReportCollaborator from "./ReportCollaborator.jsx";
 import Icon from "./Icon.jsx";
+import PrototypeShortcut from "./PrototypeShortcut.jsx";
+import RatingScale from "./RatingScale.jsx";
 import { mentorFormat } from "../data/mentor-formats.js";
 import {
   attendanceOpen,
+  awaitingPayment,
   dayMs,
   followupEngagement,
   followupTasks,
+  closedRoomText,
   goalMilestone,
   mentorSessions,
   mentorshipNextAction,
+  reviewCategories,
   stageMarks,
   noteSessions,
   roomFormat,
 } from "../data/mentor-room.js";
 import { scheduleInstant, scheduleLabel } from "../data/selectors.js";
+import { formatDate } from "../data/dates.js";
 
 const reports = {
   held: "Session held",
@@ -95,6 +102,30 @@ function RoomAction({ action, children, values, disabled }) {
     >
       {children}
     </button>
+  );
+}
+
+// Prototype only: a booked Single Session with a fictional mentor can take
+// place now, so founders can try follow-up and reviews in one sitting.
+function SimulateSessionHeld({ room, closed, partner }) {
+  if (
+    closed ||
+    room.role !== "founder" ||
+    !partner?.prototypePartner ||
+    roomFormat(room) !== "single-session" ||
+    !mentorSessions(room).some(
+      (session) => !session.cancelledAt && !session.outcome,
+    )
+  )
+    return null;
+  return (
+    <PrototypeShortcut
+      note={`${partner.name} is a fictional mentor. Simulate the session taking place to try follow-up and reviews.`}
+    >
+      <RoomAction action="simulate-session-held">
+        Simulate the session taking place
+      </RoomAction>
+    </PrototypeShortcut>
   );
 }
 
@@ -176,13 +207,27 @@ function PrepChecklist({ room, closed, doc = false }) {
   const { onUpload, state } = useApp();
   const prep = room.mentorship.prep;
   const shared = doc ? room.milestones.uploaded?.attachment : prep?.sharedAt;
-  const scheduled = mentorSessions(room).some(
-    (session) => !session.cancelledAt && !session.outcome,
-  );
+  const upcoming = mentorSessions(room)
+    .filter((session) => !session.cancelledAt && !session.outcome)
+    .map((session) => scheduleInstant(session).getTime())
+    .filter((instant) => instant > Date.now())
+    .sort((a, b) => a - b)[0];
+  const noticeHours = state.mentorConfig?.lateNoticeHours || 24;
+  const lateNotice = noticeHours * 3600000;
+  // A session can be booked sooner than 24 hours ahead; the ask then is
+  // "as soon as you can", not a deadline that has already passed.
+  const prepAdvice = !upcoming
+    ? "Share your deck, metrics and links before your session."
+    : upcoming - Date.now() < lateNotice
+      ? `Your session starts ${scheduleLabel(new Date(upcoming))}. Share your deck, metrics and links as soon as you can.`
+      : `Share your deck, metrics and links by ${scheduleLabel(new Date(upcoming - lateNotice))}, ${noticeHours} hours before the session.`;
   return (
     <section className="card panel">
       <h2>{doc ? "Review materials" : "Session prep"}</h2>
-      <p>{shared ? "Prep shared" : "Prep not shared yet"}</p>
+      {/* While a payment is due, the line below already says prep waits. */}
+      {!(room.role === "founder" && !shared && awaitingPayment(room)) && (
+        <p>{shared ? "Prep shared" : "Prep not shared yet"}</p>
+      )}
       {prep && (
         <dl className="mentor-request-answers">
           {["deck", "metrics", "links"]
@@ -196,7 +241,9 @@ function PrepChecklist({ room, closed, doc = false }) {
                       ? "Metrics"
                       : "Links"}
                 </dt>
-                <dd>{prep[key]}</dd>
+                <dd className="preserve-lines">
+                  <LinkedText text={prep[key]} />
+                </dd>
               </div>
             ))}
         </dl>
@@ -208,15 +255,16 @@ function PrepChecklist({ room, closed, doc = false }) {
             : room.mentorship.prepFiles
         }
       />
-      {room.role === "founder" && !closed && (
+      {room.role === "founder" && !closed && awaitingPayment(room) && (
+        <p>
+          {doc
+            ? "Share your document here once your payment goes through."
+            : "Share your deck, metrics and links here once your payment goes through."}
+        </p>
+      )}
+      {room.role === "founder" && !closed && !awaitingPayment(room) && (
         <>
-          {!doc && (
-            <p>
-              {scheduled
-                ? "Share your deck, metrics and links at least 24 hours before the session."
-                : "Share your deck, metrics and links before your session."}
-            </p>
-          )}
+          {!doc && <p>{prepAdvice}</p>}
           <form
             className="mentor-request-form"
             data-id={doc ? "uploaded" : "prep"}
@@ -285,7 +333,7 @@ function SessionNotes({ room, closed, partner }) {
           <article key={note.id}>
             <h3>
               {note.authorRole === "mentor" ? "Mentor" : "Founder"} ·{" "}
-              {new Date(note.at).toLocaleDateString()}
+              {formatDate(note.at)}
             </h3>
             {session && (
               <p className="muted">Session {scheduleLabel(session)}</p>
@@ -373,12 +421,13 @@ function FollowupForm({ room }) {
             : "Share what happened after the session."}
         </p>
       ) : (
-        <p>Opens {new Date(followup.availableAt).toLocaleDateString()}.</p>
+        <p>Opens {formatDate(followup.availableAt)}.</p>
       )}
       {ready && !followup.submittedAt && room.role === "founder" && (
         <RoomForm
           command={{ action: "submit-followup" }}
           label="Submit follow-up"
+          primary
           fields={
             <>
               {followupTasks(room, followup).map((task) => (
@@ -444,8 +493,7 @@ function AdvisoryCycle({ room }) {
     <section className="card panel mentor-requests-list">
       <h2>Mentorship cycle {cycle.number}</h2>
       <p>
-        {cycle.checkIns} check-ins · ends{" "}
-        {new Date(cycle.dueAt).toLocaleDateString()}
+        {cycle.checkIns} check-ins · ends {formatDate(cycle.dueAt)}
       </p>
       {cycle.phase === "review" &&
         !mine &&
@@ -456,29 +504,15 @@ function AdvisoryCycle({ room }) {
             label="Submit private cycle review"
             fields={
               <>
-                {(room.role === "founder"
-                  ? [
-                      ["usefulness", "Usefulness"],
-                      ["clarity", "Clarity"],
-                      ["responsiveness", "Responsiveness"],
-                      ...(room.payment?.amount
-                        ? [["valueForMoney", "Value for money"]]
-                        : []),
-                    ]
-                  : [
-                      ["preparedness", "Preparedness"],
-                      ["followThrough", "Follow-through"],
-                    ]
-                ).map(([id, label]) => (
-                  <label key={id}>
-                    {label}
-                    <select name={id} defaultValue="5">
-                      {[1, 2, 3, 4, 5].map((rating) => (
-                        <option key={rating}>{rating}</option>
-                      ))}
-                    </select>
-                  </label>
-                ))}
+                {reviewCategories(room, Date.now(), { cycle: true }).map(
+                  (category) => (
+                    <RatingScale
+                      key={category.id}
+                      category={category}
+                      idPrefix="cycle-rating"
+                    />
+                  ),
+                )}
                 <RoomField
                   name="note"
                   id="cycle-note"
@@ -500,7 +534,9 @@ function AdvisoryCycle({ room }) {
       )}
       {(mine || cycle.reviewWindowClosed) && !room.mentorship.endedAt && (
         <div className="mentor-request-controls">
-          <p>Next cycle {priceLabel(room.nextCyclePrice || 0)}</p>
+          {room.nextCyclePrice > 0 && (
+            <p>Next cycle {priceLabel(room.nextCyclePrice)}</p>
+          )}
           <RoomAction
             action="cycle-decision"
             values={{
@@ -542,7 +578,7 @@ function Upgrade({ room }) {
         <>
           <p>
             Upgrade to {mentorFormat(proposal.format)?.label}. Expires{" "}
-            {new Date(proposal.expiresAt).toLocaleDateString()}.
+            {formatDate(proposal.expiresAt)}.
           </p>
           {proposal.proposedBy !== room.role ? (
             <div className="mentor-request-controls">
@@ -645,15 +681,21 @@ function Schedule({ room, closed, partner }) {
             )}
           </div>
         )}
-      {timeSuggestions.length > 0 && format !== "office-hours" && (
-        <details>
-          <summary>Times the mentor is available</summary>
+      {/* (Nov 22, round 2) The times show under their heading, named for
+          the viewer; with no times there is no heading. */}
+      {timeSuggestions.length > 0 && format !== "office-hours" && !closed && (
+        <div>
+          <h3>
+            {room.role === "mentor"
+              ? "Your open times"
+              : `Times ${partner?.name || "your mentor"} is available`}
+          </h3>
           <ul>
             {timeSuggestions.slice(0, 5).map((slot) => (
               <li key={slot.id}>{scheduleLabel(slot)}</li>
             ))}
           </ul>
-        </details>
+        </div>
       )}
       {sessions.map((session, index) => {
         const future = scheduleInstant(session).getTime() > Date.now();
@@ -736,6 +778,7 @@ function Schedule({ room, closed, partner }) {
           </article>
         );
       })}
+      <SimulateSessionHeld room={room} closed={closed} partner={partner} />
       {!closed &&
         goal &&
         !scheduleActive &&
@@ -766,29 +809,68 @@ function Schedule({ room, closed, partner }) {
         goal &&
         !room.cycle?.confirmedAt &&
         room.cycle?.phase === "active" &&
-        (room.role === "founder" ? (
-          <RoomForm
-            command={{ form: "propose-check-in-time" }}
-            label="Propose regular check-in time"
-            fields={
-              <>
-                <p>Choose the date and time of the first check-in.</p>
-                {dateTime("check-in")}
-              </>
-            }
-          />
-        ) : room.cycle.proposedTime ? (
-          <>
-            <p>
-              Proposed first check-in {scheduleLabel(room.cycle.proposedTime)}.
-            </p>
-            <RoomAction action="confirm-check-in-time">
-              Confirm check-in time
-            </RoomAction>
-          </>
-        ) : (
-          <p>Waiting for the founder to propose a check-in time.</p>
-        ))}
+        (() => {
+          // (Nov 22, round 2) The founder proposes; the mentor confirms or
+          // suggests another time, which the founder then confirms.
+          const proposal = room.cycle.proposedTime;
+          const proposedBy = proposal && (proposal.proposedBy || "founder");
+          const other =
+            partner?.name ||
+            (room.role === "founder" ? "your mentor" : "the founder");
+          if (!proposal && room.role === "mentor")
+            return <p>Waiting for the founder to propose a check-in time.</p>;
+          if (!proposal)
+            return (
+              <RoomForm
+                command={{ form: "propose-check-in-time" }}
+                label="Propose regular check-in time"
+                fields={
+                  <>
+                    <p>Choose the date and time of the first check-in.</p>
+                    {dateTime("check-in")}
+                  </>
+                }
+              />
+            );
+          const suggest = (
+            <details>
+              <summary>Suggest another time</summary>
+              <RoomForm
+                command={{ form: "propose-check-in-time" }}
+                label="Send suggested time"
+                fields={
+                  <>
+                    <p>
+                      {other} confirms your time, and it sets the cycle's
+                      check-ins.
+                    </p>
+                    {dateTime("suggest-check-in")}
+                  </>
+                }
+              />
+            </details>
+          );
+          return proposedBy === room.role ? (
+            <>
+              <p>
+                You proposed {scheduleLabel(proposal)} for the first check-in.
+                Waiting for {other} to confirm.
+              </p>
+              {suggest}
+            </>
+          ) : (
+            <>
+              <p>
+                {proposedBy === "mentor" ? `${other} suggested` : "Proposed"}{" "}
+                first check-in {scheduleLabel(proposal)}.
+              </p>
+              <RoomAction action="confirm-check-in-time">
+                Confirm check-in time
+              </RoomAction>
+              {suggest}
+            </>
+          );
+        })()}
     </section>
   );
 }
@@ -801,7 +883,15 @@ export default function MentorshipRoom({ room }) {
   const format = mentorFormat(roomFormat(room));
   const info = room.mentorship;
   const closed = ["launched", "reviewed", "cancelled"].includes(room.status);
+  // Prep is for the session ahead: once a one-off session is held, the next
+  // step is the follow-up. Ongoing Advisory keeps prep open between check-ins.
+  const prepOver =
+    format.sync &&
+    format.id !== "ongoing-advisory" &&
+    Boolean(room.milestones.held?.me);
   const next = mentorshipNextAction(room);
+  const goalItem = room.milestones[goalMilestone(room)];
+  const goalConfirmed = Boolean(goalItem?.me || goalItem?.partner);
   const tabs = [
     ["overview", "Overview"],
     ...(format.sync ? [["schedule", "Schedule"]] : []),
@@ -842,30 +932,78 @@ export default function MentorshipRoom({ room }) {
           </li>
         ))}
       </ol>
-      {room.closeReason && <p className="warning-note">{room.closeReason}</p>}
-      <p className="room-next-step">
-        {/* The next step opens its tab when it lives somewhere else. */}
-        {next.tab && next.tab !== tab && !next.done ? (
-          <button
-            className="link-btn"
-            onClick={() => onAction({ action: "room-tab", tab: next.tab })}
-          >
-            {next.text}
-          </button>
-        ) : (
-          next.text
-        )}{" "}
-        {next.review && (
-          <button
-            className="btn small"
-            onClick={() => onAction({ page: "review" })}
-          >
-            {room.review.me || room.review.windowClosed
-              ? "Read reviews"
-              : "Write review"}
-          </button>
-        )}
-      </p>
+      {room.status === "cancelled" ? (
+        <section className="card panel mentor-room-closed" role="status">
+          <h2>{closedRoomText(room)}</h2>
+          {room.role === "founder" && (
+            <>
+              <p>
+                {room.closeReason === "payment-lapsed" &&
+                  "Nothing was charged. "}
+                Ask {partner?.name || "this mentor"} again, or find another
+                mentor who can help now.
+              </p>
+              <div className="mentor-request-controls">
+                {partner && (
+                  <button
+                    className="btn primary"
+                    onClick={(event) =>
+                      onAction(
+                        { action: "match-detail", id: room.partnerId },
+                        event,
+                      )
+                    }
+                  >
+                    Request again
+                  </button>
+                )}
+                <button
+                  className="btn"
+                  onClick={() => onAction({ page: "discover" })}
+                >
+                  Find another mentor
+                </button>
+              </div>
+            </>
+          )}
+        </section>
+      ) : (
+        <p className="room-next-step">
+          {/* The next step opens its tab when it lives somewhere else. */}
+          {next.tab && next.tab !== tab && !next.done ? (
+            <button
+              className="link-btn"
+              onClick={() => onAction({ action: "room-tab", tab: next.tab })}
+            >
+              {next.text}
+            </button>
+          ) : (
+            next.text
+          )}{" "}
+          {next.pay && (
+            <button
+              className="btn small primary"
+              disabled={state.busy}
+              onClick={() =>
+                onAction({ action: "pay", values: { providerRef: next.pay } })
+              }
+            >
+              {state.busy && <span className="spinner" aria-hidden="true" />}
+              {next.action}
+            </button>
+          )}
+          {next.review && (
+            <button
+              className="btn small"
+              onClick={() => onAction({ page: "review" })}
+            >
+              {room.review.me || room.review.windowClosed
+                ? "Read reviews"
+                : "Write review"}
+            </button>
+          )}
+        </p>
+      )}
       <div
         className="tabs room-tabs"
         role="tablist"
@@ -898,40 +1036,55 @@ export default function MentorshipRoom({ room }) {
           <>
             <section className="card panel">
               <h2>Mentorship goal</h2>
-              <p>
-                {priceLabel(
-                  room.payment?.amount || room.terms.draft.price || 0,
-                )}
-              </p>
-              {!state.paymentCheckoutData && <CheckoutPanel room={room} />}
-              {info.question &&
-                (info.desiredOutcome ||
-                  info.question !== room.terms.draft.goal) && (
-                  <div>
-                    <h3>Founder's question</h3>
-                    <p className="preserve-lines">{info.question}</p>
+              {/* (Nov 22, round 2) Free mentoring shows no price label. */}
+              {(room.payment?.amount || room.terms.draft.price || 0) > 0 && (
+                <p>
+                  {priceLabel(room.payment?.amount || room.terms.draft.price)}
+                </p>
+              )}
+              {!state.paymentCheckoutData && room.status !== "cancelled" && (
+                <CheckoutPanel room={room} />
+              )}
+              {[
+                ["problem", "The problem"],
+                ["tried", "What they already tried"],
+                ["question", "Founder's question"],
+                ["desiredOutcome", "Desired outcome"],
+              ]
+                .filter(([key]) => info[key])
+                .map(([key, label]) => (
+                  <div key={key}>
+                    <h3>{label}</h3>
+                    <p className="preserve-lines">{info[key]}</p>
                   </div>
-                )}
-              {info.desiredOutcome && <h3>Desired outcome</h3>}
-              <p className="preserve-lines">
-                {info.desiredOutcome ||
-                  room.terms.draft.goal ||
-                  "Agree on a focus in chat."}
-              </p>
-              {info.desiredOutcome &&
-                room.terms.draft.goal !== info.desiredOutcome && (
+                ))}
+              {goalConfirmed ? (
+                <div>
+                  <h3>Confirmed goal</h3>
+                  <p className="preserve-lines">
+                    {room.terms.draft.goal || "Agree on a focus in chat."}
+                  </p>
+                </div>
+              ) : (
+                !info.question &&
+                !info.desiredOutcome && (
                   <div>
-                    <h3>Confirmed goal</h3>
-                    <p className="preserve-lines">{room.terms.draft.goal}</p>
+                    <h3>Proposed goal</h3>
+                    <p className="preserve-lines">
+                      {room.terms.draft.goal || "Agree on a focus in chat."}
+                    </p>
                   </div>
-                )}
+                )
+              )}
               {!closed &&
                 room.role === "mentor" &&
+                !awaitingPayment(room) &&
                 room.milestones[goalMilestone(room)] &&
                 !room.milestones[goalMilestone(room)].me && (
                   <RoomForm
                     command={{ action: "confirm-goal" }}
                     label="Confirm goal"
+                    primary
                     fields={
                       <RoomField
                         name="goal"
@@ -948,19 +1101,32 @@ export default function MentorshipRoom({ room }) {
                 partner?.prototypePartner &&
                 room.milestones[goalMilestone(room)] &&
                 !room.milestones[goalMilestone(room)].me && (
-                  <div className="prototype-acceptance">
-                    <p className="field-help">
-                      Prototype only: {partner.name} is a fictional mentor.
-                      Simulate them confirming this goal to continue.
-                    </p>
+                  <PrototypeShortcut
+                    note={`${partner.name} is a fictional mentor. Simulate them confirming this goal to continue.`}
+                  >
                     <RoomAction action="simulate-goal-confirmation">
                       Simulate mentor confirming the goal
                     </RoomAction>
-                  </div>
+                  </PrototypeShortcut>
                 )}
+              <SimulateSessionHeld
+                room={room}
+                closed={closed}
+                partner={partner}
+              />
             </section>
-            {format.sync || format.id === "doc-review" ? (
-              <PrepChecklist room={room} closed={closed} doc={!format.sync} />
+            {(format.sync || format.id === "doc-review") &&
+            // A closed room, or a one-off session that has been held, keeps
+            // shared prep visible and read-only, never an empty prep form.
+            ((room.status !== "cancelled" && !prepOver) ||
+              info.prep?.sharedAt ||
+              info.prepFiles?.length ||
+              room.milestones.uploaded?.attachment) ? (
+              <PrepChecklist
+                room={room}
+                closed={closed || prepOver}
+                doc={!format.sync}
+              />
             ) : null}
             {!format.sync && (
               <section className="card panel">

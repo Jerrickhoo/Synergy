@@ -83,3 +83,6 @@ export function requestSuggestions(draft, availableFormats) {
       : null,
   };
 }
+
+// The optional message a mentor sends with a decline.
+export const declineMessageLimit = 280;

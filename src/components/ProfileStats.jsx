@@ -50,12 +50,14 @@ export default function ProfileStats() {
         >
           <strong aria-hidden="true">{completeness}%</strong>
         </div>
-        <span aria-hidden="true">Required details</span>
-        {optional.length > 0 && (
-          <span className="profile-optional-left">
-            Optional, not added: {optional.join(", ")}
-          </span>
-        )}
+        <span className="profile-stat-copy">
+          <span aria-hidden="true">Required details</span>
+          {optional.length > 0 && (
+            <span className="profile-optional-left">
+              Optional, not added: {optional.join(", ")}
+            </span>
+          )}
+        </span>
       </div>
     </div>
   );

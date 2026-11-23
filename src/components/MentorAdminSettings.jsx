@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import FormErrors from "./FormErrors.jsx";
+import { formatDateTime } from "../data/dates.js";
 
 const valueText = (value) =>
   Array.isArray(value) ? value.join(", ") : String(value);
@@ -110,7 +111,7 @@ export default function MentorAdminSettings() {
             <ol>
               {data.history.map((item) => (
                 <li key={item.id}>
-                  {new Date(item.at).toLocaleString()} · {item.moderator} ·{" "}
+                  {formatDateTime(item.at)} · {item.moderator} ·{" "}
                   {labelFor(item.path)} changed from {valueText(item.before)} to{" "}
                   {valueText(item.value)}
                 </li>

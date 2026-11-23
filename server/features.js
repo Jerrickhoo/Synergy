@@ -39,12 +39,12 @@ import {
   weightCount,
 } from "../src/data/matching.js";
 import {
-  capacityLimits,
+  capacityErrorMessage,
+  capacityErrors,
   conflictRelations,
   guidelinesStatus,
   mentorConfig,
   ownUnavailableText,
-  responseDayOptions,
   validTimeZone,
 } from "../src/data/mentor-rules.js";
 import {
@@ -127,10 +127,15 @@ export function createFeatures({
   const vocabulary = () =>
     [...new Set([...defaultVocabulary, ...(db().approvedTags || [])])].sort();
   // The eligible directory for the viewer's role, as used by match suggestions.
+  // Mentors in a decline cooldown with this founder are left out: the founder
+  // can't ask them again yet, so suggesting them would be a dead end.
   const alertPeople = (state) =>
     state.role === "mentor"
       ? state.directory.mentorStartups
-      : [...state.directory.founders, ...state.directory.mentors];
+      : [
+          ...state.directory.founders,
+          ...state.directory.mentors.filter((person) => !person.cooldownUntil),
+        ];
   function notifications(account, state, time = now(), rawRequests = false) {
     const activity = state.activity
       .filter((item) => item.role === state.role)
@@ -516,8 +521,11 @@ export function createFeatures({
                 "attendance-needed",
                 "session-disputed",
                 "accepted",
+                "declined",
+                "expired",
                 "referred",
                 "returned",
+                "check-in-time",
                 "followup-due",
                 "mentor-approved",
                 "mentor-rejected",
@@ -654,7 +662,11 @@ export function createFeatures({
   function decorate(account, state) {
     state.isAdmin = isAdmin(account);
     state.vocabulary = vocabulary();
-    state.engagementTemplates = db().engagementTemplates || defaultTemplates;
+    // Saved moderator edits win; room types added later keep their defaults.
+    state.engagementTemplates = {
+      ...defaultTemplates,
+      ...db().engagementTemplates,
+    };
     state.matchingConfig = db().matchingConfig || defaultMatching;
     state.mentorEmailStatus = account.emailDeliveryStatus || null;
     state.notificationPreferences = {
@@ -936,17 +948,7 @@ export function createFeatures({
           : "Pause Mode is off.";
       }
     } else if (input.form === "mentor-capacity") {
-      const errors = {};
-      const capacity = {};
-      for (const [key, [min, max]] of Object.entries(capacityLimits)) {
-        const value = Number(values[key]);
-        if (!Number.isInteger(value) || value < min || value > max)
-          errors[key] = `Choose a whole number from ${min} to ${max}.`;
-        capacity[key] = value;
-      }
-      capacity.responseDays = Number(values.responseDays);
-      if (!responseDayOptions.includes(capacity.responseDays))
-        errors.responseDays = "Choose 1, 2, 3, 5 or 7 days.";
+      const { errors, capacity } = capacityErrors(values);
       const formats = normalizeOfferedFormats(
         mentorFormatIds
           .filter((id) => values[`format-${id}`] === "on")
@@ -956,12 +958,11 @@ export function createFeatures({
           ),
         mentor.payoutSetup?.status === "ready",
       );
-      if (!formats.length) errors.formats = "Offer at least one format.";
+      if (!formats.length)
+        errors.formats = "Formats you offer: keep at least one selected.";
       const timeZone = text("timeZone");
-      if (!validTimeZone(timeZone))
-        errors.timeZone = "Choose a valid time zone.";
       if (Object.keys(errors).length)
-        fail("Check your mentoring settings.", 400, errors);
+        fail(capacityErrorMessage(errors), 400, errors);
       validateOfficeHours?.(state, capacity);
       Object.assign(mentor, { capacity, formats, timeZone });
       if (mentor.preferredHours) mentor.preferredHours.timeZone = timeZone;
@@ -1167,7 +1168,9 @@ export function createFeatures({
         const id = text("type");
         if (id === "mentorship")
           fail("Mentorship templates follow the format definitions.", 409);
-        const current = (db().engagementTemplates || defaultTemplates)[id];
+        const current = { ...defaultTemplates, ...db().engagementTemplates }[
+          id
+        ];
         if (!Object.hasOwn(defaultTemplates, id) || !current)
           fail("Choose a valid room type.");
         if (Number(values.version) !== current.version)
@@ -1197,9 +1200,10 @@ export function createFeatures({
             evidence: values[`evidence-${item.id}`] === "on",
           };
         });
-        db().engagementTemplates = structuredClone(
-          db().engagementTemplates || defaultTemplates,
-        );
+        db().engagementTemplates = structuredClone({
+          ...defaultTemplates,
+          ...db().engagementTemplates,
+        });
         db().engagementTemplates[id] = {
           id,
           name,
@@ -1453,14 +1457,25 @@ export function createFeatures({
     ) {
       room.tasks ||= [];
       const task = room.tasks.find((item) => item.id === input.id);
+      // Mentorship rooms call them action items (Nov 22, round 2).
+      const noun = isMentorRoom(room) ? "action item" : "task";
       if (input.form !== "task-create") {
-        if (!task) fail("This task is unavailable. Refresh the board.", 404);
+        if (!task)
+          fail(
+            `This ${noun} is unavailable. Refresh the ${isMentorRoom(room) ? "list" : "board"}.`,
+            404,
+          );
         if (Number(values.version) !== task.version)
-          fail("This task changed. Review the latest card and try again.", 409);
+          fail(
+            `This ${noun} changed. Review the latest ${isMentorRoom(room) ? "version" : "card"} and try again.`,
+            409,
+          );
       }
       if (input.form === "task-delete") {
         room.tasks = room.tasks.filter((item) => item.id !== task.id);
-        state.toast = "Task deleted.";
+        state.toast = isMentorRoom(room)
+          ? "Action item deleted."
+          : "Task deleted.";
       } else {
         const title = text("title"),
           description = text("description");
@@ -1474,7 +1489,9 @@ export function createFeatures({
           dueDate = text("dueDate");
         const milestoneId = text("milestoneId");
         if (!title || title.length > 160)
-          fail("Use a task title of 1–160 characters.");
+          fail(
+            `Use ${isMentorRoom(room) ? "an action item" : "a task title"} of 1–160 characters.`,
+          );
         if (
           isMentorRoom(room) &&
           room.role !== "founder" &&
@@ -1483,11 +1500,11 @@ export function createFeatures({
         )
           fail("Only the founder can mark an action item done.", 403);
         if (!["todo", "doing", "done"].includes(status))
-          fail("Choose a valid task status.");
+          fail(`Choose a valid ${noun} status.`);
         if (!["low", "normal", "high"].includes(priority))
           fail("Choose a valid priority.");
         if (assignee && ![account.id, room.partnerAccountId].includes(assignee))
-          fail("Assign this task to a room collaborator.");
+          fail(`Assign this ${noun} to a room collaborator.`);
         if (milestoneId && !Object.hasOwn(room.milestones, milestoneId))
           fail("Choose a room milestone.");
         const parsed = new Date(`${dueDate}T12:00:00Z`);
@@ -1497,7 +1514,7 @@ export function createFeatures({
             Number.isNaN(parsed.getTime()) ||
             parsed.toISOString().slice(0, 10) !== dueDate)
         )
-          fail("Choose a valid task due date.");
+          fail(`Choose a valid ${noun} due date.`);
         const fields = {
           title,
           description,
@@ -1519,7 +1536,13 @@ export function createFeatures({
             createdAt: new Date().toISOString(),
           });
         }
-        state.toast = task ? "Task updated." : "Task added to the board.";
+        state.toast = isMentorRoom(room)
+          ? task
+            ? "Action item updated."
+            : "Action item added."
+          : task
+            ? "Task updated."
+            : "Task added to the board.";
       }
       if (isMentorRoom(room))
         setMentorMilestone(

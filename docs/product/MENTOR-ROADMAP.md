@@ -8,6 +8,12 @@ Local acceptance checks also covered Pause Mode returns, a no-slots decline and 
 
 This roadmap brings the mentor side in line with the [current product spec](SYNERGY-SPEC.md). Each phase can be shipped and tested on its own. Every rule below is a decision, not a suggestion. Where a number appears, it is the default value, and it lives in config so admins can tune it without a code change.
 
+**Mentor first-run review, 22 November 2026.** A first-time mentor walkthrough led to the rule clarifications marked "(Nov 22)" below: open Office Hours slots count in the hours a mentor sees, availability names each slot type, decline cooldowns leave a mentor out of suggestions, counts on Impact always show, follow-through is rated only once it can be judged, a moderator-approved application is the mentor's verification, and mentorship pair scores are the same from both sides.
+
+**Mentor first-run review, round 2, 22 November 2026.** A second pass over the same walkthrough led to the notes marked "(Nov 22, round 2)": founders read the same closed-format cause and month as the mentor, slot limits are always "session slots" or "quick-ask or review slots", mentors are never offered Done on action items, toasts address the person who acted, paying is the founder's next step while a payment is due, and a slot that closes a format asks as a confirmation rather than failing.
+
+**Mentor first-run review, round 3, 22 November 2026.** A third pass led to the notes marked "(Nov 22, round 3)": a mentor in a decline cooldown is left out of every list that offers mentors to that founder (Browse all and Saved keep them, with the date), Match details shows the cooldown instead of a request form, a room with a payment due offers no command the server would refuse, mentorship cards name their stage once, pending tag proposals show their decision at once, and confirming advisory check-ins lists every date.
+
 **Checkbox review, 18 November 2026.** 41 of 52 acceptance items are checked after comparison with the implementation and recorded local tests. The remaining 11 cover blocked-state alternatives, live email staging and the P2 live-payment release requirements. The [v1.1 review log](V1.1-IMPLEMENTATION.md) records the payment tests and browser reruns.
 
 ## Context
@@ -208,13 +214,14 @@ This is the rule that every later phase follows. It lives in one function, `capa
 - A format is **available** only if the mentor is not paused, has accepted the current guidelines, and has room in the slot type and the hours that format needs. `availableFormats[]` lists them.
 - `available` is true when at least one format is available.
 - `reason` is one of `paused`, `guidelines`, `mentee-limit`, `async-limit`, `hours-limit`, `inbox-full` or `null`. The UI turns it into a sentence.
+- (Nov 22) Open, unbooked Office Hours slots reserve their minutes in the month they fall in (`officeAllocation`). `capacityUsage` reports `minutesCommitted`, `minutesReserved` and their sum `minutesUsed`, the same total the server enforces. Home and Settings show the sum ("1.75 of 6 h this month, 1.25 h reserved by open Office Hours") and a "Closed to founders right now: <formats> (<reason>)" line from `availableFormats` and the format reasons.
 
 ### Settings
 
 Add a "Mentoring" section to `SettingsPage.jsx`, in this order:
 
 1. **Pause Mode**: a one-tap toggle, with an optional "Resume on" date. Copy: "Stop new requests. Your current mentees are not affected."
-2. **Capacity**: steppers for mentees (1–10), hours per month (1–40) and open quick asks/reviews (1–10), plus a response-time select (1, 2, 3, 5 or 7 days). Under the steppers, a live line: "You're using 2 of 3 mentee slots and 2.5 of 4 hours this month."
+2. **Capacity**: steppers for mentees (1–10), hours per month (1–40) and open quick asks/reviews (1–10), plus a response-time select (1, 2, 3, 5 or 7 days). Under the steppers, a live line: "You're using 2 of 3 session slots and 2.5 of 4 hours this month." (Nov 22: hours include those reserved by open Office Hours.) Errors name the field and its range ("Mentees at once: choose 1 to 10"), and the time zone is the same select in the application and Settings.
 3. **Formats**: a checkbox per format, showing its summary and effort. At least one must stay selected.
 4. **Time zone**: a select, prefilled from the browser.
 5. **Conflicts of interest**: a list of company + relation (+ optional industry) with add and remove. "I have no conflicts" is an explicit choice, so an empty list is never ambiguous.
@@ -227,6 +234,7 @@ Pause Mode is separate from the account-wide "Pause discovery". It stops new req
 - A mentor can always lower a limit, even below what they're using now. Current engagements, booked sessions and pending requests continue unchanged. Nothing is cancelled or returned.
 - Until usage drops under the new limit, the affected formats are unavailable with the usual `reason` (`mentee-limit`, `async-limit` or `hours-limit`). The Settings line explains it: "You have 3 active mentees and a limit of 1. New requests for sessions resume when you're under the limit."
 - Lowering `monthlyHours` below the minutes already in open, **unbooked** Office Hours slots for a month is refused with the slots to close first ("Close 2 slots in December to lower your hours to 2"). Booked slots are never touched.
+- (Nov 22, round 2) The refusal is written for people and counts the slots: "Close 1 open Office Hours slot in November (Calendar) to lower your hours to 1." With several: "Close some of your 3 open Office Hours slots in November (Calendar) …".
 
 ### Pause Mode rules
 
@@ -234,11 +242,13 @@ Pause Mode is separate from the account-wide "Pause discovery". It stops new req
 - When pausing, every pending request to this mentor is **returned**: it leaves the inbox, the founder's history records `status: "returned"` with `reason: "mentor-paused"` and `alternatives[]`, and the founder is notified. Returned requests do **not** count against the mentor's response rate.
 - `sweep()` clears the pause automatically on `pausedUntil`.
 - Paused mentors still appear in Discover, with a "Not taking requests" label and no request button. They can still be saved.
+- (Nov 22, round 2) The "Resume on" date input starts at tomorrow in the mentor's time zone (`min`); the server still refuses today or earlier. Mentor Home names the state instead of "You're live in Matches": "Paused until Dec 5" (or "Paused" with no date), "New requests are off" and **Resume requests**. A mentor who has not accepted the guidelines reads "Not taking requests yet", an attendance limit reads "New requests are on hold", and a listed mentor with no room reads "In Matches, closed to new requests". Approval and suspension keep their own banners.
 
 ### Guidelines agreement
 
 - The guidelines text lives in `docs/product/MENTOR-GUIDELINES.md` and in `src/data/mentor-guidelines.js` as `{ version, sections[] }`. Version 1 covers: keep founders' information confidential, no equity or payment requests (v1), show up to booked sessions or cancel at least 24 hours ahead, disclose conflicts, give honest and specific feedback, and report misconduct.
 - New action `accept-guidelines {version}` stores `guidelinesAcceptedAt` and `guidelinesVersion`.
+- (Nov 22) Preview mentor accounts start in the grace period, not with the guidelines marked as accepted.
 - **Existing mentors** get a grace period of `guidelinesGraceDays` (14) from the day Phase 1 ships. They see a banner on Home ("Accept the mentor guidelines by {grace end date} to keep receiving requests", where the date is the release date plus `guidelinesGraceDays`). After the grace period they stay visible but `available` is false with `reason: "guidelines"` until they accept.
 - When `guidelinesVersion` in config is raised, the same 14-day grace applies to everyone.
 - **Mentors who sign up after Phase 1 ships** get no grace period. Until they accept, `available` is false with `reason: "guidelines"`, and Home shows "Accept the mentor guidelines to start receiving requests" with the accept action. Until Phase 6 ships, this is the only step a new mentor must complete before taking requests. From Phase 6 it is part of signup.
@@ -254,7 +264,9 @@ Pause Mode is separate from the account-wide "Pause discovery". It stops new req
 
 ### Profile
 
-In `ProfilePage.jsx`, expertise becomes vocabulary tags instead of comma text, and free-text `availability` is replaced by the structured capacity ("Usually replies within 3 days · 1 mentee slot open").
+(Nov 22, round 2) An hours limit carries the month it bites: `capacityUsage` adds `reasonMonths` (from `hoursLimitMonth`, with the same Office Hours allocation as the reason itself), and founders receive it as `formatReasonMonths`. The mentor's line names it, "Ongoing Advisory (not enough hours in December for a new 8-week cycle)", and the founder's request form, server refusal and format list read the same cause and month: "Ongoing Advisory isn't open right now: Maya's December hours are already booked." Every founder-facing reason says "session slots" or "quick-ask or review slots", never "mentee slots". The texts live in `src/data/mentor-rules.js` (`unavailableText`, `formatUnavailableText`, `closedFormats`).
+
+In `ProfilePage.jsx`, expertise becomes vocabulary tags instead of comma text, and free-text `availability` is replaced by the structured capacity ("Usually replies within 3 days · 1 session slot · 2 quick-ask slots open"). (Nov 22) Session slots and quick-ask or review slots are named separately and never added together; founders and the mentor read the same line.
 
 ### Server enforcement (`server/workspace.js`)
 
@@ -263,7 +275,7 @@ In `ProfilePage.jsx`, expertise becomes vocabulary tags instead of comma text, a
 
 ### Matching
 
-In `scoreProfile`, add two factors: **Availability Fit** and **Format Fit**. Weights go in `src/data/matching.js` (`mentor` weights, extended from 5 to 7 entries, summing to 100). Factor colours and copy go in `ScoreGuide.jsx` and `--factor-*` tokens.
+In `scoreProfile`, add two factors: **Availability Fit** and **Format Fit**. (Nov 22) They describe the mentor of a pair, so a mentor browsing founders is scored with the same two factors and both sides read the same percentage. Weights go in `src/data/matching.js` (`mentor` weights, extended from 5 to 7 entries, summing to 100). Factor colours and copy go in `ScoreGuide.jsx` and `--factor-*` tokens.
 
 - Availability Fit: 100 if a format is available, 50 if the mentor has hours but no slot type left, 0 if paused or out of hours.
 - Format Fit: the share of the founder's preferred formats that the mentor offers. It checks offered formats only, never price. In Phase 1 founders have no stated preference, so every founder counts as "any" and Format Fit is 100 for any mentor with at least one available format. Phase 2 adds `request-assistant`, which infers preferred formats from the founder's need text, and Format Fit starts using them then.
@@ -371,6 +383,8 @@ Add `src/pages/RequestsPage.jsx` (mentor, `#/requests`), replacing the Phase 0 l
 ### Actions
 
 - **Accept** (`accept-request`). The server re-checks capacity for the requested format at the moment of accepting. If it no longer fits, it returns 409 with the reason, and the card says "Accepting this would go over your 4 hours this month. Raise your limit or decline." On success, the room opens pre-filled with the request's goal and format.
+- (Nov 22) While a decline cooldown is active, that mentor is left out of the founder's match alerts and digest, Suggested matches and alternatives.
+- (Nov 22, round 3) The cooldown also leaves the mentor out of the "Closest profiles so far" fallback and the alternatives on Match details. Browse all and Saved are deliberate directory views, so the mentor stays there, and the card says "You can ask again after Dec 22" instead of an availability line. Match details shows that line, "<Mentor> declined your last request. Try another mentor in the meantime." and the alternatives in place of the request form, so the founder can't write a request that can't be sent (Office Hours booking is not affected by a cooldown). The server's refusal reads the same date: "You can ask again after Dec 22. Try another mentor in the meantime." The checks and text are `cooldownActive` and `cooldownText` in `src/data/mentor-rules.js`, with `formatDate`.
 - **Decline** (`decline-request {reason, message?}`). A one-tap reason sheet extending `DeclineIntroduction.jsx`, with the reason codes `outside-expertise`, `no-slots`, `not-a-fit` and `other`, plus an optional short message to the founder. The cooldown for this founder–mentor pair comes from `cooldownDays` by reason: 30 days for `not-a-fit` and `outside-expertise`, 7 for `other`, none for `no-slots`.
 - **Refer** (`refer-request {mentorIds[]}`). The mentor picks up to `maxReferrals` (3) mentors from `similarMentors(founder, excludeId, 5)`, which lists only available mentors with no conflict. The request is **not** forwarded. The founder is notified with the suggestions, and their request form opens pre-filled for any of them, with `referredFrom` set. The original request closes as `status: "referred"`. A referral counts as a response for the mentor's response rate.
 
@@ -398,6 +412,7 @@ Founders already follow sent introductions on `WaitingPage.jsx` (`#/waiting`, "I
 
 - Alternatives on a card are recalculated when the page loads, so a mentor who has since become unavailable is not offered.
 - The header states what needs action, e.g. "2 requests waiting · 1 mentor suggested others for you".
+- (Nov 22, round 2) Card statuses come from one sentence-case map, `requestStatusLabels` in `src/data/mentor-rules.js` ("Mentor suggested others", "Waiting for a reply"), with no title-casing in CSS.
 - Every notification from this phase links to its card here.
 
 ### Shared helper
@@ -454,6 +469,10 @@ Change the mentorship entry in `engagement-templates.json` from v3 to v4. It bec
 
 A room upgraded to another format (see "Upgrade") keeps its history and continues at the new format's first stage after Accepted, so it never shows Requested again.
 
+(Nov 22, round 2) Founder Deal Room cards for mentorship rooms show the stage and the next session from `mentorshipCardSummary` ("Goal confirmed · session Thu, Nov 26"), and their progress bar follows the stage, never the exchange "25% of milestones confirmed".
+
+(Nov 22, round 3) The card names the stage once: mentorship cards carry no separate title-case stage pill, only the sentence-case `mentorshipCardSummary` line. Mentees groups use the same sentence case (`mentorshipStageText`). The room's stage stepper keeps its step labels.
+
 The stages come from a new `mentorshipStage(room)` in `src/data/mentorship.js`, which replaces the generic `roomStatusLabel` for mentorship. `RoomsPage` and `NowBar` use the same helper. The function takes an optional `payment` state, unused in v1, so v1.1 can add "Awaiting payment" without changing callers.
 
 ### Room contents (mentorship tabs)
@@ -463,6 +482,9 @@ The stages come from a new `mentorshipStage(room)` in `src/data/mentorship.js`, 
 - **Prep checklist** (`PrepChecklist.jsx`). For the founder: deck, metrics and links, due 24 hours before the session. Uploads use the existing `/api/upload` and evidence items. The mentor sees "Prep shared" or "Prep not shared yet".
 - **Shared notes** (`SessionNotes.jsx`). Add `room.notes[] {id, authorRole, text, at, sessionIndex}`, mirrored by `mirror()` (`server/workspace.js`), and a new form `session-note`. Notes are editable by their author for 24 hours.
 - **Action items.** These reuse TaskBoard tasks with a new `kind: "action"`, the founder as assignee and an optional due date. The "Action items logged" milestone completes once there is at least one. Only the mentor or founder can add them. Only the founder can mark them done.
+- (Nov 22, round 2) The mentor is never offered Done: no Done status option in the form or the status menu, no Done drop target and no "add to Done" button; an item the founder finished shows "Done by <founder>". The Action items tab says "action item" throughout (search, buttons, empty states, toasts, errors), has no "Assigned to me" filter (the founder owns every item) and no milestone footnote. Founder-exchange rooms keep the task board and its copy.
+- (Nov 22, round 2) In shared prep, valid `http`/`https` addresses render as links that open in a new tab with `rel="noopener noreferrer"` (`src/data/links.js`, `LinkedText.jsx`); anything else stays plain text.
+- (Nov 22, round 2) Free engagements show no price label in mentorship rooms or on request cards. Real prices ("₱500.00") stay visible.
 
 ### Attendance (replaces "both sides say held")
 
@@ -538,6 +560,9 @@ The claims then decide the outcome. "Silent" means no report within `attendanceA
 - At "Goals Defined", the founder proposes a regular time (weekday and time, in their time zone) and the mentor confirms it (`confirm-check-in-time`). That creates the cycle's check-ins as normal `schedules[]` entries, with the same attendance, reschedule and cancellation rules as any session.
 - Capacity: the cycle's planned minutes are reserved at accept, and again when a cycle continues. They are spread over the months the check-ins fall in, so a mentor can't overbook before the check-ins are on the calendar. Accepting, upgrading or continuing is refused if the reservation doesn't fit.
 - The number of check-ins is fixed when each cycle starts. A missed or cancelled check-in can be rescheduled within the same cycle, but no extra check-ins are added. The stage line shows held check-ins against that number ("2 of 4").
+- (Nov 22, round 2) The person who acts gets a toast about their own action, and only the counterpart's notification addresses the counterpart. When the founder proposes a time, the founder reads "Check-in time sent to <mentor>. You'll see it here once they confirm." and the mentor gets the unread "Needs you" item "Founder proposed a regular advisory check-in time. Confirm it in the room." Follow-ups ("Follow-up shared with <mentor>.") and upgrade proposals ("Upgrade to <format> sent to <name>.") follow the same rule.
+- (Nov 22, round 2) Instead of confirming, the mentor can **Suggest another time** (date and time) once the founder has proposed one. The proposal records `proposedBy`; whoever proposed last waits, and only the other participant can confirm (`confirm-check-in-time`), which creates the cycle's check-ins from that time. Each new proposal sends the other side an unread "Needs you" `check-in-time` item ("Your mentor suggested another advisory check-in time. Confirm it in the room." for the founder). Mentor Home lists only proposals waiting for the mentor.
+- (Nov 22, round 3) Confirming lists every check-in date, for the person who confirmed (toast) and the other participant (notification): "Advisory check-ins confirmed. Check-ins: Nov 27, Dec 11, Dec 25, Jan 8, 2027. Reschedule any date from Schedule." There is no holiday calendar in the workspace; the list lets both people spot a holiday or conflict and reschedule that one check-in (`checkInsConfirmedText` in `src/data/mentor-room.js`).
 
 ### Ending an engagement
 
@@ -581,6 +606,8 @@ Remove the generic Deal Room pieces from mentorship rooms: the per-milestone dis
 
 - Add `profiles.mentor.officeHours[] {id, weekday | date, time, durationMinutes (15|30|45|60), timeZone, recurring, closedDates[]}`.
 - Slots are managed on `CalendarPage.jsx`: open, close, repeat weekly, and skip one date.
+- (Nov 22) **Opening a slot that would close another offered format** (for example by leaving too few hours for a new advisory cycle) asks first: "This slot closes Ongoing Advisory to new founders in December." Months are named for people, never "2026-12".
+- (Nov 22, round 2) The question is a confirmation, not a failure: without `confirmClosing` the server opens nothing and answers successfully with `officeSlotCheck {reason: "closes-formats", message, formats}`, so the page shows only the question, with no error alert, failed request or console error. `confirmClosing` is still required to open the slot.
 - **Opening a slot checks capacity.** The server refuses a new slot when the total minutes of open slots in any month would go over `monthlyHours` minus minutes already committed. The page explains it: "These slots would add 3 h in December, but you have 1.5 h left."
 - Office Hours appear on the profile only if the mentor offers the `office-hours` format.
 
@@ -590,7 +617,7 @@ Remove the generic Deal Room pieces from mentorship rooms: the per-milestone dis
 - Booking re-checks COI, the founder's request limits and the mentor's capacity. A booked slot disappears for everyone else.
 - Bookings count against monthly hours and the mentee limit from booking until attendance is resolved.
 - Slots can be booked from `bookingMinLeadHours` (1) to `bookingMaxAheadDays` (30) ahead.
-- Cancellations and reschedules follow the Phase 3 rules. When a mentor closes a slot that is already booked, it counts as a mentor cancellation, and the founder is offered the mentor's next free slots.
+- Cancellations and reschedules follow the Phase 3 rules. When a mentor closes a slot that is already booked, it counts as a mentor cancellation, and the founder is offered the mentor's next free slots. (Nov 22) Calendar asks the mentor to confirm first. When the mentor has no other open slot, or is paused, the founder is told to find another mentor instead of being promised other times. (Nov 22, round 2) In that confirmation, **Keep slot** is the focused default and "Close slot and cancel booking" uses the danger style. A mentorship room's Schedule tab lists the mentor's open times under "Your open times" (the founder reads "Times <mentor> is available"), and shows no heading when there are none.
 
 ### Scheduling with availability
 
@@ -625,6 +652,7 @@ Rework `MentorHome.jsx` as the dashboard:
 - then today's sessions, prep status, attendance waiting for the mentor, and new follow-up outcomes
 - the capacity meter (mentees, async and hours used against the limits), linking to Settings
 - banners only when there's something to do: guidelines to accept, Pause Mode on, and approval pending once Phase 6 ships (Phase 5 can ship first, so the banner is added in Phase 6)
+- (Nov 22, round 2) A preview mentor account never receives requests, so its card's primary action is **Browse startups**; Requests is secondary.
 
 ### Mentees page
 
@@ -648,7 +676,7 @@ Add `src/pages/ImpactPage.jsx` (`#/impact`) and public profile sections. Stats c
 | Testimonials | Opt-in: a new review field `testimonial` plus `testimonialPublic`, shown only when both the author and the mentor agree |
 | Follow-up highlights | The latest 3 founder outcomes the founder marked shareable |
 
-Shown on `ProfilePage` (public view) and on `MatchDetailPage` for founders. Each stat shows "Not enough data yet" until it has at least `minDataPoints` (3) data points.
+Shown on `ProfilePage` (public view) and on `MatchDetailPage` for founders. Rates, ratings and medians show "Not enough data yet" until they have at least `minDataPoints` (3) data points. (Nov 22) Counts (sessions held, founders helped, mentoring hours) always show, from the first session.
 
 ### Founder track record (for mentors)
 
@@ -659,7 +687,7 @@ The same `trustSummary` gives founders: follow-up rate, average preparedness rat
 `ReviewPage.jsx` and the `review-form` reducer (`transitions.js`) ask different questions depending on who is rating:
 
 - founder → mentor: usefulness, clarity, responsiveness (1–5 each), plus the optional testimonial
-- mentor → founder: preparedness, follow-through (1–5 each)
+- mentor → founder: preparedness, follow-through (1–5 each). (Nov 22) Follow-through is asked only once it can be judged: at an advisory cycle review, or for a Single Session once the founder's follow-up is due or submitted. Each 1–5 scale names both ends (for example "1 = Came without context · 5 = Shared context and materials ahead").
 
 Reviews stay blind, using the existing `response()` in `server/workspace.js`. Each window closes after `reviewWindowDays` (14). When a review opens depends on the format:
 
@@ -683,7 +711,7 @@ Badges appear wherever verification badges show. A badge is recalculated on ever
 
 ### Certificate
 
-A printable `#/impact/certificate` view (print CSS) listing the mentor's name, period, sessions held, founders helped and total mentoring hours (sum of `durationMinutes` for held sessions plus `effortMinutes` for delivered async formats). In v1 every hour is volunteer time. There's no PDF dependency.
+A printable `#/impact/certificate` view (print CSS) listing the mentor's name, period, sessions held, founders helped and total mentoring hours (sum of `durationMinutes` for held sessions plus `effortMinutes` for delivered async formats). In v1 every hour is volunteer time. There's no PDF dependency. (Nov 22, round 2) Impact's "Mentoring hours" and the certificate's volunteer and paid hours use the same formatter (`formatHours`, two decimals), so a 15-minute session reads "0.25 h" in both places.
 
 ### Notifications added in this phase
 
@@ -693,7 +721,7 @@ A printable `#/impact/certificate` view (print CSS) listing the mentor's name, p
 ### Done when
 
 - [x] Every stat matches its definition in a unit test with a fixed fixture.
-- [x] Stats with fewer than 3 data points show "Not enough data yet".
+- [x] Rates and ratings with fewer than 3 data points show "Not enough data yet"; counts always show (Nov 22).
 - [x] A private testimonial never appears in a public view.
 
 ## Phase 6 — Stricter mentor onboarding and approval
@@ -703,7 +731,8 @@ A printable `#/impact/certificate` view (print CSS) listing the mentor's name, p
 After the role step, mentors (and "both") go through a mentor flow built on the unused onboarding machine in `transitions.js`. Steps marked **required** must be done before submitting for approval. The rest can be finished later from Settings and Profile, and they raise profile completeness.
 
 1. **Verification** (required): LinkedIn URL, work email, or an endorsing organisation. This extends `Verification.jsx`.
-2. **Expertise tags** (required, at least 3 from the vocabulary).
+2. **Expertise tags** (required, at least 3 from the vocabulary). (Nov 22, round 2) The step shows the existing moderated proposal path ("Missing a topic?"), the same `tag-proposal` form as Profile's Standard tags. A moderator approves a proposed tag before it joins the shared vocabulary, so the approved list (and the fixtures' "every standard tag is offered by at least two profiles" rule) is unchanged until then.
+   (Nov 22, round 3) In Moderation, each pending tag proposal shows its name, due date and decision form without an expand step, and every moderation decision reads as an action ("Approve", "Reject", "Verify", "Resolve"), never as the stored value.
 3. **Capacity and time zone** (required, prefilled with the defaults).
 4. **Formats** (required, at least one).
 5. **Conflict-of-interest disclosure** (required: a list, or "I have no conflicts").
@@ -717,6 +746,7 @@ Progress is saved after every step, so a mentor can leave and come back.
 
 - A new mentor profile is hidden from discovery until a moderator approves it. Approval reuses the verification queue in `ModerationPage.jsx`, with actions `approve-mentor` and `reject-mentor {reason}` (admin only), and records `mentorApprovedAt` and `mentorApprovedBy`.
 - The queue is sorted oldest first and shows the waiting time. The target is `approvalTargetBusinessDays` (2), and entries older than that are highlighted.
+- (Nov 22) A moderator's approval is the mentor's verification: approved mentors show as verified to founders and on their own profile, in mentor wording. Once listed, Home shows "You're live in Matches" with the availability line founders see, instead of a set-up prompt. The experience summary is stored as past experience only; the short introduction is its own optional answer.
 - While pending, the mentor sees on Home: "Your profile is with our team. Most approvals take up to 2 business days. You can finish your profile meanwhile."
 - A rejected mentor sees the reason and can edit and resubmit once.
 - **Existing mentors are not locked out.** When this phase ships, every mentor with an existing mentor profile is backfilled as approved (`mentorApprovedBy: "migration"`). Demo mentors are approved.
@@ -796,7 +826,7 @@ This is what turns the MVP into something real users can rely on.
 ### Notification preferences and digest
 
 - `SettingsPage` notifications section, mentor defaults: new requests as a **daily digest at `digestHour` (08:00)** in the mentor's time zone (switchable to instant), everything else instant.
-- Never batched into the digest: session reminders, attendance, disputes, approvals and safety notices.
+- Never batched into the digest: session reminders, attendance, disputes, approvals and safety notices. (Nov 22) Also never batched: `declined`, `expired`, `returned` and `referred` for founders, and `check-in-time` for mentors, which Home also lists as "Founder proposed a check-in time. Confirm it."
 - `notificationDestination` (`src/data/notifications.js`) stops always saying "Open Deal Room" and labels the link by room type and target page ("Open request", "Open mentorship room", "Add your follow-up").
 
 ### Email delivery
@@ -889,7 +919,7 @@ All amounts are integers in centavos. `split(price, rate)` returns `{ amount: pr
 
 ### Showing prices
 
-- The price appears on `MatchCard`, `MatchDetailPage`, the request form, the Requests Inbox and the Goal card, as "Free" or the formatted amount ("₱1,500").
+- The price appears on `MatchCard`, `MatchDetailPage`, the request form, the Requests Inbox and the Goal card, as "Free" or the formatted amount ("₱1,500"). (Nov 22, round 2) Inside mentorship rooms and on request cards only real prices show; free engagements carry no label.
 - `DiscoverPage.jsx` adds a "Free only" filter and a maximum-price filter.
 - Ranking is unchanged: price never enters `scoreProfile`. A unit test checks that changing a price never changes a score.
 
@@ -901,6 +931,8 @@ All amounts are integers in centavos. `split(price, rate)` returns `{ amount: pr
 - A lapsed payment counts like a late cancellation in the founder's trust. `paymentLapseLimit` (2) lapses within `paymentLapseWindowDays` (90) apply the founder no-show limit from Phase 7, for `noShowLimitDays`.
 - **Paid Office Hours** are paid at booking, so the 48-hour window does not apply. Choosing a slot holds it for `slotHoldMinutes` (15) while the founder completes the provider's checkout, and nobody else can book it meanwhile. If payment succeeds, the booking is confirmed and the room opens. If the founder abandons checkout, or the hold runs out, the slot is released for everyone and nothing is recorded: no room, no lapse and no trust effect. A payment that arrives after its hold ran out is refunded automatically, and the founder sees "That slot was released. Your payment has been refunded."
 - `mentorshipStage` shows "Awaiting payment" right after Accepted, or after Booked for Office Hours.
+- (Nov 22, round 2) While a payment is due, the founder's next step is to pay: "Pay ₱500.00 by Nov 24 · 3:50 AM to confirm your session", with **Pay now** as the primary action in the room's next-step line. After a failed attempt it reads "Payment didn't go through. Pay …" with **Retry payment** (`payment.failedAt`). The mentor reads "Waiting for the founder's payment (due …)". Neither side sees "Waiting for the mentor to confirm the goal" until the payment is held. Only room commands (and Office Hours bookings) wait for a due payment: Calendar, onboarding and safety actions are never refused because the tab's last-opened room is unpaid.
+- (Nov 22, round 3) Until the payment is held (`awaitingPayment`), the room offers no command the server would refuse: **Pay now** / **Retry payment** is the founder's only primary button, the preparation form and file upload are hidden behind "Share your deck, metrics and links here once your payment goes through.", and the mentor isn't offered **Confirm goal**.
 - Free formats skip all of this and work exactly as in v1.
 
 ### Payment record

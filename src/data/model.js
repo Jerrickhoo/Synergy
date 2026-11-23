@@ -1,6 +1,6 @@
 import defaultTemplates from "./engagement-templates.json" with { type: "json" };
 import { coveredNeeds, offersNeed, terminalStatuses } from "./collaboration.js";
-import { mentorDefaults } from "./mentor-rules.js";
+import { cooldownActive, mentorDefaults } from "./mentor-rules.js";
 import { defaultMatchFilters } from "./filters.js";
 export function createModel(state) {
   const people = state.directory;
@@ -17,7 +17,9 @@ export function createModel(state) {
       ? "mentorship"
       : person.engagement === "Co-Marketing Swap"
         ? "marketing"
-        : "beta";
+        : person.engagement === "Skill Swap"
+          ? "swap"
+          : "beta";
   const peopleForRole = () =>
     state.role === "founder"
       ? [
@@ -223,6 +225,8 @@ export function createModel(state) {
         (person) =>
           person.score >= 30 &&
           !existingRoomFor(state.role, person.id) &&
+          // A mentor who declined this founder can't be asked again yet.
+          !cooldownActive(person.cooldownUntil) &&
           coversNeed(person),
       )
       .slice(0, 12);

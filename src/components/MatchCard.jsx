@@ -9,7 +9,11 @@ import Tags from "./Tags.jsx";
 import Icon from "./Icon.jsx";
 import { useState } from "react";
 import Overlay from "./Overlay.jsx";
-import { unavailableText } from "../data/mentor-rules.js";
+import {
+  cooldownActive,
+  cooldownText,
+  unavailableText,
+} from "../data/mentor-rules.js";
 import {
   matchReason,
   offeredToYou,
@@ -33,6 +37,9 @@ export default function MatchCard({ person, large = false }) {
   const incoming = state.incomingByRole[state.role].has(person.id);
   const mentoring = state.role === "mentor";
   const mentor = person.kind === "Mentor";
+  // A mentor who declined this founder stays in Browse all and Saved, but the
+  // card says when the founder can ask again (Nov 22, round 3).
+  const cooledDown = cooldownActive(person.cooldownUntil);
   const youGet = offeredToYou(person);
   const theyGet = person.exchange?.theyGet || [];
   // Fall back to the profile's own words only when none of your needs
@@ -176,10 +183,21 @@ export default function MatchCard({ person, large = false }) {
       <MentorshipBadges
         badges={person.badges?.filter((badge) => badge !== "New Mentor")}
       />
-      {mentor && !mentoring && person.available === false && !existingRoom && (
+      {mentor && !mentoring && !existingRoom && cooledDown ? (
         <p className="match-unavailable">
-          {unavailableText(person.reason, person.name)}
+          {cooldownText(person.cooldownUntil)}
         </p>
+      ) : (
+        mentor &&
+        !mentoring &&
+        person.available === false &&
+        !existingRoom && (
+          <p className="match-unavailable">
+            {unavailableText(person.reason, person.name, {
+              month: person.reasonMonth,
+            })}
+          </p>
+        )
       )}
       {connection && (
         <p className="preview-connection">

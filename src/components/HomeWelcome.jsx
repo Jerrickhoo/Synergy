@@ -4,6 +4,10 @@ import { homeNextStep, primaryNeed } from "../data/home.js";
 import { activeRooms, profileKeys } from "../data/selectors.js";
 import Confirmation from "./Confirmation.jsx";
 import Icon from "./Icon.jsx";
+import {
+  sampleFounderName,
+  sampleFounderProfile,
+} from "../data/profile-assistant.js";
 
 // One specific sentence about the state of this workspace right now, split so
 // the count can carry the emphasis. `urgent` marks things waiting on the user.
@@ -88,6 +92,12 @@ export default function HomeWelcome() {
   const status = statusLine(state, model);
   const [greeting] = useState(pickGreeting);
   const firstName = state.accountName ? state.accountName.split(" ")[0] : "";
+  // A founder who chose the sample startup and hasn't rewritten it yet is
+  // told whose profile they are using, so "Maria" isn't a mystery.
+  const sample =
+    state.role === "founder" &&
+    state.accountName === sampleFounderName &&
+    state.profiles.founder?.bio === sampleFounderProfile.bio;
   return (
     <>
       <header className="home-welcome">
@@ -117,6 +127,17 @@ export default function HomeWelcome() {
             )}
           </span>
         </p>
+        {sample && (
+          <p className="home-sample-note">
+            You're exploring as {sampleFounderName}, a sample founder.{" "}
+            <button
+              className="link-btn"
+              onClick={() => onAction({ page: "profile" })}
+            >
+              Edit or replace this profile
+            </button>
+          </p>
+        )}
       </header>
       <section className="home-next" aria-label="Your next step">
         <div className="home-next-copy">

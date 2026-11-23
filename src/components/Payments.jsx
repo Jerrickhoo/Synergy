@@ -1,6 +1,15 @@
+import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
+import { formatDateTime } from "../data/dates.js";
 import { mentorFormat } from "../data/mentor-formats.js";
-import { priceLabel } from "../data/pricing.js";
+import {
+  moneyLabel,
+  priceLabel,
+  priceRangeText,
+  pricingConfig,
+} from "../data/pricing.js";
+import { formatUnavailableText } from "../data/mentor-rules.js";
+import PrototypeShortcut from "./PrototypeShortcut.jsx";
 function Action({ action, values, children }) {
   const { onAction, state } = useApp();
   return (
@@ -13,18 +22,55 @@ function Action({ action, values, children }) {
     </button>
   );
 }
-export function FormatPrices({ person }) {
+const accountWide = [
+  "paused",
+  "guidelines",
+  "approval-required",
+  "suspended",
+  "no-show-limit",
+  "inbox-full",
+];
+// A mentor's formats as a founder can use them now. Cards list only the
+// open formats; the match details also list closed ones with the reason.
+export function FormatPrices({ person, showUnavailable = false }) {
   if (!person.formats?.length) return null;
+  const open = (id) =>
+    !person.availableFormats || person.availableFormats.includes(id);
+  const listed = person.formats.filter(({ id }) => showUnavailable || open(id));
+  if (!listed.length) return null;
   return (
-    <ul>
-      {person.formats.map(({ id, price }) => (
-        <li key={id}>
-          {mentorFormat(id)?.label} · {priceLabel(price)}
+    <ul className="format-prices">
+      {listed.map(({ id, price }) => (
+        <li key={id} className={open(id) ? undefined : "format-closed"}>
+          {mentorFormat(id)?.label} ·{" "}
+          {open(id)
+            ? priceLabel(price)
+            : `Unavailable: ${formatUnavailableText(
+                accountWide.includes(person.reason)
+                  ? person.reason
+                  : person.formatReasons?.[id] || person.reason,
+                {
+                  name: person.name,
+                  month: person.formatReasonMonths?.[id] || person.reasonMonth,
+                },
+              )}`}
         </li>
       ))}
     </ul>
   );
 }
+// Payment states in plain words, never the raw status code.
+export const paymentStatusText = {
+  due: "Payment due",
+  held: "Paid · held by the provider",
+  released: "Released to the mentor",
+  refunded: "Refunded",
+  "partially-refunded": "Partly refunded",
+  disputed: "In dispute",
+  lapsed: "Checkout expired",
+};
+const statusText = (status) => paymentStatusText[status] || status;
+
 export function CheckoutPanel({ room }) {
   const { state, onAction } = useApp();
   const payment = state.paymentCheckoutData || room?.payment;
@@ -36,11 +82,11 @@ export function CheckoutPanel({ room }) {
   return (
     <section className="card panel">
       <h2>Mentorship payment</h2>
-      <p>
-        {priceLabel(payment.amount)} · {payment.status}
+      <p className="payment-amount">
+        {priceLabel(payment.amount)} · {statusText(payment.status)}
       </p>
       {payment.status === "due" && (
-        <p>Complete by {new Date(payment.dueBy).toLocaleString()}.</p>
+        <p>Complete by {formatDateTime(payment.dueBy)}.</p>
       )}
       {payment.status === "due" && !founder && <p>Waiting for payment</p>}
       {founder && payment.reschedulePending && (
@@ -67,22 +113,26 @@ export function CheckoutPanel({ room }) {
       {founder &&
         payment.status === "due" &&
         (checkout ? (
-          <>
-            <p>Simulated payment. No money moves.</p>
-            {["success", "failure", "expiry"].map((result) => (
-              <Action
-                key={result}
-                action="simulate-payment"
-                values={{ providerRef: payment.providerRef, result }}
-              >
-                Simulate {result}
-              </Action>
-            ))}
-          </>
+          <PrototypeShortcut note="Simulated payment. No money moves. Choose how checkout ends.">
+            <div className="mentor-request-controls">
+              {["success", "failure", "expiry"].map((result) => (
+                <Action
+                  key={result}
+                  action="simulate-payment"
+                  values={{ providerRef: payment.providerRef, result }}
+                >
+                  Simulate {result}
+                </Action>
+              ))}
+            </div>
+          </PrototypeShortcut>
         ) : (
-          <Action action="pay" values={{ providerRef: payment.providerRef }}>
-            Pay now
-          </Action>
+          // In a room, the next-step line carries Pay now / Retry payment.
+          !room && (
+            <Action action="pay" values={{ providerRef: payment.providerRef }}>
+              {payment.failedAt ? "Retry payment" : "Pay now"}
+            </Action>
+          )
         ))}
       {founder && payment.status === "held" && (
         <form
@@ -110,7 +160,7 @@ export function CheckoutPanel({ room }) {
           <ul>
             {payment.history.map((item, index) => (
               <li key={index}>
-                {item.to} · {item.reason}
+                {statusText(item.to)} · {item.reason}
               </li>
             ))}
           </ul>
@@ -121,6 +171,12 @@ export function CheckoutPanel({ room }) {
 }
 export function PaymentSettings() {
   const { state, onAction } = useApp();
+  // Price errors belong to the format form that was just saved.
+  const [pricing, setPricing] = useState("");
+  const limits = state.pricingConfig || pricingConfig;
+  const priceError =
+    state.formErrors?.scope === "set-format-price" &&
+    state.formErrors.fields?.price;
   const records = state.paymentRecords || [];
   const ready = state.profiles.mentor.payoutSetup?.status === "ready";
   function receipt(payment) {
@@ -131,7 +187,7 @@ export function PaymentSettings() {
       mentor,
       priceLabel(payment.amount),
       "Platform fee " + priceLabel(payment.fee),
-      "Status " + payment.status,
+      "Status " + statusText(payment.status),
     ].join("\n");
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
@@ -152,9 +208,9 @@ export function PaymentSettings() {
               Complete simulated payout setup
             </Action>
           )}
-          <p>
+          <p className="payment-amount">
             Held{" "}
-            {priceLabel(
+            {moneyLabel(
               records
                 .filter((p) => ["held", "disputed"].includes(p.status))
                 .reduce(
@@ -163,7 +219,7 @@ export function PaymentSettings() {
                 ),
             )}{" "}
             · Released{" "}
-            {priceLabel(
+            {moneyLabel(
               records.reduce(
                 (sum, p) => sum + p.payout * (p.releaseAmount ? 1 : 0),
                 0,
@@ -173,8 +229,10 @@ export function PaymentSettings() {
           {state.profiles.mentor.formats.map((format) => (
             <form
               key={format.id}
+              className="payment-price-form"
               onSubmit={(event) => {
                 event.preventDefault();
+                setPricing(format.id);
                 onAction({
                   action: "set-format-price",
                   values: {
@@ -187,18 +245,39 @@ export function PaymentSettings() {
                 });
               }}
             >
-              <label>
+              <label htmlFor={`price-${format.id}`}>
                 {mentorFormat(format.id)?.label} price in PHP
-                <input
-                  name="price"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  defaultValue={format.price / 100}
-                  required
-                />
               </label>
-              <button className="btn">Save price</button>
+              <input
+                id={`price-${format.id}`}
+                name="price"
+                type="number"
+                min="0"
+                max={limits.maxPrice / 100}
+                step="0.01"
+                defaultValue={format.price / 100}
+                aria-describedby={`price-help-${format.id}${pricing === format.id && priceError ? ` price-error-${format.id}` : ""}`}
+                aria-invalid={
+                  pricing === format.id && priceError ? true : undefined
+                }
+                required
+              />
+              <p className="field-help" id={`price-help-${format.id}`}>
+                0 for Free, or {priceRangeText(limits)}.
+                {ready ? "" : " Complete payout setup to charge."}
+              </p>
+              {pricing === format.id && priceError && (
+                <p
+                  className="field-error"
+                  id={`price-error-${format.id}`}
+                  role="alert"
+                >
+                  {priceError}
+                </p>
+              )}
+              <button className="btn" disabled={state.busy}>
+                Save price
+              </button>
             </form>
           ))}
         </>
@@ -207,7 +286,7 @@ export function PaymentSettings() {
         {records.map((p) => (
           <li key={p.providerRef}>
             {mentorFormat(p.format)?.label} · {priceLabel(p.amount)} ·{" "}
-            {p.status}
+            {statusText(p.status)}
             {state.role === "founder" && (
               <>
                 <Action action="pay" values={{ providerRef: p.providerRef }}>
@@ -247,7 +326,7 @@ export function PaymentModeration() {
         >
           <p>
             {priceLabel(p.amount)} · {p.dispute.reason} · Due{" "}
-            {new Date(p.dispute.dueAt).toLocaleString()}
+            {formatDateTime(p.dispute.dueAt)}
           </p>
           <label>
             Release in centavos

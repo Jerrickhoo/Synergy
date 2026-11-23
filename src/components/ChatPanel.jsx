@@ -3,6 +3,7 @@ import { Fragment, useEffect, useRef } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import ReportCollaborator from "./ReportCollaborator.jsx";
 import Avatar from "../components/Avatar.jsx";
+import { formatDateTime } from "../data/dates.js";
 export default function ChatPanel({ room }) {
   const { onSubmit, onAction, state, model } = useApp();
   const chatError =
@@ -53,7 +54,7 @@ export default function ChatPanel({ room }) {
                   {message.name}
                   {" · "}
                   {message.timestamp
-                    ? new Date(message.timestamp).toLocaleString()
+                    ? formatDateTime(message.timestamp)
                     : message.time}
                 </span>
                 {message.text}

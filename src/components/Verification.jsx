@@ -1,6 +1,7 @@
 import { useApp } from "../state/AppContext.jsx";
 import FormErrors from "./FormErrors.jsx";
 import Icon from "./Icon.jsx";
+import { formatDate } from "../data/dates.js";
 
 const statusCopy = {
   verified: [
@@ -20,13 +21,31 @@ const statusCopy = {
     "Verified founders are easier to trust. A moderator checks your program or organization.",
   ],
 };
+// Mentors are verified when a moderator approves their application.
+const mentorCopy = {
+  ...statusCopy,
+  verified: [
+    "Verified mentor",
+    "Founders see a Verified badge on your profile and match cards.",
+  ],
+  none: [
+    "Not verified yet",
+    "Verified mentors are easier for founders to trust. A moderator checks your LinkedIn profile, work email or endorsing organization.",
+  ],
+};
 
 // Roster-based verification (§4, §8). Email delivery is not part of this
 // prototype, so a moderator checks program or organization evidence instead.
 export default function Verification() {
   const { state, onSubmit } = useApp();
-  const status = state.affiliation?.status || "none";
-  const [title, detail] = statusCopy[status] || statusCopy.none;
+  const mentor = state.role === "mentor";
+  const approved = mentor ? state.mentorVerification : null;
+  const status = approved ? "verified" : state.affiliation?.status || "none";
+  const copy = mentor ? mentorCopy : statusCopy;
+  const [title, detail] = copy[status] || copy.none;
+  const organization = approved
+    ? approved.label
+    : state.affiliation?.organization;
   // Without moderators nobody can review a request, so none is offered.
   const reviewable = Boolean(state.integrations?.moderation);
   return (
@@ -39,21 +58,18 @@ export default function Verification() {
       <p className={`verification-status ${status}`}>
         {status === "verified" && <Icon name="check" />}
         <strong>{title}</strong>
-        {state.affiliation?.organization
-          ? ` · ${state.affiliation.organization}`
-          : ""}
+        {organization ? ` · ${organization}` : ""}
       </p>
       <p className="muted">{detail}</p>
-      <p className="muted">
-        No business domain? Use an accelerator, university, founder community or
-        a referral note that a moderator can check. Email delivery is not
-        available; this checks affiliation only.
-      </p>
-      {status === "pending" && state.affiliation?.dueAt && (
-        <p>
-          Decision due by{" "}
-          {new Date(state.affiliation.dueAt).toLocaleDateString()}.
+      {status !== "verified" && (
+        <p className="muted">
+          No business domain? Use an accelerator, university, founder community
+          or a referral note that a moderator can check. Email delivery is not
+          available; this checks affiliation only.
         </p>
+      )}
+      {status === "pending" && state.affiliation?.dueAt && (
+        <p>Decision due by {formatDate(state.affiliation.dueAt)}.</p>
       )}
       {state.affiliation?.note && status !== "pending" && (
         <p className="muted">Moderator note: {state.affiliation.note}</p>

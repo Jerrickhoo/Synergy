@@ -924,7 +924,10 @@ test("weekly Office Hours reserve enough capacity for calendar patterns past the
     });
   for (const date of ["2031-03-09", "2031-03-10", "2031-03-11"])
     weekly(date, 45);
-  assert.throws(() => weekly("2031-03-13", 15), /future month/);
+  assert.throws(
+    () => weekly("2031-03-13", 15),
+    /in a month with an extra week, more than your 12-hour limit/,
+  );
   assert.equal(s.view(mentor).profiles.mentor.officeHours.length, 3);
 });
 

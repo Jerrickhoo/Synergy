@@ -278,7 +278,9 @@ export function transition(state, payload) {
         ...Object.fromEntries(
           [...values.entries()]
             .filter(([key]) =>
-              [...profileKeys(state.role), ...profileOptions].includes(key),
+              [...profileKeys(state.role), ...profileOptions, "need"].includes(
+                key,
+              ),
             )
             .map(([key, value]) => [key, String(value).trim()]),
         ),

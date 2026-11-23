@@ -201,7 +201,9 @@ export default function WorkspaceCalendar({
                               className={`calendar-event-label kind-${item.kind || "session"}`}
                               key={item.id || i}
                             >
-                              {item.kind === "session" && item.instant
+                              {["session", "office-hours"].includes(
+                                item.kind,
+                              ) && item.instant
                                 ? `${scheduleLabel(item.instant, { timeOnly: true })} `
                                 : ""}
                               {item.kind === "task"

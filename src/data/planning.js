@@ -105,9 +105,29 @@ export function weeklySchedules(first, count) {
   });
 }
 
+// Open (unbooked) Office Hours times the server listed for the mentor. They
+// belong to no room; booked times show as sessions in their room.
+function officeOpenings(state) {
+  return (state.role === "mentor" ? state.mentorOfficeOpenings || [] : [])
+    .map((slot) => {
+      const instant = new Date(slot.startsAt);
+      return {
+        id: `office:${slot.id}`,
+        date: localDateKey(instant),
+        instant,
+        durationMinutes: slot.durationMinutes,
+        title: "Open Office Hours",
+        kind: "office-hours",
+        room: null,
+      };
+    })
+    .filter((event) => Number.isFinite(event.instant.getTime()));
+}
+
 export function calendarEvents(state) {
-  return activeRooms(state)
+  return [...activeRooms(state), null]
     .flatMap((room) => {
+      if (!room) return officeOpenings(state);
       const session = room.milestones.session;
       const events = (
         isMentorRoom(room)
@@ -121,7 +141,9 @@ export function calendarEvents(state) {
             date: localDateKey(instant),
             instant,
             durationMinutes: schedule.durationMinutes,
-            title: "Mentorship session",
+            title: schedule.officeOccurrenceId
+              ? "Office Hours (booked)"
+              : "Mentorship session",
             kind: "session",
             room,
             tab: "schedule",

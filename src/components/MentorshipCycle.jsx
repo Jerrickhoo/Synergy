@@ -1,6 +1,7 @@
 import { useApp } from "../state/AppContext.jsx";
 import { upcomingSessions, scheduleLabel } from "../data/selectors.js";
 import FormErrors from "./FormErrors.jsx";
+import { formatDate } from "../data/dates.js";
 
 export default function MentorshipCycle({ room }) {
   const { state, onSubmit, onAction, downloadFile } = useApp();
@@ -17,7 +18,7 @@ export default function MentorshipCycle({ room }) {
     >
       <h2 id="cycle-heading">Mentorship cycle {cycle.number}</h2>
       <p>
-        8-week check-in · due {new Date(cycle.dueAt).toLocaleDateString()} ·{" "}
+        8-week check-in · due {formatDate(cycle.dueAt)} ·{" "}
         {next
           ? `Next session: ${scheduleLabel(next.schedule)}`
           : "Next session: not scheduled"}

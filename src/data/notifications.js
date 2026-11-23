@@ -34,8 +34,13 @@ const kinds = {
   "mentor-rejected": ["Mentor application", "inbox"],
   "approval-queue": ["Mentor approval queue", "clock"],
   "mentor-unavailable": ["Mentor unavailable", "people"],
+  "check-in-time": ["Check-in time proposed", "calendar"],
+  "slot-closed": ["Office Hours slot closed", "calendar"],
+  booking: ["Office Hours booked", "calendar"],
 };
-// Items that ask the founder to do something, shown first on Updates.
+// Items that ask the reader to do something, shown first on Updates. A
+// declined, expired or returned request asks the founder to choose another
+// mentor; a proposed check-in time asks the mentor to confirm it.
 export const needsAction = (item) =>
   !item.self &&
   [
@@ -47,6 +52,11 @@ export const needsAction = (item) =>
     "request-digest",
     "request-expiring",
     "referred",
+    "declined",
+    "expired",
+    "returned",
+    "check-in-time",
+    "slot-closed",
   ].includes(item.kind) &&
   !item.read;
 export const notificationKind = (kind) =>
@@ -182,7 +192,10 @@ export function digestContent(items, { people, rooms, role, now, span }) {
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
   const strong = matches.filter((person) => person.score >= 70).length;
   const alerts = matches.length - strong;
-  const activity = recent.filter((item) => item.kind !== "match");
+  // Items that need a reply stay in "Needs you" and are never digested.
+  const activity = recent.filter(
+    (item) => item.kind !== "match" && item.category !== "action",
+  );
   const summary = [
     strong && `${counted(strong, "strong match", "strong matches")} (70%+ fit)`,
     alerts && counted(alerts, "match alert", "match alerts"),

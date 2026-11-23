@@ -3,42 +3,155 @@ import { priceLabel } from "../data/pricing.js";
 import { useApp } from "../state/AppContext.jsx";
 import { verificationRequired } from "../data/collaboration.js";
 import VerificationGate from "./VerificationGate.jsx";
-import { scheduleLabel } from "../data/selectors.js";
+import { scheduleInstant, scheduleLabel } from "../data/selectors.js";
+import { isMentorRoom, mentorSessions } from "../data/mentor-room.js";
+import { localDateKey } from "../data/planning.js";
+import { formatDate, formatTimeRange, formatWeekday } from "../data/dates.js";
 
 const slotLabel = (slot) =>
   `${scheduleLabel(slot)} · ${slot.durationMinutes} min`;
 
-function OfficeSlot({ slot }) {
-  const { onAction, state } = useApp();
+// "Tuesdays from Nov 24 · 6:00–7:00 PM" or "Tue, Nov 24 · 6:00–7:00 PM",
+// naming the zone when it differs from the viewer's.
+export function officeSlotLabel(slot) {
+  const viewer = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const time = formatTimeRange(slot.time, slot.durationMinutes);
+  const zone =
+    slot.timeZone && slot.timeZone !== viewer
+      ? ` (${slot.timeZone.replaceAll("_", " ")})`
+      : "";
+  return slot.recurring
+    ? `${formatWeekday(slot.date)}s from ${formatDate(slot.date)} · ${time}${zone}`
+    : `${formatDate(slot.date, { weekday: true })} · ${time}${zone}`;
+}
+
+// Upcoming bookings of one slot, from the mentor's own rooms.
+function slotBookings(state, people, slotId) {
+  return Object.values(state.rooms)
+    .filter((room) => isMentorRoom(room) && room.role === "mentor")
+    .flatMap((room) =>
+      mentorSessions(room)
+        .filter(
+          (session) =>
+            session.officeSlotId === slotId &&
+            !session.cancelledAt &&
+            !session.outcome &&
+            scheduleInstant(session).getTime() > Date.now(),
+        )
+        .map((session) => ({
+          session,
+          name:
+            people.find((person) => person.id === room.partnerId)?.name ||
+            "A founder",
+        })),
+    );
+}
+
+function OfficeSlot({ slot, otherOpenings }) {
+  const { onAction, state, model } = useApp();
   const [date, setDate] = useState("");
+  const [confirming, setConfirming] = useState(null);
+  const booked = slotBookings(state, model.allPeople(), slot.id);
   const change = (action, event) =>
     onAction({ action, id: slot.id, values: { date } }, event);
+  // Closing or skipping a booked time cancels that booking, so ask first.
+  const request = (action, event) => {
+    event?.preventDefault();
+    const affected =
+      action === "skip-office-date"
+        ? booked.filter(({ session }) => session.date === date)
+        : booked;
+    if (affected.length) setConfirming({ action, affected });
+    else change(action, event);
+  };
+  const today = localDateKey(new Date());
+  const skipping = confirming?.action === "skip-office-date";
   return (
-    <article className="mentor-session">
-      <h3>
-        {slot.recurring ? "Weekly starting" : "One time"} {slot.date}
-      </h3>
-      <p>
-        {slot.time} · {slot.timeZone} · {slot.durationMinutes} minutes
-      </p>
-      <div className="mentor-request-controls">
-        <button
-          className="btn small"
-          disabled={state.busy}
-          onClick={(event) => change("close-office-slot", event)}
-        >
-          Close slot
-        </button>
-      </div>
-      {slot.recurring && (
+    <article className="mentor-session office-slot">
+      <h3>{officeSlotLabel(slot)}</h3>
+      {booked.length > 0 ? (
+        <ul className="office-slot-bookings">
+          {booked.map(({ session, name }) => (
+            <li key={session.id}>
+              Booked by {name} · {formatDate(session.date, { weekday: true })}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="muted">No bookings yet.</p>
+      )}
+      {slot.closedDates?.length > 0 && (
+        <p className="muted">
+          Skipped{" "}
+          {slot.closedDates
+            .map((value) => formatDate(value, { weekday: true }))
+            .join(", ")}
+        </p>
+      )}
+      {confirming ? (
+        <div className="office-slot-confirm" role="alert">
+          <p>
+            {skipping
+              ? "Skipping this date cancels "
+              : "Closing this slot cancels "}
+            {confirming.affected
+              .map(
+                ({ session, name }) =>
+                  `${name}'s booking on ${formatDate(session.date, { weekday: true })}`,
+              )
+              .join(", ")}
+            . It counts as a mentor cancellation.{" "}
+            {otherOpenings
+              ? "The founder is offered your next open times."
+              : "You have no other open times, so the founder is told to find another mentor."}
+          </p>
+          {/* (Nov 22, round 2) Keeping the booking is the safe default and
+              takes focus; cancelling it uses the danger style. */}
+          <div className="mentor-request-controls">
+            <button
+              className="btn small"
+              autoFocus
+              disabled={state.busy}
+              onClick={() => setConfirming(null)}
+            >
+              {skipping ? "Keep date" : "Keep slot"}
+            </button>
+            <button
+              className="btn small danger"
+              disabled={state.busy}
+              onClick={async (event) => {
+                await change(confirming.action, event);
+                setConfirming(null);
+              }}
+            >
+              {state.busy && <span className="spinner" aria-hidden="true" />}
+              {skipping
+                ? "Skip date and cancel booking"
+                : "Close slot and cancel booking"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mentor-request-controls">
+          <button
+            className="btn small"
+            disabled={state.busy}
+            onClick={(event) => request("close-office-slot", event)}
+          >
+            Close slot
+          </button>
+        </div>
+      )}
+      {slot.recurring && !confirming && (
         <form
           className="mentor-request-form"
-          onSubmit={(event) => change("skip-office-date", event)}
+          onSubmit={(event) => request("skip-office-date", event)}
         >
           <label htmlFor={`skip-${slot.id}`}>Skip one date</label>
           <input
             id={`skip-${slot.id}`}
             type="date"
+            min={slot.date > today ? slot.date : today}
             value={date}
             onChange={(event) => setDate(event.target.value)}
             required
@@ -46,9 +159,6 @@ function OfficeSlot({ slot }) {
           <button className="btn small" disabled={state.busy}>
             Skip date
           </button>
-          {slot.closedDates?.length > 0 && (
-            <p>Skipped {slot.closedDates.join(", ")}</p>
-          )}
         </form>
       )}
     </article>
@@ -61,28 +171,59 @@ export function OfficeHoursManager() {
   const offers = profile.formats?.some(
     (format) => format.id === "office-hours",
   );
-  const submit = async (event) => {
-    const form = event.currentTarget;
+  // A slot that would close another format waits for the mentor's go-ahead.
+  // (Nov 22, round 2) The server answers with `officeSlotCheck` instead of an
+  // error, so no error alert or failed request appears.
+  const [pending, setPending] = useState(null);
+  const warning =
+    pending?.sent &&
+    state.officeSlotCheck?.reason === "closes-formats" &&
+    state.officeSlotCheck.message;
+  const open = async (values, event, form) => {
     const success = await onAction(
-      {
-        action: "open-office-slot",
-        values: Object.fromEntries(new FormData(form)),
-      },
+      { action: "open-office-slot", values },
       event,
     );
-    if (success) form.reset();
+    setPending(success ? { values, form, sent: true } : null);
   };
+  // A successful answer either opened the slot or asks to confirm first.
+  useEffect(() => {
+    if (pending?.sent && !state.officeSlotCheck) {
+      pending.form?.reset();
+      setPending(null);
+    }
+  }, [pending, state.officeSlotCheck]);
+  const submit = (event) => {
+    const form = event.currentTarget;
+    open(Object.fromEntries(new FormData(form)), event, form);
+  };
+  const today = localDateKey(new Date());
+  const openings = state.mentorOfficeOpenings || [];
   return (
-    <section className="card panel section-gap" aria-label="Office Hours">
-      <h2>Office Hours</h2>
+    <section
+      className="card panel section-gap"
+      aria-labelledby="office-hours-title"
+      id="office-hours"
+    >
+      <h2 id="office-hours-title" tabIndex={-1}>
+        Office Hours
+      </h2>
       {offers ? (
         <form className="mentor-request-form" onSubmit={submit}>
           <div className="field">
             <label htmlFor="office-date">First date</label>
-            <input type="date" name="date" id="office-date" required />
+            <input
+              type="date"
+              name="date"
+              id="office-date"
+              min={today}
+              required
+            />
           </div>
           <div className="field">
-            <label htmlFor="office-time">Start time ({profile.timeZone})</label>
+            <label htmlFor="office-time">
+              Start time ({profile.timeZone.replaceAll("_", " ")})
+            </label>
             <input type="time" name="time" id="office-time" required />
           </div>
           <div className="field">
@@ -102,9 +243,39 @@ export function OfficeHoursManager() {
           <label>
             <input type="checkbox" name="recurring" /> Repeat weekly
           </label>
-          <button className="btn primary" disabled={state.busy}>
-            {state.busy ? "Saving…" : "Open slot"}
-          </button>
+          {warning ? (
+            <div className="office-slot-confirm" role="alert">
+              <p>{warning}</p>
+              <div className="mentor-request-controls">
+                <button
+                  type="button"
+                  className="btn primary"
+                  disabled={state.busy}
+                  onClick={(event) =>
+                    open(
+                      { ...pending.values, confirmClosing: true },
+                      event,
+                      pending.form,
+                    )
+                  }
+                >
+                  Open slot anyway
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={state.busy}
+                  onClick={() => setPending(null)}
+                >
+                  Change the slot
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button className="btn primary" disabled={state.busy}>
+              {state.busy ? "Saving…" : "Open slot"}
+            </button>
+          )}
         </form>
       ) : (
         <p>
@@ -192,7 +363,14 @@ export function OfficeHoursManager() {
         </form>
       </details>
       {(profile.officeHours || []).map((slot) => (
-        <OfficeSlot key={slot.id} slot={slot} />
+        <OfficeSlot
+          key={slot.id}
+          slot={slot}
+          otherOpenings={
+            !profile.paused &&
+            openings.some((opening) => opening.slotId !== slot.id)
+          }
+        />
       ))}
     </section>
   );

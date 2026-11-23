@@ -804,10 +804,23 @@ test("verified moderators review reports, tags and affiliations while ordinary a
   expect(
     (await state(request, a)).state.rooms[id].milestones.scope.disputed,
   ).toBe(false);
+  // (Nov 22, round 3) A pending tag's decision is visible without expanding,
+  // and the choices read as actions.
   const tag = page.locator(".moderation-entry").filter({
-    has: page.locator("summary", { hasText: "Accessible Onboarding" }),
+    has: page.getByRole("heading", { name: "Accessible Onboarding" }),
   });
-  await tag.locator("summary").click();
+  const decision = tag.getByLabel("Decision", { exact: true });
+  await expect(decision).toBeVisible();
+  await expect(decision).toContainText("Approve");
+  await decision.click();
+  await expect(
+    page.getByRole("listbox").getByRole("option", { name: "Reject" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("listbox").getByRole("option", { name: "approved" }),
+  ).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await selectValue(decision, "approved");
   await tag.getByLabel("Reason / resolution").fill("A useful reusable tag");
   await tag.getByRole("button", { name: "Save decision" }).click();
   const affiliation = page

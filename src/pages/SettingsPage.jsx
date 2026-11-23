@@ -9,6 +9,7 @@ import FormErrors from "../components/FormErrors.jsx";
 import Icon from "../components/Icon.jsx";
 import { readTheme, applyTheme, themeKey } from "../state/theme.js";
 import MentoringSettings from "../components/MentoringSettings.jsx";
+import { formatDateTime } from "../data/dates.js";
 
 export default function SettingsPage() {
   const { state, integrationRequest, onAction, notify, onSubmit } = useApp();
@@ -433,7 +434,7 @@ export default function SettingsPage() {
               <div className="collaboration-row" key={session.id}>
                 <span>
                   {session.current ? "This tab" : "Another signed-in session"} ·
-                  expires {new Date(session.expiresAt).toLocaleString()}
+                  expires {formatDateTime(session.expiresAt)}
                 </span>
               </div>
             ))}
@@ -636,8 +637,7 @@ export default function SettingsPage() {
                     .filter((session) => !session.current)
                     .map((session) => (
                       <option key={session.id} value={session.id}>
-                        Session opened{" "}
-                        {new Date(session.createdAt).toLocaleString()}
+                        Session opened {formatDateTime(session.createdAt)}
                       </option>
                     ))}
                 </SelectField>

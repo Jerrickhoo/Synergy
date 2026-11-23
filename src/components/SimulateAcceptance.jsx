@@ -1,16 +1,15 @@
 import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
+import PrototypeShortcut from "./PrototypeShortcut.jsx";
 
 export default function SimulateAcceptance({ person }) {
   const { state, onAction } = useApp();
   const [failed, setFailed] = useState(false);
   if (!person.canSimulateAcceptance) return null;
   return (
-    <div className="prototype-acceptance">
-      <p className="field-help">
-        Prototype only: simulate this fictional collaborator accepting your
-        introduction.
-      </p>
+    <PrototypeShortcut
+      note={`${person.name} is fictional. Simulate them accepting your introduction.`}
+    >
       <button
         className="btn small"
         aria-label={`Simulate acceptance from ${person.name}`}
@@ -30,6 +29,6 @@ export default function SimulateAcceptance({ person }) {
           Could not simulate acceptance. Refresh the introduction and try again.
         </p>
       )}
-    </div>
+    </PrototypeShortcut>
   );
 }

@@ -157,5 +157,62 @@
         "evidence": false
       }
     ]
+  },
+  "swap": {
+    "id": "swap",
+    "name": "Skill Swap",
+    "version": 1,
+    "fields": [
+      {
+        "id": "sessionCount",
+        "label": "Working sessions",
+        "type": "number",
+        "placeholder": "2"
+      },
+      {
+        "id": "shareFormat",
+        "label": "How you will share",
+        "type": "text",
+        "placeholder": "For example: calls, a shared doc or async comments"
+      },
+      {
+        "id": "targetDate",
+        "label": "Target date",
+        "type": "text",
+        "placeholder": "For example: by 6 December"
+      }
+    ],
+    "milestones": [
+      {
+        "id": "scope",
+        "title": "Trade agreed",
+        "description": "Confirm what each side shares and what a useful result looks like.",
+        "evidence": false
+      },
+      {
+        "id": "first-share",
+        "title": "First side shared",
+        "description": "One side delivers their part: a review, playbook, introduction or working session.",
+        "evidence": true
+      },
+      {
+        "id": "second-share",
+        "title": "Second side shared",
+        "description": "The other side delivers their part.",
+        "evidence": true
+      },
+      {
+        "id": "applied",
+        "title": "Advice applied",
+        "description": "Each side notes what they will change as a result.",
+        "evidence": false
+      },
+      {
+        "id": "wrap-up",
+        "title": "Wrap-up",
+        "description": "Agree whether to continue or close the swap.",
+        "evidence": false
+      }
+    ]
   }
 }

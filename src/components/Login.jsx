@@ -74,14 +74,15 @@ export default function Login() {
               <>
                 <div className="field">
                   <div className="prototype-role-heading">
-                    <label htmlFor="prototype-role">Prototype role</label>
+                    <label htmlFor="prototype-role">I'm signing in as</label>
                     <details className="prototype-role-help">
-                      <summary aria-label="About role previews">
+                      <summary aria-label="About this prototype">
                         <Icon name="info" />
                       </summary>
                       <p>
-                        Role previews are for browsing sample profiles. Preview
-                        accounts cannot connect with each other.
+                        Sample mentors and startups are fictional. Where they
+                        would normally reply, a Prototype only button lets you
+                        continue. Nothing is emailed and no money moves.
                       </p>
                     </details>
                   </div>

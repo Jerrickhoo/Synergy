@@ -112,7 +112,7 @@ test("mentors set capacity, pause requests and disclose conflicts from Settings"
   await page.getByLabel("Hours per month").fill("6");
   await page.getByRole("button", { name: "Save mentoring settings" }).click();
   await expect(
-    page.getByText(/You're using 0 of 1 mentee slots/),
+    page.getByText(/You're using 0 of 1 session slots/),
   ).toBeVisible();
   expect(
     (await getState(request, mentor)).profiles.mentor.capacity.monthlyHours,
@@ -131,7 +131,22 @@ test("mentors set capacity, pause requests and disclose conflicts from Settings"
   await page.getByRole("button", { name: /^Remove/ }).click();
   await expect(conflicts).toHaveCount(0);
 
-  // Pause Mode
+  // Pause Mode. (Nov 22, round 2) The resume date starts tomorrow in the
+  // mentor's time zone.
+  const tomorrow = new Date(
+    Date.parse(
+      new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(
+        new Date(),
+      ) + "T12:00:00Z",
+    ) + 86400000,
+  )
+    .toISOString()
+    .slice(0, 10);
+  await expect(page.getByLabel("Resume on (optional)")).toHaveAttribute(
+    "min",
+    tomorrow,
+  );
+  await page.getByLabel("Resume on (optional)").fill(tomorrow);
   await page.getByRole("button", { name: "Pause new requests" }).click();
   await expect(page.getByText(/Pause Mode is on/).first()).toBeVisible();
   const listed = (await getState(request, founder)).directory.mentors.find(
@@ -140,7 +155,20 @@ test("mentors set capacity, pause requests and disclose conflicts from Settings"
   expect(listed.available).toBe(false);
   expect(listed.reason).toBe("paused");
   await checkLayout(page, "settings-paused", testInfo);
-  await page.getByRole("button", { name: "Turn off Pause Mode" }).click();
+  // Home names the paused state instead of "You're live in Matches".
+  await page.goto("/#/");
+  await expect(
+    page.getByRole("heading", { name: /^Paused until \w{3} \d{1,2}$/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "You're live in Matches" }),
+  ).toHaveCount(0);
+  await expect(page.getByText(/New requests are off/)).toBeVisible();
+  await page.getByRole("button", { name: "Resume requests" }).click();
+  await expect(
+    page.getByRole("heading", { name: "You're live in Matches" }),
+  ).toBeVisible();
+  await page.goto("/#/settings");
   await expect(
     page.getByRole("button", { name: "Pause new requests" }),
   ).toBeVisible();

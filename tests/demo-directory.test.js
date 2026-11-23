@@ -26,10 +26,10 @@ function temporary(t, extension = "json") {
 }
 
 test("demo profiles validate and sample Impact and Office Hours stay in the demo", (t) => {
-  // Version 10 adds four mentors and one startup so every tag is covered.
-  assert.equal(demoProfiles.filter((p) => p.role === "founder").length, 15);
+  // Version 11 adds three startups that trade commonly needed help.
+  assert.equal(demoProfiles.filter((p) => p.role === "founder").length, 18);
   assert.equal(demoProfiles.filter((p) => p.role === "mentor").length, 14);
-  assert.equal(new Set(demoProfiles.map((p) => p.id)).size, 29);
+  assert.equal(new Set(demoProfiles.map((p) => p.id)).size, 32);
   for (const p of demoProfiles) {
     assert.deepEqual(validateProfile(p.profile, p.role), {}, p.id);
     if (p.profile.image)
@@ -94,7 +94,7 @@ test("reference viewers get many, few, no, and sparse mentor suggestions using r
     } else if (name === "few") assert.ok(count >= 1 && count <= 2);
     else if (name === "none") assert.equal(count, 0);
     else assert.ok(count >= 1 && count <= 2);
-    const expectedCount = scenario.role === "founder" ? 29 : 15;
+    const expectedCount = scenario.role === "founder" ? 32 : 18;
     assert.equal(model.browsePeople().length, expectedCount);
     assert.ok(model.browsePeople().some((p) => p.score < 30));
     for (const p of model.browsePeople()) {
@@ -108,16 +108,32 @@ test("reference viewers get many, few, no, and sparse mentor suggestions using r
           fixture.profile,
           scenario.role === "mentor" || p.role === "mentor",
           undefined,
-          // Mentor scores include their live Availability and Format Fit.
+          // Mentorship pairs include the mentor's live Availability and
+          // Format Fit on both sides, so a pair reads the same percentage.
           p.role === "mentor"
             ? { availability: availabilityFit(p), format: formatFit(p) }
-            : null,
+            : scenario.role === "mentor"
+              ? {
+                  availability: availabilityFit(state.mentorUsage),
+                  format: formatFit(state.mentorUsage),
+                }
+              : null,
         ).score,
       );
       assert.equal(p.image, fixture.profile.image || "");
     }
+    // Zero profile fit. A mentorship pair still carries the mentor's
+    // Availability and Format Fit, as it does on the founder's side.
     if (["none", "sparseMentor"].includes(name))
-      assert.ok(model.browsePeople().some((p) => p.score === 0));
+      assert.ok(
+        model
+          .browsePeople()
+          .some(
+            (p) =>
+              p.score === 0 ||
+              p.factorScores?.slice(0, 5).every((value) => value === 0),
+          ),
+      );
     const filters = { ...state.matchFilters, score: "70" };
     assert.ok(
       filterPeople(model.browsePeople(), filters).every((p) => p.score >= 70),
@@ -192,7 +208,7 @@ for (const extension of ["json", "sqlite"]) {
     const workspace = createWorkspace(file, { demoMode: true });
     workspace.close();
     const refreshed = readWorkspaceSnapshot(file);
-    assert.equal(Object.keys(refreshed.accounts).length, 30);
+    assert.equal(Object.keys(refreshed.accounts).length, 33);
     const updated = refreshed.accounts[david.id];
     assert.equal(updated.demoFixture.version, demoDirectoryVersion);
     assert.equal(

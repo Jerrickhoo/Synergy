@@ -481,6 +481,7 @@ export default function DiscoverPage() {
                       Beta Testing Exchange
                     </option>
                     <option value="Co-Marketing Swap">Co-Marketing Swap</option>
+                    <option value="Skill Swap">Skill Swap</option>
                     <option value="Mentorship">Mentorship</option>
                   </SelectField>
                 </div>

@@ -1,5 +1,22 @@
 import { useEffect, useState } from "react";
 
+const fieldValue = (value) =>
+  value == null
+    ? ""
+    : typeof value === "string"
+      ? value
+      : JSON.stringify(value);
+
+// A draft matches the saved record when every field reads the same. Saved
+// records can carry fields the form never edited (optional template terms are
+// stored as ""), so an absent field reads as empty and key order is ignored.
+export function sameDraftValues(a, b) {
+  const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
+  for (const key of keys)
+    if (fieldValue(a?.[key]) !== fieldValue(b?.[key])) return false;
+  return true;
+}
+
 // Drafts are scoped to one account and browser tab. They never enter API state.
 export function useDraft(key, initial, version = 0) {
   const storageKey = `synergy-draft:${key}`;
@@ -16,13 +33,14 @@ export function useDraft(key, initial, version = 0) {
   // A clean form must expose the current revision in the same render that
   // enables editing. Waiting for an effect leaves a race after reopening terms.
   const effective =
-    !draft.dirty || JSON.stringify(draft.values) === serialized
+    !draft.dirty || sameDraftValues(draft.values, initial)
       ? { values: initial, version, dirty: false }
       : draft;
   useEffect(() => {
     setDraft((current) => {
-      if (!current.dirty || JSON.stringify(current.values) === serialized)
-        return { values: JSON.parse(serialized), version, dirty: false };
+      const saved = serialized === undefined ? initial : JSON.parse(serialized);
+      if (!current.dirty || sameDraftValues(current.values, saved))
+        return { values: saved, version, dirty: false };
       return current;
     });
   }, [serialized, version]);

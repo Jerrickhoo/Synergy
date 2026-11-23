@@ -199,63 +199,73 @@ export default function TermsPanel({ room, agreement, partner }) {
           )}
           <FormErrors scope="terms-form" />
           <div className="terms-fields">
-            {fields.map((item) => {
-              const helpId = item.help ? `term-${item.id}-help` : undefined;
-              const common = {
-                id: `term-${item.id}`,
-                name: item.id,
-                disabled: readOnly,
-                required: item.required,
-                "aria-describedby": helpId,
-              };
-              return (
-                <div
-                  className={`field${item.kind === "textarea" ? " wide" : ""}`}
-                  key={item.id}
-                >
-                  <label htmlFor={`term-${item.id}`}>
-                    {item.label}
-                    {!item.required && !readOnly && (
-                      <span className="field-optional"> Optional</span>
+            {/* Agreed terms list what was agreed; an optional term nobody
+                filled in is left out rather than shown as an empty box. */}
+            {fields
+              .filter((item) => !readOnly || item.required || value(item.id))
+              .map((item) => {
+                const helpId = item.help ? `term-${item.id}-help` : undefined;
+                const common = {
+                  id: `term-${item.id}`,
+                  name: item.id,
+                  disabled: readOnly,
+                  required: item.required,
+                  "aria-describedby": helpId,
+                };
+                return (
+                  <div
+                    className={`field${item.kind === "textarea" ? " wide" : ""}`}
+                    key={item.id}
+                  >
+                    <label htmlFor={`term-${item.id}`}>
+                      {item.label}
+                      {!item.required && !readOnly && (
+                        <span className="field-optional"> Optional</span>
+                      )}
+                    </label>
+                    {item.kind === "select" ? (
+                      <SelectField
+                        {...common}
+                        value={value(item.id)}
+                        onChange={(event) =>
+                          update(item.id, event.target.value)
+                        }
+                      >
+                        <option value="">Not decided yet</option>
+                        {item.options.map(([optionValue, optionLabel]) => (
+                          <option key={optionValue} value={optionValue}>
+                            {optionLabel}
+                          </option>
+                        ))}
+                      </SelectField>
+                    ) : item.kind === "textarea" ? (
+                      <textarea
+                        {...common}
+                        value={value(item.id)}
+                        onChange={(event) =>
+                          update(item.id, event.target.value)
+                        }
+                      />
+                    ) : (
+                      <input
+                        {...common}
+                        type={item.inputType || "text"}
+                        min={item.inputType === "number" ? 1 : undefined}
+                        placeholder={readOnly ? undefined : item.placeholder}
+                        value={value(item.id)}
+                        onChange={(event) =>
+                          update(item.id, event.target.value)
+                        }
+                      />
                     )}
-                  </label>
-                  {item.kind === "select" ? (
-                    <SelectField
-                      {...common}
-                      value={value(item.id)}
-                      onChange={(event) => update(item.id, event.target.value)}
-                    >
-                      <option value="">Not decided yet</option>
-                      {item.options.map(([optionValue, optionLabel]) => (
-                        <option key={optionValue} value={optionValue}>
-                          {optionLabel}
-                        </option>
-                      ))}
-                    </SelectField>
-                  ) : item.kind === "textarea" ? (
-                    <textarea
-                      {...common}
-                      value={value(item.id)}
-                      onChange={(event) => update(item.id, event.target.value)}
-                    />
-                  ) : (
-                    <input
-                      {...common}
-                      type={item.inputType || "text"}
-                      min={item.inputType === "number" ? 1 : undefined}
-                      placeholder={readOnly ? undefined : item.placeholder}
-                      value={value(item.id)}
-                      onChange={(event) => update(item.id, event.target.value)}
-                    />
-                  )}
-                  {item.help && (
-                    <p className="field-help" id={helpId}>
-                      {item.help}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
+                    {item.help && (
+                      <p className="field-help" id={helpId}>
+                        {item.help}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
           </div>
           <div className="terms-actions">
             {room.status === "cancelled" ? (

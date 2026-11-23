@@ -54,6 +54,26 @@ export const priceLabel = (amount = 0) =>
         maximumFractionDigits: 2,
       }).format(amount / 100);
 
+// Money amounts (held, released, refunds) are never "Free": ₱0.00.
+export const moneyLabel = (amount = 0) =>
+  new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format((Number(amount) || 0) / 100);
+
+// "₱300–₱10,000", from the pricing limits in centavos.
+const wholePeso = (amount) =>
+  new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    minimumFractionDigits: amount % 100 ? 2 : 0,
+    maximumFractionDigits: 2,
+  }).format(amount / 100);
+export const priceRangeText = (config = pricingConfig) =>
+  `${wholePeso(config.minPrice)}–${wholePeso(config.maxPrice)}`;
+
 export function installment(amount, count, index) {
   return Math.floor(amount / count) + (index < amount % count ? 1 : 0);
 }

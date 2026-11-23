@@ -1,11 +1,15 @@
 import { useApp } from "../state/AppContext.jsx";
-import { mentorConfig } from "../data/mentor-rules.js";
+import { formatHours, mentorConfig } from "../data/mentor-rules.js";
 
 const percent = (value) => `${Math.round(value * 100)}%`;
+// Response times are medians in hours; mentoring hours use formatHours, the
+// same formatter as the certificate (Nov 22, round 2).
 const hours = (value) => `${Number(value.toFixed(1))} h`;
 const rating = (value) => `${value.toFixed(1)}/5`;
 
 const hasData = (data, min) => data?.value != null && data.count >= min;
+// Counts always show; minDataPoints applies to rates and ratings only.
+const count = (value) => ({ value: value ?? 0, count: Infinity });
 function Metric({ data, label, format = String, min, hideEmpty = false }) {
   const visible = hasData(data, min);
   if (hideEmpty && !visible) return null;
@@ -88,16 +92,16 @@ export default function MentorImpact({
     ? (trust.badges || []).filter((badge) => badge !== "New Mentor")
     : trust.badges;
   const metrics = [
-    trust.sessions,
-    trust.founders,
     trust.averageRating,
     trust.topSkills,
     trust.followThrough,
     trust.responseRate,
     trust.responseHours,
   ];
+  const sessions = trust.sessions?.value || 0;
   if (
     hideEmpty &&
+    !sessions &&
     !metrics.some((data) => hasData(data, min)) &&
     !badges?.length &&
     !trust.reliable &&
@@ -112,15 +116,19 @@ export default function MentorImpact({
       <dl className="impact-stats">
         <Metric
           label="Sessions held"
-          hideEmpty={hideEmpty}
-          data={trust.sessions}
-          min={min}
+          data={count(trust.sessions?.value)}
+          min={0}
         />
         <Metric
           label="Founders helped"
-          hideEmpty={hideEmpty}
-          data={trust.founders}
-          min={min}
+          data={count(trust.founders?.value)}
+          min={0}
+        />
+        <Metric
+          label="Mentoring hours"
+          data={count(trust.minutes || 0)}
+          format={formatHours}
+          min={0}
         />
         <Metric
           label="Average rating"

@@ -53,7 +53,8 @@
 }
 .introduction-copy h3,
 .preview-identity h3 {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  text-wrap: balance;
 }
 .introduction-brief p + p {
   margin-top: 6px;
@@ -306,6 +307,10 @@
   flex-wrap: wrap;
   gap: var(--space-2, 0.5rem);
 }
+/* A prototype shortcut is its own group, apart from the real controls. */
+.mentor-request-card .prototype-acceptance {
+  margin-top: var(--space-4);
+}
 
 .mentor-request-form fieldset label {
   display: block;
@@ -313,10 +318,6 @@
 
 .mentor-request-form textarea {
   width: 100%;
-}
-
-.request-status {
-  text-transform: capitalize;
 }
 
 /* D8: mentorship stages read as progress, not as buttons: filled with a check
@@ -405,4 +406,156 @@
     margin: 0;
     padding: 1.5rem;
   }
+}
+
+/* Mentor Home: what founders see, and what is closed to them. */
+.mentor-live {
+  display: grid;
+  gap: var(--space-3);
+}
+.mentor-live h2 {
+  margin: 0;
+  text-wrap: balance;
+}
+.mentor-live p,
+.mentor-live li {
+  margin: 0;
+  text-wrap: pretty;
+}
+.mentor-live ol {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-5);
+}
+.mentor-live-facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.mentor-live-facts > div {
+  display: grid;
+  gap: var(--space-1);
+}
+.mentor-live-facts dt {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.mentor-live-facts dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-wrap: pretty;
+}
+.mentor-closed-line {
+  margin: 0;
+  color: var(--warning-text);
+  font-weight: 600;
+  text-wrap: pretty;
+}
+.impact-stats dd.impact-detail {
+  margin-top: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+.mentor-session-time {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+.mentor-live-badge {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+/* Calendar: Office Hours slots, their bookings and confirmations. */
+.office-slot {
+  display: grid;
+  gap: var(--space-2);
+}
+.office-slot h3 {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  text-wrap: balance;
+}
+.office-slot p {
+  margin: 0;
+}
+.office-slot-bookings {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--green-dark);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.office-slot-confirm {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--warning-soft);
+  color: var(--warning-text);
+}
+.office-slot-confirm p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+/* A closed mentorship room: why, and what to do instead. */
+.mentor-room-closed {
+  display: grid;
+  gap: var(--space-3);
+}
+.mentor-room-closed h2,
+.mentor-room-closed p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+/* Character-limited text fields: a live count that turns to a warning. */
+.limited-field .field-footer {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+.limited-field .field-help {
+  margin: 0;
+}
+.limited-field .field-count.over {
+  color: var(--danger-text);
+  font-weight: 600;
+}
+.limited-field .field-error {
+  margin: 0;
+}
+.payment-price-form {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  margin-top: var(--space-4);
+}
+.payment-price-form .field-help,
+.payment-price-form .field-error {
+  margin: 0;
+}
+.payment-amount {
+  font-variant-numeric: tabular-nums;
+}
+.application-summary dd {
+  margin: 0;
+  overflow-wrap: break-word;
+}
+.application-summary dt {
+  color: var(--muted);
+  font-size: var(--text-sm);
 }

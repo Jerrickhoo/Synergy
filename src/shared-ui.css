@@ -65,6 +65,11 @@
   line-height: 1.3;
   text-wrap: pretty;
 }
+.home-sample-note {
+  margin: var(--space-3) 0 0;
+  color: var(--muted);
+  text-wrap: pretty;
+}
 .home-status-count {
   font-size: var(--text-xl);
   font-weight: 700;

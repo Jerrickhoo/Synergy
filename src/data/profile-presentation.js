@@ -107,6 +107,12 @@ export function fitSummary(person, factors) {
     .join(" ");
 }
 // One-line reason for cards.
+// The same bands as match suggestions and the match-quality report:
+// 70%+ is strong, 40–69% moderate, below 40% low.
+export function matchStrength(score) {
+  const value = Number(score) || 0;
+  return value >= 70 ? "Strong fit" : value >= 40 ? "Moderate fit" : "Low fit";
+}
 export function matchReason(person) {
   const youGet = offeredToYou(person);
   const theyGet = person.exchange?.theyGet || [];

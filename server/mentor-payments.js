@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createPayments } from "./payments.js";
 import {
+  priceRangeText,
   pricingConfig,
   validPrice,
   split,
@@ -561,14 +562,24 @@ export function createMentorPayments({
     if (!["success", "failure", "expiry"].includes(result))
       fail("Choose a checkout outcome.");
     if (result !== "success") {
+      // The room's next step tells the founder to retry (Nov 22, round 2).
+      if (result === "failure") payment.failedAt = stamp();
       if (result === "expiry") {
         payment.dueBy = stamp();
         expire(payment);
+        // expire() closes the stored rooms; the caller saves `state`, so the
+        // payer's working copy must carry the same closed room.
+        const stored = user.state.rooms[payment.roomId];
+        if (stored && state.rooms[payment.roomId])
+          state.rooms[payment.roomId] = structuredClone(stored);
+        state.paymentCheckout = null;
       }
       state.toast =
         result === "failure"
-          ? "Payment failed. You can retry."
-          : "Checkout expired.";
+          ? "Payment didn't go through. Nothing was charged. Select Retry payment to try again."
+          : payment.status === "lapsed" && !payment.hold && !payment.upgrade
+            ? "Checkout expired. This request is closed."
+            : "Checkout expired.";
       return;
     }
     checkout.status = "paid";
@@ -680,24 +691,30 @@ export function createMentorPayments({
       if (state.role !== "mentor")
         fail("Only mentors can set up payouts.", 403);
       state.profiles.mentor.payoutSetup ||= provider.startPayoutSetup();
+      state.toast = "Payout setup complete.";
       return;
     }
     if (input.action === "set-format-price") {
       if (state.role !== "mentor") fail("Only mentors can set prices.", 403);
       const amount = Number(values.price);
       const profile = state.profiles.mentor;
-      if (
-        !validPrice(amount, config()) ||
-        (amount &&
-          (profile.payoutSetup?.status !== "ready" ||
-            profile.guidelinesVersion !== settings().guidelinesVersion))
-      )
-        fail(
-          "Accept the current guidelines, complete payout setup and choose a price within the limits.",
-        );
       const format = profile.formats.find((f) => f.id === values.format);
-      if (!format) fail("Offer this format first.");
+      if (!format)
+        fail("Offer this format in Mentoring settings before pricing it.");
+      // One cause per message, so the mentor knows exactly what to fix.
+      const priceError = (message) => fail(message, 400, { price: message });
+      if (!validPrice(amount, config()))
+        priceError(
+          `Choose Free (0) or a price from ${priceRangeText(config())}.`,
+        );
+      if (amount && profile.guidelinesVersion !== settings().guidelinesVersion)
+        priceError(
+          "Accept the current mentor guidelines in Settings before charging for a format.",
+        );
+      if (amount && profile.payoutSetup?.status !== "ready")
+        priceError("Complete payout setup before charging for a format.");
       format.price = amount;
+      state.toast = `${mentorFormat(format.id)?.label || "Format"} price saved.`;
       return;
     }
     const ref =

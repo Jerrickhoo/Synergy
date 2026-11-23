@@ -20,7 +20,8 @@ import MentorImpact, {
   FounderTrackRecord,
 } from "../components/MentorImpact.jsx";
 import ProfileStats from "../components/ProfileStats.jsx";
-import { availabilityLine } from "../data/mentor-rules.js";
+import { availabilityLine, formatList } from "../data/mentor-rules.js";
+import { mentorFormat } from "../data/mentor-formats.js";
 import ProfileOptions, { TagPicker } from "../components/ProfileOptions.jsx";
 import ProfileAssistant from "../components/ProfileAssistant.jsx";
 import Verification from "../components/Verification.jsx";
@@ -209,6 +210,19 @@ function TextValue({ value, empty = "Not added yet." }) {
     <p className={`preserve-lines ${value ? "" : "muted"}`}>{value || empty}</p>
   );
 }
+// Expertise and standard topics often repeat each other; list each once.
+function uniqueTags(...values) {
+  const seen = new Set();
+  return values
+    .flatMap((value) => profileTags(value))
+    .filter((tag) => {
+      const key = tag.trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join(", ");
+}
 function TagValue({ value, empty }) {
   const values = profileTags(value);
   return values.length ? (
@@ -333,12 +347,25 @@ function ProfileContent() {
               {completeness ? "Edit profile" : "Set up your profile"}
             </button>
           </div>
-          {missing.length > 0 && (
+          {missing.length > 0 &&
+            (founder ||
+              (!state.mentorListing?.listed && !state.mentorApplication)) && (
+              <div className="profile-completion-note">
+                <strong>Complete your profile to appear in Matches</strong>
+                <p>
+                  Still to add:{" "}
+                  {missing.map((key) => profileFieldNames[key]).join(", ")}.
+                </p>
+              </div>
+            )}
+          {/* A listed mentor is already in Matches; missing details only
+              make the profile more useful, so the note never claims otherwise. */}
+          {missing.length > 0 && !founder && state.mentorListing?.listed && (
             <div className="profile-completion-note">
-              <strong>Complete your profile to appear in Matches</strong>
+              <strong>Founders can find you in Matches</strong>
               <p>
-                Still to add:{" "}
-                {missing.map((key) => profileFieldNames[key]).join(", ")}.
+                Add {missing.map((key) => profileFieldNames[key]).join(", ")} so
+                founders know more about you.
               </p>
             </div>
           )}
@@ -557,11 +584,12 @@ function ProfileContent() {
                 />
                 <ProfileField
                   id="need"
-                  label="What I need"
+                  label={founder ? "What I need" : "What I need from founders"}
                   name="need"
                   value={profile.need}
                   multiline
-                  required
+                  required={founder}
+                  optional={!founder}
                   maxLength={2000}
                   tags
                   hint={
@@ -679,9 +707,7 @@ function ProfileContent() {
               {!founder && (
                 <ProfileSection title="Expertise and support">
                   <TagValue
-                    value={[profile.expertise, profile.topics]
-                      .filter(Boolean)
-                      .join(", ")}
+                    value={uniqueTags(profile.expertise, profile.topics)}
                     empty="Add your areas of expertise to help founders find you."
                   />
                   <div className="profile-section-block">
@@ -774,14 +800,36 @@ function ProfileContent() {
                       <h3>Startups I want to help</h3>
                       <TextValue value={profile.startups} />
                     </div>
-                    <p className="muted">
-                      Agree on exact session times with your collaborator.
-                    </p>
+                    {/* (Nov 22, round 2) Mentor wording: the formats offered
+                        and the Office Hours founders can book, not the
+                        exchange "agree times with your collaborator". */}
+                    {state.mentorOfficeOpenings?.length > 0 && (
+                      <p className="muted">
+                        Founders can book{" "}
+                        {state.mentorOfficeOpenings.length === 1
+                          ? "your 1 open Office Hours time"
+                          : `your ${state.mentorOfficeOpenings.length} open Office Hours times`}{" "}
+                        directly.
+                      </p>
+                    )}
                   </>
                 )}
-                <p className="profile-preference">
-                  {preferenceLabel(profile.engagementPreference)}
-                </p>
+                {founder ? (
+                  <p className="profile-preference">
+                    {preferenceLabel(profile.engagementPreference)}
+                  </p>
+                ) : (
+                  profile.formats?.length > 0 && (
+                    <p className="profile-preference">
+                      Offers{" "}
+                      {formatList(
+                        profile.formats.map(
+                          ({ id }) => mentorFormat(id)?.label || id,
+                        ),
+                      )}
+                    </p>
+                  )
+                )}
               </ProfileSection>
               <ProfileSection title="Collaboration record">
                 <ProfileStats />

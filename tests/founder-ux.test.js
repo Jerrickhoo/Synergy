@@ -196,7 +196,8 @@ test("one missing review no longer blocks a deal: the window releases what exist
     pair,
     finish,
   } = fixture(t, {
-    reviewWindowMs: 150,
+    // Long enough that a loaded test run still submits inside the window.
+    reviewWindowMs: 600,
   });
   const id = pair();
   finish(id);
@@ -206,7 +207,7 @@ test("one missing review no longer blocks a deal: the window releases what exist
     values: { rating: 5, note: "Thorough testers" },
   });
   assert.equal(w.get(b.token).state.rooms[id].review.partnerNote, undefined);
-  wait(200);
+  wait(700);
   const room = w.get(b.token).state.rooms[id];
   assert.equal(room.status, "reviewed");
   assert.equal(room.review.windowClosed, true);

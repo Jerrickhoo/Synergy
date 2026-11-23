@@ -25,7 +25,7 @@ function CalendarEvent({ event, partnerName, openEvent }) {
       onClick={() => openEvent(event)}
     >
       <span className="agenda-kind">
-        {event.kind === "session"
+        {event.kind === "session" || event.kind === "office-hours"
           ? scheduleLabel(event.instant, { timeOnly: true, showZone: true })
           : event.kind === "milestone"
             ? "Milestone due · UTC"
@@ -33,14 +33,19 @@ function CalendarEvent({ event, partnerName, openEvent }) {
         {event.durationMinutes ? ` · ${event.durationMinutes} min` : ""}
       </span>
       <strong>{event.title}</strong>
-      <span>{partnerName(event.room)}</span>
+      <span>
+        {event.room ? partnerName(event.room) : "Founders can book this time"}
+      </span>
       <span className="agenda-open">
-        Open{" "}
-        {event.kind === "task"
-          ? "board"
-          : event.kind === "session"
-            ? "schedule"
-            : "milestones"}{" "}
+        {event.kind === "office-hours"
+          ? "Manage slots"
+          : `Open ${
+              event.kind === "task"
+                ? "board"
+                : event.kind === "session"
+                  ? "schedule"
+                  : "milestones"
+            }`}{" "}
         <Icon name="arrow" />
       </span>
     </button>
@@ -61,7 +66,7 @@ function CalendarContent() {
     ? filter
     : "all";
   const events = calendarEvents(state).filter(
-    (event) => effectiveFilter === "all" || event.room.id === effectiveFilter,
+    (event) => effectiveFilter === "all" || event.room?.id === effectiveFilter,
   );
   const dayEvents = events.filter((event) => event.date === date);
   const groups = monthEvents(events, month);
@@ -69,8 +74,15 @@ function CalendarContent() {
   const partnerName = (room) =>
     people.find((person) => person.id === room.partnerId)?.name ||
     "Your collaborator";
-  const openEvent = (event) =>
+  const openEvent = (event) => {
+    if (!event.room) {
+      const section = document.getElementById("office-hours");
+      section?.scrollIntoView({ block: "start" });
+      section?.querySelector("h2")?.focus({ preventScroll: true });
+      return;
+    }
     onAction({ action: "open-room", id: event.room.id, tab: event.tab });
+  };
   const today = () => {
     setDate(localDateKey(new Date()));
     setMonth(new Date());
@@ -211,6 +223,12 @@ function CalendarContent() {
               <i className="legend-dot kind-milestone" />
               Milestones (UTC)
             </span>
+            {state.role === "mentor" && (
+              <span>
+                <i className="legend-dot kind-office-hours" />
+                Open Office Hours
+              </span>
+            )}
           </div>
           <p className="calendar-timezone">
             <Icon name="clock" />
@@ -292,7 +310,9 @@ function CalendarContent() {
                     className="btn full"
                     onClick={() => onAction({ page: "discover" })}
                   >
-                    Find a collaborator
+                    {state.role === "mentor"
+                      ? "Browse startups"
+                      : "Find a collaborator"}
                   </button>
                 </>
               )}

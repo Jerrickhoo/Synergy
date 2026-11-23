@@ -61,6 +61,10 @@ const dataKeys = [
   "verification",
   "myTagProposals",
   "mentorUsage",
+  "mentorListing",
+  "mentorVerification",
+  "mentorOfficeOpenings",
+  "officeSlotCheck",
   "mentorConfig",
   "mentorApplication",
   "mentorSuspension",
@@ -101,6 +105,7 @@ const remoteActions = new Set([
   "accept-request",
   "confirm-goal",
   "simulate-goal-confirmation",
+  "simulate-session-held",
   "confirm-check-in-time",
   "report-attendance",
   "reschedule-session",
@@ -191,7 +196,10 @@ const reducer = (state, payload) =>
         else if (payload.state.formErrors)
           publishToast(draft, "Review the highlighted details and try again.", {
             type: "error",
-            title: errorTitle(payload.state.formErrors.scope),
+            title: errorTitle(
+              payload.state.formErrors.scope,
+              draft.rooms?.[draft.activeRoomId],
+            ),
           });
         draft.confirmation = payload.state.confirmation;
         if (!payload.state.formErrors) {
@@ -266,7 +274,7 @@ const reducer = (state, payload) =>
       else {
         publishToast(draft, payload.message, {
           type: "error",
-          title: errorTitle(payload.scope),
+          title: errorTitle(payload.scope, draft.rooms?.[draft.activeRoomId]),
         });
         draft.formErrors = payload.fields
           ? { scope: payload.scope, fields: payload.fields }
@@ -650,7 +658,7 @@ export function AppProvider({ children }) {
         scope: command.form || command.action,
         mentorError:
           command.action?.endsWith("-request") ||
-          command.action === "book-office-hours"
+          ["book-office-hours", "open-office-slot"].includes(command.action)
             ? {
                 id: command.id,
                 message: error.message,

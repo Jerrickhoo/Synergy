@@ -1,11 +1,27 @@
 import { useState } from "react";
 import { PaymentModeration } from "../components/Payments.jsx";
 import { resolvedOutcomes } from "../data/mentor-room.js";
+import { mentorFormat } from "../data/mentor-formats.js";
+import { conflictRelations } from "../data/mentor-rules.js";
+import { mentorVerificationLabels } from "../data/mentor-onboarding.js";
 import SelectField from "../components/SelectField.jsx";
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import MentorAdminSettings from "../components/MentorAdminSettings.jsx";
 import EngagementSettings from "../components/EngagementSettings.jsx";
+import { formatDate, formatDateTime } from "../data/dates.js";
+// (Nov 22, round 3) Decisions read as actions, never as stored values.
+const decisionLabels = {
+  approved: "Approve",
+  rejected: "Reject",
+  verified: "Verify",
+  assigned: "Assign",
+  escalated: "Escalate",
+  resolved: "Resolve",
+  dismissed: "Dismiss",
+  restore: "Restore access",
+  suspend: "Suspend",
+};
 function Decision({ kind, id, decisions, report = false }) {
   const { state, onSubmit } = useApp();
   const prefix = `${kind}-${id}`;
@@ -22,7 +38,7 @@ function Decision({ kind, id, decisions, report = false }) {
         <SelectField id={`${prefix}-decision`} name="decision">
           {decisions.map((value) => (
             <option key={value} value={value}>
-              {value}
+              {decisionLabels[value] || value}
             </option>
           ))}
         </SelectField>
@@ -98,8 +114,7 @@ export default function ModerationPage() {
               <summary>
                 {report.kind === "dispute" ? "Dispute · " : ""}
                 {report.status} · {report.reason.slice(0, 100)}
-                {report.dueAt &&
-                  ` · Due ${new Date(report.dueAt).toLocaleDateString()}`}
+                {report.dueAt && ` · Due ${formatDate(report.dueAt)}`}
                 {report.overdue ? " · Overdue" : ""}
               </summary>
               <p>{report.reason}</p>
@@ -163,8 +178,7 @@ export default function ModerationPage() {
             <details className="moderation-entry" key={item.accountId}>
               <summary>
                 {item.name} · {item.organization}
-                {item.dueAt &&
-                  ` · Due ${new Date(item.dueAt).toLocaleDateString()}`}
+                {item.dueAt && ` · Due ${formatDate(item.dueAt)}`}
                 {item.overdue ? " · Overdue" : ""}
               </summary>
               <p>{item.evidence}</p>
@@ -184,17 +198,20 @@ export default function ModerationPage() {
         {tags
           .filter((t) => t.status === "pending")
           .map((item) => (
-            <details className="moderation-entry" key={item.id}>
-              <summary>
-                {item.label} · Due {new Date(item.dueAt).toLocaleDateString()}
+            // (Nov 22, round 3) A pending tag shows its decision form at
+            // once: there is nothing more to read before deciding.
+            <article className="moderation-entry" key={item.id}>
+              <h3>{item.label}</h3>
+              <p className="muted">
+                Due {formatDate(item.dueAt)}
                 {item.overdue ? " · Overdue" : ""}
-              </summary>
+              </p>
               <Decision
                 kind="tag"
                 id={item.id}
                 decisions={["approved", "rejected"]}
               />
-            </details>
+            </article>
           ))}
         {!tags.some((t) => t.status === "pending") && <p>No pending tags.</p>}
       </section>
@@ -245,7 +262,7 @@ function SessionDisputeDecision({ dispute }) {
       <h3>
         {dispute.mentor} and {dispute.founder}
       </h3>
-      <p>{new Date(dispute.startsAt).toLocaleString()}</p>
+      <p>{formatDateTime(dispute.startsAt)}</p>
       <p>
         Mentor reported {dispute.attendance.mentor || "nothing"} · Founder
         reported {dispute.attendance.founder || "nothing"}
@@ -305,6 +322,67 @@ function SessionDisputes({ disputes }) {
   );
 }
 
+// The application beside its evidence: what the mentor offers, how much they
+// can take on and what they disclosed.
+function ApplicationSummary({ application }) {
+  const profile = application.profile || {};
+  const capacity = profile.capacity;
+  const rows = [
+    [
+      "Verification",
+      `${mentorVerificationLabels[application.verification?.method]?.replace(" checked", "") || application.verification?.method}: ${application.verification?.evidence || ""}`,
+    ],
+    ["Expertise", profile.topics],
+    [
+      "Formats",
+      (profile.formats || [])
+        .map((id) => mentorFormat(id)?.label || id)
+        .join(", "),
+    ],
+    [
+      "Capacity",
+      capacity
+        ? `${capacity.maxMentees} mentees at once · ${capacity.monthlyHours} h a month · ${capacity.maxOpenAsync} open quick asks and reviews · replies within ${capacity.responseDays} ${capacity.responseDays === 1 ? "day" : "days"}${profile.timeZone ? ` · ${profile.timeZone.replaceAll("_", " ")}` : ""}`
+        : "",
+    ],
+    ["Experience", profile.pastExperience],
+    ["Introduction", profile.bio],
+    [
+      "Preferences",
+      [
+        profile.stages?.length && `Stages: ${profile.stages.join(", ")}`,
+        profile.industries?.length &&
+          `Industries: ${profile.industries.join(", ")}`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    ],
+    [
+      "Conflicts",
+      profile.conflicts?.length
+        ? profile.conflicts
+            .map(
+              (item) =>
+                `${item.company} (${conflictRelations.find(([id]) => id === item.relation)?.[1] || item.relation}${item.industry ? `, ${item.industry}` : ""})`,
+            )
+            .join("; ")
+        : profile.noConflicts
+          ? "None declared"
+          : "",
+    ],
+  ];
+  return (
+    <dl className="mentor-request-answers application-summary">
+      {rows.map(([label, value]) => (
+        <div key={label}>
+          <dt>{label}</dt>
+          <dd className="preserve-lines">{value || "Not provided"}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function MentorApprovals({ approvals }) {
   const { onAction, state } = useApp();
   return (
@@ -322,8 +400,7 @@ function MentorApprovals({ approvals }) {
               This application is past the approval target.
             </p>
           )}
-          <p>Verification method: {application.verification.method}</p>
-          <p className="preserve-lines">{application.verification.evidence}</p>
+          <ApplicationSummary application={application} />
           <form
             className="mentor-request-form"
             onSubmit={(event) => {
@@ -411,8 +488,7 @@ function MentorSafetyQueue({ queue, filter }) {
           {queue.limits.map((row) => (
             <div key={`${row.id}:${row.role}`} className="collaboration-row">
               <p>
-                {row.name} · {row.role} · until{" "}
-                {new Date(row.until).toLocaleDateString()}
+                {row.name} · {row.role} · until {formatDate(row.until)}
               </p>
               <button
                 className="btn"

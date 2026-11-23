@@ -8,10 +8,10 @@ test("prototype discovery preserves filters, sort, saved profiles and image fall
   page,
 }, testInfo) => {
   await page.goto("/");
-  await page.getByLabel("About role previews", { exact: true }).click();
+  await page.getByLabel("About this prototype", { exact: true }).click();
   await expect(
     page.getByText(
-      "Role previews are for browsing sample profiles. Preview accounts cannot connect with each other.",
+      "Sample mentors and startups are fictional. Where they would normally reply, a Prototype only button lets you continue. Nothing is emailed and no money moves.",
     ),
   ).toBeVisible();
   // Preview emails are validated; first-run founders choose the sample.
@@ -169,7 +169,7 @@ test("stakeholders can sign in with any credentials and choose their prototype r
   await expect(
     page.getByRole("heading", { name: "Sign in to Synergy" }),
   ).toBeVisible();
-  await expect(page.getByLabel("Prototype role")).toHaveText("Founder");
+  await expect(page.getByLabel("I'm signing in as")).toHaveText("Founder");
   await page.screenshot({
     path: testInfo.outputPath("welcome.png"),
     fullPage: true,
@@ -180,14 +180,14 @@ test("stakeholders can sign in with any credentials and choose their prototype r
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
-  const selector = await page.getByLabel("Prototype role").boundingBox();
+  const selector = await page.getByLabel("I'm signing in as").boundingBox();
   const signIn = await page
     .getByRole("button", { name: "Sign in", exact: true })
     .boundingBox();
   expect(selector.x).toBeGreaterThanOrEqual(0);
   expect(selector.x + selector.width).toBeLessThanOrEqual(360);
   expect(selector.y + selector.height).toBeLessThan(signIn.y);
-  await page.getByLabel("Prototype role").focus();
+  await page.getByLabel("I'm signing in as").focus();
   await page.keyboard.press("Tab");
   await expect(page.getByLabel("Email address")).toBeFocused();
   await page.screenshot({
@@ -209,6 +209,9 @@ test("stakeholders can sign in with any credentials and choose their prototype r
     .getByRole("button", { name: "Explore with a sample startup", exact: true })
     .click();
   await expect(page.locator("#app-shell")).toBeVisible();
+  await expect(
+    page.getByText("You're exploring as Maria Santos, a sample founder."),
+  ).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(page.locator("#login-shell")).toHaveCount(0);
   await page.screenshot({
@@ -255,7 +258,7 @@ test("stakeholders can sign in with any credentials and choose their prototype r
   await expect(
     page.getByRole("heading", { name: "Sign in to Synergy" }),
   ).toBeVisible();
-  await selectValue(page.getByLabel("Prototype role"), "mentor");
+  await selectValue(page.getByLabel("I'm signing in as"), "mentor");
   await page.getByLabel("Email address").fill("another-pretend@example.com");
   await page.getByLabel("Password", { exact: true }).fill("?");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -455,7 +458,7 @@ test("preview sign-in waits for the workspace and recovers after a failed mode c
   );
   recover = true;
   await page.getByRole("button", { name: "Retry connection" }).click();
-  await expect(page.getByLabel("Prototype role")).toHaveText("Founder");
+  await expect(page.getByLabel("I'm signing in as")).toHaveText("Founder");
   await expect(
     page.getByText(
       "Use any email and password. Sign in with the same ones to come back to your work.",
@@ -466,7 +469,7 @@ test("preview sign-in waits for the workspace and recovers after a failed mode c
 // Founder first-run review fixes (A1, B1, B2, D1–D9).
 async function signInPreview(page, email, password, role = "founder") {
   if (role !== "founder")
-    await selectValue(page.getByLabel("Prototype role"), role);
+    await selectValue(page.getByLabel("I'm signing in as"), role);
   await page.getByLabel("Email address").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -663,7 +666,7 @@ test("Apply suggestions lists each change and writes only the checked fields", a
   ).toBeVisible();
 });
 
-test("a founder request shows inline errors, keeps its draft and reaches a prepared session", async ({
+test("a founder request shows inline errors, keeps its draft and reaches a reviewed session", async ({
   page,
   request,
 }) => {
@@ -784,6 +787,135 @@ test("a founder request shows inline errors, keeps its draft and reaches a prepa
   await page.getByText("Safety", { exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Report collaborator" }),
+  ).toBeVisible();
+  // Prototype only: the booked session takes place now, so follow-up and
+  // reviews can be tried in one sitting, and the room reaches Reviewed.
+  await expect(
+    page.getByText(
+      `Prototype only: ${mentor.name} is a fictional mentor. Simulate the session taking place to try follow-up and reviews.`,
+    ),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Simulate the session taking place" })
+    .click();
+  await expect(
+    page
+      .locator(".mentor-stage-line li.done")
+      .filter({ hasText: "Session Held" }),
+  ).toHaveCount(1);
+  // Once the session is held, shared prep stays readable but not editable,
+  // so the follow-up is the only next step on the page.
+  await expect(page.getByText("Prep shared", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Share preparation" }),
+  ).toHaveCount(0);
+  await page
+    .getByLabel("What happened? (optional)")
+    .fill("We chose a flat-fee pricing test.");
+  await expect(
+    page.getByRole("button", { name: "Submit follow-up" }),
+  ).toHaveClass(/primary/);
+  await page.getByRole("button", { name: "Submit follow-up" }).click();
+  await expect(
+    page.getByText("We chose a flat-fee pricing test."),
+  ).toBeVisible();
+  await nextStep.getByRole("button", { name: "Write review" }).click();
+  for (const label of ["Usefulness", "Clarity", "Responsiveness"])
+    await page.getByLabel(label, { exact: true }).selectOption("5");
+  await page.getByRole("button", { name: "Submit private review" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Mentorship feedback" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Back to mentorship room" }).click();
+  await expect(
+    page.locator(".mentor-stage-line li.done").filter({ hasText: "Reviewed" }),
+  ).toHaveCount(1);
+});
+
+test("a founder trades advice with a sample startup in a Skill Swap without a false terms conflict", async ({
+  page,
+  request,
+}) => {
+  const user = decode(
+    await (
+      await request.post("/api/demo", { data: { role: "founder" } })
+    ).text(),
+  );
+  const headers = { Authorization: `Bearer ${user.token}` };
+  const profiled = decode(
+    await (
+      await request.post("/api/action", {
+        headers,
+        data: {
+          role: "founder",
+          form: "profile-form",
+          values: {
+            bio: "Reservation and waitlist app for independent cafes.",
+            offer: "Product design feedback, Intros to cafe owners",
+            need: "Pricing strategy, Fundraising",
+            industry: "Hospitality software",
+            stage: "pre-seed",
+            teamSize: "2",
+          },
+        },
+      })
+    ).text(),
+  );
+  const fairtab = profiled.state.directory.founders.find(
+    (person) => person.name === "Fairtab",
+  );
+  await page.goto("/");
+  await page.evaluate(
+    (token) => sessionStorage.setItem("synergy-session", token),
+    user.token,
+  );
+  await page.goto(`/?swap=${Date.now()}#/matches`);
+  await expect(page.getByRole("heading", { name: "Fairtab" })).toBeVisible();
+  await page.goto(`/#/matches/${encodeURIComponent(fairtab.id)}`);
+  await expect(page.getByLabel("Collaboration type")).toHaveText("Skill Swap");
+  await page.getByRole("button", { name: "Send introduction" }).click();
+  await page
+    .getByRole("button", {
+      name: "Simulate acceptance from Fairtab",
+      exact: true,
+    })
+    .click();
+  await expect(page).toHaveURL(/#\/rooms\//);
+  await expect(page.getByRole("heading", { name: "Skill Swap" })).toBeVisible();
+  for (const [label, value] of [
+    ["Shared goal", "Fairtab improves onboarding; we set our first price."],
+    ["Scope and deliverables", "We review onboarding; Fairtab shares pricing."],
+    ["Timeline", "2 weeks"],
+    ["Commitment", "2 calls"],
+  ])
+    await page.getByLabel(label, { exact: true }).fill(value);
+  await page
+    .getByLabel("Exchange", { exact: true })
+    .fill("Design feedback for a pricing playbook");
+  await page
+    .getByRole("button", { name: "Send for Fairtab’s approval" })
+    .click();
+  await expect(page.getByText("Agreed by both", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Your collaborator changed these terms", { exact: false }),
+  ).toHaveCount(0);
+  // Optional terms nobody filled in are left out of the agreement.
+  await expect(page.getByLabel("Exchange", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Working sessions")).toHaveCount(0);
+  // After a reload, an agreed room opens on Milestones; the Agreement tab
+  // still shows no conflict.
+  await page.reload();
+  await page.getByRole("tab", { name: "Agreement", exact: true }).click();
+  await expect(page.getByText("Agreed by both", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Your collaborator changed these terms", { exact: false }),
+  ).toHaveCount(0);
+  await page.getByRole("tab", { name: "Milestones", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: /^Trade agreed/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /^First side shared/ }),
   ).toBeVisible();
 });
 

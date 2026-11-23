@@ -8,7 +8,20 @@ import PageHeader from "../components/PageHeader.jsx";
 import Introductions from "../components/Introductions.jsx";
 import { MentorAlternatives } from "../components/MentorRequestForm.jsx";
 import { mentorFormat } from "../data/mentor-formats.js";
-import { requestFields, requestReasons } from "../data/request-assistant.js";
+import {
+  declineMessageLimit,
+  requestFields,
+  requestReasons,
+} from "../data/request-assistant.js";
+import LimitedTextarea from "../components/LimitedTextarea.jsx";
+import { matchStrength, stageLabel } from "../data/profile-presentation.js";
+import LinkedText from "../components/LinkedText.jsx";
+import PrototypeShortcut from "../components/PrototypeShortcut.jsx";
+import {
+  cooldownActive,
+  cooldownText,
+  requestStatusLabel,
+} from "../data/mentor-rules.js";
 
 const declineReasons = ["outside-expertise", "no-slots", "not-a-fit", "other"];
 const formatLabel = (request) =>
@@ -47,7 +60,8 @@ function SentRequestDetails({ request }) {
         <div>
           <dt>Format</dt>
           <dd>
-            {formatLabel(request)} · {priceLabel(request.price || 0)}
+            {formatLabel(request)}
+            {request.price ? ` · ${priceLabel(request.price)}` : ""}
           </dd>
         </div>
         {request.links?.length > 0 && (
@@ -56,7 +70,9 @@ function SentRequestDetails({ request }) {
             <dd>
               <ul className="sent-request-links">
                 {request.links.map((link) => (
-                  <li key={link}>{link}</li>
+                  <li key={link}>
+                    <LinkedText text={link} />
+                  </li>
                 ))}
               </ul>
             </dd>
@@ -83,7 +99,6 @@ export function RequestCard({ request }) {
     .find((person) => person.id === request.partnerId);
   const [mode, setMode] = useState("");
   const [reason, setReason] = useState(declineReasons[0]);
-  const [message, setMessage] = useState("");
   const [selected, setSelected] = useState([]);
   const choices = state.referralChoices?.[request.id] || [];
   const error =
@@ -107,14 +122,35 @@ export function RequestCard({ request }) {
       tabIndex={-1}
     >
       <h2>{request.name}</h2>
-      <p>{priceLabel(request.price || 0)}</p>
-      <p className="muted">
-        {formatLabel(request)} · {format?.effort} ·{" "}
+      {founder && (
+        <p className="request-founder">
+          {[
+            founder.founderName && founder.founderName !== founder.name
+              ? founder.founderName
+              : "",
+            stageLabel(founder.stage),
+            founder.sector,
+          ]
+            .filter(Boolean)
+            .join(" · ")}{" "}
+          <button
+            className="link-btn"
+            onClick={(event) =>
+              onAction({ action: "match-detail", id: founder.id }, event)
+            }
+          >
+            View profile
+            <span className="visually-hidden"> of {request.name}</span>
+          </button>
+        </p>
+      )}
+      <p className="muted request-meta">
+        {formatLabel(request)} · {format?.effort}
+        {request.price ? ` · ${priceLabel(request.price)}` : ""} ·{" "}
         {pendingTime(request.expiresAt)}
       </p>
-      <p>
-        {request.score}% match
-        {request.matchReason ? ` · ${request.matchReason}` : ""}
+      <p className="request-meta">
+        {request.score}% match · {matchStrength(request.score)}
       </p>
       <FounderTrackRecord trackRecord={request.trackRecord} />
       {request.conflictWarning && (
@@ -156,12 +192,6 @@ export function RequestCard({ request }) {
             </div>
           )}
         </dl>
-      )}
-      {founder && (
-        <div className="mentor-request-controls">
-          <ReportCollaborator person={founder} compact />
-          <BlockCollaborator person={founder} />
-        </div>
       )}
       {error && (
         <div className="warning-note" role="status">
@@ -218,7 +248,10 @@ export function RequestCard({ request }) {
         <form
           className="mentor-request-form"
           onSubmit={(event) =>
-            act("decline-request", event, { reason, message })
+            act("decline-request", event, {
+              reason,
+              message: new FormData(event.currentTarget).get("message") || "",
+            })
           }
         >
           <label htmlFor={`decline-${request.id}`}>Reason</label>
@@ -233,14 +266,11 @@ export function RequestCard({ request }) {
               </option>
             ))}
           </select>
-          <label htmlFor={`decline-message-${request.id}`}>
-            Message to the founder (optional)
-          </label>
-          <textarea
+          <LimitedTextarea
             id={`decline-message-${request.id}`}
-            value={message}
-            maxLength={280}
-            onChange={(event) => setMessage(event.target.value)}
+            name="message"
+            label="Message to the founder (optional)"
+            limit={declineMessageLimit}
           />
           <button className="btn" disabled={state.busy}>
             Send decline
@@ -289,6 +319,13 @@ export function RequestCard({ request }) {
           </button>
         </form>
       )}
+      {/* Safety actions sit below the reply, never beside Accept. */}
+      {founder && (
+        <div className="mentor-request-controls request-safety">
+          <ReportCollaborator person={founder} compact />
+          <BlockCollaborator person={founder} />
+        </div>
+      )}
     </article>
   );
 }
@@ -325,7 +362,9 @@ export function SentMentorRequests() {
           <h3>{request.name}</h3>
           <p className="muted">
             {formatLabel(request)} ·{" "}
-            <span className="request-status">{request.status}</span>
+            <span className="request-status">
+              {requestStatusLabel(request.status)}
+            </span>
             {request.status === "pending"
               ? ` · ${pendingTime(request.expiresAt)}`
               : ""}
@@ -350,13 +389,9 @@ export function SentMentorRequests() {
             <p>The mentor's response window ended.</p>
           )}
           {request.message && <blockquote>{request.message}</blockquote>}
-          {request.cooldownUntil &&
-            Date.parse(request.cooldownUntil) > Date.now() && (
-              <p>
-                You can ask again after{" "}
-                {new Date(request.cooldownUntil).toLocaleDateString()}.
-              </p>
-            )}
+          {cooldownActive(request.cooldownUntil) && (
+            <p>{cooldownText(request.cooldownUntil)}.</p>
+          )}
           {request.status === "pending" && (
             <div className="mentor-request-controls">
               <button
@@ -375,10 +410,14 @@ export function SentMentorRequests() {
               >
                 Withdraw
               </button>
-              {model
-                .rolePeople()
-                .find((person) => person.id === request.partnerId)
-                ?.canSimulateAcceptance && (
+            </div>
+          )}
+          {request.status === "pending" &&
+            model.rolePeople().find((person) => person.id === request.partnerId)
+              ?.canSimulateAcceptance && (
+              <PrototypeShortcut
+                note={`${request.name} is fictional. Simulate them accepting to open your mentorship room.`}
+              >
                 <button
                   className="btn"
                   disabled={state.busy}
@@ -391,9 +430,8 @@ export function SentMentorRequests() {
                 >
                   Simulate acceptance
                 </button>
-              )}
-            </div>
-          )}
+              </PrototypeShortcut>
+            )}
           {request.status === "accepted" && state.rooms[request.roomId] && (
             <button
               className="btn"

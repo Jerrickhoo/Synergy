@@ -321,6 +321,9 @@ ol.stage-line {
     min-width: 0;
     overflow-wrap: anywhere;
   }
+  .room-detail-page :is(h1, h2, h3) {
+    overflow-wrap: break-word;
+  }
 }
 @media (forced-colors: active) {
   .sidebar,

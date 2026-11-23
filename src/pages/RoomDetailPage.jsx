@@ -236,8 +236,8 @@ function ExchangeRoom() {
       />
       {prototypePartner && (
         <p className="prototype-note">
-          Prototype: {partnerName} is a fictional collaborator. They respond
-          automatically after your actions so you can try every stage.
+          Prototype only: {partnerName} is a fictional collaborator. They
+          respond automatically after your actions so you can try every stage.
         </p>
       )}
       <section className="room-banner">

@@ -12,6 +12,7 @@ import {
 import {
   appointment,
   attendanceReports,
+  checkInsConfirmedText,
   dayMs,
   deliveredMilestone,
   followupEngagement,
@@ -25,6 +26,7 @@ import {
   noteSessions,
   resolvedOutcomes,
   resolveAttendance,
+  reviewCategories,
   roomFormat,
   sessionMilestone,
   setMentorMilestone,
@@ -33,6 +35,7 @@ import {
 export const mentorshipActions = new Set([
   "confirm-goal",
   "simulate-goal-confirmation",
+  "simulate-session-held",
   "confirm-check-in-time",
   "report-attendance",
   "reschedule-session",
@@ -491,8 +494,14 @@ export function createMentorshipRooms({
       if (!condition) fail(message, status);
     };
     let kind = "mentoring";
+    // `message` becomes the counterpart's notification; `toast`, when set,
+    // addresses the person who acted (Nov 22, round 2).
     let message = "";
+    let toast = "";
     let tab = "overview";
+    const counterpartName =
+      (role === "founder" ? mentor : founder)?.state.accountName ||
+      (role === "founder" ? "your mentor" : "the founder");
     if (command === "confirm-goal") {
       requireRole("mentor");
       confirmGoal(room, text(values, "goal", 1000));
@@ -515,6 +524,44 @@ export function createMentorshipRooms({
       state.toast = message;
       mirror(account, state, room, "", { kind, tab });
       return;
+    } else if (command === "simulate-session-held") {
+      // Prototype only: the booked Single Session with a fictional mentor
+      // takes place now, so a founder can reach follow-up and review without
+      // waiting for the session time and the 14-day follow-up delay.
+      requireRole("founder");
+      need(
+        canSimulatePartner(account, room),
+        "A session can be simulated only with a fictional prototype mentor.",
+        403,
+      );
+      need(
+        format === "single-session",
+        "Session simulation is available for Single Sessions.",
+      );
+      const session = mentorSessions(room).find(
+        (entry) => !entry.cancelledAt && !entry.outcome,
+      );
+      need(session, "Schedule a session before simulating it.", 409);
+      const at = stamp();
+      session.attendance = {
+        ...session.attendance,
+        mentor: "held",
+        founder: "held",
+        at: { ...session.attendance?.at, mentor: at, founder: at },
+      };
+      applyOutcome(account, state, room, session, "held");
+      if (info.followup && !info.followup.submittedAt)
+        info.followup.availableAt = at;
+      const mentorName = mentor?.state.accountName || "your mentor";
+      message = `Prototype: your session with ${mentorName} was marked as held. Follow-up and review are open.`;
+      event({ state }, room.role, message, room.id, {
+        kind,
+        tab: "overview",
+      });
+      room.updatedAt = stamp();
+      state.toast = "Session marked as held.";
+      mirror(account, state, room, "", { kind, tab: "overview" });
+      return;
     } else if (command === "schedule") {
       need(
         format === "single-session",
@@ -536,7 +583,7 @@ export function createMentorshipRooms({
       );
       const usage = capacity(mentor.state);
       if (info.slotReleased && usage.activeMentees >= usage.capacity.maxMentees)
-        fail("The mentor has no mentee slots left for a new session.", 409);
+        fail("The mentor has no session slots open right now.", 409);
       checkSchedule(mentor, founder, [schedule]);
       (sessionMilestone(room).schedules ||= []).push(schedule);
       if (role === "founder") info.founderTimeZone = schedule.timeZone;
@@ -633,7 +680,14 @@ export function createMentorshipRooms({
       }
       tab = "schedule";
     } else if (command === "propose-check-in-time") {
-      requireRole("founder");
+      // The founder proposes the regular time. (Nov 22, round 2) The mentor
+      // can suggest another time instead of confirming, and then the founder
+      // confirms the mentor's time; whoever proposed last waits.
+      need(
+        role === "founder" || room.cycle?.proposedTime,
+        "Wait for the founder to propose a check-in time first.",
+        409,
+      );
       need(
         format === "ongoing-advisory" &&
           room.cycle?.phase === "active" &&
@@ -646,21 +700,32 @@ export function createMentorshipRooms({
         text(values, "timeZone") || input.timeZone,
         room.cycle.checkInMinutes,
       );
-      info.founderTimeZone = session.timeZone;
+      if (role === "founder") info.founderTimeZone = session.timeZone;
       room.cycle.proposedTime = {
         date: session.date,
         time: session.time,
         timeZone: session.timeZone,
+        proposedBy: role,
       };
       kind = "check-in-time";
-      message = "A regular advisory check-in time was proposed.";
+      message =
+        role === "founder"
+          ? "Founder proposed a regular advisory check-in time. Confirm it in the room."
+          : "Your mentor suggested another advisory check-in time. Confirm it in the room.";
+      toast = `Check-in time sent to ${counterpartName}. You'll see it here once they confirm.`;
       tab = "schedule";
     } else if (command === "confirm-check-in-time") {
-      requireRole("mentor");
       const cycle = room.cycle;
       need(
         cycle?.phase === "active" && cycle.proposedTime && !cycle.confirmedAt,
         "No check-in time is awaiting confirmation.",
+      );
+      // The other participant confirms; a founder proposal waits for the
+      // mentor and a mentor suggestion waits for the founder.
+      requireRole(
+        (cycle.proposedTime.proposedBy || "founder") === "founder"
+          ? "mentor"
+          : "founder",
       );
       const { date, time, timeZone } = cycle.proposedTime;
       const period = Math.floor(
@@ -690,7 +755,7 @@ export function createMentorshipRooms({
       checkSchedule(mentor, founder, proposed, { reservationRoomId: room.id });
       sessionMilestone(room).schedules = proposed;
       cycle.confirmedAt = stamp();
-      message = "Advisory check-ins confirmed.";
+      message = checkInsConfirmedText(proposed, now());
       tab = "schedule";
     } else if (command === "deliver-answer") {
       requireRole("mentor");
@@ -870,6 +935,7 @@ export function createMentorshipRooms({
       }
       kind = "followup-update";
       message = "The founder shared their mentorship follow-up.";
+      toast = `Follow-up shared with ${counterpartName}.`;
     } else if (
       ["propose-upgrade", "accept-upgrade", "decline-upgrade"].includes(command)
     ) {
@@ -889,6 +955,7 @@ export function createMentorshipRooms({
         };
         kind = "upgrade-proposed";
         message = `An upgrade to ${mentorFormat(values.format).label} was proposed.`;
+        toast = `Upgrade to ${mentorFormat(values.format).label} sent to ${counterpartName}.`;
       } else {
         const upgrade = info.upgrade;
         need(
@@ -979,15 +1046,7 @@ export function createMentorshipRooms({
         "A private review is not open.",
         409,
       );
-      const categories =
-        role === "founder"
-          ? [
-              "usefulness",
-              "clarity",
-              "responsiveness",
-              ...(room.payment?.amount ? ["valueForMoney"] : []),
-            ]
-          : ["preparedness", "followThrough"];
+      const categories = reviewCategories(room, now()).map(({ id }) => id);
       const scores = Object.fromEntries(
         categories.map((key) => [key, Number(values[key] || values.rating)]),
       );
@@ -1011,6 +1070,35 @@ export function createMentorshipRooms({
           (values.testimonialPublic === "on" ||
             values.testimonialPublic === true),
       });
+      // Prototype only: a fictional mentor reviews back, as fictional
+      // exchange partners already do, so blind reviews can be released.
+      if (
+        role === "founder" &&
+        !room.review.partner &&
+        canSimulatePartner(account, room)
+      ) {
+        const partnerScores = Object.fromEntries(
+          reviewCategories({ ...room, role: "mentor" }, now()).map(({ id }) => [
+            id,
+            4,
+          ]),
+        );
+        Object.assign(room.review, {
+          partner: true,
+          partnerScores,
+          partnerRating: 4,
+          partnerNote: "Simulated review from a fictional prototype mentor.",
+          partnerSubmittedAt: stamp(),
+        });
+        const mentorName = mentor?.state.accountName || "Your mentor";
+        event(
+          { state },
+          room.role,
+          `Prototype: ${mentorName} submitted a review. This is a simulated response from a fictional mentor.`,
+          room.id,
+          { kind: "review-release", review: true },
+        );
+      }
       finalize(room);
       kind = "review-release";
       message = room.review.partner
@@ -1048,15 +1136,9 @@ export function createMentorshipRooms({
           !cycle.reviews[account.id],
         "Your cycle review is not open.",
       );
-      const keys =
-        role === "founder"
-          ? [
-              "usefulness",
-              "clarity",
-              "responsiveness",
-              ...(room.payment?.amount ? ["valueForMoney"] : []),
-            ]
-          : ["preparedness", "followThrough"];
+      const keys = reviewCategories(room, now(), { cycle: true }).map(
+        ({ id }) => id,
+      );
       const scores = Object.fromEntries(
         keys.map((key) => [key, Number(values[key] || values.rating)]),
       );
@@ -1132,7 +1214,7 @@ export function createMentorshipRooms({
       } else message = "Cycle decision saved.";
     } else fail("This mentorship action is unavailable.");
     room.updatedAt = stamp();
-    state.toast = message;
+    state.toast = toast || message;
     mirror(
       account,
       state,

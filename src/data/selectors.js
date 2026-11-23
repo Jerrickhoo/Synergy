@@ -15,10 +15,12 @@ export const profileFieldNames = {
   expertise: "your expertise",
   startups: "the startups you want to help",
 };
+// "What I need" is a founder field. Mentors may say what they need from
+// founders, but it is optional and never blocks their profile.
 export const profileKeys = (role) =>
   role === "founder"
     ? ["bio", "offer", "need", "industry", "stage", "teamSize"]
-    : ["bio", "offer", "need", "expertise", "startups"];
+    : ["bio", "offer", "expertise", "startups"];
 
 export function profileCompleteness(profile, role) {
   profile = normalizeProfile(profile);

@@ -101,7 +101,7 @@ export const legacyDemoProfiles = [
   },
 ];
 
-export const demoDirectoryVersion = 10;
+export const demoDirectoryVersion = 11;
 const startup = (
   id,
   name,
@@ -423,6 +423,44 @@ const baseDemoProfiles = [
     "Pricing strategy, Customer retention",
     "Grow repeat orders from independent shops",
     "A marketplace placing local food brands on independent grocery shelves.",
+    "either",
+  ),
+  // Version 11: startups that trade help founders commonly need for help
+  // founders commonly offer, so typical founders see an exchange in Suggested.
+  startup(
+    "fairtab",
+    "Fairtab",
+    "FinTech",
+    "seed",
+    "7",
+    "Pricing strategy, Fundraising, Customer interviews",
+    "Product design, Product feedback",
+    "Redesign onboarding before our next raise",
+    "Invoicing for freelancers. We repriced twice and closed a seed round, and can share both playbooks.",
+    "either",
+  ),
+  startup(
+    "pacecircle",
+    "PaceCircle",
+    "Consumer",
+    "pre-seed",
+    "3",
+    "User research, Beta testers, Distribution",
+    "Technical development, Product feedback",
+    "Ship a stable app for our running-club members",
+    "A community app for local running clubs, with 3,000 members happy to test new products.",
+    "either",
+  ),
+  startup(
+    "stagebolt",
+    "StageBolt",
+    "SaaS",
+    "pre-seed",
+    "2",
+    "Technical development, Product feedback, Product design",
+    "Distribution, Co-marketing, User research",
+    "Find our first 50 paying venues",
+    "Two engineers building booking tools for small venues. We trade technical help for go-to-market help.",
     "either",
   ),
 ];

@@ -1,6 +1,7 @@
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import MentorImpact from "../components/MentorImpact.jsx";
+import { formatHours } from "../data/mentor-rules.js";
 
 export default function ImpactPage() {
   const { state, onAction } = useApp();
@@ -17,7 +18,7 @@ export default function ImpactPage() {
   const certificate = state.page === "impact-certificate";
   if (certificate) {
     const approvedAt = state.profiles.mentor.mentorApprovedAt;
-    const duration = (trust?.volunteerMinutes ?? trust?.minutes ?? 0) / 60;
+    const volunteerMinutes = trust?.volunteerMinutes ?? trust?.minutes ?? 0;
     const date = (time) =>
       new Date(time).toLocaleDateString(undefined, { dateStyle: "long" });
     return (
@@ -49,11 +50,11 @@ export default function ImpactPage() {
             </div>
             <div>
               <dt>Volunteer hours</dt>
-              <dd>{Number(duration.toFixed(2))}</dd>
+              <dd>{formatHours(volunteerMinutes)}</dd>
             </div>
             <div>
               <dt>Paid hours</dt>
-              <dd>{Number(((trust?.paidMinutes || 0) / 60).toFixed(2))}</dd>
+              <dd>{formatHours(trust?.paidMinutes || 0)}</dd>
             </div>
           </dl>
         </section>
