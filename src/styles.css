@@ -605,22 +605,8 @@ main,
   display: inline-grid;
   place-items: center;
   border-radius: var(--radius-xs);
-  color: var(--ink);
-  background: var(--surface-soft);
   font-weight: 600;
   font-size: 14px;
-}
-.avatar.coral {
-  color: var(--info-text);
-  background: var(--info-soft);
-}
-.avatar.blue {
-  color: var(--info-text);
-  background: var(--info-soft);
-}
-.avatar.green {
-  color: var(--info-text);
-  background: var(--info-soft);
 }
 .user-mini .avatar,
 .account-button .avatar {
@@ -4342,13 +4328,6 @@ main,
   color: var(--muted);
   background: var(--surface-soft);
   font-weight: 500;
-}
-.avatar,
-.avatar.coral,
-.avatar.blue,
-.avatar.green {
-  color: var(--ink);
-  background: var(--surface-soft);
 }
 .workspace-metrics {
   gap: 0;

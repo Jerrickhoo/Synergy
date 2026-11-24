@@ -212,14 +212,6 @@
   font-size: 15px;
   font-weight: 600;
 }
-.preview-heading .avatar.blue {
-  background: var(--info-soft);
-  color: var(--info-text);
-}
-.preview-heading .avatar.coral {
-  background: var(--warning-soft);
-  color: var(--warning-text);
-}
 .preview-identity {
   min-width: 0;
   flex: 1;
