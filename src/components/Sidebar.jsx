@@ -71,7 +71,11 @@ export default function Sidebar() {
       </nav>
       <div className="user-mini">
         <Avatar
-          image={state.profiles[state.role].image}
+          image={
+            // The person, not the startup: a founder's own photo first.
+            state.profiles[state.role].personImage ||
+            state.profiles[state.role].image
+          }
           name={model.roleName()}
           identity={state.accountId}
         />

@@ -3,14 +3,11 @@ import { approvalCopy } from "../data/mentor-onboarding.js";
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "./PageHeader.jsx";
 import { RequestCard } from "../pages/RequestsPage.jsx";
-import { MenteeRow } from "../pages/MenteesPage.jsx";
 import {
   activeRooms,
   profileFieldNames,
   profileKeys,
   roomNextAction,
-  scheduleInstant,
-  scheduleLabel,
 } from "../data/selectors.js";
 import { terminalStatuses } from "../data/collaboration.js";
 import {
@@ -29,30 +26,14 @@ import {
 import { mentorFormat } from "../data/mentor-formats.js";
 import { formatDate } from "../data/dates.js";
 import { localDateKey } from "../data/planning.js";
-
-// Sessions that start today and have not ended yet, so a session in progress
-// stays on Home until it is over.
-function todaysSessions(state, now = Date.now()) {
-  const today = localDateKey(new Date(now));
-  return activeRooms(state)
-    .filter(isMentorRoom)
-    .flatMap((room) =>
-      mentorSessions(room)
-        .filter((session) => !session.cancelledAt && !session.outcome)
-        .map((schedule) => {
-          const start = scheduleInstant(schedule).getTime();
-          const end = start + (Number(schedule.durationMinutes) || 60) * 60000;
-          return { room, schedule, start, end };
-        }),
-    )
-    .filter(
-      ({ start, end }) =>
-        Number.isFinite(start) &&
-        localDateKey(new Date(start)) === today &&
-        end > now,
-    )
-    .sort((a, b) => a.start - b.start);
-}
+import HomeMetrics from "./HomeMetrics.jsx";
+import { collaboratorSlots } from "../data/home-planner.js";
+import {
+  HomeActivity,
+  HomeCalendar,
+  HomeCollaborations,
+  HomeTasks,
+} from "./HomePlanner.jsx";
 
 // (Nov 22, round 2) The heading names the state founders actually see: live,
 // paused (with the resume date), waiting on the guidelines or an attendance
@@ -213,7 +194,6 @@ export default function MentorHome() {
     (request) => localDateKey(new Date(request.expiresAt)) === today,
   ).length;
   const now = Date.now();
-  const sessions = todaysSessions(state, now);
   const rooms = activeRooms(state).filter(isMentorRoom);
   // A follow-up stays on Home until its mentorship is finished.
   const followups = Object.values(state.rooms)
@@ -281,7 +261,6 @@ export default function MentorHome() {
         : "",
     ],
   ];
-  const waiting = attendance.length + checkIns.length + followups.length;
   // The listing card covers pause and required guidelines once it shows. A
   // preview account shows its explainer instead, so it keeps the banners.
   const listingCard =
@@ -297,6 +276,35 @@ export default function MentorHome() {
       next: roomNextAction(room, partner(room)?.name),
     }))
     .sort((a, b) => Number(b.next.mine) - Number(a.next.mine));
+  const nameOf = (room) => partner(room)?.name || "Startup";
+  const slots = collaboratorSlots(rooms);
+  // Attendance, check-in times and follow-ups join the task list.
+  const mentorTasks = [
+    ...checkIns.map((room) => ({
+      id: `${room.id}:check-in`,
+      title: "Confirm the proposed check-in time",
+      who: nameOf(room),
+      due: room.cycle.proposedTime?.date || "",
+      room,
+      tab: "schedule",
+    })),
+    ...attendance.map((room) => ({
+      id: `${room.id}:attendance`,
+      title: "Report attendance",
+      who: nameOf(room),
+      due: "",
+      room,
+      tab: "schedule",
+    })),
+    ...followups.slice(0, 3).map(({ room }) => ({
+      id: `${room.id}:follow-up`,
+      title: "Read the follow-up",
+      who: nameOf(room),
+      due: "",
+      room,
+      tab: "overview",
+    })),
+  ];
   const yourTurn = mentees.filter(({ next }) => next.mine);
   const firstTurn = yourTurn[0];
   const lower = (text) => text.charAt(0).toLowerCase() + text.slice(1);
@@ -415,22 +423,30 @@ export default function MentorHome() {
           </button>
         </section>
       )}
-      {mentees.length > 0 && (
-        <section className="card panel section-gap">
-          <h2>Active mentees</h2>
-          {mentees.slice(0, 3).map(({ room }) => (
-            <MenteeRow
-              key={room.id}
-              room={room}
-              partner={partner(room)}
-              primary={!requests.length && room === firstTurn?.room}
-            />
-          ))}
-          <button className="btn" onClick={() => onAction({ page: "mentees" })}>
-            View mentees
-          </button>
-        </section>
+      {rooms.length > 0 && (
+        <div className="home-planner section-gap">
+          <HomeCalendar rooms={rooms} nameOf={nameOf} slots={slots} />
+          <HomeTasks
+            rooms={rooms}
+            nameOf={nameOf}
+            slots={slots}
+            extra={mentorTasks}
+          />
+        </div>
       )}
+      <div
+        className={`home-overview section-gap${mentees.length ? " paired" : ""}`}
+      >
+        <HomeMetrics />
+        {mentees.length > 0 && (
+          <HomeCollaborations
+            rooms={mentees.map(({ room }) => room)}
+            nameOf={nameOf}
+            slots={slots}
+            title="Active mentees"
+          />
+        )}
+      </div>
       {!state.mentorApplication && !state.mentorSuspension && (
         <ListingStatus
           usage={usage}
@@ -438,97 +454,6 @@ export default function MentorHome() {
           busy={requests.length > 0 || mentees.length > 0}
         />
       )}
-      <div className="simple-home-grid section-gap">
-        <section className="card panel">
-          <h2>Today's sessions</h2>
-          {sessions.length ? (
-            sessions.map(({ room, schedule, start, end }) => {
-              const live = start <= now && now < end;
-              return (
-                <div className="collaboration-row" key={schedule.id}>
-                  <div>
-                    <strong>{partner(room)?.name || "Startup"}</strong>
-                    <p className="mentor-session-time">
-                      {live ? (
-                        <span className="mentor-live-badge">In progress</span>
-                      ) : null}
-                      {scheduleLabel(schedule)}
-                    </p>
-                    <p>
-                      {room.mentorship.prep?.sharedAt
-                        ? "Prep shared"
-                        : "Prep not shared yet"}
-                    </p>
-                  </div>
-                  <button
-                    className={`btn small${live ? " primary" : ""}`}
-                    onClick={() => open(room, "schedule")}
-                  >
-                    {live ? "Open session" : "View session"}
-                  </button>
-                </div>
-              );
-            })
-          ) : (
-            <p>No mentorship sessions today.</p>
-          )}
-          <button
-            className="link-btn"
-            onClick={() => onAction({ page: "calendar" })}
-          >
-            Open calendar
-          </button>
-        </section>
-        <section className="card panel">
-          <h2>Attendance and follow-ups</h2>
-          {!waiting && <p>No attendance reports or follow-ups waiting.</p>}
-          {checkIns.map((room) => (
-            <div className="collaboration-row" key={`check-in-${room.id}`}>
-              <div>
-                <strong>{partner(room)?.name || "Startup"}</strong>
-                <p>
-                  Founder proposed a check-in time
-                  {room.cycle.proposedTime.date
-                    ? ` (${scheduleLabel(room.cycle.proposedTime)})`
-                    : ""}
-                  . Confirm it.
-                </p>
-              </div>
-              <button
-                className="btn small primary"
-                onClick={() => open(room, "schedule")}
-              >
-                Confirm check-in time
-              </button>
-            </div>
-          ))}
-          {attendance.map((room) => (
-            <div className="collaboration-row" key={room.id}>
-              <p>{partner(room)?.name || "Startup"} · Attendance needed</p>
-              <button
-                className="btn small"
-                onClick={() => open(room, "schedule")}
-              >
-                Report attendance
-              </button>
-            </div>
-          ))}
-          {followups.slice(0, 3).map(({ room, followup }) => (
-            <div className="collaboration-row" key={room.id}>
-              <div>
-                <strong>{partner(room)?.name || "Startup"}</strong>
-                <p>{followup.summary || "Shared a follow-up."}</p>
-              </div>
-              <button
-                className="btn small"
-                onClick={() => open(room, "overview")}
-              >
-                View follow-up
-              </button>
-            </div>
-          ))}
-        </section>
-      </div>
       {capacity && (
         <section className="card panel section-gap">
           <h2>Mentoring capacity</h2>
@@ -558,6 +483,7 @@ export default function MentorHome() {
           </button>
         </section>
       )}
+      <HomeActivity />
     </div>
   );
 }

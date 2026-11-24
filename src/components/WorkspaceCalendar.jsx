@@ -67,6 +67,12 @@ export default function WorkspaceCalendar({
   disabled = false,
   toolbar,
   todayKey,
+  // Home: each event is its own button (opening its room) beside the day
+  // button, tinted by `eventClass`; the day button itself still selects.
+  onOpenEvent,
+  eventClass = () => "",
+  eventName = () => "",
+  eventLabel,
 }) {
   const root = useRef(null);
   const pendingFocus = useRef(null);
@@ -118,6 +124,14 @@ export default function WorkspaceCalendar({
       pendingFocus.current = null;
     }
   };
+  const eventText = (item) =>
+    `${
+      ["session", "office-hours"].includes(item.kind) && item.instant
+        ? `${scheduleLabel(item.instant, { timeOnly: true })} `
+        : ""
+    }${item.kind === "task" ? "Task: " : item.kind === "milestone" ? "Due: " : ""}${
+      item.title || "Session"
+    }`;
   const previousDisabled =
     disabled ||
     Boolean(
@@ -170,62 +184,101 @@ export default function WorkspaceCalendar({
                   className={`calendar-cell ${day.inMonth ? "" : "calendar-outside"}`}
                 >
                   {day.inMonth ? (
-                    <button
-                      type="button"
-                      data-date={day.key}
-                      className={`calendar-day ${day.key === selected ? "selected" : ""} ${day.key === today ? "is-today" : ""}`}
-                      tabIndex={day.key === focusKey ? 0 : -1}
-                      aria-pressed={day.key === selected}
-                      aria-current={day.key === today ? "date" : undefined}
-                      aria-controls={controls}
-                      aria-label={`${day.date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}${items.length ? `, ${items.length} ${items.length === 1 ? "event" : "events"}` : ""}`}
-                      disabled={unavailable}
-                      onFocus={() => setFocused(day.key)}
-                      onKeyDown={(event) => navigate(event, day.key)}
-                      onClick={() => onSelect(day.key)}
-                    >
-                      <span className="calendar-date-number">
-                        {day.date.getDate()}
-                      </span>
-                      {variant === "overview" && items.length > 0 ? (
-                        <span
-                          className="calendar-cell-events"
-                          aria-hidden="true"
-                        >
-                          <span className="calendar-mobile-count">
+                    <>
+                      <button
+                        type="button"
+                        data-date={day.key}
+                        className={`calendar-day ${day.key === selected ? "selected" : ""} ${day.key === today ? "is-today" : ""}`}
+                        tabIndex={day.key === focusKey ? 0 : -1}
+                        aria-pressed={day.key === selected}
+                        aria-current={day.key === today ? "date" : undefined}
+                        aria-controls={controls}
+                        aria-label={`${day.date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}${items.length ? `, ${items.length} ${items.length === 1 ? "event" : "events"}` : ""}`}
+                        disabled={unavailable}
+                        onFocus={() => setFocused(day.key)}
+                        onKeyDown={(event) => navigate(event, day.key)}
+                        onClick={() => onSelect(day.key)}
+                      >
+                        <span className="calendar-date-number">
+                          {day.date.getDate()}
+                        </span>
+                        {variant === "overview" &&
+                        items.length > 0 &&
+                        onOpenEvent ? (
+                          <span
+                            className="calendar-mobile-count"
+                            aria-hidden="true"
+                          >
                             {items.length}{" "}
                             {items.length === 1 ? "event" : "events"}
                           </span>
-                          {items.slice(0, 2).map((item, i) => (
-                            <span
-                              className={`calendar-event-label kind-${item.kind || "session"}`}
-                              key={item.id || i}
-                            >
-                              {["session", "office-hours"].includes(
-                                item.kind,
-                              ) && item.instant
-                                ? `${scheduleLabel(item.instant, { timeOnly: true })} `
-                                : ""}
-                              {item.kind === "task"
-                                ? "Task: "
-                                : item.kind === "milestone"
-                                  ? "Due: "
-                                  : ""}
-                              {item.title || "Session"}
+                        ) : variant === "overview" && items.length > 0 ? (
+                          <span
+                            className="calendar-cell-events"
+                            aria-hidden="true"
+                          >
+                            <span className="calendar-mobile-count">
+                              {items.length}{" "}
+                              {items.length === 1 ? "event" : "events"}
                             </span>
+                            {items.slice(0, 2).map((item, i) => (
+                              <span
+                                className={`calendar-event-label kind-${item.kind || "session"}`}
+                                key={item.id || i}
+                              >
+                                {["session", "office-hours"].includes(
+                                  item.kind,
+                                ) && item.instant
+                                  ? `${scheduleLabel(item.instant, { timeOnly: true })} `
+                                  : ""}
+                                {item.kind === "task"
+                                  ? "Task: "
+                                  : item.kind === "milestone"
+                                    ? "Due: "
+                                    : ""}
+                                {item.title || "Session"}
+                              </span>
+                            ))}
+                            {items.length > 2 && (
+                              <span className="calendar-event-more">
+                                +{items.length - 2} more
+                              </span>
+                            )}
+                          </span>
+                        ) : items.length > 0 ? (
+                          <span
+                            className="calendar-day-dots"
+                            aria-hidden="true"
+                          >
+                            <span className="calendar-event-dot" />
+                          </span>
+                        ) : null}
+                      </button>
+                      {onOpenEvent && items.length > 0 && (
+                        // Pointer shortcuts to each room. Keyboard users open
+                        // the day, whose dialog lists the same events.
+                        <div className="calendar-event-buttons">
+                          {items.slice(0, 3).map((item) => (
+                            <button
+                              type="button"
+                              key={item.id}
+                              tabIndex={-1}
+                              className={`calendar-event-chip ${eventClass(item)}`}
+                              title={`${eventText(item)} · ${eventName(item)}`}
+                              aria-label={`${eventText(item)}, ${eventName(item)}. Open room.`}
+                              onClick={() => onOpenEvent(item)}
+                            >
+                              {eventLabel ? eventLabel(item) : eventText(item)}
+                            </button>
                           ))}
-                          {items.length > 2 && (
+                          {items.length > 3 && (
                             <span className="calendar-event-more">
-                              +{items.length - 2} more
+                              +{items.length - 3} more
                             </span>
                           )}
-                        </span>
-                      ) : items.length > 0 ? (
-                        <span className="calendar-day-dots" aria-hidden="true">
-                          <span className="calendar-event-dot" />
-                        </span>
-                      ) : null}
-                    </button>
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <span className="outside-date" aria-hidden="true">
                       {day.date.getDate()}

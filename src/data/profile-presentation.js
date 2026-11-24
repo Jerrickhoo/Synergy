@@ -11,6 +11,47 @@ export const preferenceLabel = (value) =>
     either: "Open to one-off or ongoing collaborations",
   })[value] || "Preference not added yet";
 export const profileTags = profileEntries;
+// Standard industries for the Edit profile dropdown, so matching compares
+// the same words. A saved value outside this list stays selectable.
+export const industryOptions = [
+  "AI and Machine Learning",
+  "Agriculture",
+  "Climate and Energy",
+  "Consumer",
+  "Cybersecurity",
+  "E-commerce",
+  "EdTech",
+  "FinTech",
+  "FoodTech",
+  "Gaming",
+  "HealthTech",
+  "Hardware",
+  "HR and Work",
+  "Logistics",
+  "Marketplace",
+  "Media and Entertainment",
+  "PropTech",
+  "SaaS",
+  "Social Impact",
+  "SpaceTech",
+  "Travel",
+  "Other",
+];
+// "2026-11-24" -> "November 24, 2026". Read as a UTC day, so the date never
+// shifts with the viewer's time zone.
+export function longDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ""));
+  if (!match) return "";
+  const [, year, month, day] = match.map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+// One decimal like a review site: 4 -> "4.0", 4.5 -> "4.5".
+export const scoreLabel = (rating) => Number(rating).toFixed(1);
 export function fitFactors(person, factors) {
   return factors.map(([label, index]) => {
     const missing = person.why?.[index] === "Missing inputs";

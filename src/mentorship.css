@@ -1,9 +1,7 @@
 .mentor-next {
   margin-bottom: 24px;
 }
-.mentor-home .simple-home-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
+
 .mentor-next h2,
 .mentorship-brief h2 {
   margin: 6px 0 12px;
@@ -83,9 +81,6 @@
   .mentorship-brief {
     grid-template-columns: 1fr;
     gap: 20px;
-  }
-  .mentor-home .simple-home-grid {
-    grid-template-columns: 1fr;
   }
 }
 @media (max-width: 480px) {
@@ -473,21 +468,6 @@
   color: var(--muted);
   font-size: var(--text-sm);
   font-weight: 400;
-}
-.mentor-session-time {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  font-variant-numeric: tabular-nums;
-}
-.mentor-live-badge {
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-full);
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  font-size: var(--text-xs);
-  font-weight: 700;
 }
 
 /* Calendar: Office Hours slots, their bookings and confirmations. */

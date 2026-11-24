@@ -570,3 +570,131 @@ test("profile reports record authenticated participants, optional details and mo
     "resolved",
   );
 });
+
+test("a founder saves a startup logo and their own photo in one save; mentors keep one photo", async (t) => {
+  const { file } = fixture(t);
+  const api = createApi({
+    file,
+    config: configuration({
+      SYNERGY_DATA_FILE: file,
+      SYNERGY_DEMO_MODE: "false",
+    }),
+  });
+  const server = createServer((req, res) =>
+    api(req, res, () => {
+      res.statusCode = 404;
+      res.end();
+    }),
+  );
+  await new Promise((done) => server.listen(0, "127.0.0.1", done));
+  t.after(async () => {
+    await new Promise((done) => server.close(done));
+    api.close();
+  });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const post = async (path, body, token) => {
+    const response = await fetch(`${origin}/api/${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    return { status: response.status, body: decode(await response.text()) };
+  };
+  const signup = async (email, role) =>
+    (
+      await post("signup", {
+        firstName: "Two",
+        lastName: "Photos",
+        email,
+        password: "private-password",
+        role,
+      })
+    ).body;
+  const a = await signup("two-photos@example.com", "founder");
+  const b = await signup("other-founder@example.com", "founder");
+  const picture = async (background) =>
+    `data:image/png;base64,${(
+      await sharp({
+        create: { width: 40, height: 40, channels: 3, background },
+      })
+        .png()
+        .toBuffer()
+    ).toString("base64")}`;
+  const logo = await picture("#245e49");
+  const face = await picture("#305d87");
+  const saved = await post(
+    "profile",
+    {
+      role: "founder",
+      form: "profile-form",
+      values: { ...profile, image: logo, personImage: face },
+    },
+    a.token,
+  );
+  assert.equal(saved.status, 200);
+  const { image, personImage } = saved.body.state.profiles.founder;
+  assert.match(image, /^\/api\/avatars\/[0-9a-f-]+$/);
+  assert.match(personImage, /^\/api\/avatars\/[0-9a-f-]+$/);
+  assert.notEqual(image, personImage);
+  const getPhoto = (path, token) =>
+    fetch(`${origin}${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  assert.equal((await getPhoto(image, a.token)).status, 200);
+  assert.equal((await getPhoto(personImage, a.token)).status, 200);
+  // Another account cannot claim either stored photo as its own.
+  const stolen = await post(
+    "action",
+    {
+      role: "founder",
+      form: "profile-form",
+      values: { ...profile, personImage },
+    },
+    b.token,
+  );
+  assert.equal(stolen.status, 403);
+  // Keeping the logo and removing only the founder's photo.
+  const removed = await post(
+    "profile",
+    {
+      role: "founder",
+      form: "profile-form",
+      values: { ...profile, image, personImage: "" },
+    },
+    a.token,
+  );
+  assert.equal(removed.body.state.profiles.founder.image, image);
+  assert.equal(removed.body.state.profiles.founder.personImage, "");
+  assert.equal((await getPhoto(personImage, a.token)).status, 404);
+  assert.equal((await getPhoto(image, a.token)).status, 200);
+  // A mentor profile has one photo; a founder-only field is ignored.
+  await post("action", { role: "mentor", action: "choose-role" }, a.token);
+  const mentor = await post(
+    "profile",
+    {
+      role: "mentor",
+      form: "profile-form",
+      values: {
+        bio: "Mentor",
+        offer: "Product strategy",
+        expertise: "Product",
+        startups: "EdTech",
+        personImage: face,
+      },
+    },
+    a.token,
+  );
+  assert.equal(mentor.status, 200);
+  assert.equal(mentor.body.state.profiles.mentor.personImage, undefined);
+  // The two founder uploads only (a removed photo keeps its file record);
+  // nothing was stored for the mentor.
+  assert.equal(
+    Object.values(decode(readFileSync(file, "utf8")).files).filter(
+      (item) => item.purpose === "avatar",
+    ).length,
+    2,
+  );
+});

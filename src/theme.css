@@ -118,6 +118,18 @@
   --factor-availability: #2f6b4f;
   --factor-format: #4f5b93;
   --on-factor: #ffffff;
+  /* Collaborators on the Home calendar: eight hues in a fixed order,
+     validated for colour-blind separation on --paper. Every item also names
+     its collaborator, so colour is never the only cue. */
+  --collab-1: #2a78d6;
+  --collab-2: #eb6834;
+  --collab-3: #1baf7a;
+  --collab-4: #eda100;
+  --collab-5: #e87ba4;
+  --collab-6: #008300;
+  --collab-7: #6250d6;
+  --collab-8: #e34948;
+  --collab-other: #7b8a85;
 }
 /*
  * Dark: low-chroma neutrals on the brand's teal hue (not the light theme's
@@ -178,6 +190,15 @@
   --factor-availability: #9fd9b4;
   --factor-format: #b8c0f0;
   --on-factor: #0e1514;
+  --collab-1: #3987e5;
+  --collab-2: #d95926;
+  --collab-3: #199e70;
+  --collab-4: #c98500;
+  --collab-5: #d55181;
+  --collab-6: #0ca30c;
+  --collab-7: #9085e9;
+  --collab-8: #e66767;
+  --collab-other: #8a9a95;
 }
 
 /* Typography rules that apply everywhere. */

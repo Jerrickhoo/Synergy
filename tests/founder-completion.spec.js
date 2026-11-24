@@ -235,13 +235,10 @@ test("audit surfaces support axe and keyboard task cards, milestone menus, dialo
   await audit(page);
   await page.goto("/#/profile");
   await page.getByRole("button", { name: "Edit profile", exact: true }).click();
+  // Needs and offers are standard tags in two side-by-side cards.
   await page
-    .getByLabel("Your description", { exact: true })
-    .fill(
-      "We are a 4-person team building student budgeting tools and need people to try our product.",
-    );
-  await page
-    .getByRole("button", { name: "Suggest profile details", exact: true })
+    .getByRole("group", { name: /^What .+ needs$/ })
+    .getByRole("button", { name: "User Research", exact: true })
     .click();
   await audit(page);
   const c = await user(request, "IntroductionAudit");

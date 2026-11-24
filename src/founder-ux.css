@@ -127,26 +127,8 @@
   color: var(--muted);
 }
 
-/* Home deal rows (I-25) */
-.deal-rows {
-  list-style: none;
-  margin: 12px 0 0;
-  padding: 0;
-  display: grid;
-}
-.deal-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 0;
-  border-top: 1px solid var(--line);
-}
-.deal-row > div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
+/* Next-step text on Home and in rooms (I-25) */
+
 .deal-next,
 .room-next {
   color: var(--muted);
@@ -653,43 +635,7 @@ ol.stage-line {
   font-size: 14px;
 }
 
-/* Profile assistant, verification and tags (I-02, I-07, I-28) */
-.profile-assistant {
-  display: grid;
-  gap: 10px;
-  padding: 20px;
-  border: 1px solid var(--green);
-}
-.profile-assistant textarea {
-  width: 100%;
-}
-.assistant-result {
-  display: grid;
-  gap: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-.assistant-question {
-  display: grid;
-  gap: 6px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  padding: 10px 12px;
-}
-.assistant-details {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-  margin: 0;
-}
-.assistant-details dt {
-  font-size: var(--font-caption);
-  color: var(--muted);
-}
-.assistant-details dd {
-  margin: 0;
-  font-weight: 600;
-}
+/* Verification and tags (I-02, I-07, I-28) */
 .verification-status {
   display: flex;
   gap: 6px;
@@ -1090,48 +1036,7 @@ ol.stage-line {
   justify-self: start;
 }
 
-/* B2/B4: assistant review list and checklist validation messages. */
-.assistant-review {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.assistant-review legend {
-  margin-bottom: var(--space-2);
-  font-weight: 600;
-}
-/* Outranks .simple-profile form label, which would stack the checkbox. */
-.assistant-review label.assistant-review-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: var(--space-3);
-  padding: var(--space-2) 0;
-}
-.assistant-review-row input {
-  margin-top: var(--space-1);
-}
-.assistant-review-copy {
-  display: grid;
-  gap: var(--space-1);
-  min-width: 0;
-}
-.assistant-review-change {
-  display: grid;
-  gap: var(--space-1);
-  overflow-wrap: break-word;
-  text-wrap: pretty;
-}
-.assistant-review-term {
-  font-size: var(--font-caption);
-  color: var(--muted);
-}
-.assistant-applied {
-  color: var(--green-dark);
-  font-weight: 600;
-}
+/* B4: checklist validation messages. */
 .profile-checklist-label {
   display: grid;
   gap: var(--space-1);
@@ -1141,12 +1046,6 @@ ol.stage-line {
   font-size: var(--font-caption);
   font-weight: 400;
 }
-.profile-optional-left {
-  color: var(--muted);
-  font-size: var(--font-caption);
-  text-wrap: pretty;
-}
-
 /* D9: the empty-message error sits under the chat input. */
 .chat-compose {
   flex-wrap: wrap;
@@ -1194,4 +1093,385 @@ ol.stage-line {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+}
+
+/* Home planner: the calendar beside the task list (70:30), the room count
+   beside the collaborations, then labelled activity. */
+.collab-1 {
+  --collab: var(--collab-1);
+}
+.collab-2 {
+  --collab: var(--collab-2);
+}
+.collab-3 {
+  --collab: var(--collab-3);
+}
+.collab-4 {
+  --collab: var(--collab-4);
+}
+.collab-5 {
+  --collab: var(--collab-5);
+}
+.collab-6 {
+  --collab: var(--collab-6);
+}
+.collab-7 {
+  --collab: var(--collab-7);
+}
+.collab-8 {
+  --collab: var(--collab-8);
+}
+.collab-other {
+  --collab: var(--collab-other);
+}
+.collab-swatch {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--collab);
+}
+.home-planner {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
+  gap: var(--space-5);
+  min-width: 0;
+}
+.home-planner > *,
+.home-overview > * {
+  margin: 0;
+}
+.home-calendar,
+.home-tasks {
+  min-width: 0;
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+}
+/* Each day lists up to three items as buttons over the day button. */
+.home-calendar .calendar-cell {
+  position: relative;
+}
+.home-calendar .calendar-week {
+  grid-auto-rows: minmax(104px, auto);
+}
+.home-calendar .calendar-event-buttons {
+  position: absolute;
+  inset: calc(var(--space-7) - var(--space-2)) var(--space-1) auto;
+  /* Above the day button, which rises to z-index 1 while focused. */
+  z-index: 2;
+  display: grid;
+  gap: 2px;
+  pointer-events: none;
+}
+.home-calendar .calendar-event-buttons > * {
+  pointer-events: auto;
+}
+.calendar-event-chip {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 1px var(--space-1) 1px 6px;
+  border: 0;
+  border-left: 3px solid var(--collab);
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--collab) 14%, var(--paper));
+  color: var(--ink);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.calendar-event-chip:hover {
+  background: color-mix(in srgb, var(--collab) 26%, var(--paper));
+}
+.home-calendar .calendar-event-more {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+.home-calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+.home-calendar-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.home-calendar-hint {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-wrap: pretty;
+}
+/* The task list is as tall as the calendar and scrolls inside. */
+.home-tasks {
+  display: flex;
+  flex-direction: column;
+  height: 0;
+  min-height: 100%;
+}
+.home-tasks h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-lg);
+}
+.home-task-list {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  margin: 0 calc(var(--space-2) * -1);
+  padding: 0 var(--space-2);
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.home-task {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+.home-task .collab-swatch,
+.home-collaboration .collab-swatch,
+.home-day-event .collab-swatch {
+  margin-top: 0.4em;
+}
+.home-task-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.home-task-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-wrap: pretty;
+}
+.home-task-who {
+  color: var(--muted);
+  font-weight: 400;
+}
+.home-task-due {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.home-overview {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+.home-overview.paired {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  align-items: start;
+}
+.simple-home .home-overview.paired .workspace-metrics {
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+}
+.simple-home .home-overview:not(.paired) .workspace-metrics {
+  margin: 0;
+}
+/* A card after the overview row keeps the page's section spacing. */
+.home-overview + .card {
+  margin-top: 28px;
+}
+.home-collaborations h2,
+.home-activity h2 {
+  margin: 0 0 var(--space-4);
+}
+.home-collaboration-list,
+.home-activity-list {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.home-collaboration {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.home-collaboration-copy {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+.home-collaboration-copy strong {
+  font-size: var(--text-md);
+  text-wrap: pretty;
+}
+.home-collaboration > .btn {
+  flex-shrink: 0;
+}
+/* Activity: a fixed label column (collaborator, Profile) then the text. */
+.home-activity-list {
+  gap: var(--space-3);
+}
+.home-activity-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 11rem) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: baseline;
+  font-size: var(--text-sm);
+  text-wrap: pretty;
+}
+.activity-label {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.home-activity-list li > span:only-child {
+  grid-column: 1 / -1;
+}
+.home-activity .link-btn {
+  margin-top: var(--space-4);
+}
+/* The day dialog: that day's items, then a meeting form. */
+.home-day {
+  display: grid;
+  gap: var(--space-5);
+}
+.home-day h3 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
+}
+.home-day-events {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.home-day-event {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  color: var(--ink);
+  text-align: left;
+}
+.home-day-event > span:not(.collab-swatch) {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  font-size: var(--text-sm);
+}
+.home-day-event > svg {
+  width: 16px;
+  height: 16px;
+  margin-top: 0.2em;
+}
+/* Meetings: the form (Home dialog and the room Meetings tab) and the list. */
+.meeting-form {
+  display: grid;
+  gap: var(--space-4);
+}
+.meeting-form .form-grid.meeting-when {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+}
+.meeting-form > .btn {
+  justify-self: start;
+}
+.meeting-with {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.meeting-list {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.meeting-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.meeting-row > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.meeting-row strong {
+  font-variant-numeric: tabular-nums;
+}
+.meeting-row .muted {
+  font-size: var(--text-sm);
+}
+.meeting-row p {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+}
+.meeting-past {
+  margin-top: var(--space-5);
+}
+@media (max-width: 900px) {
+  .home-planner,
+  .home-overview.paired {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .home-tasks {
+    height: auto;
+    min-height: 0;
+  }
+  .home-task-list {
+    overflow: visible;
+  }
+}
+@media (max-width: 600px) {
+  /* Phones show a count per day; the day dialog lists the items. */
+  .home-calendar .calendar-event-buttons {
+    display: none;
+  }
+  .home-calendar .calendar-week {
+    grid-auto-rows: minmax(66px, auto);
+  }
+  .home-calendar,
+  .home-tasks {
+    padding: var(--space-4);
+  }
+  .home-activity-list li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  .meeting-form .form-grid.meeting-when {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .calendar-event-chip {
+    transition: none;
+  }
 }

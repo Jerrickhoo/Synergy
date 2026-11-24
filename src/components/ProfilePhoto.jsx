@@ -2,25 +2,21 @@ import { useEffect, useRef, useState } from "react";
 import Avatar from "./Avatar.jsx";
 import Icon from "./Icon.jsx";
 
-export default function ProfilePhoto({
-  image,
-  name,
-  role,
-  identity,
-  onChange,
-  onReadingChange,
-  disabled,
-}) {
+// One picture with its own upload, remove and error state.
+function PhotoSlot({ slot, identity, onChange, onReadingChange, disabled }) {
+  const { key, image, title, detail, avatarName, noun, chooseLabel } = slot;
   const input = useRef(null);
   const selection = useRef(0);
   const change = useRef(onChange);
   change.current = onChange;
+  const reportReading = useRef(onReadingChange);
+  reportReading.current = onReadingChange;
   useEffect(
     () => () => {
       ++selection.current;
-      onReadingChange(false);
+      reportReading.current(key, false);
     },
-    [onReadingChange],
+    [key],
   );
   const [error, setError] = useState("");
   const [reading, setReading] = useState(false);
@@ -39,7 +35,7 @@ export default function ProfilePhoto({
       return;
     }
     setReading(true);
-    onReadingChange(true);
+    reportReading.current(key, true);
     const url = URL.createObjectURL(file);
     try {
       const picture = new Image();
@@ -57,7 +53,7 @@ export default function ProfilePhoto({
         .getContext("2d")
         .drawImage(picture, 0, 0, canvas.width, canvas.height);
       if (current === selection.current)
-        change.current(canvas.toDataURL("image/webp", 0.9));
+        change.current(key, canvas.toDataURL("image/webp", 0.9));
     } catch {
       if (current === selection.current)
         setError(
@@ -67,66 +63,112 @@ export default function ProfilePhoto({
       URL.revokeObjectURL(url);
       if (current === selection.current) {
         setReading(false);
-        onReadingChange(false);
+        reportReading.current(key, false);
       }
     }
   }
   return (
-    <fieldset
-      className="card profile-fieldset profile-photo-editor"
-      disabled={disabled || reading}
-    >
-      <legend>Profile photo</legend>
-      <div className="profile-photo-body">
-        <Avatar image={image} name={name} identity={identity} size={88} />
-        <div className="profile-photo-copy">
-          <strong className="profile-photo-name">{name}</strong>
-          {role && <span className="profile-photo-role">{role}</span>}
-          <div className="profile-photo-actions">
+    <div className="profile-photo-body" data-slot={key}>
+      <Avatar image={image} name={avatarName} identity={identity} size={88} />
+      <div className="profile-photo-copy">
+        <strong className="profile-photo-name">{title}</strong>
+        {detail && <span className="profile-photo-role">{detail}</span>}
+        <div className="profile-photo-actions">
+          <button
+            className="btn small"
+            type="button"
+            disabled={disabled || reading}
+            onClick={() => input.current.click()}
+          >
+            <Icon name="camera" />
+            {image ? "Change" : "Upload"}
+            <span className="visually-hidden"> {noun}</span>
+          </button>
+          {image && (
             <button
               className="btn small"
               type="button"
-              onClick={() => input.current.click()}
+              disabled={disabled || reading}
+              onClick={() => {
+                ++selection.current;
+                setError("");
+                onChange(key, "");
+              }}
             >
-              <Icon name="camera" />
-              {image ? "Change photo" : "Upload photo"}
+              <Icon name="trash" />
+              Remove
+              <span className="visually-hidden"> {noun}</span>
             </button>
-            {image && (
-              <button
-                className="btn small"
-                type="button"
-                onClick={() => {
-                  ++selection.current;
-                  setError("");
-                  onChange("");
-                }}
-              >
-                <Icon name="trash" />
-                Remove photo
-              </button>
-            )}
-          </div>
-          <input
-            ref={input}
-            type="file"
-            className="visually-hidden"
-            tabIndex={-1}
-            aria-label="Choose profile photo"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={select}
-          />
-          <p className="field-help">
-            JPEG, PNG or WebP, up to 5 MB. A new photo stays private until you
-            save your profile.
-          </p>
-          {reading && <p role="status">Opening image…</p>}
-          {error && (
-            <p className="field-error" role="alert">
-              {error}
-            </p>
           )}
         </div>
+        <input
+          ref={input}
+          type="file"
+          className="visually-hidden"
+          tabIndex={-1}
+          aria-label={chooseLabel}
+          accept="image/jpeg,image/png,image/webp"
+          onChange={select}
+        />
+        {reading && (
+          <p role="status">
+            <span className="spinner" aria-hidden="true" /> Opening image…
+          </p>
+        )}
+        {error && (
+          <p className="field-error" role="alert">
+            {error}
+          </p>
+        )}
       </div>
+    </div>
+  );
+}
+
+// Founders add a startup logo and their own photo; mentors add one photo.
+export default function ProfilePhoto({
+  legend,
+  slots,
+  identity,
+  onChange,
+  onReadingChange,
+  disabled,
+}) {
+  const [reading, setReading] = useState({});
+  const report = useRef(onReadingChange);
+  report.current = onReadingChange;
+  const busy = Object.values(reading).some(Boolean);
+  useEffect(() => {
+    report.current(busy);
+  }, [busy]);
+  return (
+    <fieldset
+      className="card profile-fieldset profile-photo-editor"
+      disabled={disabled}
+    >
+      <legend>{legend}</legend>
+      <div
+        className={`profile-photo-slots${slots.length > 1 ? " paired" : ""}`}
+      >
+        {slots.map((slot) => (
+          <PhotoSlot
+            key={slot.key}
+            slot={slot}
+            identity={identity}
+            disabled={disabled}
+            onChange={onChange}
+            onReadingChange={(key, value) =>
+              setReading((current) =>
+                current[key] === value ? current : { ...current, [key]: value },
+              )
+            }
+          />
+        ))}
+      </div>
+      <p className="field-help">
+        JPEG, PNG or WebP, up to 5 MB. A new photo stays private until you save
+        your profile.
+      </p>
     </fieldset>
   );
 }

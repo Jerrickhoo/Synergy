@@ -5,7 +5,11 @@ import { createOperations, logFailure } from "./operations.js";
 import { resolve, dirname, join } from "node:path";
 import { mkdirSync, writeFileSync, unlinkSync, readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { createWorkspace, WorkspaceError } from "./workspace.js";
+import {
+  createWorkspace,
+  WorkspaceError,
+  profilePhotoFields,
+} from "./workspace.js";
 import { encode } from "../src/state/serialization.js";
 import { configuration } from "./config.js";
 import { readBody, inspectFile, inspectAvatar } from "./files.js";
@@ -208,7 +212,8 @@ export function createApi({
       const body = (
         await readBody(
           req,
-          url.pathname === "/api/profile" ? 7 * 1024 * 1024 : 65536,
+          // Room for two photos: the startup logo and the founder's photo.
+          url.pathname === "/api/profile" ? 14 * 1024 * 1024 : 65536,
         )
       ).toString("utf8");
       let input;
@@ -301,32 +306,60 @@ export function createApi({
       }
       if (url.pathname === "/api/profile") {
         workspace.authorizeProfile(token, input);
-        if (!input.values?.image?.startsWith("data:"))
-          return send(200, workspace.act(token, input));
-        const bytes = await inspectAvatar(input.values.image);
+        // A save can carry a new startup logo (image) and, for founders, a
+        // new photo of the founder (personImage).
+        const fields = profilePhotoFields.filter(
+          (key) =>
+            (key === "image" || input.role === "founder") &&
+            input.values?.[key]?.startsWith("data:"),
+        );
+        if (!fields.length) return send(200, workspace.act(token, input));
+        const photos = [];
+        for (const field of fields)
+          photos.push({
+            field,
+            bytes: await inspectAvatar(input.values[field]),
+          });
         // Authentication/ownership is checked again after asynchronous decoding.
-        workspace.authorizeProfile(token, input, bytes.length);
-        const metadata = {
-          id: randomUUID(),
-          name: "profile.webp",
-          type: "image/webp",
-          size: bytes.length,
-        };
+        workspace.authorizeProfile(
+          token,
+          input,
+          photos.reduce((sum, photo) => sum + photo.bytes.length, 0),
+        );
         mkdirSync(uploads, { recursive: true });
-        const destination = join(uploads, metadata.id);
-        writeFileSync(destination, bytes, { flag: "wx", mode: 0o600 });
+        const avatars = {};
+        const written = [];
+        const discard = (keep) => {
+          for (const metadata of written)
+            try {
+              if (!keep(metadata)) unlinkSync(join(uploads, metadata.id));
+            } catch {
+              /* Preserve the original outcome. */
+            }
+        };
         try {
-          const result = workspace.saveProfile(token, input, metadata);
-          if (result.state.formErrors) unlinkSync(destination);
+          for (const { field, bytes } of photos) {
+            const metadata = {
+              id: randomUUID(),
+              name: "profile.webp",
+              type: "image/webp",
+              size: bytes.length,
+              field,
+            };
+            writeFileSync(join(uploads, metadata.id), bytes, {
+              flag: "wx",
+              mode: 0o600,
+            });
+            written.push(metadata);
+            avatars[field] = metadata;
+          }
+          const result = workspace.saveProfile(token, input, avatars);
+          if (result.state.formErrors) discard(() => false);
           return send(200, result);
         } catch (error) {
-          try {
-            // A response/notification write can fail after the profile commit.
-            // Keep bytes when the committed profile already references them.
-            if (!workspace.avatarStored(metadata.id)) unlinkSync(destination);
-          } catch {
-            /* Preserve the original error. */
-          }
+          // A response/notification write can fail after the profile commit.
+          // Keep bytes when the committed profile already references them.
+          discard((metadata) => workspace.avatarStored(metadata.id));
           throw error;
         }
       }

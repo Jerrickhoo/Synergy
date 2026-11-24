@@ -86,7 +86,16 @@ import {
   ensureCycle,
   moderationDueAt,
   resolveCycleDecisions,
+  terminalStatuses,
 } from "../src/data/collaboration.js";
+import { takesMeetings } from "../src/data/meetings.js";
+import { longDate } from "../src/data/profile-presentation.js";
+
+// The partner's notice for a meeting; the time is the scheduler's local time.
+const meetingText = (meeting, lead) =>
+  meeting
+    ? `${lead} ${longDate(meeting.date)} at ${meeting.time} (${meeting.timeZone}).`
+    : `${lead.replace(/ (for|on)$/, "")}.`;
 import {
   defaultMatching,
   migrateMatchingConfig,
@@ -116,6 +125,11 @@ import {
 } from "./demo-directory.js";
 import { seedShowcase } from "./showcase.js";
 
+// Profile pictures: the startup logo (or a mentor's photo) and, for
+// founders only, the founder's own photo.
+export const profilePhotoFields = ["image", "personImage"];
+const photoFieldsFor = (role) =>
+  role === "founder" ? profilePhotoFields : ["image"];
 export class WorkspaceError extends Error {
   // `data` adds machine-readable details to the response, such as the reason a
   // mentor is unavailable and similar mentors to ask instead.
@@ -1446,6 +1460,9 @@ export function createWorkspace(file, options = {}) {
             : room.review.partner
               ? "Completed"
               : "Completed · no partner review",
+        // The room opens when the collaboration starts; Your profile shows
+        // started and ended dates.
+        started: room.createdAt?.slice(0, 10) || "",
         date: (room.completedAt || room.launchedAt)?.slice(0, 10) || "",
         sample: false,
       });
@@ -1794,6 +1811,7 @@ export function createWorkspace(file, options = {}) {
     "lock-terms",
     "accept-terms",
     "confirm-milestone",
+    "cancel-meeting",
     "dispute",
     "resolve-dispute",
     "launch-room",
@@ -1804,6 +1822,7 @@ export function createWorkspace(file, options = {}) {
     "terms-form",
     "evidence",
     "schedule",
+    "meeting",
     "chat-form",
     "review-form",
     "report-form",
@@ -1812,6 +1831,7 @@ export function createWorkspace(file, options = {}) {
     "lock-terms",
     "accept-terms",
     "confirm-milestone",
+    "cancel-meeting",
     "dispute",
     "resolve-dispute",
     "launch-room",
@@ -1820,6 +1840,7 @@ export function createWorkspace(file, options = {}) {
     "terms-form",
     "evidence",
     "schedule",
+    "meeting",
     "chat-form",
     "review-form",
   ]);
@@ -2128,8 +2149,9 @@ export function createWorkspace(file, options = {}) {
       Object.assign(room.review, {
         partner: true,
         partnerRating: 4,
+        // Sample wording, so a prototype profile reads like a real one.
         partnerNote:
-          "Simulated review from a fictional prototype collaborator.",
+          "Clear terms, milestones delivered on time and useful feedback throughout. We would work together again.",
         partnerUseful: "yes",
         partnerGoalOutcome: "achieved",
       });
@@ -2308,7 +2330,7 @@ export function createWorkspace(file, options = {}) {
   // The room the current action was taken in; its informational notices are
   // read in the response (readiness plan P7).
   let actingRoomId = null;
-  function act(token, input, uploadedFile, avatar) {
+  function act(token, input, uploadedFile, avatars) {
     actingRoomId =
       input?.roomOpen === true &&
       typeof input.activeRoomId === "string" &&
@@ -2316,7 +2338,7 @@ export function createWorkspace(file, options = {}) {
         ? input.activeRoomId
         : null;
     try {
-      return actInternal(token, input, uploadedFile, avatar);
+      return actInternal(token, input, uploadedFile, avatars);
     } catch (error) {
       db = clone(committed);
       throw error;
@@ -2324,7 +2346,7 @@ export function createWorkspace(file, options = {}) {
       actingRoomId = null;
     }
   }
-  function actInternal(token, input, uploadedFile, avatar) {
+  function actInternal(token, input, uploadedFile, avatars) {
     const account = authenticate(token);
     requireVerifiedEmail(account);
     if (input.action === "first-run-choice")
@@ -2518,6 +2540,28 @@ export function createWorkspace(file, options = {}) {
       fail("This mentorship room is read-only.", 409);
     if (room && input.form === "schedule" && room.type !== "mentorship")
       fail("Scheduling is available only in mentorship rooms.");
+    // Meetings belong to exchange collaborations; a mentorship schedules
+    // through its own room rules.
+    if (
+      room &&
+      (input.form === "meeting" || input.action === "cancel-meeting") &&
+      !takesMeetings(room)
+    )
+      fail("Schedule mentorship sessions from the mentorship room.");
+    if (
+      room &&
+      input.form === "meeting" &&
+      terminalStatuses.includes(room.status)
+    )
+      fail("This collaboration has ended.", 409);
+    if (
+      room &&
+      input.action === "cancel-meeting" &&
+      !room.meetings?.some(
+        (meeting) => meeting.id === input.id && !meeting.cancelledAt,
+      )
+    )
+      fail("This meeting is unavailable.", 404);
     if (
       room &&
       ["confirm-milestone", "dispute", "resolve-dispute"].includes(
@@ -2767,6 +2811,8 @@ export function createWorkspace(file, options = {}) {
             { state },
             state.role,
             `You sent an introduction to ${person.name}.`,
+            undefined,
+            { matchId: person.id },
           );
           event(
             other,
@@ -2937,13 +2983,17 @@ export function createWorkspace(file, options = {}) {
     } else {
       if (input.form === "profile-form") {
         payload.values = normalizeProfile(payload.values);
-        const image = payload.values.image;
-        if (
-          image &&
-          !avatar &&
-          image !== account.state.profiles[state.role].image
-        )
-          fail("Upload your own profile photo using Save profile.", 403);
+        // A mentor profile has one photo; drop a founder-only field.
+        if (state.role !== "founder") delete payload.values.personImage;
+        for (const field of photoFieldsFor(state.role)) {
+          const image = payload.values[field];
+          if (
+            image &&
+            !avatars?.[field] &&
+            image !== account.state.profiles[state.role][field]
+          )
+            fail("Upload your own profile photo using Save profile.", 403);
+        }
         for (const key of ["offerTags", "needTags", "topics"]) {
           const selected = tags(payload.values[key]);
           if (selected.some((tag) => !features.vocabulary().includes(tag)))
@@ -2972,16 +3022,20 @@ export function createWorkspace(file, options = {}) {
         );
       }
       if (input.form === "profile-form" && !state.formErrors) {
-        if (avatar) {
-          state.profiles[state.role].image = `/api/avatars/${avatar.id}`;
-          db.files[avatar.id] = {
-            ...avatar,
-            purpose: "avatar",
-            accountId: account.id,
-            role: state.role,
-          };
-        } else if (payload.values.image === "")
-          state.profiles[state.role].image = "";
+        for (const field of photoFieldsFor(state.role)) {
+          const avatar = avatars?.[field];
+          if (avatar) {
+            state.profiles[state.role][field] = `/api/avatars/${avatar.id}`;
+            db.files[avatar.id] = {
+              ...avatar,
+              field,
+              purpose: "avatar",
+              accountId: account.id,
+              role: state.role,
+            };
+          } else if (payload.values[field] === "")
+            state.profiles[state.role][field] = "";
+        }
       }
       if (room && !state.formErrors) {
         if (input.form === "review-form" && room.review.me)
@@ -3050,7 +3104,19 @@ export function createWorkspace(file, options = {}) {
                           ? `${who} marked the collaboration as ${room.type === "mentorship" ? "complete" : "launched"}. Leave your review within 14 days.`
                           : input.form === "schedule"
                             ? `${who} scheduled a session.`
-                            : `${who} updated your collaboration.`;
+                            : input.form === "meeting"
+                              ? meetingText(
+                                  room.meetings.at(-1),
+                                  `${who} scheduled a meeting for`,
+                                )
+                              : input.action === "cancel-meeting"
+                                ? meetingText(
+                                    room.meetings.find(
+                                      (meeting) => meeting.id === input.id,
+                                    ),
+                                    `${who} cancelled the meeting on`,
+                                  )
+                                : `${who} updated your collaboration.`;
         if (input.form === "review-form" && room.status === "reviewed") {
           event(
             { state },
@@ -3071,7 +3137,9 @@ export function createWorkspace(file, options = {}) {
             : ["lock-terms", "accept-terms"].includes(input.action) ||
                 input.form === "terms-form"
               ? "terms"
-              : "milestones",
+              : input.form === "meeting" || input.action === "cancel-meeting"
+                ? "schedule"
+                : "milestones",
         review: input.form === "review-form" && room.status === "reviewed",
         kind:
           input.form === "review-form" && room.status === "reviewed"
@@ -3417,7 +3485,10 @@ export function createWorkspace(file, options = {}) {
         !input.values ||
         typeof input.values !== "object" ||
         Array.isArray(input.values) ||
-        ("image" in input.values && typeof input.values.image !== "string")
+        profilePhotoFields.some(
+          (field) =>
+            field in input.values && typeof input.values[field] !== "string",
+        )
       )
         fail("Submit valid profile fields and a JPEG, PNG or WebP photo.");
       const used = Object.values(db.files)
@@ -3426,16 +3497,21 @@ export function createWorkspace(file, options = {}) {
       if (used + size > (options.accountFileBytes || 50 * 1024 * 1024))
         fail("Your workspace file allowance of 50 MB has been reached.", 413);
     },
-    saveProfile(token, input, metadata) {
-      this.authorizeProfile(token, input, metadata.size);
-      return act(token, input, undefined, metadata);
+    saveProfile(token, input, avatars) {
+      this.authorizeProfile(
+        token,
+        input,
+        Object.values(avatars).reduce((sum, photo) => sum + photo.size, 0),
+      );
+      return act(token, input, undefined, avatars);
     },
     avatarStored(id) {
       const photo = db.files[id];
       return Boolean(
         photo?.purpose === "avatar" &&
-        db.accounts[photo.accountId]?.state.profiles[photo.role]?.image ===
-          `/api/avatars/${id}`,
+        db.accounts[photo.accountId]?.state.profiles[photo.role]?.[
+          photo.field || "image"
+        ] === `/api/avatars/${id}`,
       );
     },
     avatarFor(token, id) {
@@ -3448,7 +3524,7 @@ export function createWorkspace(file, options = {}) {
         photo.purpose !== "avatar" ||
         !owner ||
         owner.deletedAt ||
-        owner.state.profiles[photo.role]?.image !== image
+        owner.state.profiles[photo.role]?.[photo.field || "image"] !== image
       )
         fail("Profile photo unavailable.", 404);
       const visible =

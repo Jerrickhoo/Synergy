@@ -6,6 +6,7 @@ import MilestonesPanel from "../components/MilestonesPanel.jsx";
 import TaskBoard from "../components/TaskBoard.jsx";
 import MentorshipCycle from "../components/MentorshipCycle.jsx";
 import SchedulePanel from "../components/SchedulePanel.jsx";
+import MeetingsPanel from "../components/MeetingsPanel.jsx";
 import TermsPanel from "../components/TermsPanel.jsx";
 import CloseRoomDialog from "../components/CloseRoomDialog.jsx";
 import { Fragment, useLayoutEffect, useRef, useState } from "react";
@@ -151,8 +152,13 @@ function ExchangeRoom() {
   }, [tab, room.id]);
   let panel = "";
   if (tab === "tasks") panel = <TaskBoard room={room} partner={partner} />;
-  if (tab === "schedule" && room.type === "mentorship")
-    panel = <SchedulePanel room={room} partner={partner} />;
+  if (tab === "schedule")
+    panel =
+      room.type === "mentorship" ? (
+        <SchedulePanel room={room} partner={partner} />
+      ) : (
+        <MeetingsPanel room={room} partner={partner} />
+      );
   if (tab === "terms")
     panel = (
       <TermsPanel
@@ -344,9 +350,10 @@ function ExchangeRoom() {
             : "not scheduled"}
         </p>
       )}
-      {Object.values(room.milestones).some(
+      {(Object.values(room.milestones).some(
         (item) => item.dueDate || item.schedule || item.schedules?.length,
-      ) && (
+      ) ||
+        room.meetings?.some((meeting) => !meeting.cancelledAt)) && (
         <button
           className="link-btn"
           onClick={() => onAction({ page: "calendar" })}
@@ -363,7 +370,9 @@ function ExchangeRoom() {
         {[
           ["terms", room.terms.partnerLocked ? "Agreement" : "Terms"],
           ["milestones", "Milestones"],
-          ...(room.type === "mentorship" ? [["schedule", "Schedule"]] : []),
+          // Exchange collaborations plan meetings; a mentorship schedules
+          // its sessions.
+          ["schedule", room.type === "mentorship" ? "Schedule" : "Meetings"],
           ["chat", "Chat"],
         ].map(([key, label], itemIndex) => (
           <Fragment key={itemIndex}>

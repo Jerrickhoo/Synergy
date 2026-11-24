@@ -167,14 +167,21 @@ for (const role of ["founder", "mentor"])
     expect((await saved(request, user)).accountName).not.toBe(
       "Unpublished name",
     );
-    const bio = page.getByLabel("About me", { exact: true });
+    // Founders describe the startup; mentors describe themselves.
+    const bio = page.getByLabel(
+      role === "founder" ? "Description" : "About me",
+      { exact: true },
+    );
+    // A founder's first photo is the startup logo; a mentor's is their own.
+    const photoName = role === "founder" ? "startup logo" : "profile photo";
+    const logo = ".own-identity-panel .identity-heading > .avatar";
     await bio.fill("Private draft");
     await bio.press("End");
     await bio.press("Enter");
     await bio.press("B");
     await expect(bio).toHaveValue("Private draft\nB");
     expect(saves).toBe(0);
-    const chooser = page.getByLabel("Choose profile photo", { exact: true });
+    const chooser = page.getByLabel(`Choose ${photoName}`, { exact: true });
     await chooser.setInputFiles({
       name: "bad.svg",
       mimeType: "image/svg+xml",
@@ -244,7 +251,7 @@ for (const role of ["founder", "mentor"])
     expect(image).toMatch(/^\/api\/avatars\//);
     await expect(page.locator(".account-button .avatar img")).toBeVisible();
     await page.reload();
-    await expect(page.locator(".own-identity-panel .avatar img")).toBeVisible();
+    await expect(page.locator(`${logo} img`)).toBeVisible();
     await page
       .getByRole("button", { name: "Edit profile", exact: true })
       .click();
@@ -268,26 +275,22 @@ for (const role of ["founder", "mentor"])
       .getByRole("button", { name: "Edit profile", exact: true })
       .click();
     await page
-      .getByRole("button", { name: "Remove photo", exact: true })
+      .getByRole("button", { name: `Remove ${photoName}`, exact: true })
       .click();
     await expect(page.locator(".profile-photo-editor img")).toHaveCount(0);
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     expect((await saved(request, user)).profiles[role].image).toBe(image);
-    await expect(page.locator(".own-identity-panel .avatar img")).toBeVisible();
+    await expect(page.locator(`${logo} img`)).toBeVisible();
     await page.route("**/api/avatars/*", (route) => route.abort());
     await page.reload();
-    await expect(page.locator(".own-identity-panel .avatar img")).toHaveCount(
-      0,
-    );
-    await expect(
-      page.locator(".own-identity-panel .avatar-default"),
-    ).toBeVisible();
+    await expect(page.locator(`${logo} img`)).toHaveCount(0);
+    await expect(page.locator(`${logo} .avatar-default`)).toBeVisible();
     await page.unroute("**/api/avatars/*");
     await page
       .getByRole("button", { name: "Edit profile", exact: true })
       .click();
     await page
-      .getByRole("button", { name: "Remove photo", exact: true })
+      .getByRole("button", { name: `Remove ${photoName}`, exact: true })
       .click();
     await page
       .getByRole("button", { name: "Save profile", exact: true })
@@ -296,6 +299,30 @@ for (const role of ["founder", "mentor"])
       page.getByRole("button", { name: "Edit profile", exact: true }),
     ).toBeVisible();
     expect((await saved(request, user)).profiles[role].image).toBe("");
+    if (role !== "founder") return;
+    // The founder's own photo saves separately from the logo and shows on
+    // card 1 and on the account button.
+    await page
+      .getByRole("button", { name: "Edit profile", exact: true })
+      .click();
+    await page.getByLabel("Choose your photo", { exact: true }).setInputFiles({
+      name: "founder.png",
+      mimeType: "image/png",
+      buffer,
+    });
+    await expect(
+      page.locator('.profile-photo-body[data-slot="personImage"] img'),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Save profile", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Edit profile", exact: true }),
+    ).toBeVisible();
+    const founderPhoto = (await saved(request, user)).profiles.founder;
+    expect(founderPhoto.personImage).toMatch(/^\/api\/avatars\//);
+    expect(founderPhoto.image).toBe("");
+    await expect(page.locator(".account-button .avatar img")).toBeVisible();
   });
 
 test("role switching, Danger zone and both visibility directions require the intended explicit controls", async ({

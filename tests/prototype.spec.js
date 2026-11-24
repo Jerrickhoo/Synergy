@@ -508,32 +508,24 @@ test("a preview founder sets up their own startup and returns to it from a new t
   await page
     .getByRole("button", { name: "Set up my startup", exact: true })
     .click();
-  const description = page.getByLabel("Your description", { exact: true });
-  await expect(description).toBeFocused();
+  // Set up my startup opens Edit profile with every field empty.
+  const description = page.getByLabel("Description", { exact: true });
   await expect(description).toHaveValue("");
-  await expect(page.getByLabel("About me")).toHaveValue("");
+  await page.getByLabel("Startup name").fill("Shiftly");
   await description.fill(shiftly);
-  await page
-    .getByRole("button", { name: "Suggest profile details", exact: true })
-    .click();
-  const review = page.getByRole("group", { name: "Fields to update" });
-  await expect(review.getByRole("checkbox", { name: /^Stage/ })).toBeChecked();
-  await expect(
-    review.getByRole("checkbox", { name: /^Startup name/ }),
-  ).toBeChecked();
-  await expect(review).toContainText("Pricing strategy, Customer retention");
-  await expect(review).not.toContainText("Technical Development");
-  await page
-    .getByRole("button", { name: "Apply suggestions", exact: true })
-    .click();
-  await expect(
-    page.getByRole("status").filter({ hasText: /^Updated:/ }),
-  ).toContainText("Select Save profile to keep these changes.");
-  await expect(page.getByLabel("Team size")).toHaveValue("6");
-  await expect(page.getByLabel("What I need")).toHaveValue(
-    "Pricing strategy, Customer retention",
-  );
-  await expect(page.getByLabel("Startup name")).toHaveValue("Shiftly");
+  await selectValue(page.getByLabel("Industry", { exact: true }), "SaaS");
+  await selectValue(page.getByLabel("Stage", { exact: true }), "seed");
+  await page.getByLabel("Team size").fill("6");
+  // Needs and offers are standard tags, in cards named after the startup.
+  for (const [card, tag] of [
+    ["What Shiftly needs", "Pricing Strategy"],
+    ["What Shiftly needs", "Product Feedback"],
+    ["What Shiftly can offer", "Distribution"],
+  ])
+    await page
+      .getByRole("group", { name: card, exact: true })
+      .getByRole("button", { name: tag, exact: true })
+      .click();
   // Save requires a name, so the checklist does too.
   const checklist = page.locator(".profile-checklist");
   await expect(checklist).toContainText("Your name, still to add");
@@ -546,8 +538,10 @@ test("a preview founder sets up their own startup and returns to it from a new t
   ).toBeVisible();
   await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
   await expect(
-    page.getByRole("progressbar", { name: "Required profile details" }),
-  ).toHaveAttribute("aria-valuenow", "100");
+    page.getByText("Complete your profile to appear in Matches", {
+      exact: true,
+    }),
+  ).toHaveCount(0);
 
   // Round 3: Hana's card names the need she covers, as her match page does,
   // and sample cards carry no "New Mentor" badge.
@@ -559,12 +553,12 @@ test("a preview founder sets up their own startup and returns to it from a new t
   await expect(hana.locator(".preview-reason")).toHaveCount(0);
   await expect(hana.locator(".preview-exchange dt")).toHaveText(["You get"]);
   await expect(hana.locator(".preview-exchange dd")).toHaveText([
-    "Customer retention",
+    /^Product feedback$/i,
   ]);
   await expect(page.locator(".match-card .mentorship-badges")).toHaveCount(0);
   await hana.getByRole("button", { name: /^View match/ }).click();
   await expect(page.locator(".fit-section")).toContainText(
-    "They offer what you need: Customer retention.",
+    /They offer what you need: Product feedback\./i,
   );
   await expect(
     page.getByText("New mentor · no completed sessions yet"),
@@ -616,57 +610,25 @@ test("a preview founder sets up their own startup and returns to it from a new t
     tab.getByRole("heading", { name: "Mentorship room", exact: true }),
   ).toBeVisible();
   await tab.goto("/#/profile");
-  // The suggested startup name leads, with the founder beside it.
+  // The startup name leads, with the founder's name (and photo) under it.
   await expect(
     tab.getByRole("heading", { name: "Shiftly", exact: true }),
   ).toBeVisible();
-  await expect(tab.getByText("Founder: Jordan Lee")).toBeVisible();
+  await expect(tab.locator(".own-identity-subtitle")).toHaveText("Jordan Lee");
   await expect(tab.getByText("SaaS", { exact: true })).toBeVisible();
   await tab.close();
 });
 
-test("Apply suggestions lists each change and writes only the checked fields", async ({
-  page,
-}) => {
+test("the Edit profile checklist uses the save validator", async ({ page }) => {
   await page.goto("/");
-  await signInPreview(page, `apply-${Date.now()}@example.com`, "pw");
+  await signInPreview(page, `checklist-${Date.now()}@example.com`, "pw");
   await page
     .getByRole("button", { name: "Explore with a sample startup", exact: true })
     .click();
   await expect(page.locator("#app-shell")).toBeVisible();
   await page.goto("/#/profile");
   await page.getByRole("button", { name: "Edit profile", exact: true }).click();
-  const description = page.getByLabel("Your description", { exact: true });
-  await expect(description).toHaveValue("");
-  await expect(description).toHaveAttribute("placeholder", /For example/);
-  await description.fill(
-    "We are a seed-stage team of 6 building budgeting tools. We need pricing strategy.",
-  );
-  await page
-    .getByRole("button", { name: "Suggest profile details", exact: true })
-    .click();
-  const review = page.getByRole("group", { name: "Fields to update" });
-  // Sample values are replaceable, so their suggestions start checked.
-  const stage = review.getByRole("checkbox", { name: /^Stage/ });
-  await expect(stage).toBeChecked();
-  await expect(review.getByText("Pre-seed")).toBeVisible();
-  await expect(review.getByText("Seed", { exact: true })).toBeVisible();
-  const team = review.getByRole("checkbox", { name: /^Team size/ });
-  await expect(team).toBeChecked();
-  await team.uncheck();
-  await expect(page.getByText(/fills empty fields only/)).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "Apply suggestions", exact: true })
-    .click();
-  const note = page.getByRole("status").filter({ hasText: /^Updated:/ });
-  await expect(note).toContainText("Stage");
-  await expect(note).not.toContainText("Team size");
-  await expect(note).toContainText(
-    "Select Save profile to keep these changes.",
-  );
-  await expect(page.getByLabel("Stage")).toHaveText("Seed");
-  await expect(page.getByLabel("Team size")).toHaveValue("4");
-  // The checklist uses the save validator: an invalid team size is not ticked.
+  // An invalid team size is not ticked, and says why.
   await page.getByLabel("Team size").fill("-3");
   await expect(
     page

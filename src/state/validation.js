@@ -31,16 +31,26 @@ const labels = {
   name: "Your name",
   story: "Your story",
 };
-export function requiredFields(values, keys) {
+// A founder's Edit profile names these fields after the startup.
+const founderLabels = {
+  bio: "Description",
+  need: "What your startup needs",
+  offer: "What your startup can offer",
+};
+export function requiredFields(values, keys, names = {}) {
   return Object.fromEntries(
     keys
       .filter((key) => !String(values[key] || "").trim())
-      .map((key) => [key, `${labels[key] || key} is required.`]),
+      .map((key) => [key, `${names[key] || labels[key] || key} is required.`]),
   );
 }
 export function validateProfile(profile, role) {
   profile = normalizeProfile(profile);
-  const errors = requiredFields(profile, profileKeys(role));
+  const errors = requiredFields(
+    profile,
+    profileKeys(role),
+    role === "founder" ? founderLabels : {},
+  );
   if (String(profile.pastExperience || "").length > 2000)
     errors.pastExperience =
       "Keep past experience to 2,000 characters or fewer.";
@@ -127,4 +137,12 @@ export function validateSchedule(values, now = new Date()) {
   return instant <= now
     ? { date: "Choose a future session date and time." }
     : {};
+}
+// A meeting is one session with an optional note for the collaborator.
+export function validateMeeting(values, now = new Date()) {
+  const errors = validateSchedule({ ...values, count: 1 }, now);
+  if (Object.keys(errors).length) return errors;
+  if (String(values.note || "").length > 500)
+    return { note: "Keep the note to 500 characters or fewer." };
+  return {};
 }

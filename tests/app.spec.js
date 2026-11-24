@@ -151,14 +151,24 @@ async function navigate(page, name) {
   }
 }
 
+// Founders pick needs and offers as standard tags and choose an industry.
+async function pickTag(page, card, tag) {
+  await page
+    .getByRole("group", { name: card, exact: true })
+    .getByRole("button", { name: tag, exact: true })
+    .click();
+}
 async function fillProfile(page, { stage = "idea" } = {}) {
   await page.getByLabel("Your name").fill("Alex Rivera");
   await page
-    .getByLabel("About me")
+    .getByLabel("Description", { exact: true })
     .fill("Building a tool to help local communities.");
-  await page.getByLabel("What I offer").fill("Product design and research");
-  await page.getByLabel("What I need").fill("Feedback from early users");
-  await page.getByLabel("Industry", { exact: true }).fill("Community tools");
+  await pickTag(page, "What your startup can offer", "Product Design");
+  await pickTag(page, "What your startup needs", "Product Feedback");
+  await selectValue(
+    page.getByLabel("Industry", { exact: true }),
+    "Social Impact",
+  );
   if (stage !== null)
     await selectValue(page.getByLabel("Stage", { exact: true }), stage);
   await page.getByLabel("Team size").fill("1");
@@ -213,11 +223,10 @@ test("fresh workspace has one setup action and no sample records", async ({
   ).toBeVisible();
   await navigate(page, "Profile");
   await expect(
-    page.getByRole("progressbar", {
-      name: "Required profile details",
+    page.getByText("Complete your profile to appear in Matches", {
       exact: true,
     }),
-  ).toHaveAttribute("aria-valuenow", "0");
+  ).toBeVisible();
   await expect(
     page
       .getByRole("region", { name: "Collaboration history", exact: true })
@@ -235,38 +244,38 @@ test("blank profile fields, validation, saving and cancel work with user details
   await page
     .getByRole("button", { name: "Set up your profile", exact: true })
     .click();
-  for (const name of [
-    "About me",
-    "What I offer",
-    "What I need",
-    "Industry",
-    "Team size",
-  ]) {
+  for (const name of ["Description", "Team size"]) {
     await expect(page.getByLabel(name, { exact: true })).toHaveValue("");
   }
+  await expect(page.getByLabel("Industry", { exact: true })).toHaveText(
+    "Choose an industry",
+  );
+  await expect(page.locator(".tag-choice[aria-pressed='true']")).toHaveCount(0);
   await expect(page.getByLabel("Your name")).toHaveValue("Test User");
   await expect(page.getByLabel("Stage", { exact: true })).toHaveText(
     "Choose a stage",
   );
   await fillProfile(page);
-  await page.getByLabel("About me").fill("   ");
+  await page.getByLabel("Description", { exact: true }).fill("   ");
   await page.getByRole("button", { name: "Save profile", exact: true }).click();
-  await expect(page.getByLabel("About me")).toHaveAccessibleDescription(
-    /About me is required\./,
-  );
+  await expect(
+    page.getByLabel("Description", { exact: true }),
+  ).toHaveAccessibleDescription(/Description is required\./);
   await expect(page.locator(".toast-error")).toContainText(
     "Couldn't save your profile",
   );
   await page
-    .getByLabel("About me")
+    .getByLabel("Description", { exact: true })
     .fill("Building a tool to help local communities.");
   await page.getByRole("button", { name: "Save profile", exact: true }).click();
   await expect(
-    page.getByRole("progressbar", {
-      name: "Required profile details",
+    page.getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Complete your profile to appear in Matches", {
       exact: true,
     }),
-  ).toHaveAttribute("aria-valuenow", "100");
+  ).toHaveCount(0);
   await expect(page.locator(".toast-success")).toContainText(
     "Your profile has been updated.",
   );
@@ -274,7 +283,7 @@ test("blank profile fields, validation, saving and cancel work with user details
     page.getByText("Building a tool to help local communities."),
   ).toBeVisible();
   await page.getByRole("button", { name: "Edit profile", exact: true }).click();
-  await page.getByLabel("About me").fill("Unsaved change");
+  await page.getByLabel("Description", { exact: true }).fill("Unsaved change");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.getByText("Unsaved change", { exact: true })).toHaveCount(
     0,
@@ -284,9 +293,13 @@ test("blank profile fields, validation, saving and cancel work with user details
   await expect(
     page.getByRole("heading", { name: "Find your next collaborator" }),
   ).toBeVisible();
-  await expect(
-    page.getByText("You updated your profile.", { exact: true }),
-  ).toBeVisible();
+  // Recent activity labels the entry Profile and names what changed.
+  const entry = page
+    .getByRole("region", { name: "Recent activity" })
+    .getByRole("listitem")
+    .first();
+  await expect(entry.locator(".activity-label")).toHaveText("Profile");
+  await expect(entry).toContainText(/You updated your .*description.*industry/);
 });
 
 test("custom profile selects retain native required validation and failed-save drafts", async ({
@@ -314,18 +327,22 @@ test("custom profile selects retain native required validation and failed-save d
   await selectValue(stage, "idea");
   await page.getByRole("button", { name: "Save profile", exact: true }).click();
   await expect(
-    page.getByRole("progressbar", {
-      name: "Required profile details",
+    page.getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Complete your profile to appear in Matches", {
       exact: true,
     }),
-  ).toHaveAttribute("aria-valuenow", "100");
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "Edit profile", exact: true }).click();
   await selectValue(stage, "growth");
   await page.route("**/api/profile", (route) => route.abort());
   await page.getByRole("button", { name: "Save profile", exact: true }).click();
-  await expect(
-    page.getByText(/We couldn't confirm your last change was saved/),
-  ).toBeVisible();
+  // The form keeps its save error for the fields' descriptions; the page
+  // banner can clear as soon as a background refresh succeeds.
+  await expect(page.locator("#profile-form-error-_request")).toHaveText(
+    /We couldn't confirm this change was saved/,
+  );
   await expect(stage).toHaveAttribute("value", "growth");
   await page.unroute("**/api/profile");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -355,13 +372,17 @@ for (const role of ["founder", "mentor"]) {
       .getByRole("button", { name: "Set up your profile", exact: true })
       .click();
     await expect(page.getByLabel("Your name")).toHaveValue("Jamie Lee");
-    await expect(page.getByLabel("About me")).toHaveValue("");
+    await expect(
+      page.getByLabel(role === "mentor" ? "About me" : "Description", {
+        exact: true,
+      }),
+    ).toHaveValue("");
     if (role === "mentor") {
       await expect(page.getByLabel("Expertise areas")).toHaveValue("");
       await expect(page.getByLabel("Startups I want to help")).toHaveValue("");
     } else
-      await expect(page.getByLabel("Industry", { exact: true })).toHaveValue(
-        "",
+      await expect(page.getByLabel("Industry", { exact: true })).toHaveText(
+        "Choose an industry",
       );
   });
 }
@@ -385,7 +406,7 @@ test("signing in with another email clears the previous local account", async ({
     .getByRole("button", { name: "Set up your profile", exact: true })
     .click();
   await expect(page.getByLabel("Your name")).toHaveValue("Test User");
-  await expect(page.getByLabel("About me")).toHaveValue("");
+  await expect(page.getByLabel("Description", { exact: true })).toHaveValue("");
 });
 
 test("browser navigation, unavailable rooms and saved session refresh remain safe", async ({

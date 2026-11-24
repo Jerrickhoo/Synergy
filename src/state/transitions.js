@@ -1,10 +1,13 @@
 import { createInitialState, createModel } from "../data/model.js";
 import { completeTermsMilestones } from "../data/terms.js";
 import { readField } from "./fields.js";
-import { profileOptions } from "../data/collaboration.js";
+import { profileOptions, terminalStatuses } from "../data/collaboration.js";
 import { errorMessage, errorTitle, publishToast } from "./feedback.js";
 import { weeklySchedules } from "../data/planning.js";
 import { normalizeProfile } from "../data/profile-content.js";
+import { profileChanges, profileChangeText } from "../data/profile-changes.js";
+import { takesMeetings } from "../data/meetings.js";
+import { longDate } from "../data/profile-presentation.js";
 import { defaultMatchFilters, restoreMatchFilters } from "../data/filters.js";
 import {
   launchBlockers,
@@ -17,6 +20,7 @@ import {
   cleanValues,
   requiredFields,
   validateCredentials,
+  validateMeeting,
   validateProfile,
   validateSchedule,
   validateTerms,
@@ -63,7 +67,7 @@ export function transition(state, payload) {
     );
     return true;
   };
-  const record = (text, roomId) => {
+  const record = (text, roomId, extra = {}) => {
     state.activity.unshift({
       id: `${payload.timestamp || Date.now()}-${state.activity.length}`,
       role: state.role,
@@ -72,6 +76,7 @@ export function transition(state, payload) {
       timestamp: payload.timestamp || new Date().toISOString(),
       sample: false,
       self: true,
+      ...extra,
     });
   };
   // Resource mutations must never use an absent or another role's room.
@@ -281,6 +286,13 @@ export function transition(state, payload) {
         return;
       const wasComplete =
         profileCompleteness(state.profiles[state.role], state.role) === 100;
+      // Recent activity names what this save changed.
+      const changed = profileChanges(
+        state.profiles[state.role],
+        payload.values,
+        state.role,
+        state.accountName,
+      );
       if ("name" in payload.values) state.accountName = payload.values.name;
       const values = new Map(Object.entries(payload.values));
       state.profiles[state.role] = {
@@ -301,7 +313,7 @@ export function transition(state, payload) {
         !wasComplete &&
         profileCompleteness(state.profiles[state.role], state.role) === 100;
       toast("Your profile has been updated.");
-      record("You updated your profile.");
+      record(profileChangeText(changed), undefined, { kind: "profile" });
       return;
     }
     if (payload.form === "terms-form") {
@@ -358,6 +370,42 @@ export function transition(state, payload) {
       activeRoom().milestones.session.schedules = weeklySchedules(first, count);
       toast("Session scheduled.");
       record("You scheduled a mentorship session.", activeRoom().id);
+      return;
+    }
+    if (payload.form === "meeting") {
+      // One meeting in an exchange collaboration, shared with the partner.
+      const room = activeRoom();
+      if (!takesMeetings(room)) return;
+      if (terminalStatuses.includes(room.status)) {
+        toast("This collaboration has ended.", "error");
+        return;
+      }
+      const values = cleanValues(payload.values);
+      if (
+        invalid(
+          "meeting",
+          validateMeeting({ ...values, timeZone: payload.timeZone }),
+        )
+      )
+        return;
+      const meeting = {
+        id: crypto.randomUUID(),
+        date: values.date,
+        time: values.time,
+        timeZone:
+          payload.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+        durationMinutes: Number(values.durationMinutes) || 30,
+        note: values.note || "",
+        byAccountId: state.accountId,
+        createdAt: payload.timestamp || new Date().toISOString(),
+      };
+      (room.meetings ||= []).push(meeting);
+      toast("Meeting scheduled. Your collaborator can see it in the room.");
+      record(
+        `You scheduled a meeting for ${longDate(meeting.date)} at ${meeting.time}.`,
+        room.id,
+        { tab: "schedule" },
+      );
       return;
     }
     if (payload.form !== "chat-form") return;
@@ -708,6 +756,19 @@ export function transition(state, payload) {
     state.page = "home";
     state.confirmation =
       "Your demo profile is ready. Changes last for this browser session.";
+  } else if (action === "cancel-meeting") {
+    // Either collaborator can call off a meeting; it stays in the record.
+    const room = activeRoom();
+    const meeting = room?.meetings?.find((item) => item.id === payload.id);
+    if (!meeting || meeting.cancelledAt) return;
+    meeting.cancelledAt = payload.timestamp || new Date().toISOString();
+    meeting.cancelledByAccountId = state.accountId;
+    toast("Meeting cancelled. Your collaborator will see it in the room.");
+    record(
+      `You cancelled the meeting on ${longDate(meeting.date)} at ${meeting.time}.`,
+      room.id,
+      { tab: "schedule" },
+    );
   } else if (action === "confirm-milestone" || action === "partner-confirm") {
     const id = payload.id;
     const milestone = activeRoom().milestones[id];

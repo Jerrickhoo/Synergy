@@ -150,6 +150,22 @@ export function calendarEvents(state) {
           };
         })
         .filter((event) => Number.isFinite(event.instant.getTime()));
+      // Meetings scheduled in an exchange collaboration.
+      for (const meeting of room.meetings || []) {
+        if (meeting.cancelledAt) continue;
+        const instant = scheduleInstant(meeting);
+        if (!Number.isFinite(instant.getTime())) continue;
+        events.push({
+          id: `${room.id}:meeting:${meeting.id}`,
+          date: localDateKey(instant),
+          instant,
+          durationMinutes: meeting.durationMinutes,
+          title: "Meeting",
+          kind: "session",
+          room,
+          tab: "schedule",
+        });
+      }
       for (const [id, milestone] of Object.entries(room.milestones)) {
         if (milestone.dueDate && !(milestone.me && milestone.partner))
           events.push({

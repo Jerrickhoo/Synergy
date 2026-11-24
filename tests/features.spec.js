@@ -35,7 +35,7 @@ test("voluntary sign-out preserves drafts on cancel and confirms once across des
   await page.getByRole("button", { name: "Keep working", exact: true }).click();
   await page.getByRole("button", { name: "Edit profile", exact: true }).click();
   await page
-    .getByLabel("About me", { exact: true })
+    .getByLabel("Description", { exact: true })
     .fill("Keep my unsaved profile draft");
   await selectValue(page.getByLabel("Stage", { exact: true }), "growth");
   let logouts = 0;
@@ -63,7 +63,7 @@ test("voluntary sign-out preserves drafts on cancel and confirms once across des
   await prompt
     .getByRole("button", { name: "Keep working", exact: true })
     .click();
-  await expect(page.getByLabel("About me", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("Description", { exact: true })).toHaveValue(
     "Keep my unsaved profile draft",
   );
   await expect(page.getByLabel("Stage", { exact: true })).toHaveAttribute(
@@ -135,7 +135,7 @@ test("voluntary sign-out preserves drafts on cancel and confirms once across des
   ).toBe(0);
 });
 
-test("Settings role switching restores custom-select drafts and community disclosures retain input", async ({
+test("Settings role switching restores custom-select drafts and verification keeps its input", async ({
   page,
   request,
 }) => {
@@ -156,17 +156,14 @@ test("Settings role switching restores custom-select drafts and community disclo
   await act(request, u, { action: "choose-role", roleChoice: "founder" });
   await open(page, u, "profile");
   await expect(
-    page.getByRole("progressbar", {
-      name: "Required profile details",
-      exact: true,
-    }),
-  ).toHaveCount(1);
+    page.getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
   await expect(page.getByLabel("I'm here as a", { exact: true })).toHaveCount(
     0,
   );
   await page.getByRole("button", { name: "Edit profile", exact: true }).click();
   await page
-    .getByLabel("About me", { exact: true })
+    .getByLabel("Description", { exact: true })
     .fill("Founder draft across role changes");
   await selectValue(page.getByLabel("Stage", { exact: true }), "growth");
   await page.goto("/#/settings");
@@ -203,7 +200,7 @@ test("Settings role switching restores custom-select drafts and community disclo
   ).toHaveText("Startup founder");
   await page.goto("/#/profile");
   await page.getByRole("button", { name: "Edit profile", exact: true }).click();
-  await expect(page.getByLabel("About me", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("Description", { exact: true })).toHaveValue(
     "Founder draft across role changes",
   );
   await expect(page.getByLabel("Stage", { exact: true })).toHaveAttribute(
@@ -212,15 +209,16 @@ test("Settings role switching restores custom-select drafts and community disclo
   );
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(
-    page.getByRole("progressbar", {
-      name: "Required profile details",
+    page.getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Complete your profile to appear in Matches", {
       exact: true,
     }),
-  ).toHaveAttribute("aria-valuenow", "100");
-  const summary = page.getByText("Standard tags", { exact: true });
+  ).toHaveCount(0);
   const organization =
     "A fictional organization with a long name for wrapping and retained form values";
-  // Verification is always visible; only the tag proposal collapses.
+  // Verification is always visible on Your profile.
   await page
     .getByLabel("Program, organization or person", {
       exact: true,
@@ -229,30 +227,16 @@ test("Settings role switching restores custom-select drafts and community disclo
   await page
     .getByLabel("How can a moderator check it?", { exact: true })
     .fill("Public roster available for moderator review");
-  await summary.click();
-  await page
-    .getByLabel("Proposed tag", { exact: true })
-    .fill("Accessibility Research");
-  await summary.click();
-  await summary.click();
   await expect(
     page.getByLabel("Program, organization or person", {
       exact: true,
     }),
   ).toHaveValue(organization);
-  await expect(page.getByLabel("Proposed tag", { exact: true })).toHaveValue(
-    "Accessibility Research",
-  );
   await expect(
     page.getByRole("button", { name: "Request verification", exact: true }),
   ).toBeEnabled();
-  await expect(
-    page.getByRole("button", { name: "Propose tag", exact: true }),
-  ).toBeEnabled();
-  await expect(page.locator(".community-accordion")).toHaveAttribute(
-    "open",
-    "",
-  );
+  // Proposing tags is no longer offered on Your profile.
+  await expect(page.getByText("Standard tags", { exact: true })).toHaveCount(0);
 });
 
 test("notification preview remains below the header with reachable overflow and coordinated popovers", async ({
@@ -980,7 +964,7 @@ test("shared terms preserve dirty drafts through remote edits and navigation", a
   await page.getByRole("button", { name: /^Open profile for / }).click();
   await page.getByRole("button", { name: "Edit profile", exact: true }).click();
   await page
-    .getByLabel("About me", { exact: true })
+    .getByLabel("Description", { exact: true })
     .fill("My profile draft survives navigation");
   await page
     .getByRole("navigation", { name: "Main navigation" })
@@ -988,7 +972,7 @@ test("shared terms preserve dirty drafts through remote edits and navigation", a
     .click();
   await page.getByRole("button", { name: /^Open profile for / }).click();
   await page.getByRole("button", { name: "Edit profile", exact: true }).click();
-  await expect(page.getByLabel("About me", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("Description", { exact: true })).toHaveValue(
     "My profile draft survives navigation",
   );
 });

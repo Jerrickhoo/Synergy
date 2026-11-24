@@ -135,6 +135,7 @@ const remoteActions = new Set([
   "lock-terms",
   "accept-terms",
   "confirm-milestone",
+  "cancel-meeting",
   "dispute",
   "resolve-dispute",
   "launch-room",
@@ -623,11 +624,13 @@ export function AppProvider({ children }) {
         : null;
     control?.setAttribute("data-pending", "");
     dispatch({ action: "request-status", busy: true });
+    // A command can name its room, e.g. a meeting scheduled from Home.
+    const roomId = command.activeRoomId || state.activeRoomId;
     const payload = {
       ...command,
       engagementType: command.engagementType,
       role: state.role,
-      activeRoomId: state.activeRoomId,
+      activeRoomId: roomId,
       // Lets the server read the open room's informational notices.
       roomOpen: state.page === "room-detail",
       timeZone:
@@ -637,10 +640,9 @@ export function AppProvider({ children }) {
       termsRevision:
         command.values?.revision !== undefined
           ? Number(command.values.revision)
-          : state.rooms[state.activeRoomId]?.terms.revision || 0,
+          : state.rooms[roomId]?.terms.revision || 0,
       milestoneVersion:
-        state.rooms[state.activeRoomId]?.milestones[command.id]
-          ?.contentVersion || 0,
+        state.rooms[roomId]?.milestones[command.id]?.contentVersion || 0,
     };
     try {
       if (["login-form", "signup-form"].includes(command.form)) {
@@ -832,6 +834,7 @@ export function AppProvider({ children }) {
       {
         form: form.dataset.form || form.id,
         id: form.dataset.id,
+        ...(form.dataset.room && { activeRoomId: form.dataset.room }),
         values: { ...Object.fromEntries(new FormData(form)), ...extraValues },
       },
       event.nativeEvent?.submitter ||
