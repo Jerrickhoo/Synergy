@@ -34,8 +34,8 @@ const mentorCopy = {
   ],
 };
 
-// Roster-based verification (§4, §8). Email delivery is not part of this
-// prototype, so a moderator checks program or organization evidence instead.
+// Roster-based verification (§4, §8). A moderator checks program or
+// organization evidence; it is independent of sign-in email verification.
 export default function Verification() {
   const { state, onSubmit } = useApp();
   const mentor = state.role === "mentor";
@@ -64,8 +64,8 @@ export default function Verification() {
       {status !== "verified" && (
         <p className="muted">
           No business domain? Use an accelerator, university, founder community
-          or a referral note that a moderator can check. Email delivery is not
-          available; this checks affiliation only.
+          or a referral note that a moderator can check. This is separate from
+          verifying your email.
         </p>
       )}
       {status === "pending" && state.affiliation?.dueAt && (

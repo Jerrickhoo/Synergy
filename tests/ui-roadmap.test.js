@@ -116,6 +116,30 @@ test("Home selects real actions before sessions, active work, profile completion
   }
 });
 
+test("Home asks for verification only after the profile, and never sends founders to a missing moderator", () => {
+  const now = new Date("2030-01-01T00:00:00Z");
+  const state = createInitialState();
+  state.role = "founder";
+  state.verification = "none";
+  state.integrations = { requireVerification: true, moderation: true };
+  assert.equal(homeNextStep(state, now).command.action, "edit-profile");
+  state.profiles.founder = { ...profile };
+  assert.equal(homeNextStep(state, now).command.action, "open-verification");
+  state.verification = "pending";
+  assert.match(homeNextStep(state, now).detail, /checking your evidence/);
+  state.verification = "none";
+  state.integrations.moderation = false;
+  const locked = homeNextStep(state, now);
+  assert.equal(locked.command.page, "discover");
+  assert.equal(locked.title, "Introductions are not open yet");
+  state.integrations.moderation = true;
+  state.incomingByRole.founder.add("incoming-person");
+  assert.equal(homeNextStep(state, now).command.page, "waiting");
+  state.incomingByRole.founder.clear();
+  state.verification = "verified";
+  assert.equal(homeNextStep(state, now).command.page, "discover");
+});
+
 test("profile normalization discards blank entries, retains internal spaces and paragraphs, and gives blanks no fit", () => {
   const result = normalizeProfile({
     ...profile,

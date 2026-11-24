@@ -24,16 +24,6 @@ export const partnerName = (state, room) =>
 
 export function homeNextStep(state, now = new Date()) {
   const mentor = state.role === "mentor";
-  if (verificationRequired(state))
-    return {
-      title: "Verify to send introductions",
-      detail:
-        state.verification === "pending"
-          ? "A moderator is checking your evidence. You can keep browsing"
-          : "A moderator can check an accelerator, university, community or referral note.",
-      label: "Go to Verification",
-      command: { action: "open-verification" },
-    };
   const attention = mentor
     ? mentorshipActions(state, now.getTime())
     : attentionItems(state, now.getTime());
@@ -103,6 +93,28 @@ export function homeNextStep(state, now = new Date()) {
       label: "Set up your profile",
       command: { action: "edit-profile" },
     };
+  // Verification only matters once there is a profile to match with, and
+  // never outranks work already under way.
+  if (verificationRequired(state)) {
+    // Without a moderator nobody can verify, so point at what still works.
+    if (!state.integrations?.moderation)
+      return {
+        title: "Introductions are not open yet",
+        detail:
+          "No moderator is set up to verify founders in this workspace. You can still browse and save matches.",
+        label: mentor ? "Explore startups" : "Explore matches",
+        command: { page: "discover" },
+      };
+    return {
+      title: "Verify to send introductions",
+      detail:
+        state.verification === "pending"
+          ? "A moderator is checking your evidence. You can keep browsing"
+          : "A moderator can check an accelerator, university, community or referral note.",
+      label: "Go to Verification",
+      command: { action: "open-verification" },
+    };
+  }
   return {
     title: mentor ? "Find a startup to support" : "Find your next collaborator",
     detail: mentor
