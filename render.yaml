@@ -25,6 +25,10 @@ services:
         value: "false"
       - key: SYNERGY_REQUIRE_VERIFICATION
         value: "true"
+      # TEMPORARY for demos: shows "Simulate approval" on a pending
+      # verification request, so anyone can verify themselves. Remove after.
+      - key: SYNERGY_SIMULATE_VERIFICATION
+        value: "true"
       - key: SYNERGY_ALLOWED_ORIGINS
         value: https://synergy-prototype.netlify.app
       - key: SYNERGY_ADMIN_EMAILS

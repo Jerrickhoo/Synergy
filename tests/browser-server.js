@@ -9,6 +9,7 @@ const config = configuration({
   SYNERGY_DEMO_MODE: process.env.SYNERGY_DEMO_MODE || "false",
   SYNERGY_DATA_FILE: process.env.SYNERGY_DATA_FILE,
   SYNERGY_REQUIRE_VERIFICATION: process.env.SYNERGY_REQUIRE_VERIFICATION,
+  SYNERGY_SIMULATE_VERIFICATION: process.env.SYNERGY_SIMULATE_VERIFICATION,
   SYNERGY_ADMIN_EMAILS: "moderator@example.com,settings-moderator@example.com",
 });
 const api = createApi({

@@ -1,6 +1,7 @@
 import { useApp } from "../state/AppContext.jsx";
 import FormErrors from "./FormErrors.jsx";
 import Icon from "./Icon.jsx";
+import PrototypeShortcut from "./PrototypeShortcut.jsx";
 import { formatDate } from "../data/dates.js";
 
 const statusCopy = {
@@ -10,7 +11,7 @@ const statusCopy = {
   ],
   pending: [
     "Pending review",
-    "A moderator is checking your evidence. You can keep browsing",
+    "A moderator is checking your evidence. You can keep browsing and saving matches in the meantime.",
   ],
   rejected: [
     "Not approved",
@@ -18,7 +19,7 @@ const statusCopy = {
   ],
   none: [
     "Not verified yet",
-    "Verified founders are easier to trust. A moderator checks your program or organization.",
+    "Tell us a program, organization or person that can confirm you’re a founder, such as an accelerator, university program, founder community or someone who referred you. A moderator checks it within three working days, then a Verified badge shows on your profile, match cards and Deal Rooms.",
   ],
 };
 // Mentors are verified when a moderator approves their application.
@@ -37,7 +38,7 @@ const mentorCopy = {
 // Roster-based verification (§4, §8). A moderator checks program or
 // organization evidence; it is independent of sign-in email verification.
 export default function Verification() {
-  const { state, onSubmit } = useApp();
+  const { state, onSubmit, onAction } = useApp();
   const mentor = state.role === "mentor";
   const approved = mentor ? state.mentorVerification : null;
   const status = approved ? "verified" : state.affiliation?.status || "none";
@@ -63,14 +64,30 @@ export default function Verification() {
       <p className="muted">{detail}</p>
       {status !== "verified" && (
         <p className="muted">
-          No business domain? Use an accelerator, university, founder community
-          or a referral note that a moderator can check. This is separate from
-          verifying your email.
+          You don’t need a company email address. This check is separate from
+          confirming your sign-in email.
         </p>
       )}
       {status === "pending" && state.affiliation?.dueAt && (
         <p>Decision due by {formatDate(state.affiliation.dueAt)}.</p>
       )}
+      {/* TEMPORARY demo shortcut, shown only when the server allows it. */}
+      {status === "pending" &&
+        !mentor &&
+        state.integrations?.simulateVerification && (
+          <PrototypeShortcut note="skip the moderator and approve this request now.">
+            <button
+              type="button"
+              className="btn small"
+              disabled={state.busy}
+              onClick={(event) =>
+                onAction({ action: "simulate-verification" }, event)
+              }
+            >
+              {state.busy ? "Approving…" : "Simulate approval"}
+            </button>
+          </PrototypeShortcut>
+        )}
       {state.affiliation?.note && status !== "pending" && (
         <p className="muted">Moderator note: {state.affiliation.note}</p>
       )}
@@ -92,23 +109,26 @@ export default function Verification() {
           <FormErrors scope="affiliation-request" />
           <div className="field">
             <label htmlFor="affiliation-org">
-              Organization, program or referrer
+              Program, organization or person
             </label>
             <input
               id="affiliation-org"
               name="organization"
               required
               maxLength={150}
+              placeholder="For example, your accelerator cohort or the person who referred you"
             />
           </div>
           <div className="field">
-            <label htmlFor="affiliation-evidence">How can we confirm it?</label>
+            <label htmlFor="affiliation-evidence">
+              How can a moderator check it?
+            </label>
             <textarea
               id="affiliation-evidence"
               name="evidence"
               required
               maxLength={3000}
-              placeholder="A public roster, cohort link or referral note, and how a moderator can check it."
+              placeholder="A link to a public roster or cohort page that lists you, or your referrer’s contact details."
             />
           </div>
           <button className="btn" disabled={state.busy}>

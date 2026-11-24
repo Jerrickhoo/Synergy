@@ -1293,6 +1293,7 @@ export function createWorkspace(file, options = {}) {
       maxFileBytes: options.maxFileBytes || 5 * 1024 * 1024,
       moderation: Boolean(options.adminEmails?.length),
       requireVerification: Boolean(options.requireVerification),
+      simulateVerification: Boolean(options.simulateVerification),
       emailAuth,
     };
     state.firstRunChoice = Boolean(

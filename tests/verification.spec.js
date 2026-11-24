@@ -52,17 +52,17 @@ test("unverified founders can browse and save but introduction controls direct t
     page.getByRole("heading", { name: "Verification", exact: true }),
   ).toBeFocused();
   await page
-    .getByLabel("Organization, program or referrer")
+    .getByLabel("Program, organization or person")
     .fill("University referral");
   await page
-    .getByLabel("How can we confirm it?")
+    .getByLabel("How can a moderator check it?")
     .fill("Coordinator can check our cohort roster");
   await page
     .getByRole("button", { name: "Request verification", exact: true })
     .click();
   await expect(
     page.getByText(
-      "A moderator is checking your evidence. You can keep browsing",
+      "A moderator is checking your evidence. You can keep browsing and saving matches in the meantime.",
       { exact: true },
     ),
   ).toBeVisible();
@@ -75,8 +75,23 @@ test("unverified founders can browse and save but introduction controls direct t
   await page.goto("/#/");
   await expect(
     page.getByText(
-      "A moderator is checking your evidence. You can keep browsing",
+      "A moderator is checking your evidence. You can keep browsing and saving matches in the meantime.",
       { exact: true },
     ),
   ).toBeVisible();
+  // TEMPORARY demo shortcut (SYNERGY_SIMULATE_VERIFICATION).
+  await page.goto("/#/profile");
+  await page
+    .getByRole("button", { name: "Simulate approval", exact: true })
+    .click();
+  await expect(page.getByText("Verified", { exact: true })).toBeVisible();
+  const allowed = await request.post("/api/action", {
+    headers: { Authorization: `Bearer ${a.token}` },
+    data: {
+      role: "founder",
+      action: "interest",
+      id: `${b.state.accountId}:founder`,
+    },
+  });
+  expect(allowed.ok()).toBe(true);
 });

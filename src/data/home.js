@@ -109,7 +109,7 @@ export function homeNextStep(state, now = new Date()) {
       title: "Verify to send introductions",
       detail:
         state.verification === "pending"
-          ? "A moderator is checking your evidence. You can keep browsing"
+          ? "A moderator is checking your evidence. You can keep browsing and saving matches in the meantime."
           : "A moderator can check an accelerator, university, community or referral note.",
       label: "Go to Verification",
       command: { action: "open-verification" },

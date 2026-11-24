@@ -27,6 +27,9 @@ export function configuration(env = process.env) {
     brevoWebhookSecret: env.BREVO_WEBHOOK_SECRET || "",
     publicUrl: env.SYNERGY_PUBLIC_URL || "",
     requireVerification: env.SYNERGY_REQUIRE_VERIFICATION === "true",
+    // TEMPORARY demo shortcut: lets a founder approve their own pending
+    // verification request. Anyone can self-verify while it is on.
+    simulateVerification: env.SYNERGY_SIMULATE_VERIFICATION === "true",
     file,
     backupDirectory: env.SYNERGY_BACKUP_DIR
       ? resolve(env.SYNERGY_BACKUP_DIR)

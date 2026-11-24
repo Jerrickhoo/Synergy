@@ -222,12 +222,12 @@ test("Settings role switching restores custom-select drafts and community disclo
     "A fictional organization with a long name for wrapping and retained form values";
   // Verification is always visible; only the tag proposal collapses.
   await page
-    .getByLabel("Organization, program or referrer", {
+    .getByLabel("Program, organization or person", {
       exact: true,
     })
     .fill(organization);
   await page
-    .getByLabel("How can we confirm it?", { exact: true })
+    .getByLabel("How can a moderator check it?", { exact: true })
     .fill("Public roster available for moderator review");
   await summary.click();
   await page
@@ -236,7 +236,7 @@ test("Settings role switching restores custom-select drafts and community disclo
   await summary.click();
   await summary.click();
   await expect(
-    page.getByLabel("Organization, program or referrer", {
+    page.getByLabel("Program, organization or person", {
       exact: true,
     }),
   ).toHaveValue(organization);

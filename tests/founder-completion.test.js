@@ -218,6 +218,42 @@ test("verification remains opt-in and demo preview accounts are exempt", (t) => 
   );
 });
 
+test("simulated verification approves only a pending request, and only when the flag is on", (t) => {
+  const request = {
+    form: "affiliation-request",
+    values: { organization: "Demo cohort", evidence: "Demo roster" },
+  };
+  const off = fixture(t, { requireVerification: true });
+  off.act(off.a, request);
+  assert.throws(
+    () => off.act(off.a, { action: "simulate-verification" }),
+    /turned off/,
+  );
+  assert.equal(off.w.get(off.a.token).state.affiliation.status, "pending");
+  assert.equal(
+    off.w.get(off.a.token).state.integrations.simulateVerification,
+    false,
+  );
+
+  const { w, a, b, act } = fixture(t, {
+    requireVerification: true,
+    simulateVerification: true,
+  });
+  assert.ok(w.get(a.token).state.integrations.simulateVerification);
+  assert.throws(
+    () => act(a, { action: "simulate-verification" }),
+    /verification request first/,
+  );
+  act(a, request);
+  act(a, { action: "simulate-verification" });
+  const affiliation = w.get(a.token).state.affiliation;
+  assert.equal(affiliation.status, "verified");
+  assert.match(affiliation.note, /No moderator reviewed it/);
+  assert.doesNotThrow(() =>
+    act(a, { action: "interest", id: `${b.state.accountId}:founder` }),
+  );
+});
+
 test("all five factors are symmetric for 400 seeded random founder and mentor pairs", () => {
   let seed = 419;
   const random = () =>

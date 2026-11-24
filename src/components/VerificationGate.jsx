@@ -8,7 +8,7 @@ export default function VerificationGate() {
     <div className="verification-gate">
       <p>
         {state.verification === "pending"
-          ? "A moderator is checking your evidence. You can keep browsing"
+          ? "A moderator is checking your evidence. You can keep browsing and saving matches in the meantime."
           : "Verify to send introductions"}
       </p>
       {state.affiliation?.status === "rejected" && (

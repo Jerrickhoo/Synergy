@@ -831,6 +831,7 @@ export function createFeatures({
     "decline-reopen",
     "close-room",
     "read-notifications",
+    "simulate-verification",
     "withdraw-dispute",
     "escalate-dispute",
     "send-back",
@@ -1702,6 +1703,36 @@ export function createFeatures({
         };
         state.toast = `We'll add an Update when someone offers ${need}.`;
       }
+    } else if (input.action === "simulate-verification") {
+      // TEMPORARY demo shortcut (SYNERGY_SIMULATE_VERIFICATION). Approves the
+      // caller's own pending request as if a moderator had, and audits it.
+      if (!options.simulateVerification)
+        fail("Simulated verification is turned off.", 403);
+      if (account.affiliation?.status !== "pending")
+        fail("Send a verification request first.");
+      const note = "Simulated approval for a demo. No moderator reviewed it.";
+      account.affiliation = {
+        ...account.affiliation,
+        status: "verified",
+        note,
+        simulated: true,
+        reviewedAt: new Date(now()).toISOString(),
+      };
+      (db().moderationAudit ||= []).push({
+        id: randomUUID(),
+        moderator: "simulated",
+        kind: "affiliation",
+        targetId: account.id,
+        decision: "verified",
+        note,
+        timestamp: new Date(now()).toISOString(),
+      });
+      event(
+        { state },
+        state.role,
+        `You are verified through ${account.affiliation.organization}. The badge now shows on your profile and cards.`,
+      );
+      state.toast = "Verification approved (simulated).";
     } else if (input.action === "read-notifications") {
       const ids = state.notifications
         .filter((item) => !input.id || item.id === input.id)

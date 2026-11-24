@@ -68,6 +68,7 @@ export default defineConfig({
         PORT: "5185",
         SYNERGY_DEMO_MODE: "false",
         SYNERGY_REQUIRE_VERIFICATION: "true",
+        SYNERGY_SIMULATE_VERIFICATION: "true",
         SYNERGY_DATA_FILE: resolve(
           ".data",
           `e2e-verification-${randomUUID()}.sqlite`,
