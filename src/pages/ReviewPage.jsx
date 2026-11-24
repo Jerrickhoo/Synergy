@@ -1,4 +1,8 @@
-import { isMentorRoom, reviewCategories } from "../data/mentor-room.js";
+import {
+  isMentorRoom,
+  reviewCategories,
+  reviewQuestionLabel,
+} from "../data/mentor-room.js";
 import RatingScale from "../components/RatingScale.jsx";
 import { useState } from "react";
 import SelectField from "../components/SelectField.jsx";
@@ -241,7 +245,7 @@ export default function ReviewPage() {
           Back to the Deal Room
         </button>
         <button className="btn" onClick={() => onAction({ page: "rooms" })}>
-          All Deal Rooms
+          All rooms
         </button>
       </div>
     </div>
@@ -297,20 +301,24 @@ function MentorshipReview({ room, partnerName }) {
                   due.
                 </p>
               )}
-            <label htmlFor="mentor-review-note">
-              Private feedback (optional)
-            </label>
-            <textarea id="mentor-review-note" name="note" maxLength={3000} />
+            <div className="field">
+              <label htmlFor="mentor-review-note">
+                Private feedback (optional)
+              </label>
+              <textarea id="mentor-review-note" name="note" maxLength={3000} />
+            </div>
             {room.role === "founder" && (
               <>
-                <label htmlFor="mentor-testimonial">
-                  Testimonial (optional)
-                </label>
-                <textarea
-                  name="testimonial"
-                  id="mentor-testimonial"
-                  maxLength={500}
-                />
+                <div className="field">
+                  <label htmlFor="mentor-testimonial">
+                    Testimonial (optional)
+                  </label>
+                  <textarea
+                    name="testimonial"
+                    id="mentor-testimonial"
+                    maxLength={500}
+                  />
+                </div>
                 <label>
                   <input type="checkbox" name="testimonialPublic" /> Let the
                   mentor share this testimonial publicly
@@ -339,6 +347,17 @@ function MentorshipReview({ room, partnerName }) {
               ? `${Number(review.partnerRating).toFixed(1)}/5 · ${review.partnerNote || "No written feedback."}`
               : "No review submitted."}
           </p>
+          {review.partner &&
+            Object.keys(review.partnerScores || {}).length > 1 && (
+              <dl className="review-scores">
+                {Object.entries(review.partnerScores).map(([id, score]) => (
+                  <div key={id}>
+                    <dt>{reviewQuestionLabel(id)}</dt>
+                    <dd>{score}/5</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
           {room.role === "mentor" && review.partnerTestimonial && (
             <>
               <blockquote>{review.partnerTestimonial}</blockquote>

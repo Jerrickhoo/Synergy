@@ -1,8 +1,11 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { scheduleInstant } from "../src/data/selectors.js";
 import { mentorEmailKinds } from "../src/data/mentor-email.js";
 import { dayMs } from "../src/data/mentor-room.js";
 import { enqueueDelivery } from "./delivery.js";
+import { authEmailContent, authEmails } from "./auth-email.js";
+import { equalSecret, signed as sign } from "./secrets.js";
+
+export { bearerToken, equalSecret } from "./secrets.js";
 
 const emailText = {
   "payment-due": [
@@ -60,24 +63,6 @@ const emailText = {
   ],
 };
 const kindFor = (kind) => (kind === "request-digest" ? "request" : kind);
-const signed = (value, secret) =>
-  createHmac("sha256", secret).update(value).digest("base64url");
-
-export function equalSecret(actual, expected) {
-  if (typeof actual !== "string" || typeof expected !== "string" || !expected)
-    return false;
-  const a = Buffer.from(actual);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
-// The token from an Authorization header. The scheme is case-insensitive
-// (RFC 9110 §11.1); Brevo's built-in token option sends lowercase "bearer".
-export function bearerToken(header) {
-  return typeof header === "string"
-    ? /^bearer[ \t]+(\S+)$/i.exec(header.trim())?.[1] || null
-    : null;
-}
 
 export function emailKindAllowed(account, kind) {
   const preference = kindFor(kind);
@@ -190,7 +175,7 @@ export function unsubscribeToken(accountId, kind, secret) {
   const payload = Buffer.from(
     JSON.stringify([accountId, kindFor(kind)]),
   ).toString("base64url");
-  return `${payload}.${signed("mentor-email:" + payload, secret)}`;
+  return `${payload}.${sign("mentor-email", payload, secret)}`;
 }
 
 export function parseUnsubscribe(token, secret) {
@@ -199,7 +184,7 @@ export function parseUnsubscribe(token, secret) {
   if (
     extra ||
     !payload ||
-    !equalSecret(signature, signed("mentor-email:" + payload, secret))
+    !equalSecret(signature, sign("mentor-email", payload, secret))
   )
     return null;
   try {
@@ -223,15 +208,16 @@ export function createBrevoSender({
   webhookSecret,
   fetcher = fetch,
 }) {
-  return async (entry, account) => {
+  // Mentorship notices link to the page and carry a per-kind unsubscribe link.
+  function mentorshipContent(entry, account) {
     if (
       !emailKindAllowed(account, entry.kind) ||
       !Object.hasOwn(emailText, entry.kind)
     )
-      return { skipped: true };
+      return null;
     const [subject, copy] = emailText[entry.kind];
     const route = new URL(entry.payload.route, publicUrl);
-    if (route.origin !== new URL(publicUrl).origin) return { skipped: true };
+    if (route.origin !== new URL(publicUrl).origin) return null;
     const unsubscribe = new URL("/api/email/unsubscribe", publicUrl);
     unsubscribe.searchParams.set(
       "token",
@@ -241,6 +227,19 @@ export function createBrevoSender({
       entry.kind === "request-digest"
         ? `You received ${entry.payload.ids.length} mentorship ${entry.payload.ids.length === 1 ? "request" : "requests"}.`
         : copy;
+    return {
+      subject,
+      text: `${message}\n\nOpen Synergy: ${route.href}\n\nUnsubscribe from this email: ${unsubscribe.href}`,
+    };
+  }
+  return async (entry, account) => {
+    // The caller already checked that a sign-in email is still wanted.
+    const content = Object.hasOwn(authEmails, entry.kind)
+      ? account?.email &&
+        authEmailContent(entry, account, { publicUrl, secret: webhookSecret })
+      : mentorshipContent(entry, account);
+    if (!content) return { skipped: true };
+    const { subject, text } = content;
     try {
       const response = await fetcher("https://api.brevo.com/v3/smtp/email", {
         method: "POST",
@@ -253,7 +252,7 @@ export function createBrevoSender({
           sender: { email: from, name: "Synergy" },
           to: [{ email: account.email }],
           subject,
-          textContent: `${message}\n\nOpen Synergy: ${route.href}\n\nUnsubscribe from this email: ${unsubscribe.href}`,
+          textContent: text,
           headers: { IdempotencyKey: entry.id },
           tags: [`synergy-${entry.kind}`],
         }),

@@ -222,18 +222,33 @@ function mentorshipRoom(t) {
   return { workspace, user, roomId, act };
 }
 
-test("B1: reached stages are checked and the next stage is current", (t) => {
+// Readiness review (24 Nov): the highlighted stage is the one reached, as in
+// a Deal Room. Highlighting the next one lit "Goal Confirmed" while the
+// room was still waiting for the mentor to confirm the goal.
+test("B1: the stage reached is current and earlier stages are checked", (t) => {
   const { act } = mentorshipRoom(t);
   const accepted = act({ action: "simulate-goal-confirmation" });
   assert.equal(mentorshipStage(accepted).index, 2);
   const marks = stageMarks(accepted);
   assert.deepEqual(
     marks.filter((mark) => mark.done).map((mark) => mark.label),
-    ["Requested", "Accepted", "Goal Confirmed"],
+    ["Requested", "Accepted"],
   );
   assert.deepEqual(
     marks.filter((mark) => mark.current).map((mark) => mark.label),
-    ["Session Held"],
+    ["Goal Confirmed"],
+  );
+  // Before the goal is confirmed, no stage ahead is highlighted.
+  const waiting = stageMarks({
+    ...accepted,
+    milestones: {
+      ...accepted.milestones,
+      goal: { ...accepted.milestones.goal, me: false, partner: false },
+    },
+  });
+  assert.deepEqual(
+    waiting.filter((mark) => mark.current).map((mark) => mark.label),
+    ["Accepted"],
   );
   const finished = stageMarks({ ...accepted, status: "reviewed" });
   assert.ok(finished.every((mark) => mark.done && !mark.current));
@@ -269,15 +284,19 @@ test("B2: a founder with an upcoming session is asked to share prep until it is 
     form: "prep-checklist",
     values: { deck: "https://example.com/deck" },
   });
+  // Once prep is shared, the room names the booked session as what is next,
+  // rather than reading as the mentor's turn.
+  const booked = `Session booked for ${scheduleLabel(mentorSessions(shared)[0])}`;
   assert.deepEqual(mentorshipNextAction(shared), {
     mine: false,
-    text: "Nothing needed from you",
-    tab: "overview",
+    upNext: true,
+    text: booked,
+    tab: "schedule",
   });
   // The mentor's copy never shows the founder's prep task.
   assert.equal(
     mentorshipNextAction({ ...scheduled, role: "mentor" }).text,
-    "Nothing needed from you",
+    booked,
   );
 });
 

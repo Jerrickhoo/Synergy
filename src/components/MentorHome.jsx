@@ -8,9 +8,11 @@ import {
   activeRooms,
   profileFieldNames,
   profileKeys,
+  roomNextAction,
   scheduleInstant,
   scheduleLabel,
 } from "../data/selectors.js";
+import { terminalStatuses } from "../data/collaboration.js";
 import {
   attendanceOpen,
   followupEngagement,
@@ -89,7 +91,7 @@ function ResumeRequests() {
   );
 }
 
-function ListingStatus({ usage, settings }) {
+function ListingStatus({ usage, settings, busy = false }) {
   const { state, onAction } = useApp();
   const listing = state.mentorListing;
   const profile = state.profiles.mentor;
@@ -110,11 +112,11 @@ function ListingStatus({ usage, settings }) {
           </li>
           <li>Accepted requests open a mentorship room under Mentees.</li>
         </ol>
-        {/* (Nov 22, round 2) Preview accounts never receive requests, so the
-            primary action is the one they can actually do. */}
+        {/* Browsing is the main action only while there is no request or
+            mentee to act on; otherwise it would compete with that work. */}
         <div className="mentor-request-controls">
           <button
-            className="btn primary"
+            className={busy ? "btn" : "btn primary"}
             onClick={() => onAction({ page: "discover" })}
           >
             Browse startups
@@ -213,8 +215,14 @@ export default function MentorHome() {
   const now = Date.now();
   const sessions = todaysSessions(state, now);
   const rooms = activeRooms(state).filter(isMentorRoom);
+  // A follow-up stays on Home until its mentorship is finished.
   const followups = Object.values(state.rooms)
-    .filter((room) => isMentorRoom(room) && room.role === "mentor")
+    .filter(
+      (room) =>
+        isMentorRoom(room) &&
+        room.role === "mentor" &&
+        !terminalStatuses.includes(room.status),
+    )
     .map((room) => ({ room, followup: followupEngagement(room)?.followup }))
     .filter(({ followup }) => followup?.submittedAt)
     .sort((a, b) =>
@@ -274,25 +282,42 @@ export default function MentorHome() {
     ],
   ];
   const waiting = attendance.length + checkIns.length + followups.length;
-  // The listing card covers pause and required guidelines once it shows.
+  // The listing card covers pause and required guidelines once it shows. A
+  // preview account shows its explainer instead, so it keeps the banners.
   const listingCard =
     !state.mentorApplication &&
     !state.mentorSuspension &&
+    !state.integrations?.guest &&
     state.mentorListing?.listed;
+  // Mentees waiting on the mentor come first, so the next step is never
+  // below the fold after a request is accepted.
+  const mentees = rooms
+    .map((room) => ({
+      room,
+      next: roomNextAction(room, partner(room)?.name),
+    }))
+    .sort((a, b) => Number(b.next.mine) - Number(a.next.mine));
+  const yourTurn = mentees.filter(({ next }) => next.mine);
+  const firstTurn = yourTurn[0];
+  const lower = (text) => text.charAt(0).toLowerCase() + text.slice(1);
   return (
     <div className="page simple-home mentor-home page-enter">
       <PageHeader
         title={
           requests.length
             ? `${requests.length} ${requests.length === 1 ? "request" : "requests"} waiting`
-            : `Welcome, ${state.accountName.split(" ")[0] || "mentor"}`
+            : yourTurn.length
+              ? `${yourTurn.length} ${yourTurn.length === 1 ? "mentee needs" : "mentees need"} you`
+              : `Welcome, ${state.accountName.split(" ")[0] || "mentor"}`
         }
         intro={
           expires
             ? `${expires} ${expires === 1 ? "expires" : "expire"} today`
             : requests.length
               ? "Reply to founders who match your expertise."
-              : "No new mentorship requests."
+              : firstTurn
+                ? `Next for ${partner(firstTurn.room)?.name || "your mentee"}: ${lower(firstTurn.next.text)}${yourTurn.length > 1 ? `, and ${yourTurn.length - 1} more` : ""}.`
+                : "No new mentorship requests."
         }
       />
       {state.mentorSuspension && (
@@ -390,8 +415,28 @@ export default function MentorHome() {
           </button>
         </section>
       )}
+      {mentees.length > 0 && (
+        <section className="card panel section-gap">
+          <h2>Active mentees</h2>
+          {mentees.slice(0, 3).map(({ room }) => (
+            <MenteeRow
+              key={room.id}
+              room={room}
+              partner={partner(room)}
+              primary={!requests.length && room === firstTurn?.room}
+            />
+          ))}
+          <button className="btn" onClick={() => onAction({ page: "mentees" })}>
+            View mentees
+          </button>
+        </section>
+      )}
       {!state.mentorApplication && !state.mentorSuspension && (
-        <ListingStatus usage={usage} settings={settings} />
+        <ListingStatus
+          usage={usage}
+          settings={settings}
+          busy={requests.length > 0 || mentees.length > 0}
+        />
       )}
       <div className="simple-home-grid section-gap">
         <section className="card panel">
@@ -510,17 +555,6 @@ export default function MentorHome() {
           )}
           <button className="btn" onClick={settings}>
             Edit mentoring settings
-          </button>
-        </section>
-      )}
-      {rooms.length > 0 && (
-        <section className="card panel section-gap">
-          <h2>Active mentees</h2>
-          {rooms.slice(0, 3).map((room) => (
-            <MenteeRow key={room.id} room={room} partner={partner(room)} />
-          ))}
-          <button className="btn" onClick={() => onAction({ page: "mentees" })}>
-            View mentees
           </button>
         </section>
       )}

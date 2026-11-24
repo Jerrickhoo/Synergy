@@ -1,7 +1,8 @@
 import { createInitialState, createModel } from "../data/model.js";
+import { completeTermsMilestones } from "../data/terms.js";
 import { readField } from "./fields.js";
 import { profileOptions } from "../data/collaboration.js";
-import { errorTitle, publishToast } from "./feedback.js";
+import { errorMessage, errorTitle, publishToast } from "./feedback.js";
 import { weeklySchedules } from "../data/planning.js";
 import { normalizeProfile } from "../data/profile-content.js";
 import { defaultMatchFilters, restoreMatchFilters } from "../data/filters.js";
@@ -47,10 +48,19 @@ export function transition(state, payload) {
       return false;
     }
     state.formErrors = { scope, fields };
-    publishToast(state, "Review the highlighted details and try again.", {
-      type: "error",
-      title: errorTitle(scope),
-    });
+    publishToast(
+      state,
+      errorMessage(
+        scope,
+        fields,
+        "Review the highlighted details and try again.",
+      ),
+      {
+        type: "error",
+        title: errorTitle(scope),
+        field: true,
+      },
+    );
     return true;
   };
   const record = (text, roomId) => {
@@ -299,10 +309,12 @@ export function transition(state, payload) {
         toast("Locked terms cannot be edited.", "error");
         return;
       }
-      if (invalid("terms-form", validateTerms(payload.values))) return;
+      // A draft may be partial; lock-terms checks that every term is filled.
       const values = new Map(Object.entries(payload.values));
       currentAgreement().draft = Object.fromEntries(values.entries());
-      toast("Terms draft saved. Lock them when you’re ready to confirm.");
+      toast(
+        "Draft saved and shared. Send it for approval when every term is filled in.",
+      );
       return;
     }
     if (payload.form === "evidence") {
@@ -463,6 +475,7 @@ export function transition(state, payload) {
     if (!room.terms.partnerLocked) {
       room.terms.partnerLocked = true;
       room.status = "in-progress";
+      completeTermsMilestones(room);
     } else {
       Object.values(room.milestones).forEach((item) => {
         if (
@@ -799,6 +812,7 @@ export function transition(state, payload) {
     }
     agreement.partnerLocked = true;
     activeRoom().status = "in-progress";
+    completeTermsMilestones(activeRoom());
     state.confirmation = "Your partner confirmed the shared terms.";
   } else if (action === "launch-room") {
     if (

@@ -271,14 +271,19 @@ export function migrateMentorship(room, now = Date.now()) {
   return true;
 }
 
-// Progress marks: stages up to the last one reached are done, the next is
-// current, and a closed or finished room has no current step.
+// Progress marks, read the same way as a Deal Room's: the last stage reached
+// is current and the ones before it are done. Stage names are past tense
+// ("Goal Confirmed"), so a stage still ahead is never highlighted. The one
+// exception is "Awaiting payment", which names the wait itself. A finished or
+// closed room marks every stage it reached as done and has no current step.
 export function stageMarks(room) {
   const { stages, index } = mentorshipStage(room);
+  const finished = ["reviewed", "cancelled"].includes(room.status);
+  const at = stages[index + 1] === "Awaiting payment" ? index + 1 : index;
   return stages.map((label, position) => ({
     label,
-    done: position <= index,
-    current: position === index + 1 && room.status !== "cancelled",
+    done: finished ? position <= index : position < at,
+    current: !finished && position === at,
   }));
 }
 
@@ -419,6 +424,7 @@ const reviewQuestions = {
     "Did every action",
   ],
 };
+export const reviewQuestionLabel = (id) => reviewQuestions[id]?.[0] || id;
 export function reviewCategories(
   room,
   now = Date.now(),
@@ -471,8 +477,9 @@ export function mentorshipNextAction(room) {
     return {
       mine: true,
       text: "Share your follow-up",
-      action: "Add follow-up",
+      action: "Go to follow-up",
       tab: "overview",
+      target: "room-followup",
     };
   if (room.status === "cancelled")
     return { done: true, text: closedRoomText(room), tab: "overview" };
@@ -515,8 +522,9 @@ export function mentorshipNextAction(room) {
     return {
       mine: true,
       text: "Report session attendance",
-      action: "Report attendance",
+      action: "Go to attendance",
       tab: "schedule",
+      target: "room-schedule",
     };
   const format = mentorFormat(roomFormat(room));
   const needsGoal =
@@ -529,7 +537,9 @@ export function mentorshipNextAction(room) {
         room.role === "mentor"
           ? "Confirm the goal"
           : "Waiting for the mentor to confirm the goal",
+      action: room.role === "mentor" ? "Go to goal" : undefined,
       tab: "overview",
+      target: "room-goal",
     };
   // Ongoing Advisory: the founder proposes a regular time, the mentor
   // confirms it, and that creates the cycle's check-ins.
@@ -544,8 +554,9 @@ export function mentorshipNextAction(room) {
         ? {
             mine: true,
             text: "Confirm the proposed check-in time",
-            action: "Confirm time",
+            action: "Go to check-in time",
             tab: "schedule",
+            target: "room-schedule",
           }
         : {
             mine: false,
@@ -581,9 +592,12 @@ export function mentorshipNextAction(room) {
     )
   )
     return {
-      mine: room.role === "founder",
+      // Either side can book the session (the server allows both).
+      mine: true,
       text: "Arrange a session",
+      action: "Go to schedule",
       tab: "schedule",
+      target: "room-schedule",
     };
   // A founder with a session coming up still has prep to share.
   const upcoming = mentorSessions(room)
@@ -603,8 +617,18 @@ export function mentorshipNextAction(room) {
     return {
       mine: true,
       text: `Share your prep before ${scheduleLabel(upcoming)}`,
-      action: "Share prep",
+      action: "Go to prep",
       tab: "overview",
+      target: "room-prep",
+    };
+  // A booked session is nobody's turn: name it, so neither side reads the
+  // wait as the other person holding things up.
+  if (format.sync && upcoming)
+    return {
+      mine: false,
+      upNext: true,
+      text: `Session booked for ${scheduleLabel(upcoming)}`,
+      tab: "schedule",
     };
   return { mine: false, text: "Nothing needed from you", tab: "overview" };
 }

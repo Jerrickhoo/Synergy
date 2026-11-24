@@ -138,7 +138,7 @@ function IntroductionRow({ person, incoming }) {
           </>
         ) : (
           <button
-            className="link-btn"
+            className="btn small"
             disabled={state.busy}
             onClick={() =>
               onAction({ action: "cancel-interest", id: person.id })

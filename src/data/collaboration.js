@@ -101,7 +101,7 @@ export const tagAliases = {
   "Pricing Strategy": /pricing|monetiz|monetis/,
   Mentorship: /mentor|advisor|guidance|coaching/,
   Distribution:
-    /distribution|go-to-market|\bgtm\b|get (it|our product) in front of|reach (more )?(customers|users)/,
+    /distribution|go-to-market|\bgtm\b|get (it|our product) in front of|reach (more )?(customers|users)|(user|customer) acquisition|acquir(e|ing) (new )?(users|customers)|\btraction\b/,
   "User Research": /research|interviews?|user insights?|usability stud/,
 };
 export function canonicalTags(text, vocabulary = defaultVocabulary) {

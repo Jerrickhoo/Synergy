@@ -74,7 +74,7 @@ test("a simulated session opens follow-up and review, and the room reaches Revie
   assert.ok(Date.parse(held.mentorship.followup.availableAt) <= Date.now());
   assert.ok(held.mentorship.reviewOpenedAt);
   assert.ok(
-    stageMarks(held).find((mark) => mark.label === "Session Held").done,
+    stageMarks(held).find((mark) => mark.label === "Session Held").current,
   );
   assert.ok(
     heldState.notifications.some((item) =>

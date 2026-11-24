@@ -16,6 +16,7 @@ import {
   bearerToken,
   createBrevoSender,
 } from "../server/mentor-email.js";
+import { authLinkToken } from "../server/auth-email.js";
 
 const SECRET = "test-webhook-secret-32-characters-long";
 const API_KEY = "test-brevo-api-key";
@@ -85,6 +86,7 @@ async function brevoApi(t, respond = accepted) {
     });
     return { status: response.status, body: await response.text() };
   };
+  // New accounts wait for email verification, so open the stored link.
   const signup = async (name, role) => {
     const { body } = await post("signup", {
       firstName: name,
@@ -93,7 +95,13 @@ async function brevoApi(t, respond = accepted) {
       password: "private-password",
       role,
     });
-    return JSON.parse(body).token;
+    const { token, state } = JSON.parse(body);
+    const { nonce } =
+      readWorkspaceSnapshot(file).accounts[state.accountId].emailVerification;
+    await post("auth/verify", {
+      token: authLinkToken(state.accountId, "verify-email", nonce, SECRET),
+    });
+    return token;
   };
   const deliveryStatus = (email) =>
     Object.values(readWorkspaceSnapshot(file).accounts).find(
@@ -170,10 +178,18 @@ test("an invalid_email webhook stops the next email to that address", async (t) 
   assert.ok(api.deliveryStatus("pat@example.com")?.bouncedAt);
   await queueMentorEmail(api, token);
   await api.handler.runOperations();
-  assert.deepEqual(api.sent, []);
+  // Only the signup verification email went out, before the bounce.
+  assert.deepEqual(
+    api.sent.filter(({ body }) => !body.tags.includes("synergy-verify-email")),
+    [],
+  );
   assert.ok(
-    api.outbox().every((entry) => entry.status !== "sent"),
-    "no outbox entry was delivered",
+    api
+      .outbox()
+      .every(
+        (entry) => entry.kind === "verify-email" || entry.status !== "sent",
+      ),
+    "no outbox entry was delivered after the bounce",
   );
 });
 
@@ -317,10 +333,18 @@ test("a rejected API key is retried and delivered once fixed, with each failure 
   await api.handler.runOperations();
   [entry] = api.outbox().filter((item) => item.kind === "guidelines-required");
   assert.equal(entry.status, "sent");
-  assert.equal(api.sent.length, 2);
+  assert.equal(
+    api.sent.filter(({ body }) =>
+      body.tags.includes("synergy-guidelines-required"),
+    ).length,
+    2,
+  );
   const failures = logs
     .map((line) => JSON.parse(line))
-    .filter(({ event }) => event === "email_delivery_failed");
+    .filter(
+      ({ event, kind }) =>
+        event === "email_delivery_failed" && kind === "guidelines-required",
+    );
   assert.equal(failures.length, 1);
   assert.deepEqual(
     { ...failures[0], at: undefined },
@@ -356,7 +380,10 @@ test("a failure that exhausts retries is logged as final", async (t) => {
   assert.equal(entry.attempts, 5);
   const failures = logs
     .map((line) => JSON.parse(line))
-    .filter(({ event }) => event === "email_delivery_failed");
+    .filter(
+      ({ event, kind }) =>
+        event === "email_delivery_failed" && kind === "guidelines-required",
+    );
   assert.deepEqual(
     failures.map(({ attempts, final, status }) => [attempts, final, status]),
     [

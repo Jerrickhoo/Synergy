@@ -652,17 +652,22 @@ test("partners request revised terms, set due dates, close a room and reconnect 
     .getByText("Propose changes to these terms", { exact: true })
     .click();
   await page.getByRole("button", { name: "Send change request" }).click();
-  // The terms stay agreed until the partner accepts the request.
-  await expect(page.getByLabel("Shared goal", { exact: true })).toBeDisabled();
+  // The terms stay agreed, and read as text, until the partner accepts.
+  await expect(page.getByLabel("Shared goal", { exact: true })).toHaveText(
+    terms.goal,
+  );
+  await expect(
+    page.getByRole("textbox", { name: "Shared goal", exact: true }),
+  ).toHaveCount(0);
   const requester = await context.newPage();
   await open(requester, a, `rooms/${id}`);
   await requester
     .getByRole("button", { name: "Agree to reopen terms" })
     .click();
-  await expect(page.getByLabel("Shared goal", { exact: true })).toBeEnabled();
-  await page
-    .getByLabel("Shared goal", { exact: true })
-    .fill("Revised onboarding outcome");
+  // Reopened terms become an editable draft again.
+  const goal = page.getByRole("textbox", { name: "Shared goal", exact: true });
+  await expect(goal).toBeEditable();
+  await goal.fill("Revised onboarding outcome");
   await page.getByRole("button", { name: /^Send for / }).click();
   const other = await context.newPage();
   await open(other, a, `rooms/${id}`);
@@ -719,13 +724,17 @@ test("mentorship rescheduling and notification read state work on mobile", async
   const panel = page.getByRole("tabpanel", { name: "Schedule" });
   await panel.getByLabel("Date", { exact: true }).fill("2035-04-01");
   await panel.getByLabel("Time", { exact: true }).fill("10:00");
-  await panel
-    .getByRole("combobox", { name: "Duration", exact: true })
-    .selectOption("45");
+  await selectValue(
+    panel.getByRole("combobox", { name: "Duration", exact: true }),
+    "45",
+  );
   await panel
     .getByRole("button", { name: "Schedule session", exact: true })
     .click();
-  await expect(panel.getByText(/45 minutes/)).toBeVisible();
+  // The duration dropdown also reads "45 minutes"; check the session itself.
+  await expect(
+    panel.locator(".mentor-session").getByText(/45 minutes/),
+  ).toBeVisible();
   await panel.getByText("Reschedule or cancel", { exact: true }).click();
   await panel.getByLabel("Date", { exact: true }).fill("2035-04-02");
   await panel.getByLabel("Time", { exact: true }).fill("11:00");
@@ -746,9 +755,13 @@ test("mentorship rescheduling and notification read state work on mobile", async
   ).toBe(true);
   await capture(page, "fixed-scheduling-mobile");
   await page.goto("/#/updates");
-  await page
-    .getByRole("button", { name: "Mark all as read", exact: true })
-    .click();
+  // Opening the room already read its informational notices; anything left
+  // is cleared with Mark all as read.
+  const markAll = page.getByRole("button", {
+    name: "Mark all as read",
+    exact: true,
+  });
+  if (await markAll.isEnabled()) await markAll.click();
   await expect(
     page.getByRole("status").filter({ hasText: /^0 unread updates$/ }),
   ).toBeVisible();

@@ -119,6 +119,11 @@ export default function Login() {
             <div className="field">
               <div className="field-label-row">
                 <label htmlFor="login-password">Password</label>
+                {!demoMode && state.integrations?.emailAuth && (
+                  <a className="link-btn" href="#/forgot-password">
+                    Forgot password?
+                  </a>
+                )}
               </div>
               <div className="password-wrap">
                 <input

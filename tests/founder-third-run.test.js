@@ -79,7 +79,7 @@ test("1a: matchReason names plain-text need overlap when no standard tag is shar
   );
 });
 
-test("1a: matchReason prefers shared standard tags", () => {
+test("1a: matchReason uses the founder's own wording before shared standard tags", () => {
   const person = {
     exchange: {
       youGet: ["Pricing Strategy"],
@@ -89,13 +89,63 @@ test("1a: matchReason prefers shared standard tags", () => {
     why: ["Strong"],
     factorScores: [100],
   };
-  assert.equal(matchReason(person), "Offers what you need: Pricing Strategy");
+  assert.equal(matchReason(person), "Offers what you need: Pricing strategy");
   assert.equal(
     matchReason({
       ...person,
       exchange: { ...person.exchange, theyGet: ["Product Feedback"] },
     }),
-    "Two-way fit: Pricing Strategy for Product Feedback",
+    "Two-way fit: Pricing strategy for Product Feedback",
+  );
+  // Tags matched without a phrase are kept; tags a phrase already names are not.
+  assert.deepEqual(
+    offeredToYou({
+      ...person,
+      exchange: {
+        ...person.exchange,
+        youGet: ["Pricing Strategy", "Beta Testers"],
+      },
+    }),
+    ["Pricing strategy", "Beta Testers"],
+  );
+  // With no phrase matched, the shared tags still explain the fit.
+  assert.deepEqual(
+    offeredToYou({
+      ...person,
+      exchange: { ...person.exchange, matchedNeeds: [] },
+    }),
+    ["Pricing Strategy"],
+  );
+});
+
+test("sample founder: David Park's reason names her needs, not Mentorship", () => {
+  const david = scoreProfile(
+    {
+      need: "Product strategy, Onboarding guidance",
+      offer: "Beta testing, Student user insights",
+      industry: "FinTech",
+      stage: "pre-seed",
+    },
+    {
+      offer: "Product strategy, Onboarding guidance, Growth",
+      expertise: "Product strategy, Onboarding guidance",
+      startups: "FinTech, Idea and pre-seed teams",
+      availability: "Weekly sessions",
+    },
+    true,
+  );
+  assert.deepEqual(david.exchange.youGet, ["Mentorship"]);
+  assert.deepEqual(offeredToYou(david), [
+    "Product strategy",
+    "Onboarding guidance",
+  ]);
+  assert.equal(
+    matchReason(david),
+    "Offers what you need: Product strategy, Onboarding guidance",
+  );
+  assert.match(
+    fitSummary(david, factors),
+    /^They offer what you need: Product strategy and Onboarding guidance\./,
   );
 });
 

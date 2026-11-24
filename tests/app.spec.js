@@ -171,9 +171,8 @@ test("fresh workspace has one setup action and no sample records", async ({
   await expect(
     page.getByRole("button", { name: "Set up your profile", exact: true }),
   ).toHaveCount(1);
-  await expect(
-    page.getByText("Connect with someone to open a room", { exact: true }),
-  ).toBeVisible();
+  // Overview tiles that would only say 0 are left out of a fresh Home.
+  await expect(page.locator(".workspace-metrics")).toHaveCount(0);
   await expect(
     page.getByText(
       /Maria Santos|BudgetBuddy|Campus Grocer|David Park|Demo controls|Sample activity/,
@@ -208,9 +207,9 @@ test("fresh workspace has one setup action and no sample records", async ({
   await expect(page.getByLabel("Search matches", { exact: true })).toHaveCount(
     0,
   );
-  await navigate(page, "Deal Rooms");
+  await navigate(page, "Rooms");
   await expect(
-    page.getByRole("heading", { name: "No Deal Rooms yet" }),
+    page.getByRole("heading", { name: "No rooms yet" }),
   ).toBeVisible();
   await navigate(page, "Profile");
   await expect(
@@ -394,14 +393,14 @@ test("browser navigation, unavailable rooms and saved session refresh remain saf
 }) => {
   await signIn(page);
   await navigate(page, "Matches");
-  await navigate(page, "Deal Rooms");
+  await navigate(page, "Rooms");
   await page.goBack();
   await expect(
     page.getByRole("heading", { name: "Matches", exact: true }),
   ).toBeVisible();
   await page.goForward();
   await expect(
-    page.getByRole("heading", { name: "Deal Rooms", exact: true }),
+    page.getByRole("heading", { name: "Rooms", exact: true }),
   ).toBeVisible();
   await page.goto("/#/rooms/founder-campus");
   await expect(
@@ -409,7 +408,7 @@ test("browser navigation, unavailable rooms and saved session refresh remain saf
   ).toBeVisible();
   await page.getByRole("button", { name: "View your rooms" }).click();
   await expect(
-    page.getByRole("heading", { name: "No Deal Rooms yet" }),
+    page.getByRole("heading", { name: "No rooms yet" }),
   ).toBeVisible();
   await page.goto("/#/unknown");
   await expect(
@@ -427,7 +426,7 @@ for (const width of [360, 768, 1024, 1440]) {
   }) => {
     await page.setViewportSize({ width, height: 900 });
     await signIn(page);
-    for (const name of ["Matches", "Deal Rooms", "Profile", "Home"]) {
+    for (const name of ["Matches", "Rooms", "Profile", "Home"]) {
       await navigate(page, name);
       await expect(page.locator("main h1")).toBeFocused();
       expect(

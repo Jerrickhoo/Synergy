@@ -1,6 +1,7 @@
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { CheckoutPanel } from "./components/Payments.jsx";
 import { useApp } from "./state/AppContext.jsx";
+import { signedOutPages } from "./state/routes.js";
 import Login from "./components/Login.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import Topbar from "./components/Topbar.jsx";
@@ -30,6 +31,10 @@ import MentorshipWarning from "./components/MentorshipWarning.jsx";
 import SignOutDialog from "./components/SignOutDialog.jsx";
 import FirstRunChoice from "./components/FirstRunChoice.jsx";
 import OtherRoleNotice from "./components/OtherRoleNotice.jsx";
+import CheckInboxPage from "./pages/CheckInboxPage.jsx";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage.jsx";
+import ResetPasswordPage from "./pages/ResetPasswordPage.jsx";
+import VerifyEmailPage from "./pages/VerifyEmailPage.jsx";
 
 const pages = {
   calendar: CalendarPage,
@@ -50,6 +55,9 @@ const pages = {
   profile: ProfilePage,
   signup: SignupPage,
   onboarding: OnboardingPage,
+  "forgot-password": ForgotPasswordPage,
+  "reset-password": ResetPasswordPage,
+  "verify-email": VerifyEmailPage,
 };
 function Unavailable({ room = false }) {
   const { onAction } = useApp();
@@ -82,11 +90,41 @@ export default function App() {
     retryConnection,
     onInvalid,
     onFormInput,
+    notify,
   } = useApp();
   const mainRef = useRef(null);
+  // With sign-in email on, a new account waits on "Check your inbox" until
+  // its email is verified. Preview accounts never verify.
+  const awaitingVerification =
+    state.authenticated &&
+    state.integrations?.emailAuth &&
+    !state.integrations.guest &&
+    !state.emailVerified;
+  // A card on the sign-in artwork with its own toast: signup when signed out,
+  // the password and verification pages either way (signed in they lead back
+  // to Home), and "Check your inbox" while the email is unverified.
+  const CardScreen =
+    (!state.authenticated && state.page === "signup") ||
+    ["forgot-password", "reset-password", "verify-email"].includes(state.page)
+      ? pages[state.page]
+      : awaitingVerification
+        ? CheckInboxPage
+        : null;
+  // The link was opened elsewhere and the workspace just opened here.
+  const wasAwaiting = useRef(false);
+  useEffect(() => {
+    if (
+      wasAwaiting.current &&
+      state.emailVerified &&
+      state.page !== "verify-email"
+    )
+      notify("Your email is verified. Welcome to Synergy.");
+    wasAwaiting.current = Boolean(awaitingVerification);
+  }, [awaitingVerification, state.emailVerified, state.page, notify]);
   const authPage =
-    state.page === "signup" ||
-    (state.page === "onboarding" && !state.authenticated);
+    !CardScreen &&
+    (state.page === "signup" ||
+      (signedOutPages.includes(state.page) && !state.authenticated));
   const Page = pages[state.page];
   const unavailableRoom =
     ["room-detail", "review"].includes(state.page) && !model.activeRoom();
@@ -174,12 +212,15 @@ export default function App() {
     >
       <button
         className="skip-link"
-        hidden={!state.authenticated || authPage}
+        hidden={!state.authenticated || authPage || Boolean(CardScreen)}
         onClick={() => mainRef.current?.focus()}
       >
         Skip to content
       </button>
-      {!state.authenticated && !authPage ? (
+      {CardScreen ? (
+        // A new emailed link (opened while the page is showing) starts over.
+        <CardScreen key={`${state.page}:${state.linkToken || ""}`} />
+      ) : !state.authenticated && !authPage ? (
         <Login />
       ) : state.firstRunChoice && state.role === "founder" ? (
         <main id="main-content" tabIndex={-1} ref={mainRef}>
@@ -231,7 +272,7 @@ export default function App() {
       )}
       <SignOutDialog />
       <MentorshipWarning />
-      {(state.authenticated || authPage) && <Toast />}
+      {(state.authenticated || authPage) && !CardScreen && <Toast />}
       {state.busy && (
         <div className="saving-indicator" role="status">
           <span className="spinner" aria-hidden="true" /> Please wait…

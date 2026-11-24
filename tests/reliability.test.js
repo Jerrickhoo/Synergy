@@ -105,6 +105,31 @@ function fixture(t, sqlite = false) {
   return { dir, file, w, a, b, c, act, pair, agree, signup };
 }
 
+test("a partial terms draft saves and reaches the partner, but cannot be sent for approval", (t) => {
+  const { w, a, b, act, pair } = fixture(t);
+  const id = pair();
+  const partial = { goal: "Validate onboarding", scope: "Five testers" };
+  const saved = act(a, {
+    form: "terms-form",
+    activeRoomId: id,
+    values: partial,
+  });
+  assert.equal(saved.state.formErrors, null);
+  assert.equal(saved.state.rooms[id].terms.draft.goal, partial.goal);
+  assert.equal(saved.state.rooms[id].terms.draft.timeline, "");
+  assert.equal(
+    w.get(b.token, "founder").state.rooms[id].terms.draft.scope,
+    partial.scope,
+  );
+  const locked = act(a, {
+    action: "lock-terms",
+    activeRoomId: id,
+    values: partial,
+  });
+  assert.equal(locked.state.rooms[id].terms.locked, false);
+  assert.equal(locked.state.formErrors?.scope, "terms-form");
+});
+
 test("terms saves and locks reject stale or missing versions without overwriting a collaborator", (t) => {
   const { w, a, b, act, pair } = fixture(t);
   const id = pair();

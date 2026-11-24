@@ -9,7 +9,7 @@ import {
 import { mentorFormat } from "../data/mentor-formats.js";
 import { roomNextAction } from "../data/selectors.js";
 
-export function MenteeRow({ room, partner }) {
+export function MenteeRow({ room, partner, primary = false }) {
   const { onAction } = useApp();
   const next = roomNextAction(room, partner?.name);
   return (
@@ -27,7 +27,7 @@ export function MenteeRow({ room, partner }) {
         </div>
       </div>
       <button
-        className="btn small"
+        className={`btn small${primary ? " primary" : ""}`}
         onClick={() =>
           onAction({ action: "open-room", id: room.id, tab: next.tab })
         }
@@ -40,13 +40,14 @@ export function MenteeRow({ room, partner }) {
 
 export default function MenteesPage() {
   const { state, model, onAction } = useApp();
+  const mine = Object.values(state.rooms).filter(
+    (room) => room.role === "mentor" && isMentorRoom(room),
+  );
+  const finished = mine.filter((room) =>
+    ["cancelled", "reviewed"].includes(room.status),
+  ).length;
   const groups = Map.groupBy(
-    Object.values(state.rooms).filter(
-      (room) =>
-        room.role === "mentor" &&
-        isMentorRoom(room) &&
-        !["cancelled", "reviewed"].includes(room.status),
-    ),
+    mine.filter((room) => !["cancelled", "reviewed"].includes(room.status)),
     (room) => mentorshipStageText(room),
   );
   if (state.role !== "mentor")
@@ -66,9 +67,18 @@ export default function MenteesPage() {
           </button>
         }
       />
-      {groups.size === 0 && (
-        <p>Accept a mentorship request to see your mentees here.</p>
-      )}
+      {groups.size === 0 &&
+        (finished ? (
+          <p>
+            No active mentees.{" "}
+            {finished === 1
+              ? "Your finished mentorship is"
+              : `Your ${finished} finished mentorships are`}{" "}
+            in Room history.
+          </p>
+        ) : (
+          <p>Accept a mentorship request to see your mentees here.</p>
+        ))}
       {[...groups].map(([label, rooms]) => (
         <section className="card panel section-gap" key={label}>
           <h2>{label}</h2>

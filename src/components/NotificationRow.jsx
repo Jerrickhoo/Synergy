@@ -94,8 +94,10 @@ export default function NotificationRow({ item, now, compact = false }) {
         {actionable && (
           <div className="update-actions">
             {destination.command && (
+              // Rows stay secondary so a list of updates has no primary
+              // action competing with the page's own (readiness plan P3).
               <button
-                className="btn primary small"
+                className="btn small"
                 onClick={() => open(destination.command)}
               >
                 {destination.label}

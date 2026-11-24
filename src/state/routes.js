@@ -15,7 +15,18 @@ const paths = {
   settings: "settings",
   notifications: "updates",
   moderation: "moderation",
+  "forgot-password": "forgot-password",
+  "reset-password": "reset-password",
+  "verify-email": "verify-email",
 };
+// Pages someone can open while signed out. Emailed links land on the last two.
+const linkPages = ["reset-password", "verify-email"];
+export const signedOutPages = [
+  "signup",
+  "onboarding",
+  "forgot-password",
+  ...linkPages,
+];
 
 export function parseRoute(hash) {
   try {
@@ -24,8 +35,14 @@ export function parseRoute(hash) {
     if (path === "login") return { page: "login" };
     const simple = Object.entries(paths).find(([, value]) => value === path);
     if (simple) {
-      const requestId = new URLSearchParams(query).get("request");
-      return { page: simple[0], ...(requestId && { requestId }) };
+      const params = new URLSearchParams(query);
+      const requestId = params.get("request");
+      const token = linkPages.includes(simple[0]) && params.get("token");
+      return {
+        page: simple[0],
+        ...(requestId && { requestId }),
+        ...(token && { token }),
+      };
     }
     const match = path.match(/^(matches|rooms)\/([^/]+)(\/review)?$/);
     if (match && !(match[1] === "matches" && match[3]))
@@ -49,7 +66,7 @@ export function parseRoute(hash) {
 }
 
 export function routeHash(state) {
-  if (!state.authenticated && !["signup", "onboarding"].includes(state.page))
+  if (!state.authenticated && !signedOutPages.includes(state.page))
     return "#/login";
   if (state.page === "match-detail")
     return `#/matches/${encodeURIComponent(state.activeMatch || "unavailable")}${state.mentorReferralId ? `?referral=${encodeURIComponent(state.mentorReferralId)}` : ""}`;
@@ -71,12 +88,14 @@ export function applyRoute(state, route) {
   state.mentorshipActionError = null;
   state.mentorReferralId = route.referralId || null;
   state.activeMentorRequest = route.requestId || null;
+  // An emailed link's token stays in state only; the address drops it.
+  state.linkToken = linkPages.includes(route.page) ? route.token || null : null;
   if (route.page === "login") {
     state.authenticated = false;
     state.page = "home";
     return;
   }
-  if (!state.authenticated && !["signup", "onboarding"].includes(route.page)) {
+  if (!state.authenticated && !signedOutPages.includes(route.page)) {
     state.page = "home";
     return;
   }

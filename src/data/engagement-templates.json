@@ -99,7 +99,14 @@
         "description": "Share reach, clicks and sign-ups from each send.",
         "evidence": true
       }
-    ]
+    ],
+    "termPlaceholders": {
+      "goal": "For example: Introduce each other to our newsletter readers",
+      "scope": "For example: Each side writes one feature about the other and sends it once.",
+      "timeline": "For example: Both sends in the week of 8 December",
+      "commitment": "For example: One feature and one send each",
+      "compensation": "For example: One newsletter feature each way"
+    }
   },
   "beta": {
     "id": "beta",
@@ -110,7 +117,7 @@
         "id": "testerCount",
         "label": "Number of testers",
         "type": "number",
-        "placeholder": "50"
+        "placeholder": "For example: 50"
       },
       {
         "id": "testWindow",
@@ -130,7 +137,8 @@
         "id": "scope",
         "title": "Scope defined",
         "description": "Confirm what will be tested and what success looks like.",
-        "evidence": false
+        "evidence": false,
+        "completedByTerms": true
       },
       {
         "id": "testers",
@@ -156,7 +164,14 @@
         "description": "Review findings and agree on next steps.",
         "evidence": false
       }
-    ]
+    ],
+    "termPlaceholders": {
+      "goal": "For example: Get 20 students to test our onboarding",
+      "scope": "For example: We share a test build and a feedback form; you recruit testers and send a summary.",
+      "timeline": "For example: Two weeks from 1 December",
+      "commitment": "For example: About 2 hours a week each",
+      "compensation": "For example: Testers for our app in return for testers for yours"
+    }
   },
   "swap": {
     "id": "swap",
@@ -167,7 +182,7 @@
         "id": "sessionCount",
         "label": "Working sessions",
         "type": "number",
-        "placeholder": "2"
+        "placeholder": "For example: 2"
       },
       {
         "id": "shareFormat",
@@ -187,7 +202,8 @@
         "id": "scope",
         "title": "Trade agreed",
         "description": "Confirm what each side shares and what a useful result looks like.",
-        "evidence": false
+        "evidence": false,
+        "completedByTerms": true
       },
       {
         "id": "first-share",
@@ -213,6 +229,13 @@
         "description": "Agree whether to continue or close the swap.",
         "evidence": false
       }
-    ]
+    ],
+    "termPlaceholders": {
+      "goal": "For example: Set launch pricing using each other’s experience",
+      "scope": "For example: You review our pricing page; we review your onboarding and write up notes.",
+      "timeline": "For example: Two weeks",
+      "commitment": "For example: Two calls of 45 minutes each",
+      "compensation": "For example: Pricing advice in return for product feedback"
+    }
   }
 }

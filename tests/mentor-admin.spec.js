@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { getState, open, post, user } from "./founder-browser-helpers.js";
+import { selectValue } from "./ui-helpers.js";
 
 test("mentoring moderation filters queues and logs validated settings with live values", async ({
   page,
@@ -20,7 +21,10 @@ test("mentoring moderation filters queues and logs validated settings with live 
   admin.role = "founder";
   const observer = await user(request, "SettingsObserver");
   await open(page, admin, "moderation");
-  await page.getByLabel("Filter by", { exact: true }).selectOption("sessions");
+  await selectValue(
+    page.getByRole("combobox", { name: "Filter by", exact: true }),
+    "sessions",
+  );
   await expect(
     page.getByRole("heading", { name: "Session disputes" }),
   ).toBeVisible();

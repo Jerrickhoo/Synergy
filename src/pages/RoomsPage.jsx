@@ -11,7 +11,7 @@ export default function RoomsPage() {
   const { state, model, onAction } = useApp();
   const { allPeople, roomStatusLabel } = model;
   const mentor = state.role === "mentor";
-  const noun = mentor ? "mentorships" : "Deal Rooms";
+  const noun = mentor ? "mentorships" : "rooms";
   const header = mentor ? (
     <PageHeader
       title="Mentees"
@@ -19,8 +19,8 @@ export default function RoomsPage() {
     />
   ) : (
     <PageHeader
-      title="Deal Rooms"
-      intro="Each Deal Room holds one agreement, its milestones and the conversation, with whose turn it is."
+      title="Rooms"
+      intro="Each room holds one collaboration: a Deal Room with a startup or a mentorship room with a mentor, with whose turn it is."
     />
   );
   const [filter, setFilter] = useState("all");
@@ -43,7 +43,7 @@ export default function RoomsPage() {
       <div className="page page-enter">
         {header}
         <section className="card clean-empty-state">
-          <h2>{mentor ? "No mentees yet" : "No Deal Rooms yet"}</h2>
+          <h2>{mentor ? "No mentees yet" : "No rooms yet"}</h2>
           <p>
             {state.role === "mentor"
               ? "A mentorship opens when you accept a founder's request. You'll agree the goal, hold sessions and track follow-up here."
@@ -175,7 +175,14 @@ export default function RoomsPage() {
                 </div>
                 {!next.done && (
                   <p className={`room-next${next.mine ? " mine" : ""}`}>
-                    <strong>{next.mine ? "Your turn" : "Their turn"}:</strong>{" "}
+                    <strong>
+                      {next.mine
+                        ? "Your turn"
+                        : next.upNext
+                          ? "Up next"
+                          : "Their turn"}
+                      :
+                    </strong>{" "}
                     {next.text.replace(/^Your turn: /, "")}
                     {next.due ? ` · due ${milestoneDate(next.due)}` : ""}
                   </p>

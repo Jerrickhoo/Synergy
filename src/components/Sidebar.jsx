@@ -8,13 +8,14 @@ export const navigation = [
   ["home", "Home", "home"],
   ["discover", "Matches", "search"],
   ["waiting", "Introductions", "people"],
-  ["rooms", "Deal Rooms", "rooms"],
+  ["rooms", "Rooms", "rooms"],
 ];
-// Mentors work from requests, mentees and sessions rather than a match feed.
-// Startups stay reachable from Requests ("Browse startups").
+// Mentors work mainly from requests, mentees and sessions; Startups is the
+// match feed for mentors who reach out first.
 export const mentorNavigation = [
   ["home", "Home", "home"],
   ["requests", "Requests", "inbox"],
+  ["discover", "Startups", "search"],
   ["mentees", "Mentees", "people"],
   ["calendar", "Calendar", "calendar"],
   ["impact", "Impact", "star"],

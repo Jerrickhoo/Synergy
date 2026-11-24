@@ -97,6 +97,7 @@ export function filterPeople(people, filters) {
   });
 }
 const mentorPageLabels = {
+  discover: "Startups",
   waiting: "Requests",
   rooms: "Mentees",
   "room-detail": "Mentorship room",
@@ -116,7 +117,7 @@ export const pageLabel = (page, role, roomType) =>
     "impact-certificate": "Volunteer mentorship certificate",
     notifications: "Updates",
     moderation: "Moderation",
-    rooms: "Deal Rooms",
+    rooms: "Rooms",
     calendar: "Calendar",
     "room-detail": "Deal Room",
     "match-detail": "Match details",

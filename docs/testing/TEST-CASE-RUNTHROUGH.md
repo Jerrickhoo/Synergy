@@ -18,7 +18,7 @@ $env:SYNERGY_DATA_FILE = ".data/manual-preview-$([guid]::NewGuid()).sqlite"
 npm.cmd run dev
 ```
 
-Open the URL printed by Vite, normally `http://localhost:5173`. Run TC-01 and the discovery checks TC-13 through TC-18 in this mode. The fictional directory contains 18 startups and 14 mentors, and every standard tag is offered by at least two of them. Open Rafael Lim’s profile to see weekly Office Hours and Impact from three fictional completed engagements.
+Open the URL printed by Vite, normally `http://localhost:5173`. Run TC-01 and the discovery checks TC-13 through TC-18 in this mode. The fictional directory contains 19 startups and 14 mentors, and every standard tag is offered by at least two of them. Open Rafael Lim’s profile to see weekly Office Hours and Impact from three fictional completed engagements.
 
 Role previews cannot discover or connect with one another. Do not use them to test acceptance, shared rooms or two-party reviews. Signing in with new credentials creates a preview account; signing in again with the same email and password returns to it from any tab. Use a different email for a fresh account.
 

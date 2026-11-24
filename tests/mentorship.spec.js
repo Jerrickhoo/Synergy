@@ -181,15 +181,15 @@ for (const initiator of ["founder", "mentor"]) {
       const id = (await state(request, receiver)).activeRoomId;
       if (initiator === "founder") {
         await inbox.getByRole("button", { name: "Confirm goal" }).click();
-        // The confirmed goal is checked; holding the session is current.
+        // The confirmed goal is the stage reached; the session is ahead.
+        await expect(
+          inbox.locator(".mentor-stage-line [aria-current=step]"),
+        ).toHaveText("Goal Confirmed");
         await expect(
           inbox
             .locator(".mentor-stage-line li.done")
-            .filter({ hasText: "Goal Confirmed" }),
+            .filter({ hasText: "Accepted" }),
         ).toHaveCount(1);
-        await expect(
-          inbox.locator(".mentor-stage-line [aria-current=step]"),
-        ).toHaveText("Session Held");
       }
       await page.goto(`/#/rooms/${id}`);
       await page.getByRole("tab", { name: "Notes" }).click();
@@ -364,9 +364,10 @@ test("mentors navigate by requests, mentees and calendar while founders keep mat
   const founder = await account(request, "founder");
   await open(page, mentor);
   const main = page.getByRole("navigation", { name: "Main navigation" });
-  for (const name of ["Home", "Requests", "Mentees", "Calendar"])
+  // Mentors get Startups (the match feed) but not the founder's pages.
+  for (const name of ["Home", "Requests", "Startups", "Mentees", "Calendar"])
     await expect(main.getByRole("button", { name, exact: true })).toBeVisible();
-  for (const name of ["Matches", "Introductions", "Deal Rooms"])
+  for (const name of ["Matches", "Introductions", "Rooms"])
     await expect(main.getByRole("button", { name, exact: true })).toHaveCount(
       0,
     );
@@ -403,7 +404,7 @@ test("mentors navigate by requests, mentees and calendar while founders keep mat
     const founderNav = founderPage.getByRole("navigation", {
       name: "Main navigation",
     });
-    for (const name of ["Matches", "Introductions", "Deal Rooms"])
+    for (const name of ["Matches", "Introductions", "Rooms"])
       await expect(
         founderNav.getByRole("button", { name, exact: true }),
       ).toBeVisible();

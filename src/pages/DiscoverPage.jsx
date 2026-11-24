@@ -176,7 +176,7 @@ export default function DiscoverPage() {
     return (
       <div className="page discovery-page page-enter">
         <PageHeader
-          title="Matches"
+          title={state.role === "mentor" ? "Startups" : "Matches"}
           intro={
             state.role === "mentor"
               ? "Find startups that need your expertise."
@@ -201,10 +201,10 @@ export default function DiscoverPage() {
   return (
     <div className="page discovery-page page-enter">
       <PageHeader
-        title="Matches"
+        title={state.role === "mentor" ? "Startups" : "Matches"}
         intro={
           state.role === "mentor"
-            ? "Startups ranked by how well their needs fit your expertise."
+            ? "Ranked by how well their needs fit what you offer."
             : "Ranked by two-way fit: what you get and what they get."
         }
       />

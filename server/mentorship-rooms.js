@@ -31,6 +31,7 @@ import {
   sessionMilestone,
   setMentorMilestone,
 } from "../src/data/mentor-room.js";
+import { simulatedOutcome } from "./demo-directory.js";
 
 export const mentorshipActions = new Set([
   "confirm-goal",
@@ -525,13 +526,12 @@ export function createMentorshipRooms({
       mirror(account, state, room, "", { kind, tab });
       return;
     } else if (command === "simulate-session-held") {
-      // Prototype only: the booked Single Session with a fictional mentor
-      // takes place now, so a founder can reach follow-up and review without
-      // waiting for the session time and the 14-day follow-up delay.
-      requireRole("founder");
+      // Prototype only: the booked Single Session with a fictional partner
+      // takes place now, so either side can reach follow-up and review
+      // without waiting for the session time and the 14-day follow-up delay.
       need(
         canSimulatePartner(account, room),
-        "A session can be simulated only with a fictional prototype mentor.",
+        "A session can be simulated only with a fictional prototype partner.",
         403,
       );
       need(
@@ -549,11 +549,34 @@ export function createMentorshipRooms({
         founder: "held",
         at: { ...session.attendance?.at, mentor: at, founder: at },
       };
+      // The booked time may still be ahead; the room says this was simulated.
+      session.simulated = true;
       applyOutcome(account, state, room, session, "held");
       if (info.followup && !info.followup.submittedAt)
         info.followup.availableAt = at;
-      const mentorName = mentor?.state.accountName || "your mentor";
-      message = `Prototype: your session with ${mentorName} was marked as held. Follow-up and review are open.`;
+      // A fictional founder never submits a follow-up, which a Single Session
+      // needs before it can finish, so the simulation shares one for them.
+      if (role === "mentor" && info.followup && !info.followup.submittedAt) {
+        const outcomes = Object.fromEntries(
+          followupTasks(room, info.followup).map(({ id }) => [id, "done"]),
+        );
+        Object.assign(info.followup, {
+          outcomes,
+          summary: simulatedOutcome(founder?.id, room.terms?.draft?.goal)
+            .followup,
+          shareable: false,
+          submittedAt: at,
+          overdue: false,
+        });
+        setMentorMilestone(room, "followup");
+      }
+      const partnerName =
+        (role === "founder" ? mentor : founder)?.state.accountName ||
+        (role === "founder" ? "your mentor" : "the founder");
+      message =
+        role === "founder"
+          ? `Prototype: your session with ${partnerName} was marked as held. Follow-up and review are open.`
+          : `Prototype: your session with ${partnerName} was marked as held. ${partnerName} shared a simulated follow-up, and your review is open.`;
       event({ state }, room.role, message, room.id, {
         kind,
         tab: "overview",
@@ -935,7 +958,10 @@ export function createMentorshipRooms({
       }
       kind = "followup-update";
       message = "The founder shared their mentorship follow-up.";
-      toast = `Follow-up shared with ${counterpartName}.`;
+      toast =
+        info.reviewOpenedAt && !room.review.me && !room.review.windowClosed
+          ? `Follow-up shared with ${counterpartName}. Write your private review next.`
+          : `Follow-up shared with ${counterpartName}.`;
     } else if (
       ["propose-upgrade", "accept-upgrade", "decline-upgrade"].includes(command)
     ) {
@@ -1070,31 +1096,40 @@ export function createMentorshipRooms({
           (values.testimonialPublic === "on" ||
             values.testimonialPublic === true),
       });
-      // Prototype only: a fictional mentor reviews back, as fictional
+      // Prototype only: a fictional partner reviews back, as fictional
       // exchange partners already do, so blind reviews can be released.
-      if (
-        role === "founder" &&
-        !room.review.partner &&
-        canSimulatePartner(account, room)
-      ) {
+      if (!room.review.partner && canSimulatePartner(account, room)) {
+        const partnerRole = role === "founder" ? "mentor" : "founder";
+        const outcome = simulatedOutcome(founder?.id, room.terms?.draft?.goal);
+        const sample =
+          partnerRole === "founder"
+            ? outcome.founderReview
+            : outcome.mentorReview;
         const partnerScores = Object.fromEntries(
-          reviewCategories({ ...room, role: "mentor" }, now()).map(({ id }) => [
-            id,
-            4,
-          ]),
+          reviewCategories({ ...room, role: partnerRole }, now()).map(
+            ({ id }) => [id, sample.scores[id] || 4],
+          ),
         );
+        const scoreList = Object.values(partnerScores);
         Object.assign(room.review, {
           partner: true,
           partnerScores,
-          partnerRating: 4,
-          partnerNote: "Simulated review from a fictional prototype mentor.",
+          partnerRating:
+            Math.round(
+              (scoreList.reduce((sum, score) => sum + score, 0) /
+                scoreList.length) *
+                10,
+            ) / 10,
+          partnerNote: sample.note,
           partnerSubmittedAt: stamp(),
         });
-        const mentorName = mentor?.state.accountName || "Your mentor";
+        const partnerName =
+          (role === "founder" ? mentor : founder)?.state.accountName ||
+          (role === "founder" ? "Your mentor" : "The founder");
         event(
           { state },
           room.role,
-          `Prototype: ${mentorName} submitted a review. This is a simulated response from a fictional mentor.`,
+          `Prototype: ${partnerName} submitted a review. This is a simulated response from a fictional ${partnerRole}.`,
           room.id,
           { kind: "review-release", review: true },
         );

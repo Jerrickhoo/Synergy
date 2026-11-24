@@ -327,21 +327,25 @@ function ProfileContent() {
               {founder && savedProfile.startupName && (
                 <p className="muted">Founder: {model.roleName()}</p>
               )}
-              <p>
-                {founder
-                  ? [
-                      savedProfile.industry,
-                      stageLabel(savedProfile.stage),
-                      savedProfile.teamSize &&
-                        `Team of ${savedProfile.teamSize}`,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") || "Your startup story starts here"
-                  : savedProfile.expertise || "Add the expertise you can share"}
-              </p>
+              {/* Industry, stage and team size live in "Startup at a glance";
+                  the header only prompts while they are all missing. */}
+              {founder ? (
+                !(
+                  savedProfile.industry ||
+                  savedProfile.stage ||
+                  savedProfile.teamSize
+                ) && <p>Your startup story starts here</p>
+              ) : (
+                <p>
+                  {savedProfile.expertise || "Add the expertise you can share"}
+                </p>
+              )}
             </div>
+            {/* "See your matches" leads while the live banner shows. */}
             <button
-              className="btn primary"
+              className={
+                state.profileWentLive && completeness ? "btn" : "btn primary"
+              }
               onClick={() => onAction({ action: "edit-profile" })}
             >
               {completeness ? "Edit profile" : "Set up your profile"}

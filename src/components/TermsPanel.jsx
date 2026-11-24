@@ -25,6 +25,9 @@ export const templateFields = (room) =>
     ? room.template.fields
     : defaultTemplates[room.type]?.fields || [];
 
+const termPlaceholders = (room) =>
+  defaultTemplates[room.type]?.termPlaceholders || {};
+
 function ChangeRequest({ room, partnerName }) {
   const { state, onAction } = useApp();
   const [note, setNote] = useState("");
@@ -127,6 +130,8 @@ export default function TermsPanel({ room, agreement, partner }) {
       label,
       kind,
       help,
+      // Examples for the shared terms, per collaboration type.
+      placeholder: termPlaceholders(room)[id],
       required: true,
     })),
     ...templateFields(room).map((item) => ({
@@ -198,17 +203,43 @@ export default function TermsPanel({ room, agreement, partner }) {
             </p>
           )}
           <FormErrors scope="terms-form" />
-          <div className="terms-fields">
-            {/* Agreed terms list what was agreed; an optional term nobody
-                filled in is left out rather than shown as an empty box. */}
-            {fields
-              .filter((item) => !readOnly || item.required || value(item.id))
-              .map((item) => {
+          {readOnly ? (
+            // Agreed and sent terms read as text, so nothing is cut off and
+            // nothing looks editable.
+            <dl className="terms-fields terms-agreed">
+              {fields
+                .filter((item) => item.required || value(item.id))
+                .map((item) => {
+                  const shown =
+                    item.kind === "select"
+                      ? item.options.find(
+                          ([option]) => option === value(item.id),
+                        )?.[1] || value(item.id)
+                      : value(item.id);
+                  return (
+                    <div
+                      className={`field${item.kind === "textarea" ? " wide" : ""}`}
+                      key={item.id}
+                    >
+                      <dt id={`term-${item.id}-label`}>{item.label}</dt>
+                      <dd
+                        id={`term-${item.id}`}
+                        className="preserve-lines"
+                        aria-labelledby={`term-${item.id}-label`}
+                      >
+                        {shown || "Not set"}
+                      </dd>
+                    </div>
+                  );
+                })}
+            </dl>
+          ) : (
+            <div className="terms-fields">
+              {fields.map((item) => {
                 const helpId = item.help ? `term-${item.id}-help` : undefined;
                 const common = {
                   id: `term-${item.id}`,
                   name: item.id,
-                  disabled: readOnly,
                   required: item.required,
                   "aria-describedby": helpId,
                 };
@@ -219,7 +250,7 @@ export default function TermsPanel({ room, agreement, partner }) {
                   >
                     <label htmlFor={`term-${item.id}`}>
                       {item.label}
-                      {!item.required && !readOnly && (
+                      {!item.required && (
                         <span className="field-optional"> Optional</span>
                       )}
                     </label>
@@ -241,6 +272,7 @@ export default function TermsPanel({ room, agreement, partner }) {
                     ) : item.kind === "textarea" ? (
                       <textarea
                         {...common}
+                        placeholder={item.placeholder}
                         value={value(item.id)}
                         onChange={(event) =>
                           update(item.id, event.target.value)
@@ -251,7 +283,7 @@ export default function TermsPanel({ room, agreement, partner }) {
                         {...common}
                         type={item.inputType || "text"}
                         min={item.inputType === "number" ? 1 : undefined}
-                        placeholder={readOnly ? undefined : item.placeholder}
+                        placeholder={item.placeholder}
                         value={value(item.id)}
                         onChange={(event) =>
                           update(item.id, event.target.value)
@@ -266,15 +298,19 @@ export default function TermsPanel({ room, agreement, partner }) {
                   </div>
                 );
               })}
-          </div>
+            </div>
+          )}
           <div className="terms-actions">
             {room.status === "cancelled" ? (
               <span className="status">This collaboration is closed.</span>
             ) : !agreement.locked ? (
               <>
+                {/* A draft may be partial, so this save skips the required
+                    checks; sending for approval still needs every term. */}
                 <button
                   className="btn"
                   type="submit"
+                  formNoValidate
                   disabled={state.busy || draft.conflict}
                 >
                   Save draft

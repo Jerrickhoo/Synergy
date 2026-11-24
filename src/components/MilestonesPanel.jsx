@@ -12,6 +12,7 @@ import {
   scheduleLabel,
 } from "../data/selectors.js";
 import { formatDate } from "../data/dates.js";
+import FilePicker from "./FilePicker.jsx";
 
 function blockedReason(room, agreement, id, item) {
   if (!agreement.locked || !agreement.partnerLocked)
@@ -149,10 +150,8 @@ function EvidenceForms({ id, item }) {
         }}
       >
         <label htmlFor={`file-${id}`}>Proof file (up to 5 MB)</label>
-        <input
+        <FilePicker
           id={`file-${id}`}
-          name="file"
-          type="file"
           accept=".pdf,.png,.jpg,.jpeg,.webp,.txt"
           required
           aria-describedby={`file-${id}-help${uploadError ? ` file-${id}-error` : ""}`}

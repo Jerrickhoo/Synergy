@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import FormErrors from "./FormErrors.jsx";
 import { formatDateTime } from "../data/dates.js";
+import SelectField from "./SelectField.jsx";
 
 const valueText = (value) =>
   Array.isArray(value) ? value.join(", ") : String(value);
@@ -77,7 +78,7 @@ export default function MentorAdminSettings() {
         >
           <FormErrors scope="mentor-config" />
           <label htmlFor="mentor-setting-path">Setting</label>
-          <select
+          <SelectField
             id="mentor-setting-path"
             name="path"
             value={path}
@@ -88,7 +89,7 @@ export default function MentorAdminSettings() {
                 {labelFor(key)}
               </option>
             ))}
-          </select>
+          </SelectField>
           {entry && (
             <>
               <label htmlFor="mentor-setting-value">New value</label>

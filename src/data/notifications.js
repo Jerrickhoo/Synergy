@@ -132,7 +132,7 @@ export function notificationDestination(item, state, people) {
       };
     }
     return {
-      label: "View Deal Rooms",
+      label: "View rooms",
       context: "This room is no longer available.",
       command: { page: "rooms" },
     };

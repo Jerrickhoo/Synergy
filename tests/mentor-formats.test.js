@@ -71,5 +71,5 @@ test("mentors see request and mentee page labels; founders keep theirs", () => {
   assert.equal(pageLabel("rooms", "mentor"), "Mentees");
   assert.equal(pageLabel("calendar", "mentor"), "Calendar");
   assert.equal(pageLabel("waiting", "founder"), "Introductions");
-  assert.equal(pageLabel("rooms"), "Deal Rooms");
+  assert.equal(pageLabel("rooms"), "Rooms");
 });

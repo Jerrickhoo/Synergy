@@ -7,6 +7,7 @@ import {
   post,
   user,
 } from "./founder-browser-helpers.js";
+import { selectValue } from "./ui-helpers.js";
 
 test.use({ baseURL: "http://127.0.0.1:5186" });
 
@@ -29,7 +30,10 @@ test("mentor application survives a reload and approval is required for discover
     );
   expect(await listed()).toBe(false);
   await open(page, mentor, "onboarding");
-  await page.getByLabel("Verification method").selectOption("linkedin");
+  await selectValue(
+    page.getByRole("combobox", { name: "Verification method" }),
+    "linkedin",
+  );
   await page
     .getByLabel("Verification details")
     .fill("https://www.linkedin.com/in/example-mentor");

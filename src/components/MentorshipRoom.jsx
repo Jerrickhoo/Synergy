@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { CheckoutPanel } from "./Payments.jsx";
 import LinkedText from "./LinkedText.jsx";
 import { priceLabel } from "../data/pricing.js";
@@ -29,7 +29,9 @@ import {
   roomFormat,
 } from "../data/mentor-room.js";
 import { scheduleInstant, scheduleLabel } from "../data/selectors.js";
-import { formatDate } from "../data/dates.js";
+import { formatDate, timeZoneLabel } from "../data/dates.js";
+import SelectField from "./SelectField.jsx";
+import FilePicker from "./FilePicker.jsx";
 
 const reports = {
   held: "Session held",
@@ -105,12 +107,11 @@ function RoomAction({ action, children, values, disabled }) {
   );
 }
 
-// Prototype only: a booked Single Session with a fictional mentor can take
-// place now, so founders can try follow-up and reviews in one sitting.
+// Prototype only: a booked Single Session with a fictional partner can take
+// place now, so either side can try follow-up and reviews in one sitting.
 function SimulateSessionHeld({ room, closed, partner }) {
   if (
     closed ||
-    room.role !== "founder" ||
     !partner?.prototypePartner ||
     roomFormat(room) !== "single-session" ||
     !mentorSessions(room).some(
@@ -120,7 +121,11 @@ function SimulateSessionHeld({ room, closed, partner }) {
     return null;
   return (
     <PrototypeShortcut
-      note={`${partner.name} is a fictional mentor. Simulate the session taking place to try follow-up and reviews.`}
+      note={
+        room.role === "founder"
+          ? `${partner.name} is a fictional mentor. Simulate the session taking place to try follow-up and reviews.`
+          : `${partner.name} is a fictional founder. Simulate the session taking place; they share a follow-up so you can try reviews.`
+      }
     >
       <RoomAction action="simulate-session-held">
         Simulate the session taking place
@@ -222,7 +227,7 @@ function PrepChecklist({ room, closed, doc = false }) {
       ? `Your session starts ${scheduleLabel(new Date(upcoming))}. Share your deck, metrics and links as soon as you can.`
       : `Share your deck, metrics and links by ${scheduleLabel(new Date(upcoming - lateNotice))}, ${noticeHours} hours before the session.`;
   return (
-    <section className="card panel">
+    <section className="card panel" id="room-prep">
       <h2>{doc ? "Review materials" : "Session prep"}</h2>
       {/* While a payment is due, the line below already says prep waits. */}
       {!(room.role === "founder" && !shared && awaitingPayment(room)) && (
@@ -270,16 +275,12 @@ function PrepChecklist({ room, closed, doc = false }) {
             data-id={doc ? "uploaded" : "prep"}
             onSubmit={onUpload}
           >
-            <label htmlFor="mentorship-file">
-              {doc ? "Document file" : "Prep file"}
-            </label>
-            <input
-              type="file"
-              id="mentorship-file"
-              name="file"
-              required
-              disabled={state.busy}
-            />
+            <div className="field">
+              <label htmlFor="mentorship-file">
+                {doc ? "Document file" : "Prep file"}
+              </label>
+              <FilePicker id="mentorship-file" required disabled={state.busy} />
+            </div>
             <button className="btn small" disabled={state.busy}>
               Upload file
             </button>
@@ -384,7 +385,7 @@ function SessionNotes({ room, closed, partner }) {
               {history.some(({ id }) => id) && (
                 <div className="field">
                   <label htmlFor="note-session">Session</label>
-                  <select id="note-session" name="sessionId">
+                  <SelectField id="note-session" name="sessionId">
                     <option value="">General note</option>
                     {history
                       .filter(({ id }) => id)
@@ -393,7 +394,7 @@ function SessionNotes({ room, closed, partner }) {
                           {scheduleLabel(session)}
                         </option>
                       ))}
-                  </select>
+                  </SelectField>
                 </div>
               )}
               <RoomField name="text" label="New session note" required />
@@ -410,7 +411,7 @@ function FollowupForm({ room }) {
   if (!followup) return null;
   const ready = Date.parse(followup.availableAt) <= Date.now();
   return (
-    <section className="card panel">
+    <section className="card panel" id="room-followup">
       <h2>Founder follow-up</h2>
       {followup.submittedAt ? (
         <p>{followup.summary || "Action item outcomes submitted."}</p>
@@ -433,7 +434,7 @@ function FollowupForm({ room }) {
               {followupTasks(room, followup).map((task) => (
                 <div className="field" key={task.id}>
                   <label htmlFor={`followup-${task.id}`}>{task.title}</label>
-                  <select
+                  <SelectField
                     id={`followup-${task.id}`}
                     name={task.id}
                     defaultValue=""
@@ -445,7 +446,7 @@ function FollowupForm({ room }) {
                     <option value="done">Done</option>
                     <option value="in-progress">In progress</option>
                     <option value="did-not-do">Didn't do</option>
-                  </select>
+                  </SelectField>
                 </div>
               ))}
               <RoomField
@@ -594,16 +595,16 @@ function Upgrade({ room }) {
           command={{ action: "propose-upgrade" }}
           label="Propose upgrade"
           fields={
-            <label>
-              Next format
-              <select name="format">
+            <div className="field">
+              <label htmlFor="upgrade-format">Next format</label>
+              <SelectField id="upgrade-format" name="format">
                 {format.upgradeTo.map((id) => (
                   <option key={id} value={id}>
                     {mentorFormat(id).label}
                   </option>
                 ))}
-              </select>
-            </label>
+              </SelectField>
+            </div>
           }
         />
       )}
@@ -633,7 +634,7 @@ function Schedule({ room, closed, partner }) {
         required
       />
       <input type="hidden" name="timeZone" value={zone} />
-      <p className="field-help">{zone}</p>
+      <p className="field-help">{timeZoneLabel(zone)}</p>
     </>
   );
   const timeSuggestions = [
@@ -644,7 +645,7 @@ function Schedule({ room, closed, partner }) {
     (session) => !session.cancelledAt && !session.outcome,
   );
   return (
-    <section className="card panel mentor-requests-list">
+    <section className="card panel mentor-requests-list" id="room-schedule">
       <h2>Schedule</h2>
       {!sessions.length && (
         <p>
@@ -715,8 +716,10 @@ function Schedule({ room, closed, partner }) {
             <h3>{scheduleLabel(session)}</h3>
             <p>
               {session.durationMinutes} minutes ·{" "}
-              {outcomes[session.outcome] ||
-                (session.cancelledAt ? "Cancelled" : "Scheduled")}
+              {session.simulated && session.outcome === "held"
+                ? "Held in a prototype simulation"
+                : outcomes[session.outcome] ||
+                  (session.cancelledAt ? "Cancelled" : "Scheduled")}
             </p>
             {!session.cancelledAt && (
               <CalendarFeed room={room} session={session} />
@@ -761,13 +764,13 @@ function Schedule({ room, closed, partner }) {
                 fields={
                   <label>
                     What happened?
-                    <select name="status">
+                    <SelectField name="status">
                       {Object.entries(reports).map(([status, label]) => (
                         <option key={status} value={status}>
                           {label}
                         </option>
                       ))}
-                    </select>
+                    </SelectField>
                   </label>
                 }
               />
@@ -790,16 +793,20 @@ function Schedule({ room, closed, partner }) {
             fields={
               <>
                 {dateTime("single-session")}
-                <label>
-                  Duration
-                  <select name="durationMinutes" defaultValue="60">
+                <div className="field">
+                  <label htmlFor="session-duration">Duration</label>
+                  <SelectField
+                    id="session-duration"
+                    name="durationMinutes"
+                    defaultValue="60"
+                  >
                     {[15, 30, 45, 60].map((minutes) => (
                       <option key={minutes} value={minutes}>
                         {minutes} minutes
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </SelectField>
+                </div>
               </>
             }
           />
@@ -890,6 +897,47 @@ export default function MentorshipRoom({ room }) {
     format.id !== "ongoing-advisory" &&
     Boolean(room.milestones.held?.me);
   const next = mentorshipNextAction(room);
+  // The next-step button opens the step's tab, then brings its section into
+  // view and focuses its first control.
+  const goToStep = async (step) => {
+    if (step.tab && step.tab !== tab)
+      await onAction({ action: "room-tab", tab: step.tab });
+    requestAnimationFrame(() =>
+      setTimeout(() => {
+        const target = step.target && document.getElementById(step.target);
+        if (!target) return;
+        const reduce = window.matchMedia?.(
+          "(prefers-reduced-motion: reduce)",
+        ).matches;
+        target.scrollIntoView({
+          behavior: reduce ? "auto" : "smooth",
+          block: "start",
+        });
+        target
+          .querySelector(
+            "textarea, input:not([type=hidden]), [role=combobox], select, button",
+          )
+          ?.focus({ preventScroll: true });
+      }, 0),
+    );
+  };
+  // When an action hands the viewer a new step (for example a review after
+  // the follow-up), bring the next-step line back into view.
+  const lastStep = useRef(next.text);
+  useEffect(() => {
+    if (lastStep.current === next.text) return;
+    lastStep.current = next.text;
+    if (!next.mine && !next.review) return;
+    const line = document.querySelector(".room-next-step");
+    if (!line || line.getBoundingClientRect().top >= 0) return;
+    const reduce = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    line.scrollIntoView({
+      behavior: reduce ? "auto" : "smooth",
+      block: "center",
+    });
+  }, [next.text, next.mine, next.review]);
   const goalItem = room.milestones[goalMilestone(room)];
   const goalConfirmed = Boolean(goalItem?.me || goalItem?.partner);
   const tabs = [
@@ -912,23 +960,44 @@ export default function MentorshipRoom({ room }) {
               onAction({ page: state.role === "mentor" ? "mentees" : "rooms" })
             }
           >
-            All rooms
+            <Icon name="back" /> All rooms
           </button>
         }
       />
-      <ol className="mentor-stage-line" aria-label="Mentorship progress">
+      {/* Same progress line as a Deal Room (readiness plan F5). */}
+      <p className="stage-compact" aria-hidden="true">
+        {(() => {
+          const marks = stageMarks(room);
+          const current = marks.findIndex((mark) => mark.current);
+          const index =
+            current >= 0
+              ? current
+              : marks.every((mark) => mark.done)
+                ? marks.length - 1
+                : 0;
+          return `Stage ${index + 1} of ${marks.length}: ${marks[index].label}`;
+        })()}
+      </p>
+      <ol
+        className="stage-line mentor-stage-line"
+        aria-label="Mentorship progress"
+      >
         {stageMarks(room).map(({ label, done, current }) => (
           <li
             key={label}
-            className={done ? "done" : current ? "current" : undefined}
+            className={["stage", done && "done", current && "current"]
+              .filter(Boolean)
+              .join(" ")}
             aria-current={current ? "step" : undefined}
           >
-            <span className="mentor-stage-mark" aria-hidden="true">
+            <span className="stage-dot" aria-hidden="true">
               {done && <Icon name="check" />}
             </span>
-            {label}
-            {/* aria-current already announces the current step. */}
-            {done && <span className="visually-hidden">, completed</span>}
+            <span>
+              {label}
+              {/* aria-current already announces the current step. */}
+              {done && <span className="visually-hidden">, completed</span>}
+            </span>
           </li>
         ))}
       </ol>
@@ -968,41 +1037,67 @@ export default function MentorshipRoom({ room }) {
           )}
         </section>
       ) : (
-        <p className="room-next-step">
-          {/* The next step opens its tab when it lives somewhere else. */}
-          {next.tab && next.tab !== tab && !next.done ? (
-            <button
-              className="link-btn"
-              onClick={() => onAction({ action: "room-tab", tab: next.tab })}
-            >
-              {next.text}
-            </button>
-          ) : (
-            next.text
-          )}{" "}
-          {next.pay && (
-            <button
-              className="btn small primary"
-              disabled={state.busy}
-              onClick={() =>
-                onAction({ action: "pay", values: { providerRef: next.pay } })
-              }
-            >
-              {state.busy && <span className="spinner" aria-hidden="true" />}
-              {next.action}
-            </button>
-          )}
-          {next.review && (
-            <button
-              className="btn small"
-              onClick={() => onAction({ page: "review" })}
-            >
-              {room.review.me || room.review.windowClosed
-                ? "Read reviews"
-                : "Write review"}
-            </button>
-          )}
-        </p>
+        // The same "whose turn" panel as a Deal Room (readiness plan F5).
+        <section
+          className={`now-bar room-next-step${next.mine ? " mine" : ""}`}
+          aria-label="What happens next"
+        >
+          <div className="now-copy">
+            <span className="section-eyebrow">
+              {next.done
+                ? "Status"
+                : next.mine
+                  ? "Your turn"
+                  : next.upNext
+                    ? "Up next"
+                    : "Their turn"}
+            </span>
+            <strong>{next.text}</strong>
+          </div>
+          <div className="now-actions">
+            {/* One button takes the viewer to their step. */}
+            {next.mine &&
+              !next.done &&
+              !next.pay &&
+              !next.review &&
+              (next.target || (next.tab && next.tab !== tab)) && (
+                // When the step's form is on this tab, its own button is the
+                // primary action and this one only brings it into view.
+                <button
+                  className={next.tab === tab ? "btn" : "btn primary"}
+                  onClick={() => goToStep(next)}
+                >
+                  {next.action || "Open"}
+                </button>
+              )}
+            {next.pay && (
+              <button
+                className="btn primary"
+                disabled={state.busy}
+                onClick={() =>
+                  onAction({ action: "pay", values: { providerRef: next.pay } })
+                }
+              >
+                {state.busy && <span className="spinner" aria-hidden="true" />}
+                {next.action}
+              </button>
+            )}
+            {next.review && (
+              <button
+                className={
+                  room.review.me || room.review.windowClosed
+                    ? "btn"
+                    : "btn primary"
+                }
+                onClick={() => onAction({ page: "review" })}
+              >
+                {room.review.me || room.review.windowClosed
+                  ? "Read reviews"
+                  : "Write review"}
+              </button>
+            )}
+          </div>
+        </section>
       )}
       <div
         className="tabs room-tabs"
@@ -1034,7 +1129,7 @@ export default function MentorshipRoom({ room }) {
       >
         {tab === "overview" && (
           <>
-            <section className="card panel">
+            <section className="card panel" id="room-goal">
               <h2>Mentorship goal</h2>
               {/* (Nov 22, round 2) Free mentoring shows no price label. */}
               {(room.payment?.amount || room.terms.draft.price || 0) > 0 && (
@@ -1045,13 +1140,33 @@ export default function MentorshipRoom({ room }) {
               {!state.paymentCheckoutData && room.status !== "cancelled" && (
                 <CheckoutPanel room={room} />
               )}
+              {/* The founder reads their own request in the second person.
+                  A confirmed goal that repeats the question shows once. */}
               {[
                 ["problem", "The problem"],
-                ["tried", "What they already tried"],
-                ["question", "Founder's question"],
+                [
+                  "tried",
+                  room.role === "founder"
+                    ? "What you already tried"
+                    : "What they already tried",
+                ],
+                [
+                  "question",
+                  room.role === "founder"
+                    ? "Your question"
+                    : "Founder's question",
+                ],
                 ["desiredOutcome", "Desired outcome"],
               ]
                 .filter(([key]) => info[key])
+                .filter(
+                  ([key]) =>
+                    !(
+                      ["question", "desiredOutcome"].includes(key) &&
+                      goalConfirmed &&
+                      room.terms.draft.goal?.trim() === info[key].trim()
+                    ),
+                )
                 .map(([key, label]) => (
                   <div key={key}>
                     <h3>{label}</h3>
@@ -1060,7 +1175,14 @@ export default function MentorshipRoom({ room }) {
                 ))}
               {goalConfirmed ? (
                 <div>
-                  <h3>Confirmed goal</h3>
+                  <h3>
+                    {[info.question, info.desiredOutcome].some(
+                      (value) =>
+                        value?.trim() === room.terms.draft.goal?.trim(),
+                    )
+                      ? "Goal (confirmed)"
+                      : "Confirmed goal"}
+                  </h3>
                   <p className="preserve-lines">
                     {room.terms.draft.goal || "Agree on a focus in chat."}
                   </p>

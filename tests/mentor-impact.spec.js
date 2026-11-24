@@ -22,12 +22,12 @@ test("Impact suppresses sparse data and opens a printable volunteer certificate"
   await expect(
     page.getByRole("heading", { name: "Mentoring impact" }),
   ).toBeVisible();
-  // Counts always show; only rates and ratings wait for enough data.
-  await expect(page.getByText("Not enough data yet").first()).toBeVisible();
-  for (const label of ["Sessions held", "Founders helped"])
-    await expect(
-      page.locator(".impact-stats > div", { hasText: label }).locator("dd"),
-    ).toHaveText("0");
+  // Before the first held session one line explains what will appear,
+  // instead of a grid of empty tiles (readiness plan P8).
+  await expect(
+    page.getByText(/Your impact appears here after your first held session/),
+  ).toBeVisible();
+  await expect(page.locator(".impact-stats")).toHaveCount(0);
   for (const width of [1440, 768, 390, 360]) {
     await page.setViewportSize({ width, height: 900 });
     await expect

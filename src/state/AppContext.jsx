@@ -19,7 +19,9 @@ import { validateCredentials } from "./validation.js";
 import { useMatchFilterMemory } from "./useMatchFilterMemory.js";
 import { paymentActionNames } from "../data/pricing.js";
 import {
+  errorMessage,
   errorTitle,
+  waitTitles,
   connectionInterrupted,
   connectionRestored,
   fieldName,
@@ -34,6 +36,7 @@ const dataKeys = [
   "accountName",
   "accountEmail",
   "emailVerified",
+  "emailVerificationRetryAt",
   "integrations",
   "profiles",
   "directory",
@@ -192,6 +195,10 @@ const reducer = (state, payload) =>
           publishToast(draft, payload.state.toast, {
             type: payload.state.formErrors ? "error" : payload.state.toastType,
             title: payload.state.toastTitle,
+            // The form's own field checks (see `invalid` in transitions).
+            field: Boolean(
+              payload.state.formErrors && payload.state.toastField,
+            ),
           });
         else if (payload.state.formErrors)
           publishToast(draft, "Review the highlighted details and try again.", {
@@ -272,10 +279,17 @@ const reducer = (state, payload) =>
           saving: payload.saving !== false,
         });
       else {
-        publishToast(draft, payload.message, {
-          type: "error",
-          title: errorTitle(payload.scope, draft.rooms?.[draft.activeRoomId]),
-        });
+        publishToast(
+          draft,
+          errorMessage(payload.scope, payload.fields, payload.message),
+          {
+            type: "error",
+            title: errorTitle(payload.scope, draft.rooms?.[draft.activeRoomId]),
+            // Only the browser's own field checks; a server rejection (such as
+            // wrong credentials) stays until dismissed.
+            field: Boolean(payload.field),
+          },
+        );
         draft.formErrors = payload.fields
           ? { scope: payload.scope, fields: payload.fields }
           : payload.scope === "profile-form"
@@ -425,7 +439,7 @@ export function AppProvider({ children }) {
       );
     return result;
   }
-  function acceptSession(result) {
+  function acceptSession(result, message) {
     token.current = result.token;
     sessionStorage.setItem("synergy-session", result.token);
     revision.current = result.revision;
@@ -439,6 +453,7 @@ export function AppProvider({ children }) {
     dispatch({
       action: "restore",
       state: result.state,
+      message,
     });
   }
   useEffect(() => {
@@ -612,6 +627,8 @@ export function AppProvider({ children }) {
       engagementType: command.engagementType,
       role: state.role,
       activeRoomId: state.activeRoomId,
+      // Lets the server read the open room's informational notices.
+      roomOpen: state.page === "room-detail",
       timeZone:
         command.form === "schedule" && command.values?.timeZone
           ? command.values.timeZone
@@ -841,6 +858,7 @@ export function AppProvider({ children }) {
       scope,
       fields: formValidation(form),
       message: "Review the highlighted details and try again.",
+      field: true,
     });
     (firstInvalid.dataset.selectTrigger
       ? document.getElementById(firstInvalid.dataset.selectTrigger)
@@ -869,6 +887,49 @@ export function AppProvider({ children }) {
           field: fieldName(input),
         }),
       );
+  }
+  // Verification, resend and password reset. With a `scope`, a failure also
+  // shows as a toast and field errors; the page gets the error either way. A
+  // returned session signs in.
+  async function accountEmailRequest(
+    path,
+    body,
+    { scope, signedInMessage } = {},
+  ) {
+    if (pending.current)
+      throw new Error("Please wait for your current request to finish.");
+    pending.current = true;
+    dispatch({ action: "request-status", busy: true });
+    try {
+      const result = await request(path, body);
+      if (result.token) acceptSession(result, signedInMessage);
+      else if (result.state) {
+        revision.current = result.revision;
+        dispatch({ action: "remote", state: result.state });
+      }
+      return result;
+    } catch (error) {
+      // Asked again too soon: a notice to wait, not a failure.
+      if (scope && error.status === 429)
+        dispatch({
+          action: "set-toast",
+          message: error.message,
+          type: "info",
+          title: waitTitles[scope] || "Please wait a moment",
+        });
+      else if (scope)
+        dispatch({
+          action: "request-error",
+          scope,
+          message: error.message,
+          fields: error.fields,
+          connectionIssue: error.connectionIssue,
+        });
+      throw error;
+    } finally {
+      pending.current = false;
+      dispatch({ action: "request-status", busy: false });
+    }
   }
   async function integrationRequest(path, body) {
     if (body === undefined) return request(path);
@@ -1031,6 +1092,7 @@ export function AppProvider({ children }) {
         onAction,
         onSubmit,
         integrationRequest,
+        accountEmailRequest,
         onUpload,
         downloadFile,
         onTabKeyDown,

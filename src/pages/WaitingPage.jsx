@@ -13,14 +13,17 @@ export default function WaitingPage() {
         title="Introductions"
         intro="Respond to invitations and follow the introductions you have sent."
       />
-      <SentMentorRequests />
-      <Introductions />
-      <button
-        className="btn section-gap"
-        onClick={() => onAction({ page: "discover" })}
-      >
-        Explore matches
-      </button>
+      {/* Requests, introductions and the way back to Matches, evenly spaced. */}
+      <div className="page-stack">
+        <SentMentorRequests />
+        <Introductions />
+        <button
+          className="btn page-stack-action"
+          onClick={() => onAction({ page: "discover" })}
+        >
+          Explore matches
+        </button>
+      </div>
     </div>
   );
 }

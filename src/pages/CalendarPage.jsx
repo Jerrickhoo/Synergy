@@ -17,6 +17,7 @@ import WorkspaceCalendar, {
   CalendarMonthNavigation,
 } from "../components/WorkspaceCalendar.jsx";
 import Icon from "../components/Icon.jsx";
+import { timeZoneLabel } from "../data/dates.js";
 
 function CalendarEvent({ event, partnerName, openEvent }) {
   return (
@@ -232,7 +233,8 @@ function CalendarContent() {
           </div>
           <p className="calendar-timezone">
             <Icon name="clock" />
-            Session times: {Intl.DateTimeFormat().resolvedOptions().timeZone}
+            Session times:{" "}
+            {timeZoneLabel(Intl.DateTimeFormat().resolvedOptions().timeZone)}
           </p>
           <p className="calendar-date-note">
             Task deadlines keep their assigned date. Milestone deadlines use

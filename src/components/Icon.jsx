@@ -152,6 +152,12 @@ export default function Icon({ name }) {
     ),
     chevron: <path d="m6 9 6 6 6-6" />,
     check: <path d="m5 12 4 4L19 6" />,
+    upload: (
+      <>
+        <path d="M12 15V4M7.5 8.5 12 4l4.5 4.5" />
+        <path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15" />
+      </>
+    ),
     camera: (
       <>
         <path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.3l1.4-2h5.6l1.4 2h2.3A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z" />

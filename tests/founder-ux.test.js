@@ -306,17 +306,22 @@ test("not-done-yet sends a milestone back with a note and next actions follow th
   const { workspace: w, a, b, act, pair, agree } = fixture(t);
   const id = pair();
   agree(id);
-  act(a, { action: "confirm-milestone", activeRoomId: id, id: "scope" });
+  // A terms-equivalent milestone is confirmed with the terms; use the first
+  // open milestone that needs no evidence.
+  const [open] = Object.entries(w.get(a.token).state.rooms[id].milestones).find(
+    ([, item]) => !item.me && !item.evidence,
+  );
+  act(a, { action: "confirm-milestone", activeRoomId: id, id: open });
   const theirs = w.get(b.token).state.rooms[id];
   assert.match(roomNextAction(theirs, "Maria").text, /Your turn: confirm/);
   act(b, {
     form: "send-back",
     activeRoomId: id,
-    id: "scope",
+    id: open,
     values: { note: "Success criteria missing" },
   });
   const room = w.get(a.token).state.rooms[id];
-  assert.equal(room.milestones.scope.me, false);
+  assert.equal(room.milestones[open].me, false);
   assert.match(room.messages.at(-1).text, /Not done yet/);
   assert.equal(roomNextAction(room, "Jordan").mine, true);
 });

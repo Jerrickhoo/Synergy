@@ -70,6 +70,8 @@ export function createStorage(file) {
       health() {
         if (existsSync(file)) readWorkspaceSnapshot(file);
       },
+      // The JSON file has no shared revision to compare.
+      revision: () => null,
       close() {},
     };
   mkdirSync(dirname(file), { recursive: true });
@@ -78,12 +80,15 @@ export function createStorage(file) {
     "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=1000; CREATE TABLE IF NOT EXISTS records (kind TEXT NOT NULL, id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY(kind, id));",
   );
   chmodSync(file, 0o600);
-  let cached = new Map(
-    database
-      .prepare("SELECT kind, id, value FROM records")
-      .all()
-      .map((row) => [`${row.kind}:${row.id}`, row.value]),
-  );
+  const rows = () =>
+    new Map(
+      database
+        .prepare("SELECT kind, id, value FROM records")
+        .all()
+        .map((row) => [`${row.kind}:${row.id}`, row.value]),
+    );
+  // What this process last read or wrote, so a commit writes only changes.
+  let cached = rows();
   const upsert = database.prepare(
     "INSERT INTO records(kind,id,value) VALUES (?,?,?) ON CONFLICT(kind,id) DO UPDATE SET value=excluded.value",
   );
@@ -92,7 +97,21 @@ export function createStorage(file) {
     "SELECT value FROM records WHERE kind='meta' AND id='revision'",
   );
   const storage = {
-    load: () => readSqlite(database),
+    load() {
+      database.exec("BEGIN");
+      try {
+        const snapshot = readSqlite(database);
+        cached = rows();
+        database.exec("COMMIT");
+        return snapshot;
+      } catch (error) {
+        database.exec("ROLLBACK");
+        throw error;
+      }
+    },
+    // The revision on disk, which another server sharing the file may have
+    // moved on.
+    revision: () => Number(revision.get()?.value || 0),
     commit(snapshot, expectedRevision = 0) {
       const next = new Map();
       for (const [id, value] of Object.entries(snapshot)) {

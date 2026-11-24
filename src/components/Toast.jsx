@@ -2,13 +2,15 @@ import { useEffect, useState, useRef } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Icon from "./Icon.jsx";
 
-function ToastMessage({ message, type, title, dismiss }) {
+function ToastMessage({ message, type, title, field, dismiss }) {
   const timerRef = useRef(null);
   const elementRef = useRef(null);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const paused = hovered || focused;
-  const duration = type === "error" ? null : 5000;
+  // Errors stay until dismissed, except a summary of errors already shown
+  // beside the fields: it would otherwise cover the form being corrected.
+  const duration = type === "error" && !field ? null : field ? 6000 : 5000;
   useEffect(() => {
     if (paused || duration === null) return;
     timerRef.current = setTimeout(() => {
@@ -16,6 +18,21 @@ function ToastMessage({ message, type, title, dismiss }) {
     }, duration);
     return () => clearTimeout(timerRef.current);
   }, [paused, duration, dismiss]);
+  // Fixing a field (typing or picking a value) means the summary has done
+  // its job. Deferred like onFormInput: changing state during the input
+  // event made controlled fields drop that keystroke.
+  useEffect(() => {
+    if (!field) return;
+    const fixing = (event) => {
+      if (!elementRef.current?.contains(event.target)) setTimeout(dismiss);
+    };
+    document.addEventListener("input", fixing, true);
+    document.addEventListener("change", fixing, true);
+    return () => {
+      document.removeEventListener("input", fixing, true);
+      document.removeEventListener("change", fixing, true);
+    };
+  }, [field, dismiss]);
   return (
     <div
       ref={elementRef}
@@ -68,6 +85,7 @@ export default function Toast() {
       message={state.toast}
       type={type}
       title={state.toastTitle}
+      field={state.toastField}
       dismiss={dismissToast}
     />
   );

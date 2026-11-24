@@ -6,7 +6,13 @@ import VerificationGate from "./VerificationGate.jsx";
 import { scheduleInstant, scheduleLabel } from "../data/selectors.js";
 import { isMentorRoom, mentorSessions } from "../data/mentor-room.js";
 import { localDateKey } from "../data/planning.js";
-import { formatDate, formatTimeRange, formatWeekday } from "../data/dates.js";
+import {
+  formatDate,
+  formatTimeRange,
+  formatWeekday,
+  timeZoneLabel,
+} from "../data/dates.js";
+import SelectField from "./SelectField.jsx";
 
 const slotLabel = (slot) =>
   `${scheduleLabel(slot)} · ${slot.durationMinutes} min`;
@@ -222,13 +228,13 @@ export function OfficeHoursManager() {
           </div>
           <div className="field">
             <label htmlFor="office-time">
-              Start time ({profile.timeZone.replaceAll("_", " ")})
+              Start time ({timeZoneLabel(profile.timeZone)})
             </label>
             <input type="time" name="time" id="office-time" required />
           </div>
           <div className="field">
             <label htmlFor="office-duration">Duration</label>
-            <select
+            <SelectField
               name="durationMinutes"
               id="office-duration"
               defaultValue="30"
@@ -238,7 +244,7 @@ export function OfficeHoursManager() {
                   {minutes} minutes
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
           <label>
             <input type="checkbox" name="recurring" /> Repeat weekly
@@ -308,7 +314,7 @@ export function OfficeHoursManager() {
             session.
           </p>
           <label htmlFor="preferred-weekday">Preferred weekday</label>
-          <select
+          <SelectField
             id="preferred-weekday"
             name="weekday"
             defaultValue={profile.preferredHours?.weekday ?? 1}
@@ -326,9 +332,9 @@ export function OfficeHoursManager() {
                 {day}
               </option>
             ))}
-          </select>
+          </SelectField>
           <label htmlFor="preferred-time">
-            Preferred time ({profile.timeZone})
+            Preferred time ({timeZoneLabel(profile.timeZone)})
           </label>
           <input
             id="preferred-time"
@@ -524,7 +530,7 @@ export function OfficeHoursBooking({ person }) {
             </p>
           )}
           <label htmlFor="office-book-option">Available slots</label>
-          <select
+          <SelectField
             id="office-book-option"
             value={slot.id}
             onChange={(event) => setSelected(event.target.value)}
@@ -535,7 +541,7 @@ export function OfficeHoursBooking({ person }) {
                 {slotLabel(entry)}
               </option>
             ))}
-          </select>
+          </SelectField>
           <label htmlFor="office-book-problem">
             What's the problem for Office Hours?
           </label>

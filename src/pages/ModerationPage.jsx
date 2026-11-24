@@ -287,14 +287,14 @@ function SessionDisputeDecision({ dispute }) {
       >
         <label>
           Session outcome
-          <select
+          <SelectField
             value={outcome}
             onChange={(event) => setOutcome(event.target.value)}
           >
             {resolvedOutcomes.map((value) => (
               <option key={value}>{value}</option>
             ))}
-          </select>
+          </SelectField>
         </label>
         <button className="btn" disabled={state.busy}>
           Resolve session dispute
@@ -568,7 +568,7 @@ function MentorshipModeration() {
       <div className="card panel">
         <h2>Mentorship queue</h2>
         <label htmlFor="mentorship-queue-filter">Filter by</label>
-        <select
+        <SelectField
           id="mentorship-queue-filter"
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
@@ -585,7 +585,7 @@ function MentorshipModeration() {
               {label}
             </option>
           ))}
-        </select>
+        </SelectField>
       </div>
       {["all", "approval"].includes(filter) && (
         <MentorApprovals approvals={state.moderation.mentorApprovals || []} />

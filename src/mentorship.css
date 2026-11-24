@@ -135,6 +135,14 @@
 .mentoring-group .select-field {
   width: min(100%, 320px);
 }
+.pause-confirm {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--warning-soft);
+  color: var(--warning-text);
+}
 .mentoring-usage {
   font-variant-numeric: tabular-nums;
 }
@@ -307,6 +315,37 @@
   flex-wrap: wrap;
   gap: var(--space-2, 0.5rem);
 }
+.mentor-request-card .mentor-request-form {
+  margin-top: var(--space-4);
+}
+.request-commitment {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  text-wrap: pretty;
+}
+/* What the founder will see, before the mentor sends a decline or referral. */
+.founder-preview {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+}
+.founder-preview h3 {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.founder-preview p,
+.founder-preview blockquote {
+  margin: 0;
+  text-wrap: pretty;
+}
+.founder-preview blockquote {
+  padding-inline-start: var(--space-3);
+  border-inline-start: 2px solid var(--line);
+}
 /* A prototype shortcut is its own group, apart from the real controls. */
 .mentor-request-card .prototype-acceptance {
   margin-top: var(--space-4);
@@ -318,53 +357,6 @@
 
 .mentor-request-form textarea {
   width: 100%;
-}
-
-/* D8: mentorship stages read as progress, not as buttons: filled with a check
-   when done, an accent ring when current, a neutral ring when still ahead. */
-.mentor-stage-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
-  margin: var(--space-4) 0;
-  padding: 0;
-  list-style: none;
-}
-.mentor-stage-line li {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--muted);
-  font-size: var(--font-caption);
-}
-.mentor-stage-mark {
-  display: inline-grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: var(--space-5);
-  height: var(--space-5);
-  border: 2px solid var(--control-border);
-  border-radius: var(--radius-full);
-  color: var(--on-accent);
-}
-.mentor-stage-mark svg {
-  width: var(--space-4);
-  height: var(--space-4);
-}
-.mentor-stage-line li.done {
-  color: var(--ink);
-}
-.mentor-stage-line li.done .mentor-stage-mark {
-  border-color: var(--accent-solid);
-  background: var(--accent-solid);
-}
-.mentor-stage-line li.current .mentor-stage-mark {
-  border-color: var(--accent-solid);
-  background: var(--green-soft);
-}
-.mentor-stage-line li.current {
-  color: var(--green-dark);
-  font-weight: 600;
 }
 
 .mentor-session {
@@ -413,6 +405,10 @@
   display: grid;
   gap: var(--space-3);
 }
+/* The listing card follows requests or mentees on Home; keep the groups apart. */
+.mentor-home > :is(.card, .mentor-requests-list) + .mentor-live {
+  margin-top: var(--space-5);
+}
 .mentor-live h2 {
   margin: 0;
   text-wrap: balance;
@@ -427,6 +423,25 @@
   gap: var(--space-1);
   margin: 0;
   padding-left: var(--space-5);
+}
+.review-scores {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+.review-scores > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  max-width: 20rem;
+}
+.review-scores dt {
+  color: var(--muted);
+}
+.review-scores dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .mentor-live-facts {
   display: grid;
@@ -558,4 +573,16 @@
 .application-summary dt {
   color: var(--muted);
   font-size: var(--text-sm);
+}
+
+/* Readiness plan P1: consecutive room forms (for example the prep upload and
+   the prep checklist) read as separate groups. */
+.mentor-request-form + .mentor-request-form {
+  margin-top: var(--space-5);
+}
+
+/* A request in good shape is shown neutrally, not as a warning. */
+.mentoring-banner.request-quality-good {
+  background: var(--green-soft);
+  color: var(--ink);
 }

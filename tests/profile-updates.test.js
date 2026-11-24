@@ -158,7 +158,7 @@ test("update destinations check visibility and role membership with useful fallb
   );
   assert.equal(
     notificationDestination({ roomId: "missing" }, state, people).label,
-    "View Deal Rooms",
+    "View rooms",
   );
   // Round 3: a match update for someone you already have a room with opens it.
   assert.deepEqual(notificationDestination({ matchId: "p" }, state, people), {

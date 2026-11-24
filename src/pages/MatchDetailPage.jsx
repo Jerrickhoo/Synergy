@@ -29,6 +29,7 @@ import OtherRoleNotice from "../components/OtherRoleNotice.jsx";
 import {
   fitFactors,
   fitSummary,
+  needsYouCover,
   offeredToYou,
   stageLabel,
   preferenceLabel,
@@ -144,6 +145,11 @@ function MatchDetail() {
   const swapWithoutAudience = chosenType === "marketing" && !(myAudience > 0);
   const youGet = offeredToYou(person);
   const theyGet = person.exchange?.theyGet || [];
+  // A mentor viewing a startup sees which of its needs they can help with.
+  const covered =
+    state.role === "mentor" && !mentor
+      ? needsYouCover(person, state.profiles.mentor?.offer)
+      : null;
   // A mentor who can't take requests (paused, full, guidelines) blocks sending
   // here, and a mentor whose own limits are full can't accept. The server
   // enforces both; this explains why and offers similar mentors.
@@ -161,7 +167,6 @@ function MatchDetail() {
       >
         <Icon name="back" /> Back to matches
       </button>
-      <p className="page-kicker">Match details</p>
       <div className="match-detail-layout">
         <section className="card identity-panel match-identity-panel">
           <div className="identity-heading">
@@ -226,9 +231,6 @@ function MatchDetail() {
                 {person.availability}
               </span>
             )}
-            <span className="identity-fit">
-              {isScore ? `${person.score}% match` : "Match unavailable"}
-            </span>
           </div>
           {pastRooms.length > 0 && (
             <p className="info-note">
@@ -325,11 +327,17 @@ function MatchDetail() {
                   ? existingRoom.type === "mentorship"
                     ? "Open your mentorship room to pick up where you left off."
                     : "Your shared Deal Room has the agreed terms and next steps."
-                  : incoming
-                    ? `Accepting opens a Deal Room where you agree terms together. Nothing is committed until you both accept the terms.`
-                    : interested
-                      ? `If ${person.name} accepts, a Deal Room opens automatically. Introductions expire after 14 days without a reply. You can withdraw it while you wait.`
-                      : `If ${person.name} accepts, a Deal Room opens where you agree terms before any work starts.`}
+                  : state.role === "mentor"
+                    ? incoming
+                      ? "Accepting opens a mentorship room where you confirm a goal and schedule a session."
+                      : interested
+                        ? `If ${person.name} accepts, a mentorship room opens. Introductions expire after 14 days without a reply. You can withdraw it while you wait.`
+                        : `If ${person.name} accepts, a mentorship room opens where you confirm a goal and schedule a session.`
+                    : incoming
+                      ? `Accepting opens a Deal Room where you agree terms together. Nothing is committed until you both accept the terms.`
+                      : interested
+                        ? `If ${person.name} accepts, a Deal Room opens automatically. Introductions expire after 14 days without a reply. You can withdraw it while you wait.`
+                        : `If ${person.name} accepts, a Deal Room opens where you agree terms before any work starts.`}
               </p>
               {incoming && meta?.note && (
                 <blockquote className="intro-note">“{meta.note}”</blockquote>
@@ -379,7 +387,8 @@ function MatchDetail() {
                   </ul>
                 </div>
               )}
-              {!existingRoom && !interested && (
+              {/* Mentorship is the only type a mentor can start: no choice. */}
+              {!existingRoom && !interested && state.role !== "mentor" && (
                 <div className="field">
                   <label htmlFor="introduction-type">
                     {incoming ? "Accept as" : "Collaboration type"}
@@ -424,7 +433,11 @@ function MatchDetail() {
                     id="introduction-note"
                     maxLength={280}
                     value={note}
-                    placeholder={`Why ${person.name}? For example: what you can share and what you hope to learn from them.`}
+                    placeholder={
+                      state.role === "mentor"
+                        ? `Which of ${person.name}’s needs can you help with?`
+                        : `Why ${person.name}? For example: what you can share and what you hope to learn from them.`
+                    }
                     onChange={(event) => setNote(event.target.value)}
                   />
                   <span className="field-count">{note.length} / 280</span>
@@ -520,35 +533,53 @@ function MatchDetail() {
           <section className="card panel profile-section fit-section">
             <p className="section-eyebrow">Why this match</p>
             <h2>{isScore ? `${person.score}% match` : "Why this match"}</h2>
-            <p>{fitSummary(person, factors)}</p>
-            {(youGet.length > 0 || theyGet.length > 0) && (
-              <dl className="exchange-pair">
-                <div>
-                  <dt>{state.role === "mentor" ? "They need" : "You get"}</dt>
-                  <dd>
-                    {youGet.length ? (
-                      <Tags values={youGet} color="green" />
-                    ) : (
-                      <span className="muted">Nothing matched yet</span>
+            <p>{fitSummary(person, factors, covered)}</p>
+            {covered
+              ? (person.need || []).length > 0 && (
+                  <dl className="exchange-pair">
+                    <div>
+                      <dt>
+                        {covered.length
+                          ? "They need help you offer"
+                          : "They need"}
+                      </dt>
+                      <dd>
+                        <Tags
+                          values={covered.length ? covered : person.need}
+                          color="green"
+                        />
+                      </dd>
+                    </div>
+                  </dl>
+                )
+              : (youGet.length > 0 || theyGet.length > 0) && (
+                  <dl className="exchange-pair">
+                    <div>
+                      <dt>You get</dt>
+                      <dd>
+                        {youGet.length ? (
+                          <Tags values={youGet} color="green" />
+                        ) : (
+                          <span className="muted">Nothing matched yet</span>
+                        )}
+                      </dd>
+                    </div>
+                    {!mentor && (
+                      <div>
+                        <dt>They get</dt>
+                        <dd>
+                          {theyGet.length ? (
+                            <Tags values={theyGet} />
+                          ) : (
+                            <span className="muted">
+                              Nothing you offer matches their needs yet
+                            </span>
+                          )}
+                        </dd>
+                      </div>
                     )}
-                  </dd>
-                </div>
-                {!mentor && (
-                  <div>
-                    <dt>They get</dt>
-                    <dd>
-                      {theyGet.length ? (
-                        <Tags values={theyGet} />
-                      ) : (
-                        <span className="muted">
-                          Nothing you offer matches their needs yet
-                        </span>
-                      )}
-                    </dd>
-                  </div>
+                  </dl>
                 )}
-              </dl>
-            )}
             <p className="muted">
               The match score is a guide based on both profiles, not a
               prediction of success.

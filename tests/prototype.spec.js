@@ -201,9 +201,18 @@ test("stakeholders can sign in with any credentials and choose their prototype r
     "true",
   );
   await expect(page.locator("#app-shell")).toHaveCount(0);
-  await page.getByLabel("Email address").fill("anything@example.com");
-  await page.getByLabel("Password", { exact: true }).fill("x");
+  // The summary toast repeats the field errors, so it leaves once the
+  // fields are being fixed instead of covering them.
   await expect(page.locator(".toast-error")).toBeVisible();
+  // Typed key by key: dismissing the toast must not drop the first one.
+  await page
+    .getByLabel("Email address")
+    .pressSequentially("anything@example.com");
+  await expect(page.locator(".toast-error")).toHaveCount(0);
+  await expect(page.getByLabel("Email address")).toHaveValue(
+    "anything@example.com",
+  );
+  await page.getByLabel("Password", { exact: true }).fill("x");
   await page.getByRole("button", { name: "Sign in", exact: true }).dblclick();
   await page
     .getByRole("button", { name: "Explore with a sample startup", exact: true })
@@ -423,7 +432,7 @@ for (const role of ["founder", "mentor"])
       ).toBeVisible();
     else
       await expect(
-        page.getByRole("button", { name: /^Active Deal Rooms/ }),
+        page.getByRole("button", { name: /^Active rooms/ }),
       ).toContainText("1");
     await page.goto("/#/updates");
     await expect(
@@ -545,9 +554,8 @@ test("a preview founder sets up their own startup and returns to it from a new t
   const hana = page
     .locator("article.match-card")
     .filter({ has: page.getByRole("heading", { name: "Hana Sato" }) });
-  await expect(hana.locator(".preview-reason")).toHaveText(
-    "Offers what you need: Customer retention",
-  );
+  // The You get chips name it; the card no longer repeats it in a line.
+  await expect(hana.locator(".preview-reason")).toHaveCount(0);
   await expect(hana.locator(".preview-exchange dt")).toHaveText(["You get"]);
   await expect(hana.locator(".preview-exchange dd")).toHaveText([
     "Customer retention",
@@ -746,14 +754,15 @@ test("a founder request shows inline errors, keeps its draft and reaches a revie
   await page
     .getByRole("button", { name: "Simulate mentor confirming the goal" })
     .click();
+  // The stage reached is current; the session still ahead is not marked.
+  await expect(
+    page.locator(".mentor-stage-line [aria-current=step]"),
+  ).toHaveText("Goal Confirmed");
   await expect(
     page
       .locator(".mentor-stage-line li.done")
-      .filter({ hasText: "Goal Confirmed" }),
-  ).toHaveCount(1);
-  await expect(
-    page.locator(".mentor-stage-line [aria-current=step]"),
-  ).toHaveText("Session Held");
+      .filter({ hasText: "Session Held" }),
+  ).toHaveCount(0);
   await page.getByRole("tab", { name: "Chat", exact: true }).click();
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.getByLabel("Write a message")).toHaveAttribute(
@@ -771,19 +780,20 @@ test("a founder request shows inline errors, keeps its draft and reaches a revie
   await expect(page.locator(".mentor-session")).toHaveCount(1);
   // The next step asks for prep before the session, and opens Overview.
   const nextStep = page.locator(".room-next-step");
-  await expect(nextStep).toContainText(
+  await expect(nextStep.locator("strong")).toHaveText(
     /^Share your prep before \w{3}, \w{3} \d+ · /,
   );
-  await nextStep
-    .getByRole("button", { name: /^Share your prep before/ })
-    .click();
+  await nextStep.getByRole("button", { name: "Go to prep" }).click();
   await expect(
     page.getByRole("tab", { name: "Overview", exact: true }),
   ).toHaveAttribute("aria-selected", "true");
   await page.getByLabel("Deck").fill("https://example.com/deck");
   await page.getByRole("button", { name: "Share preparation" }).click();
   await expect(page.getByText("Prep shared", { exact: true })).toBeVisible();
-  await expect(nextStep).toHaveText("Nothing needed from you");
+  await expect(nextStep.locator(".section-eyebrow")).toHaveText("Up next");
+  await expect(nextStep.locator("strong")).toHaveText(
+    /^Session booked for \w{3}, \w{3} \d+ · /,
+  );
   await page.getByText("Safety", { exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Report collaborator" }),
@@ -799,10 +809,8 @@ test("a founder request shows inline errors, keeps its draft and reaches a revie
     .getByRole("button", { name: "Simulate the session taking place" })
     .click();
   await expect(
-    page
-      .locator(".mentor-stage-line li.done")
-      .filter({ hasText: "Session Held" }),
-  ).toHaveCount(1);
+    page.locator(".mentor-stage-line [aria-current=step]"),
+  ).toHaveText("Session Held");
   // Once the session is held, shared prep stays readable but not editable,
   // so the follow-up is the only next step on the page.
   await expect(page.getByText("Prep shared", { exact: true })).toBeVisible();
@@ -821,7 +829,10 @@ test("a founder request shows inline errors, keeps its draft and reaches a revie
   ).toBeVisible();
   await nextStep.getByRole("button", { name: "Write review" }).click();
   for (const label of ["Usefulness", "Clarity", "Responsiveness"])
-    await page.getByLabel(label, { exact: true }).selectOption("5");
+    await selectValue(
+      page.getByRole("combobox", { name: label, exact: true }),
+      "5",
+    );
   await page.getByRole("button", { name: "Submit private review" }).click();
   await expect(
     page.getByRole("heading", { name: "Mentorship feedback" }),
@@ -993,4 +1004,65 @@ test("signing in as the other role asks first, and a founder room offers the swi
     page.getByRole("heading", { name: "Mentorship room", exact: true }),
   ).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`#/rooms/${roomId}`));
+});
+
+// Readiness plan Phase 1: a mentor preview can be evaluated on its own. It
+// starts with one request from a fictional startup and reaches Reviewed.
+test("a mentor preview takes the sample request to Reviewed", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await selectValue(
+    page.getByRole("combobox", { name: "I'm signing in as" }),
+    "mentor",
+  );
+  await page.getByLabel("Email address").fill("mentor-preview@example.com");
+  await page.getByLabel("Password", { exact: true }).fill("preview");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "1 request waiting" }),
+  ).toBeVisible();
+  await expect(page.locator(".sidebar")).toContainText("Alex Navarro");
+  await expect(
+    page
+      .getByRole("navigation", { name: "Main navigation" })
+      .getByRole("button", { name: "Startups", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Accept", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Mentorship room" }),
+  ).toBeVisible();
+  await expect(page.getByText("What they already tried")).toBeVisible();
+  await page.getByRole("button", { name: "Confirm goal", exact: true }).click();
+  const nextStep = page.locator(".room-next-step");
+  await expect(nextStep.locator("strong")).toHaveText("Arrange a session");
+  await nextStep.getByRole("button", { name: "Go to schedule" }).click();
+  const date = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10);
+  await page.locator("#single-session-date").fill(date);
+  await page.locator("#single-session-time").fill("10:00");
+  await page.getByRole("button", { name: "Schedule session" }).click();
+  await page
+    .getByRole("button", { name: "Simulate the session taking place" })
+    .click();
+  await expect(nextStep.locator("strong")).toHaveText(
+    "Write your private review",
+  );
+  await nextStep.getByRole("button", { name: "Write review" }).click();
+  for (const label of ["Preparedness", "Follow-through"])
+    await selectValue(
+      page.getByRole("combobox", { name: label, exact: true }),
+      "4",
+    );
+  await page.getByRole("button", { name: "Submit private review" }).click();
+  // The fictional founder's review reads like real feedback, rated per question.
+  await expect(
+    page.getByText(/You pointed us to the one step that mattered/),
+  ).toBeVisible();
+  await expect(
+    page.locator(".review-scores").getByText("Usefulness"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Back to mentorship room" }).click();
+  await expect(
+    page.locator(".mentor-stage-line li.done").filter({ hasText: "Reviewed" }),
+  ).toHaveCount(1);
 });

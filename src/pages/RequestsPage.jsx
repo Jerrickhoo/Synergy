@@ -22,8 +22,23 @@ import {
   cooldownText,
   requestStatusLabel,
 } from "../data/mentor-rules.js";
+import SelectField from "../components/SelectField.jsx";
 
 const declineReasons = ["outside-expertise", "no-slots", "not-a-fit", "other"];
+
+// What accepting commits the mentor to, stated before they decide.
+const commitments = {
+  "quick-ask":
+    "Accepting means answering their question in writing within your reply time, then leaving a private review.",
+  "doc-review":
+    "Accepting means reviewing what they upload and leaving written feedback, then a private review.",
+  "single-session":
+    "Accepting means confirming the goal, booking a call of about 1 hour, reporting attendance and leaving a private review.",
+  "office-hours":
+    "Accepting means meeting in the booked slot, reporting attendance and leaving a private review.",
+  "ongoing-advisory":
+    "Accepting means agreeing goals and holding 4 check-ins over 8 weeks, reporting attendance for each.",
+};
 const formatLabel = (request) =>
   mentorFormat(request.format)?.label || "Mentorship";
 const pendingTime = (expiry) => {
@@ -99,7 +114,14 @@ export function RequestCard({ request }) {
     .find((person) => person.id === request.partnerId);
   const [mode, setMode] = useState("");
   const [reason, setReason] = useState(declineReasons[0]);
+  const [message, setMessage] = useState("");
   const [selected, setSelected] = useState([]);
+  const cooldown = state.mentorConfig?.cooldownDays?.[reason] || 0;
+  const commitment =
+    commitments[request.format] ||
+    (format?.effort
+      ? `Accepting opens a mentorship room. This format takes ${format.effort.toLowerCase()}.`
+      : "");
   const choices = state.referralChoices?.[request.id] || [];
   const error =
     state.mentorshipActionError?.id === request.partnerId &&
@@ -244,9 +266,15 @@ export function RequestCard({ request }) {
           Refer
         </button>
       </div>
+      {commitment && !mode && (
+        <p className="request-commitment">{commitment}</p>
+      )}
       {mode === "decline" && (
         <form
           className="mentor-request-form"
+          onInput={(event) => {
+            if (event.target.name === "message") setMessage(event.target.value);
+          }}
           onSubmit={(event) =>
             act("decline-request", event, {
               reason,
@@ -255,7 +283,7 @@ export function RequestCard({ request }) {
           }
         >
           <label htmlFor={`decline-${request.id}`}>Reason</label>
-          <select
+          <SelectField
             id={`decline-${request.id}`}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
@@ -265,13 +293,24 @@ export function RequestCard({ request }) {
                 {requestReasons[id]}
               </option>
             ))}
-          </select>
+          </SelectField>
           <LimitedTextarea
             id={`decline-message-${request.id}`}
             name="message"
             label="Message to the founder (optional)"
             limit={declineMessageLimit}
           />
+          <div className="founder-preview" aria-live="polite">
+            <h3>What {request.name} will see</h3>
+            <p>Declined · {requestReasons[reason]}</p>
+            {message.trim() && <blockquote>{message.trim()}</blockquote>}
+            <p>
+              They're shown other mentors to ask
+              {cooldown
+                ? `, and can't request you again for ${cooldown} days.`
+                : ", and can request you again later."}
+            </p>
+          </div>
           <button className="btn" disabled={state.busy}>
             Send decline
           </button>
@@ -288,7 +327,6 @@ export function RequestCard({ request }) {
             <legend>
               Suggest up to {state.mentorConfig?.maxReferrals || 3} mentors
             </legend>
-            <p>The founder decides whether to share their request with them.</p>
             {choices.length ? (
               choices.map((mentor) => (
                 <label key={mentor.id}>
@@ -314,6 +352,25 @@ export function RequestCard({ request }) {
               <p>No suggested mentors are currently available.</p>
             )}
           </fieldset>
+          {choices.length > 0 && (
+            <div className="founder-preview" aria-live="polite">
+              <h3>What {request.name} will see</h3>
+              {selected.length > 0 && (
+                <p>
+                  You suggested{" "}
+                  {choices
+                    .filter((mentor) => selected.includes(mentor.id))
+                    .map((mentor) => mentor.name)
+                    .join(", ")}
+                  , each with an Ask button.
+                </p>
+              )}
+              <p>
+                Their request closes with you. It reaches a suggested mentor
+                only if they choose to ask.
+              </p>
+            </div>
+          )}
           <button className="btn" disabled={state.busy || !selected.length}>
             Send referral
           </button>
@@ -393,9 +450,19 @@ export function SentMentorRequests() {
             <p>{cooldownText(request.cooldownUntil)}.</p>
           )}
           {request.status === "pending" && (
+            // Same controls as a sent introduction (readiness plan P9).
             <div className="mentor-request-controls">
               <button
-                className="btn"
+                className="btn small"
+                onClick={() =>
+                  onAction({ action: "match-detail", id: request.partnerId })
+                }
+              >
+                View profile
+                <span className="visually-hidden">: {request.name}</span>
+              </button>
+              <button
+                className="btn small"
                 disabled={state.busy}
                 onClick={(event) =>
                   onAction(

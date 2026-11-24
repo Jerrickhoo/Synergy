@@ -401,7 +401,12 @@ test("quiet-deal reminders use an injected clock and needs-reply alerts stay imm
   assert.ok(
     w.get(a.token).state.notifications.some((n) => n.id.startsWith("quiet:")),
   );
-  act(a, { action: "confirm-milestone", activeRoomId: id, id: "scope" });
+  // A terms-equivalent milestone is confirmed with the terms; use the first
+  // open milestone that needs no evidence.
+  const [open] = Object.entries(w.get(a.token).state.rooms[id].milestones).find(
+    ([, item]) => !item.me && !item.evidence,
+  );
+  act(a, { action: "confirm-milestone", activeRoomId: id, id: open });
   const reply = w
     .get(b.token)
     .state.notifications.find((n) => n.id.startsWith("confirm:"));

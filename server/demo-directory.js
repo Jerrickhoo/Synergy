@@ -101,7 +101,59 @@ export const legacyDemoProfiles = [
   },
 ];
 
-export const demoDirectoryVersion = 11;
+export const demoDirectoryVersion = 12;
+
+// The mentor preview persona. It is deliberately not a directory name, so a
+// tester who tries both roles never meets "themselves" as a sample mentor.
+export const previewMentorName = "Alex Navarro";
+
+// The request a new mentor preview finds in Requests (prototype only).
+export const sampleMentorRequest = Object.freeze({
+  accountId: "demo-sample-accesslearn",
+  problem:
+    "Students who use screen readers give up during our onboarding before they reach the first activity.",
+  tried:
+    "We ran five sessions with assistive-technology users and relabelled every form field.",
+  question: "Which onboarding step should we redesign first?",
+  desiredOutcome: "One onboarding change to test before our pilot",
+});
+
+// Prototype only: what a fictional partner reports after a simulated session,
+// so a tester can see what the mentoring led to. The sample request gets its
+// own story; other fictional partners report against the room's goal.
+const sampleOutcomes = {
+  [sampleMentorRequest.accountId]: {
+    followup:
+      "We added a skip-to-first-activity link for screen-reader users, as you suggested. In this week's pilot, 9 of 12 students reached the first activity, up from 4. Next we're shortening the sign-up form.",
+    founderReview: {
+      scores: { usefulness: 5, clarity: 4, responsiveness: 4 },
+      note: "You pointed us to the one step that mattered instead of a full redesign. A short written testing plan after the call would have helped.",
+    },
+  },
+};
+const shortGoal = (goal) => {
+  const text = String(goal || "").trim();
+  return text.length > 90 ? `${text.slice(0, 87).trimEnd()}…` : text;
+};
+export function simulatedOutcome(founderAccountId, goal) {
+  const own = sampleOutcomes[founderAccountId];
+  const focus = shortGoal(goal);
+  return {
+    followup:
+      own?.followup ||
+      (focus
+        ? `We tried the first change you suggested for "${focus}". Early numbers look better, and we'll keep testing it for two more weeks.`
+        : "We tried the first change you suggested. Early numbers look better, and we'll keep testing it for two more weeks."),
+    founderReview: own?.founderReview || {
+      scores: { usefulness: 4, clarity: 5, responsiveness: 4 },
+      note: "Practical advice we could act on the same week. We'd have liked one more example from a similar startup.",
+    },
+    mentorReview: {
+      scores: { preparedness: 4, followThrough: 4 },
+      note: "Came with clear context and had already ruled out the obvious fixes. Acted on the main suggestion within a week.",
+    },
+  };
+}
 const startup = (
   id,
   name,
@@ -461,6 +513,21 @@ const baseDemoProfiles = [
     "Distribution, Co-marketing, User research",
     "Find our first 50 paying venues",
     "Two engineers building booking tools for small venues. We trade technical help for go-to-market help.",
+    "either",
+  ),
+  // Version 12: founders most often offer testers or user research and ask
+  // for go-to-market help, which none of the startups above need. Brightlane
+  // makes that trade, so those founders also see an exchange in Suggested.
+  startup(
+    "brightlane",
+    "Brightlane",
+    "Consumer",
+    "seed",
+    "5",
+    "Distribution, Co-marketing, Pricing strategy, Fundraising",
+    "Beta testers, User research",
+    "Test our new mobile app with real students",
+    "A study-music subscription with 40,000 student subscribers. We grew through campus partnerships, priced three plans and raised a seed round; now we need testers for our mobile app.",
     "either",
   ),
 ];

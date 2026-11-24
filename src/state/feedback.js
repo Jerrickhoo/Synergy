@@ -9,6 +9,9 @@ const formTitles = {
   "task-create": "Couldn't save the task",
   "task-update": "Couldn't save the task",
   "calendar-link": "Couldn't create the calendar file",
+  "forgot-password-form": "Couldn't send the reset link",
+  "reset-password-form": "Couldn't change your password",
+  "resend-verification": "Couldn't send a new link",
 };
 
 export const connectionMessage =
@@ -42,10 +45,34 @@ export function connectionRestored(state, announce = true) {
     );
 }
 
+// `field: true` marks an error that the form also shows next to each field.
+// The toast is then only a summary: it leaves once the person starts fixing
+// the form, so it never sits over the fields being corrected.
+// Short sign-in forms show a single floating error: the toast carries the
+// field messages, and the list beside the form is kept for screen readers
+// only, so the fields never move.
+export const toastOnlyScopes = new Set([
+  "login-form",
+  "signup-form",
+  "forgot-password-form",
+  "reset-password-form",
+]);
+export function errorMessage(scope, fields, fallback) {
+  if (!toastOnlyScopes.has(scope) || !fields) return fallback;
+  const messages = [...new Set(Object.values(fields).filter(Boolean))];
+  return messages.length ? messages.join(" ") : fallback;
+}
+
+// Titles for a request refused only because it came too soon after the last.
+export const waitTitles = {
+  "resend-verification": "Link already sent",
+};
+
 export function publishToast(state, message, options = {}) {
   state.toast = message;
   state.toastType = options.type || "success";
   state.toastTitle = options.title || "";
+  state.toastField = Boolean(options.field);
   state.toastId = (state.toastId || 0) + 1;
 }
 

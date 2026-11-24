@@ -56,13 +56,13 @@ test("a Quick Ask uses an async room and keeps the mentor's review blind", async
     .getByLabel("Write your response")
     .fill("Compare the shorter flow with your current flow for one week.");
   await page.getByRole("button", { name: "Deliver response" }).click();
-  // Delivered is reached (checked); the review is the current step.
-  await expect(
-    page.locator(".mentor-stage-line li.done").filter({ hasText: "Delivered" }),
-  ).toHaveCount(1);
+  // Delivered is the stage reached (current); the review is still ahead.
   await expect(
     page.locator(".mentor-stage-line [aria-current=step]"),
-  ).toHaveText("Reviewed");
+  ).toHaveText("Delivered");
+  await expect(
+    page.locator(".mentor-stage-line li.done").filter({ hasText: "Accepted" }),
+  ).toHaveCount(1);
   expect((await getState(request, mentor)).mentorUsage.openAsync).toBe(0);
   await command(request, founder, {
     form: "review-form",

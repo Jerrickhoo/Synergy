@@ -76,45 +76,12 @@
   color: var(--green-dark);
   font-variant-numeric: tabular-nums;
 }
-/* Overlapping person icons, one per match; each ring cuts into the next. */
-.people-stack {
-  display: flex;
-  flex-shrink: 0;
-  padding-left: var(--space-2);
-}
-.people-stack-item {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  margin-left: calc(var(--space-2) * -1);
-  border: 2px solid var(--green-soft);
-  border-radius: var(--radius-full);
-  background: var(--green);
-  color: var(--paper);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.people-stack-item .icon {
-  width: 18px;
-  height: 18px;
-}
-.people-stack-more {
-  background: var(--paper);
-  color: var(--green-dark);
-}
-.home-welcome .home-status:not(:has(.people-stack)) {
+.home-welcome .home-status {
   padding-left: var(--space-4);
 }
 /* Something is waiting on the user: switch to the accent hue. */
 .home-welcome .home-status.urgent {
   background: var(--accent-soft);
-}
-.home-status.urgent .people-stack-item {
-  border-color: var(--accent-soft);
-  background: var(--accent);
-  color: var(--on-accent-warm);
 }
 .home-status.urgent .home-status-count {
   color: var(--accent-text);
@@ -579,13 +546,34 @@ textarea:focus-visible {
 .login-submit {
   border-radius: var(--control-radius);
 }
+/* The sign-in message floats over the top of the card, so the fields never
+   move when an error appears or is dismissed. */
+.login-form-wrap {
+  position: relative;
+}
 .login-form-wrap #toast-root {
-  position: static;
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  bottom: auto;
+  left: var(--space-4);
   width: auto;
   max-width: none;
 }
 .login-form-wrap .toast {
-  margin-bottom: 16px;
+  box-shadow: var(--overlay-shadow);
+  animation: login-toast-in var(--duration-base) var(--ease-out);
+}
+@keyframes login-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--space-2)));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-form-wrap .toast {
+    animation: none;
+  }
 }
 
 .toast {
@@ -664,4 +652,55 @@ textarea:focus-visible {
   .connection-banner.workspace-connection {
     padding: 14px 16px;
   }
+}
+
+/* Readiness plan P1: sections stacked on one page are separated by the
+   spacing scale, never left touching. */
+.page-stack {
+  display: grid;
+  gap: var(--space-6);
+}
+.page-stack-action {
+  justify-self: start;
+}
+.profile-live {
+  margin-bottom: var(--space-5);
+}
+
+/* Readiness plan P2: one styled file chooser (FilePicker). */
+.file-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.file-picker-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--font-caption);
+}
+
+/* Sign-in email: the password reset, email verification and "Check your
+   inbox" screens. */
+.account-email-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.link-btn.inline-link {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  font-size: inherit;
+}
+.field-label-row a.link-btn {
+  text-decoration: none;
+}
+.field-label-row a.link-btn:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+/* "Send again in 42s" keeps its width as the seconds change. */
+.countdown-button {
+  font-variant-numeric: tabular-nums;
 }

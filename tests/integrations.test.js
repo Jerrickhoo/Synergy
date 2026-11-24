@@ -95,9 +95,9 @@ test("prototype mode opens isolated role previews without credentials or email c
     ...founder.result.state.directory.founders,
     ...founder.result.state.directory.mentors,
   ];
-  assert.equal(suggestions.length, 32);
-  assert.equal(new Set(suggestions.map((person) => person.name)).size, 32);
-  assert.equal(mentor.result.state.directory.mentorStartups.length, 18);
+  assert.equal(suggestions.length, 33);
+  assert.equal(new Set(suggestions.map((person) => person.name)).size, 33);
+  assert.equal(mentor.result.state.directory.mentorStartups.length, 19);
   assert.ok(suggestions.some((person) => person.score >= 70));
   assert.ok(suggestions.some((person) => person.score < 30));
   assert.ok(suggestions.some((person) => person.image));

@@ -1,4 +1,5 @@
-import { bearerToken, equalSecret } from "./mentor-email.js";
+import { bearerToken, equalSecret } from "./secrets.js";
+import { describeDevice } from "./auth-email.js";
 import { mentorEmailKinds } from "../src/data/mentor-email.js";
 import { createOperations, logFailure } from "./operations.js";
 import { resolve, dirname, join } from "node:path";
@@ -29,6 +30,8 @@ export function createApi({
       res.end(encode(body));
     };
     try {
+      // Pick up changes from any other server sharing this database first.
+      workspace.refresh();
       const token = req.headers.authorization?.replace(/^Bearer /, "");
       if (req.method === "POST" && url.pathname === "/api/payments/webhook") {
         const body = (await readBody(req, 65536)).toString("utf8");
@@ -139,6 +142,8 @@ export function createApi({
       if (req.method === "GET" && url.pathname === "/api/capabilities")
         return send(200, {
           demoMode: Boolean(config.demoMode),
+          // Verification, password reset and sign-in alerts by email.
+          emailAuth: config.emailProvider === "brevo" && !config.demoMode,
         });
       if (req.method === "GET" && url.pathname === "/api/account")
         return send(200, workspace.accounts.settings(token));
@@ -216,7 +221,8 @@ export function createApi({
         return send(400, { error: "Invalid submission." });
       if (
         ["/api/login", "/api/demo", "/api/signup"].includes(url.pathname) ||
-        url.pathname.startsWith("/api/account/")
+        url.pathname.startsWith("/api/account/") ||
+        url.pathname.startsWith("/api/auth/")
       ) {
         const key = `${req.socket.remoteAddress}:${url.pathname}`;
         const now = Date.now();
@@ -269,9 +275,23 @@ export function createApi({
           }
           return send(404, { error: "Endpoint unavailable." });
         }
+        if (url.pathname === "/api/auth/verify")
+          return send(200, workspace.verifyEmail(input.token));
+        if (url.pathname === "/api/auth/resend")
+          return send(200, workspace.resendVerification(token));
+        if (url.pathname === "/api/auth/forgot")
+          return send(200, workspace.requestPasswordReset(input.email));
+        if (url.pathname === "/api/auth/reset")
+          return send(
+            200,
+            await workspace.resetPasswordAsync(input.token, input.password),
+          );
+        if (url.pathname.startsWith("/api/auth/"))
+          return send(404, { error: "Endpoint unavailable." });
         const result = await workspace.loginAsync(
           input,
           url.pathname === "/api/signup",
+          { device: describeDevice(req.headers["user-agent"]) },
         );
         return send(200, result);
       }

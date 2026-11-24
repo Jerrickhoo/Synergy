@@ -62,7 +62,7 @@ test("a founder shares a structured request and a mentor refers them without for
       .getByLabel("What specific question do you want answered?")
       .fill(mentorRequestValues.question);
     await expect(
-      page.getByText(/Only RequestMentor Audit will see/),
+      page.getByText("Only RequestMentor Audit sees this request"),
     ).toBeVisible();
     await audit(page);
     await page.getByRole("button", { name: "Send mentorship request" }).click();

@@ -199,12 +199,13 @@ export default function ProfileAssistant({
                   />
                   <span className="assistant-review-copy">
                     <strong>{item.label}</strong>
+                    {/* Before and after, named rather than joined by an arrow. */}
                     <span className="assistant-review-change">
+                      <span className="assistant-review-term">Now</span>
                       <span className="muted">
                         {item.current ? shown(item.key, item.current) : "Empty"}
                       </span>
-                      <span aria-hidden="true"> → </span>
-                      <span className="visually-hidden"> becomes </span>
+                      <span className="assistant-review-term">Suggested</span>
                       <span>{shown(item.key, item.value)}</span>
                     </span>
                   </span>

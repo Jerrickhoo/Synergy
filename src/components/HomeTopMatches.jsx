@@ -2,10 +2,11 @@ import { useApp } from "../state/AppContext.jsx";
 import Avatar from "./Avatar.jsx";
 import Icon from "./Icon.jsx";
 import { matchReason } from "../data/profile-presentation.js";
+import { homeNextStep } from "../data/home.js";
 
 // The strongest suggestions, so Home shows real people rather than empty boxes.
 export default function HomeTopMatches({ limit = 3 }) {
-  const { model, onAction } = useApp();
+  const { state, model, onAction } = useApp();
   const people = [...model.suggestedMatches()]
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
     .slice(0, limit);
@@ -17,8 +18,11 @@ export default function HomeTopMatches({ limit = 3 }) {
     >
       <div className="top-matches-head">
         <h2 id="top-matches">Your strongest matches</h2>
+        {/* The main action when Home has nothing more specific (P3). */}
         <button
-          className="link-btn"
+          className={
+            homeNextStep(state).generic ? "btn primary small" : "link-btn"
+          }
           onClick={() => onAction({ page: "discover" })}
         >
           See all matches <Icon name="arrow" />

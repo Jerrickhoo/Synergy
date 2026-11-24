@@ -54,7 +54,7 @@ function ConflictsStep({ profile }) {
           </label>
           <label>
             Relationship
-            <select
+            <SelectField
               name={`relation-${index}`}
               defaultValue={row.relation || "advisor"}
             >
@@ -63,7 +63,7 @@ function ConflictsStep({ profile }) {
                   {label}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </label>
           <label>
             Industry (optional)
@@ -103,7 +103,7 @@ function ApplicationFields({ application, profile, config, vocabulary }) {
       return (
         <>
           <label htmlFor="verification-method">Verification method</label>
-          <select
+          <SelectField
             id="verification-method"
             name="method"
             defaultValue={application.verification?.method || "linkedin"}
@@ -111,7 +111,7 @@ function ApplicationFields({ application, profile, config, vocabulary }) {
             <option value="linkedin">LinkedIn profile</option>
             <option value="work-email">Work email</option>
             <option value="organization">Endorsing organization</option>
-          </select>
+          </SelectField>
           <label htmlFor="verification-evidence">Verification details</label>
           <textarea
             id="verification-evidence"

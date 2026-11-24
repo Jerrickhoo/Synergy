@@ -595,5 +595,57 @@ export function createMentorRequests({
       );
   }
 
-  return { act, verify, sweep, decorate, returned, founderLimit };
+  // Prototype only: a new preview mentor starts with one request from a
+  // fictional sample founder, so the inbox, acceptance and the mentorship
+  // room can be tried without a second account.
+  function seedSampleRequest(mentor, sample) {
+    const founder = accounts()[sample.accountId];
+    if (!founder?.demoSample || founder.deletedAt) return false;
+    if (pending(mentor, "mentor", founder, mentor)) return false;
+    const draft = {
+      problem: sample.problem,
+      tried: sample.tried,
+      question: sample.question,
+    };
+    const quality = requestQuality({ ...draft, links: [] });
+    const request = {
+      ...draft,
+      desiredOutcome: sample.desiredOutcome,
+      id: randomUUID(),
+      kind: "mentor-request",
+      format: "single-session",
+      links: [],
+      price: 0,
+      quality: quality.score,
+      qualityReasons: quality.reasons,
+      sharpenedFrom: null,
+      sentAt: stamp(),
+      expiresAt: new Date(now() + 7 * day).toISOString(),
+      consentAt: stamp(),
+      referredFrom: null,
+      sample: true,
+    };
+    setPending(founder, mentor, request);
+    event(
+      mentor,
+      "mentor",
+      `${name(founder, "founder")} sent a mentorship request.`,
+      undefined,
+      { kind: "request", page: "requests", requestId: request.id },
+    );
+    // Shown at once rather than held for the daily request digest.
+    if (mentor.state.activity[0]?.requestId === request.id)
+      mentor.state.activity[0].requestDigestAt = null;
+    return true;
+  }
+
+  return {
+    act,
+    verify,
+    sweep,
+    decorate,
+    returned,
+    founderLimit,
+    seedSampleRequest,
+  };
 }

@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { createWorkspace } from "../server/workspace.js";
 import { readWorkspaceSnapshot } from "../server/storage.js";
+import { authLinkToken } from "../server/auth-email.js";
 import { encode } from "../src/state/serialization.js";
 import { canonicalTags } from "../src/data/collaboration.js";
 import { createInitialState } from "../src/data/model.js";
@@ -327,6 +328,20 @@ function setup(t, options = {}) {
       true,
     );
     u.role = role;
+    // With Brevo, a new account waits for email verification.
+    if (options.emailProvider === "brevo") {
+      const { nonce } =
+        readWorkspaceSnapshot(file).accounts[u.state.accountId]
+          .emailVerification;
+      workspace.verifyEmail(
+        authLinkToken(
+          u.state.accountId,
+          "verify-email",
+          nonce,
+          options.brevoWebhookSecret,
+        ),
+      );
+    }
     workspace.act(u.token, { role, form: "profile-form", values });
     if (role === "mentor" && accept)
       workspace.act(u.token, {
@@ -1225,6 +1240,35 @@ test("admin mentoring settings take effect immediately and survive restart", (t)
     password: "private-password",
   });
   assert.equal(reopened.state.mentorConfig.founderMaxPending, 1);
+});
+
+test("a queued guidelines email is skipped once the mentor accepts the guidelines", async (t) => {
+  const sent = [];
+  const s = setup(t, {
+    emailProvider: "brevo",
+    brevoApiKey: "fake-key",
+    emailFrom: "sender@example.com",
+    brevoWebhookSecret: "test-webhook-secret-32-characters",
+    publicUrl: "https://workspace.example.com/",
+    emailFetch: async (url, input) => {
+      sent.push(JSON.parse(input.body));
+      return Response.json(
+        { messageId: `brevo-${sent.length}` },
+        { status: 201 },
+      );
+    },
+  });
+  // Completing the profile queues the reminder; Rae accepts straight after.
+  s.user("Rae", "mentor", mentorValues);
+  s.user("Pat", "mentor", mentorValues, false);
+  await s.workspace.runMaintenance();
+  const reminders = sent.filter(({ tags }) =>
+    tags.includes("synergy-guidelines-required"),
+  );
+  assert.deepEqual(
+    reminders.map(({ to }) => to[0].email),
+    ["pat@example.com"],
+  );
 });
 
 test("maintenance delivers a private local-time digest and honors unsubscribe and bounce suppression", async (t) => {

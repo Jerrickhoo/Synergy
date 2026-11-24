@@ -259,6 +259,9 @@ ol.stage-line {
 .terms-fields .field {
   align-content: start;
 }
+.terms-agreed {
+  margin: 0;
+}
 .verification-gate {
   font-size: var(--font-caption);
   overflow-wrap: anywhere;
@@ -1052,7 +1055,8 @@ ol.stage-line {
   margin-bottom: var(--space-2);
   font-weight: 600;
 }
-.assistant-review-row {
+/* Outranks .simple-profile form label, which would stack the checkbox. */
+.assistant-review label.assistant-review-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
@@ -1068,8 +1072,14 @@ ol.stage-line {
   min-width: 0;
 }
 .assistant-review-change {
+  display: grid;
+  gap: var(--space-1);
   overflow-wrap: break-word;
   text-wrap: pretty;
+}
+.assistant-review-term {
+  font-size: var(--font-caption);
+  color: var(--muted);
 }
 .assistant-applied {
   color: var(--green-dark);

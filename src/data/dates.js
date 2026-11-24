@@ -119,3 +119,22 @@ export function nextDayKey(key) {
   date.setUTCDate(date.getUTCDate() + 1);
   return date.toISOString().slice(0, 10);
 }
+
+// A time zone people can read, for example "Philippine Standard Time
+// (GMT+8)", instead of the IANA identifier ("Asia/Manila").
+export function timeZoneLabel(zone, at = new Date()) {
+  if (!zone) return "";
+  const part = (timeZoneName) => {
+    try {
+      return new Intl.DateTimeFormat("en", { timeZone: zone, timeZoneName })
+        .formatToParts(at)
+        .find((item) => item.type === "timeZoneName")?.value;
+    } catch {
+      return "";
+    }
+  };
+  const name = part("long");
+  const offset = part("shortOffset");
+  if (!name) return zone;
+  return offset && offset !== name ? `${name} (${offset})` : name;
+}

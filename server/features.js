@@ -7,6 +7,7 @@ import {
   setMentorMilestone,
 } from "../src/data/mentor-room.js";
 import { createInitialState } from "../src/data/model.js";
+import { needsAction } from "../src/data/notifications.js";
 import { randomUUID } from "node:crypto";
 import {
   closeCategories,
@@ -70,10 +71,14 @@ function requestDigestUpdates(items, time) {
       updates.push(item);
       continue;
     }
-    if (Date.parse(timestamp) <= time)
-      digests.set(timestamp, (digests.get(timestamp) || 0) + 1);
+    if (Date.parse(timestamp) <= time) {
+      const digest = digests.get(timestamp) || { count: 0, open: 0 };
+      digest.count += 1;
+      if (!item.handled) digest.open += 1;
+      digests.set(timestamp, digest);
+    }
   }
-  for (const [timestamp, count] of digests) {
+  for (const [timestamp, { count, open }] of digests) {
     updates.push({
       id: `request-digest:${timestamp}`,
       kind: "request-digest",
@@ -81,6 +86,8 @@ function requestDigestUpdates(items, time) {
       timestamp,
       text: `${count} new mentorship ${count === 1 ? "request" : "requests"}`,
       page: "requests",
+      // Every request in the digest has been answered.
+      handled: open === 0,
     });
   }
   return updates;
@@ -137,6 +144,13 @@ export function createFeatures({
           ...state.directory.mentors.filter((person) => !person.cooldownUntil),
         ];
   function notifications(account, state, time = now(), rawRequests = false) {
+    // A request that was accepted, declined, referred, returned or expired no
+    // longer needs the mentor, so its update reads as handled.
+    const pendingRequests = new Set(
+      Object.values(state.introductionMetaByRole?.mentor || {})
+        .map((meta) => meta?.id)
+        .filter(Boolean),
+    );
     const activity = state.activity
       .filter((item) => item.role === state.role)
       .map((item) => ({
@@ -144,6 +158,11 @@ export function createFeatures({
         kind: item.kind || "activity",
         self:
           item.self ?? /^(You\b|Milestone due date updated)/.test(item.text),
+        handled:
+          state.role === "mentor" &&
+          item.kind === "request" &&
+          Boolean(item.requestId) &&
+          !pendingRequests.has(item.requestId),
       }));
     const items = rawRequests ? activity : requestDigestUpdates(activity, time);
     const add = (id, text, roomId, kind, matchId, timing = {}) =>
@@ -556,7 +575,12 @@ export function createFeatures({
           category: group,
           muted,
           digested,
-          read: read.has(item.id) || Boolean(item.self) || muted || digested,
+          read:
+            read.has(item.id) ||
+            Boolean(item.self) ||
+            muted ||
+            digested ||
+            Boolean(item.handled),
         };
       })
       .sort(
@@ -1082,6 +1106,7 @@ export function createFeatures({
     state.toast = "";
     state.toastType = "success";
     state.toastTitle = "";
+    state.toastField = false;
     state.formErrors = null;
     state.confirmation = "";
     if (mentoringForms.has(input.form)) {
@@ -1957,9 +1982,34 @@ export function createFeatures({
     save();
     return response(account, input.role);
   }
+  // Acting in a room means its informational notices (accepted, goal
+  // confirmed, session held) have been seen. Notices that ask for action, and
+  // released reviews, stay unread until handled (readiness plan P7).
+  function readRoomNotices(account, state, roomId) {
+    if (!roomId || !state.rooms?.[roomId] || !state.notifications) return false;
+    const seen = state.notifications.filter(
+      (item) =>
+        item.roomId === roomId &&
+        !item.read &&
+        !item.self &&
+        !needsAction(item) &&
+        item.kind !== "review-release",
+    );
+    if (!seen.length) return false;
+    account.readNotifications = [
+      ...new Set([
+        ...(account.readNotifications || []),
+        ...seen.map((item) => item.id),
+      ]),
+    ].slice(-10000);
+    for (const item of seen) item.read = true;
+    return true;
+  }
+
   return {
     decorate,
     rememberNotifications,
+    readRoomNotices,
     scheduledEmails,
     vocabulary,
     suggestTags,

@@ -14,16 +14,26 @@ export default function HomeMetrics() {
   const completed = roleRooms(state).filter((room) =>
     ["launched", "reviewed"].includes(room.status),
   ).length;
+  const kind = mentor ? "Mentorships" : "Collaborations";
   const metrics = [
-    {
-      label: "Active Deal Rooms",
-      icon: "rooms",
-      value: rooms.length,
-      detail: rooms.length
-        ? `${mentor ? "Mentorships" : "Collaborations"} in progress${completed ? ` · ${completed} completed` : ""}`
-        : "Connect with someone to open a room",
-      destination: { page: "rooms" },
-    },
+    // Once nothing is active, finished work still shows on Home.
+    !rooms.length && completed
+      ? {
+          label: `Completed ${kind.toLowerCase()}`,
+          icon: "check",
+          value: completed,
+          detail: "Agreements and reviews stay in Rooms",
+          destination: { page: "rooms" },
+        }
+      : {
+          label: "Active rooms",
+          icon: "rooms",
+          value: rooms.length,
+          detail: rooms.length
+            ? `${kind} in progress${completed ? ` · ${completed} completed` : ""}`
+            : "Connect with someone to open a room",
+          destination: { page: "rooms" },
+        },
     {
       label: "Introductions to answer",
       icon: "people",
@@ -47,12 +57,19 @@ export default function HomeMetrics() {
       destination: { page: "discover", matchTab: "saved" },
     },
   ];
+  // A tile that would only say 0 is left out; the introductions tile stays
+  // while sent introductions are waiting (readiness plan P8).
+  const shown = metrics.filter(
+    ({ label, value }) =>
+      value > 0 || (label === "Introductions to answer" && outgoing > 0),
+  );
+  if (!shown.length) return null;
   return (
     <section
       className="workspace-metrics"
       aria-label={mentor ? "Mentoring overview" : "Workspace overview"}
     >
-      {metrics.map(({ label, icon, value, detail, destination }) => (
+      {shown.map(({ label, icon, value, detail, destination }) => (
         <button
           className="workspace-metric interactive-surface"
           key={label}

@@ -11,6 +11,7 @@ import {
   user,
   sharedTerms,
 } from "./founder-browser-helpers.js";
+import { selectValue } from "./ui-helpers.js";
 test.setTimeout(60000);
 const audit = async (page) => {
   await expect(page.locator(".saving-indicator")).toHaveCount(0);
@@ -97,7 +98,10 @@ test("ongoing advisory exposes goals, fixed check-ins and blind cycle reviews", 
   await page.getByRole("tab", { name: "Overview" }).click();
   // Each 1–5 scale is chosen explicitly; nothing defaults to 5.
   for (const label of ["Usefulness", "Clarity", "Responsiveness"])
-    await page.getByLabel(label, { exact: true }).selectOption("4");
+    await selectValue(
+      page.getByRole("combobox", { name: label, exact: true }),
+      "4",
+    );
   await page.getByLabel("Cycle review note").fill("Helpful cycle");
   await page
     .getByRole("button", { name: "Submit private cycle review" })
@@ -179,9 +183,12 @@ test("audit surfaces support axe and keyboard task cards, milestone menus, dialo
   await audit(page);
   await page.keyboard.press("Escape");
   await expect(flag).toBeFocused();
+  // The first milestone can be confirmed with the terms, so use the last one
+  // that needs no proof: it always has an earlier milestone still open.
   const later = page
     .locator(".milestone")
-    .nth(1)
+    .filter({ hasNot: page.locator(".proof-label") })
+    .last()
     .getByRole("button", { name: /^Mark as done/ });
   await later.focus();
   await page.keyboard.press("Enter");

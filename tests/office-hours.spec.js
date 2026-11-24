@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { command, getState, open, user } from "./founder-browser-helpers.js";
 import { mentorRequestValues } from "./mentor-request-fixtures.js";
+import { selectValue } from "./ui-helpers.js";
 
 test("Office Hours booking is atomic, displays local time and produces a private calendar feed", async ({
   page,
@@ -36,7 +37,7 @@ test("Office Hours booking is atomic, displays local time and produces a private
   const date = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
   await open(page, mentor, "calendar");
   await page.getByLabel("First date").fill(date);
-  await page.getByLabel("Start time (Asia/Manila)").fill("10:00");
+  await page.getByLabel(/^Start time \(Philippine/).fill("10:00");
   await expect(page.getByLabel("First date")).toHaveAttribute(
     "min",
     /^\d{4}-\d{2}-\d{2}$/,
@@ -162,10 +163,10 @@ test("opening a format-closing slot asks to confirm without an error", async ({
   const date = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
   await open(page, mentor, "calendar");
   await page.getByLabel("First date").fill(date);
-  await page.getByLabel("Start time (Asia/Manila)").fill("18:00");
+  await page.getByLabel(/^Start time \(Philippine/).fill("18:00");
   // A weekly 45-minute slot always leaves too few hours at 4 h for a new
   // 8-week advisory cycle.
-  await page.getByLabel("Duration").selectOption("45");
+  await selectValue(page.getByRole("combobox", { name: "Duration" }), "45");
   await page.getByLabel("Repeat weekly").check();
   await page.getByRole("button", { name: "Open slot" }).click();
   await expect(

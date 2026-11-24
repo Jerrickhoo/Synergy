@@ -1,4 +1,5 @@
 import { profileEntries } from "./profile-content.js";
+import { canonicalTags } from "./collaboration.js";
 export const stageLabel = (stage) =>
   ({ idea: "Idea", "pre-seed": "Pre-seed", seed: "Seed", growth: "Growth" })[
     stage
@@ -57,8 +58,32 @@ const profileFactorCount = 5;
 // What this profile offers of your needs: shared standard tags, or else the
 // need items Need fit matched word for word. Cards and match details both use
 // it, so they always name the same help. Empty when Need fit is 0.
+// For a mentor viewing a startup: the startup's needs that the mentor's own
+// offer covers, compared by wording and by standard tag. A mentor receives
+// nothing in a mentorship, so the exchange's "you get" is always empty there.
+export function needsYouCover(person, mentorOffer) {
+  const normalize = (value) => String(value).trim().toLowerCase();
+  const offered = String(mentorOffer || "")
+    .split(",")
+    .map(normalize)
+    .filter(Boolean);
+  const offeredTags = canonicalTags(mentorOffer);
+  return (person.need || []).filter(
+    (need) =>
+      offered.includes(normalize(need)) ||
+      canonicalTags(need).some((tag) => offeredTags.includes(tag)),
+  );
+}
 export function offeredToYou(person) {
   const youGet = person.exchange?.youGet || [];
+  const ownWords = person.exchange?.matchedNeeds || [];
+  // Lead with the need items in the founder's own wording. A shared standard
+  // tag is added only when none of those items already maps to it, so
+  // "Onboarding guidance" never reads as the vaguer "Mentorship".
+  if (youGet.length && ownWords.length) {
+    const named = new Set(canonicalTags(ownWords.join(", ")));
+    return [...ownWords, ...youGet.filter((tag) => !named.has(tag))];
+  }
   if (youGet.length) return youGet;
   const need = person.factorScores?.[0];
   return typeof need === "number" && need > 0
@@ -66,15 +91,21 @@ export function offeredToYou(person) {
     : [];
 }
 // Lead with the exchange, then name any weak factor plainly (I-10).
-export function fitSummary(person, factors) {
+// `covered` is set when a mentor views a startup (see needsYouCover).
+export function fitSummary(person, factors, covered = null) {
   const rows = fitFactors(person, factors);
   if (rows.every((row) => row.score === null))
     return "There is not enough information to explain this fit yet. Read the profile and ask about the help you need.";
   const need = rows.find((row) => row.index === 0);
   const youGet = offeredToYou(person);
   const theyGet = person.exchange?.theyGet || [];
-  const lead =
-    youGet.length && theyGet.length
+  const lead = covered
+    ? covered.length
+      ? `They need help you offer: ${covered.join(" and ")}.`
+      : need && need.score !== null && need.score >= 30
+        ? "Their needs partly overlap with what you offer."
+        : "Their needs don’t clearly match what you offer."
+    : youGet.length && theyGet.length
       ? `Strong two-way exchange: they offer ${youGet.join(" and ")}, and you offer ${theyGet.join(" and ")}.`
       : youGet.length
         ? `They offer what you need: ${youGet.join(" and ")}.`

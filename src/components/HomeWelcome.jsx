@@ -66,30 +66,16 @@ function pickGreeting(date = new Date()) {
   return lines[Math.floor(Math.random() * lines.length)];
 }
 
-const STACK_LIMIT = 8;
-
-// One plain person icon per match, so the count reads as people at a glance.
-function PeopleStack({ count }) {
-  const shown = Math.min(count, STACK_LIMIT);
-  const extra = count - shown;
-  return (
-    <span className="people-stack" aria-hidden="true">
-      {Array.from({ length: shown }, (_, index) => (
-        <span className="people-stack-item" key={index}>
-          <Icon name="profile" />
-        </span>
-      ))}
-      {extra > 0 && (
-        <span className="people-stack-item people-stack-more">+{extra}</span>
-      )}
-    </span>
-  );
-}
-
 export default function HomeWelcome() {
   const { state, model, onAction } = useApp();
   const next = homeNextStep(state);
   const status = statusLine(state, model);
+  // With nothing specific to do, the strongest-matches list below leads and
+  // its "See all matches" is the page's main action (readiness plan P3).
+  const matchesLead =
+    next.generic &&
+    !activeRooms(state).length &&
+    model.suggestedMatches().length > 0;
   const [greeting] = useState(pickGreeting);
   const firstName = state.accountName ? state.accountName.split(" ")[0] : "";
   // A founder who chose the sample startup and hasn't rewritten it yet is
@@ -105,7 +91,6 @@ export default function HomeWelcome() {
           {firstName ? `${greeting}, ${firstName}` : "Welcome to Synergy"}
         </h1>
         <p className={`intro home-status${status.urgent ? " urgent" : ""}`}>
-          {status.count ? <PeopleStack count={status.count} /> : null}
           <span>
             {status.count ? (
               <strong className="home-status-count">{status.count}</strong>
@@ -139,19 +124,21 @@ export default function HomeWelcome() {
           </p>
         )}
       </header>
-      <section className="home-next" aria-label="Your next step">
-        <div className="home-next-copy">
-          <h2>{next.title}</h2>
-          {next.detail && <p>{next.detail}</p>}
-        </div>
-        <button
-          className="btn primary home-next-go"
-          onClick={() => onAction(next.command)}
-        >
-          {next.label}
-          <Icon name="arrow" />
-        </button>
-      </section>
+      {!matchesLead && (
+        <section className="home-next" aria-label="Your next step">
+          <div className="home-next-copy">
+            <h2>{next.title}</h2>
+            {next.detail && <p>{next.detail}</p>}
+          </div>
+          <button
+            className="btn primary home-next-go"
+            onClick={() => onAction(next.command)}
+          >
+            {next.label}
+            <Icon name="arrow" />
+          </button>
+        </section>
+      )}
       <Confirmation />
     </>
   );

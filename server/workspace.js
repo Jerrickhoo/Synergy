@@ -22,6 +22,7 @@ import {
 } from "../src/data/selectors.js";
 import { validateCredentials, cleanValues } from "../src/state/validation.js";
 import { transition } from "../src/state/transitions.js";
+import { completeTermsMilestones } from "../src/data/terms.js";
 import { encode, decode } from "../src/state/serialization.js";
 import {
   calendarActions,
@@ -52,7 +53,16 @@ import {
   nextRequestDigest,
   parseUnsubscribe,
 } from "./mentor-email.js";
-import { logEvent } from "./operations.js";
+import {
+  authEmailAllowed,
+  authEmailWanted,
+  linkCooldown,
+  linkRecentlySent,
+  liveLink,
+  queueAuthEmail,
+  readAuthLinkToken,
+} from "./auth-email.js";
+import { logEvent, logFailure } from "./operations.js";
 import { createMentorSafety, safetyActions } from "./mentor-safety.js";
 import { createMentorshipRooms } from "./mentorship-rooms.js";
 import { createMentorPayments, paymentActions } from "./mentor-payments.js";
@@ -89,6 +99,7 @@ import {
   capacityUsage,
   conflictWith,
   formatFit,
+  guidelinesStatus,
   mentorConfig,
   mentorDefaults,
   ownUnavailableText,
@@ -99,6 +110,8 @@ import {
   demoProfiles,
   legacyDemoProfiles,
   demoDirectoryVersion,
+  previewMentorName,
+  sampleMentorRequest,
   seedDemoImpact,
 } from "./demo-directory.js";
 
@@ -415,11 +428,30 @@ export function createWorkspace(file, options = {}) {
       "Unsupported workspace database. Existing data was not changed.",
     );
   const sessions = new Map();
+  // Sign-in emails (verification, password reset, sign-in alerts) need a real
+  // provider; with the stub nobody is asked to verify.
+  const emailAuth = options.emailProvider === "brevo" && !options.demoMode;
+  const emailUnverified = (account) =>
+    emailAuth && !account.demo && !account.emailVerifiedAt;
   const mentorSettings = () =>
     db.mentorConfig ? { ...mentorConfig, ...db.mentorConfig } : mentorConfig;
   db.files ||= {};
   const hash = (value) => createHash("sha256").update(value).digest("hex");
   let committed = clone(db);
+  // Another server can share this database (for example `npm run dev` beside
+  // `npm start`). Before acting, pick up whatever it committed, so this
+  // server's next save starts from the current revision instead of being
+  // refused as out of date.
+  function refresh() {
+    const onDisk = storage.revision();
+    if (onDisk === null || onDisk === db.revision) return false;
+    const fresh = storage.load();
+    if (fresh.version !== 1 || !fresh.accounts) return false;
+    fresh.files ||= {};
+    db = fresh;
+    committed = clone(db);
+    return true;
+  }
   const save = () => {
     try {
       for (const { state } of Object.values(db.accounts)) {
@@ -1091,18 +1123,29 @@ export function createWorkspace(file, options = {}) {
       `${mine.need || ""} ${mine.needTags || ""}`,
       String(profile.need || ""),
     ].some((need) => /beta|tester|testing/i.test(need));
-    const { mentorship, ...trust } = trustSummary(
-      account.state.rooms,
-      role,
-      now(),
-      {
-        requests: account.state.mentorRequestsByRole?.[role] || [],
-        pending:
-          role === "mentor" ? account.state.incomingByRole.mentor.size : 0,
-        approved: role === "mentor" && onboarding.approved(account),
-        config: mentorSettings(),
-      },
-    );
+    // Fictional sample partners are shared by every preview account, so their
+    // rooms also hold other testers' sessions and ratings. Only their seeded
+    // sample history counts, so one tester's review never shapes the next
+    // tester's view of the same startup or mentor.
+    const fictional = Boolean(account.demoSample);
+    const rooms = fictional
+      ? Object.fromEntries(
+          Object.entries(account.state.rooms).filter(
+            ([, room]) => room.mentorship?.sample,
+          ),
+        )
+      : account.state.rooms;
+    const { mentorship, ...trust } = trustSummary(rooms, role, now(), {
+      requests: fictional
+        ? []
+        : account.state.mentorRequestsByRole?.[role] || [],
+      pending:
+        role === "mentor" && !fictional
+          ? account.state.incomingByRole.mentor.size
+          : 0,
+      approved: role === "mentor" && onboarding.approved(account),
+      config: mentorSettings(),
+    });
     const mentorStats = publicMentorshipTrust(mentorship, mentorSettings());
     return {
       id: identity(account, role),
@@ -1239,12 +1282,18 @@ export function createWorkspace(file, options = {}) {
     state.mentorSuspension =
       state.role === "mentor" ? account.mentorSuspension || null : null;
     state.emailVerified = Boolean(account.emailVerifiedAt);
+    // When the banner may send another verification link.
+    const linkSentAt = Date.parse(account.emailVerification?.sentAt);
+    state.emailVerificationRetryAt = Number.isFinite(linkSentAt)
+      ? new Date(linkSentAt + linkCooldown).toISOString()
+      : null;
     state.integrations = {
       demoMode: Boolean(options.demoMode),
       guest: Boolean(account.demo),
       maxFileBytes: options.maxFileBytes || 5 * 1024 * 1024,
       moderation: Boolean(options.adminEmails?.length),
       requireVerification: Boolean(options.requireVerification),
+      emailAuth,
     };
     state.firstRunChoice = Boolean(
       account.firstRunChoice && state.role === "founder",
@@ -1412,6 +1461,7 @@ export function createWorkspace(file, options = {}) {
   function response(account, role) {
     const state = prepare(account, role);
     if (features.rememberNotifications(account, state)) save();
+    if (features.readRoomNotices(account, state, actingRoomId)) save();
     for (const room of Object.values(state.rooms)) {
       for (const cycle of [...(room.cycleHistory || []), room.cycle].filter(
         Boolean,
@@ -1491,7 +1541,8 @@ export function createWorkspace(file, options = {}) {
     });
     return { ...response(account), token };
   }
-  function login(values, signup = false, derived) {
+  // `context.device` describes the browser for the sign-in alert.
+  function login(values, signup = false, derived, context = {}) {
     values = {
       ...cleanValues(values),
       password: String(values.password || ""),
@@ -1527,6 +1578,7 @@ export function createWorkspace(file, options = {}) {
       if (values.role === "mentor" || values.role === "both")
         onboarding.begin(account);
       db.accounts[account.id] = account;
+      if (emailAuth) queueAuthEmail(db, account, "verify-email", now());
       save();
     } else {
       if (derived && derived.expected !== account?.passwordHash)
@@ -1547,9 +1599,19 @@ export function createWorkspace(file, options = {}) {
         "This account is unavailable. Contact the workspace moderator.",
         403,
       );
+    if (
+      !signup &&
+      emailAuth &&
+      authEmailAllowed(account, "sign-in-alert") &&
+      queueAuthEmail(db, account, "sign-in-alert", now(), {
+        at: new Date(now()).toISOString(),
+        device: context.device || "",
+      })
+    )
+      save();
     return openSession(account);
   }
-  async function loginAsync(values, signup = false) {
+  async function loginAsync(values, signup = false, context) {
     const errors = validateCredentials(values, signup);
     if (Object.keys(errors).length)
       fail("Check your account details.", 400, errors);
@@ -1564,12 +1626,19 @@ export function createWorkspace(file, options = {}) {
       salt,
       64,
     );
-    return login(values, signup, {
-      salt,
-      hash: bytes.toString("hex"),
-      candidate: bytes,
-      expected: account?.passwordHash,
-    });
+    const result = login(
+      values,
+      signup,
+      {
+        salt,
+        hash: bytes.toString("hex"),
+        candidate: bytes,
+        expected: account?.passwordHash,
+      },
+      context,
+    );
+    deliverSoon();
+    return result;
   }
   // Role-preview accounts. With credentials, the same email and password lead
   // back to the same preview account; without them (scripts and tests) every
@@ -1592,7 +1661,8 @@ export function createWorkspace(file, options = {}) {
   function seedPreview(state, role, { sample = true } = {}) {
     state.role = role;
     state.profileDone = true;
-    state.accountName = role === "founder" ? sampleFounderName : "David Park";
+    state.accountName =
+      role === "founder" ? sampleFounderName : previewMentorName;
     Object.assign(state.profiles.founder, sampleFounderProfile);
     Object.assign(state.profiles.mentor, {
       bio: "Helping early teams improve their products and find traction.",
@@ -1601,7 +1671,8 @@ export function createWorkspace(file, options = {}) {
       expertise: "Product strategy, Growth",
       availability: "Monthly sessions",
       startups: "Idea and pre-seed teams",
-      image: "/demo/avatars/david.svg",
+      // Initials, not a sample mentor's illustration (see previewMentorName).
+      image: "",
       noConflicts: true,
       // The guided preview starts ready to mentor, but nobody accepted the
       // guidelines for it: it gets the grace period, and Home asks the
@@ -1660,6 +1731,14 @@ export function createWorkspace(file, options = {}) {
             { reason: "role-switch", currentRole: current },
           );
         existing.state.role = role;
+        // Earlier mentor previews shared the sample mentor's name and picture.
+        if (existing.state.accountName === "David Park") {
+          existing.state.accountName = previewMentorName;
+          if (
+            existing.state.profiles.mentor?.image === "/demo/avatars/david.svg"
+          )
+            existing.state.profiles.mentor.image = "";
+        }
         save();
         return openSession(existing);
       }
@@ -1686,6 +1765,9 @@ export function createWorkspace(file, options = {}) {
     seedPreview(state, role, { sample: given?.sample !== false });
     state.accountEmail = given ? email : account.email;
     db.accounts[account.id] = account;
+    // A mentor signing in for the first time has one request to try.
+    if (given && role === "mentor")
+      mentorRequests.seedSampleRequest(account, sampleMentorRequest);
     save();
     return openSession(account);
   }
@@ -1977,7 +2059,11 @@ export function createWorkspace(file, options = {}) {
     ) {
       room.terms.partnerLocked = true;
       room.status = "in-progress";
+      completeTermsMilestones(room);
       said.push("accepted the shared terms");
+      // Replaces "Your partner can now review and confirm them" from
+      // lock-terms: a fictional partner has already agreed.
+      state.confirmation = `${name} agreed to the terms. Start on the milestones together.`;
     }
     for (const item of Object.values(room.milestones)) {
       if (item.proposal && item.proposal.proposedBy === account.id) {
@@ -2104,7 +2190,13 @@ export function createWorkspace(file, options = {}) {
         request?.desiredOutcome ||
           request?.question ||
           request?.note ||
+          // A mentor's own outreach carries no request: start from the
+          // startup's stated goal. The mentor's note pitches their help and
+          // is not the founder's goal, so it is used only when none is set.
+          (state.role === "mentor" && other.state.profiles.founder?.goals) ||
           previous?.note ||
+          // A founder accepting a mentor's outreach starts from their own goal.
+          (state.role === "founder" && state.profiles.founder?.goals) ||
           "",
         now(),
       );
@@ -2206,16 +2298,39 @@ export function createWorkspace(file, options = {}) {
     }
     return room;
   }
+  // With sign-in email on, a new account does nothing until its email is
+  // verified; reading its state stays open so the client sees the change.
+  function requireVerifiedEmail(account) {
+    if (emailUnverified(account))
+      fail(
+        "Verify your email to start using Synergy. Open the link we emailed you, or send a new one.",
+        403,
+        undefined,
+        { reason: "email-unverified" },
+      );
+  }
+  // The room the current action was taken in; its informational notices are
+  // read in the response (readiness plan P7).
+  let actingRoomId = null;
   function act(token, input, uploadedFile, avatar) {
+    actingRoomId =
+      input?.roomOpen === true &&
+      typeof input.activeRoomId === "string" &&
+      input.action !== "read-notifications"
+        ? input.activeRoomId
+        : null;
     try {
       return actInternal(token, input, uploadedFile, avatar);
     } catch (error) {
       db = clone(committed);
       throw error;
+    } finally {
+      actingRoomId = null;
     }
   }
   function actInternal(token, input, uploadedFile, avatar) {
     const account = authenticate(token);
+    requireVerifiedEmail(account);
     if (input.action === "first-run-choice")
       return chooseFirstRun(account, input);
     if (paymentActions.has(input.action)) {
@@ -2227,6 +2342,7 @@ export function createWorkspace(file, options = {}) {
       state.toastType = "success";
       delete state.officeSlotCheck;
       state.toastTitle = "";
+      state.toastField = false;
       state.formErrors = null;
       payments.act(account, state, input);
       account.state = state;
@@ -2252,6 +2368,7 @@ export function createWorkspace(file, options = {}) {
       state.toastType = "success";
       delete state.officeSlotCheck;
       state.toastTitle = "";
+      state.toastField = false;
       state.formErrors = null;
       state.confirmation = "";
       // Only room commands and Office Hours bookings go through the payment
@@ -2320,6 +2437,7 @@ export function createWorkspace(file, options = {}) {
     state.toastType = "success";
     delete state.officeSlotCheck;
     state.toastTitle = "";
+    state.toastField = false;
     state.confirmation = "";
     state.formErrors = null;
     if (input.form !== "profile-form") state.profileWentLive = false;
@@ -2731,6 +2849,7 @@ export function createWorkspace(file, options = {}) {
       room.terms.confirmedByMe = true;
       room.terms.partnerLocked = true;
       room.status = "in-progress";
+      completeTermsMilestones(room);
       state.toast = "Terms confirmed by both collaborators.";
       partnerText = `${displayName(account, state.role)} accepted the shared terms. Work can begin.`;
     } else if (input.action === "resolve-dispute") {
@@ -2993,8 +3112,15 @@ export function createWorkspace(file, options = {}) {
           fetcher: options.emailFetch,
         })
       : null;
+  // A notice can be resolved between queueing and delivery, e.g. a mentor
+  // accepts the guidelines right after completing the profile.
+  const emailResolved = (account, entry) =>
+    entry.kind === "guidelines-required" &&
+    guidelinesStatus(account.state?.profiles?.mentor, now(), mentorSettings())
+      .status === "accepted";
   let maintenance = null;
   async function maintain() {
+    refresh();
     let changed = sweepMentorship();
     for (const account of Object.values(db.accounts)) {
       if (account.deletedAt) continue;
@@ -3004,19 +3130,29 @@ export function createWorkspace(file, options = {}) {
     }
     if (recordMentoringWeek(db, now())) changed = true;
     if (changed) save();
+    await deliver();
+  }
+  const signInEmail = (entry) => entry.key.includes(":auth-email:");
+  // Send what is due now. Safe to run alongside another delivery: each entry
+  // is claimed (attempts and availableAt move on) before the provider call.
+  async function deliver() {
     if (!brevoSender) return;
+    refresh();
     // Claim a bounded batch before awaiting the provider. Each completion
     // resolves against the current database, which may have been changed by
-    // an account action while delivery was in flight.
+    // an account action while delivery was in flight. Sign-in emails go
+    // first: someone is waiting for them.
     const ready = (db.outbox || [])
       .filter(
         (entry) =>
-          entry.key.includes(":mentor-email:") &&
+          (entry.key.includes(":mentor-email:") || signInEmail(entry)) &&
           entry.status === "pending" &&
           Date.parse(entry.availableAt) <= now(),
       )
+      .sort((a, b) => signInEmail(b) - signInEmail(a))
       .slice(0, 20);
     for (const listed of ready) {
+      refresh();
       const entry = db.outbox.find((item) => item.id === listed.id);
       if (
         !entry ||
@@ -3025,7 +3161,12 @@ export function createWorkspace(file, options = {}) {
       )
         continue;
       const account = db.accounts[entry.accountId];
-      if (!emailKindAllowed(account, entry.kind)) {
+      if (
+        signInEmail(entry)
+          ? !authEmailWanted(account, entry, now())
+          : !emailKindAllowed(account, entry.kind) ||
+            emailResolved(account, entry)
+      ) {
         entry.status = "skipped";
         save();
         continue;
@@ -3040,6 +3181,7 @@ export function createWorkspace(file, options = {}) {
         id: account.id,
         email: account.email,
       });
+      refresh();
       const saved = db.outbox.find((item) => item.id === entry.id);
       if (
         !saved ||
@@ -3067,6 +3209,143 @@ export function createWorkspace(file, options = {}) {
       save();
     }
   }
+  // Start delivering a just-queued sign-in email without waiting for the
+  // minute timer. The request never waits on, or fails because of, Brevo.
+  function deliverSoon() {
+    if (brevoSender)
+      deliver().catch((error) => logFailure("email_delivery_failed", error));
+  }
+  // A link email is checked twice around the slow password hash; the same
+  // message covers a forged, replaced, used or expired link.
+  function linkAccount(token, kind, message) {
+    const parsed =
+      emailAuth && readAuthLinkToken(token, kind, options.brevoWebhookSecret);
+    const account =
+      parsed && Object.hasOwn(db.accounts, parsed.accountId)
+        ? db.accounts[parsed.accountId]
+        : null;
+    if (!account || account.deletedAt) fail(message, 410);
+    return { account, nonce: parsed.nonce };
+  }
+  const resetLinkUnavailable =
+    "This reset link has expired or was already used.";
+  const emailAccount = {
+    resendVerification(token) {
+      if (!emailAuth) fail("Email verification is unavailable.", 404);
+      const account = authenticate(token);
+      if (account.demo) fail("Preview accounts don't need verifying.", 409);
+      if (!account.emailVerifiedAt) {
+        if (!authEmailAllowed(account, "verify-email"))
+          fail(
+            "We can't deliver email to this address. Contact the workspace moderator.",
+            409,
+          );
+        if (linkRecentlySent(account, "verify-email", now()))
+          fail(
+            "We sent you a link less than a minute ago. Check your inbox and spam folder.",
+            429,
+          );
+        queueAuthEmail(db, account, "verify-email", now());
+        save();
+        deliverSoon();
+      }
+      return response(account);
+    },
+    // Works signed in or not, e.g. when the link is opened on a phone. An
+    // already verified account accepts any of its own links, so a second
+    // click (or React's double effect) still succeeds.
+    verifyEmail(token) {
+      if (!emailAuth) fail("Email verification is unavailable.", 404);
+      const { account, nonce } = linkAccount(
+        token,
+        "verify-email",
+        "This verification link isn't valid.",
+      );
+      if (!account.emailVerifiedAt) {
+        if (!liveLink(account, "verify-email", nonce, now()))
+          fail(
+            "This verification link has expired or is no longer valid.",
+            410,
+          );
+        account.emailVerifiedAt = new Date(now()).toISOString();
+        delete account.emailVerification;
+        save();
+      }
+      return { verified: true };
+    },
+    // The same answer whether or not the address has an account.
+    requestPasswordReset(email) {
+      if (!emailAuth) fail("Password reset by email is unavailable.", 404);
+      const address = String(email ?? "")
+        .trim()
+        .toLowerCase();
+      if (address.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address))
+        fail("Check your email address.", 400, {
+          email: "Enter a valid email address.",
+        });
+      const account = Object.values(db.accounts).find(
+        (item) => item.email === address && !item.demo && !item.deletedAt,
+      );
+      if (
+        account &&
+        authEmailAllowed(account, "password-reset") &&
+        !linkRecentlySent(account, "password-reset", now())
+      ) {
+        queueAuthEmail(db, account, "password-reset", now());
+        save();
+        deliverSoon();
+      }
+      return { ok: true };
+    },
+    // Sets the new password, signs out every session and opens a new one.
+    async resetPasswordAsync(token, password) {
+      if (!emailAuth) fail("Password reset by email is unavailable.", 404);
+      if (typeof password !== "string" || password.trim().length < 8)
+        fail("Choose a new password.", 400, {
+          password: "Use at least 8 characters for your password.",
+        });
+      if (password.length > 1024)
+        fail("Choose a new password.", 400, {
+          password: "Use a password with at most 1,024 characters.",
+        });
+      const live = () => {
+        const { account, nonce } = linkAccount(
+          token,
+          "password-reset",
+          resetLinkUnavailable,
+        );
+        if (!liveLink(account, "password-reset", nonce, now()))
+          fail(resetLinkUnavailable, 410);
+        if (account.suspended)
+          fail(
+            "This account is unavailable. Contact the workspace moderator.",
+            403,
+          );
+        return { account, nonce };
+      };
+      const before = live();
+      const salt = randomBytes(16).toString("hex");
+      const hash = (await promisify(scrypt)(password, salt, 64)).toString(
+        "hex",
+      );
+      // The link may have been used or replaced while hashing.
+      const { account, nonce } = live();
+      if (account !== before.account || nonce !== before.nonce)
+        fail(resetLinkUnavailable, 410);
+      account.salt = salt;
+      account.passwordHash = hash;
+      delete account.passwordReset;
+      // Opening the emailed link also proves the address.
+      if (!account.emailVerifiedAt) {
+        account.emailVerifiedAt = new Date(now()).toISOString();
+        delete account.emailVerification;
+      }
+      for (const [key, session] of sessions)
+        if (session.id === account.id) sessions.delete(key);
+      save();
+      return openSession(account);
+    },
+  };
 
   const accounts = accountControls({
     closeMentorship: (...args) => mentorshipRooms.end(...args),
@@ -3091,6 +3370,7 @@ export function createWorkspace(file, options = {}) {
   });
   return {
     health: () => storage.health(),
+    refresh,
     paymentWebhook(body, signature) {
       try {
         const result = payments.webhook(body, signature);
@@ -3106,6 +3386,7 @@ export function createWorkspace(file, options = {}) {
     features,
     login,
     loginAsync,
+    ...emailAccount,
     openDemo,
     async openDemoAsync(role, credentials) {
       // Hash off the event loop first, exactly like loginAsync, then reuse the
@@ -3129,6 +3410,7 @@ export function createWorkspace(file, options = {}) {
     act,
     authorizeProfile(token, input, size = 0) {
       const account = authenticate(token);
+      requireVerifiedEmail(account);
       if (
         input.form !== "profile-form" ||
         input.action ||
@@ -3247,6 +3529,7 @@ export function createWorkspace(file, options = {}) {
     logout: (token) => sessions.delete(token),
     authorizeUpload(token, input, size = 0) {
       const account = authenticate(token);
+      requireVerifiedEmail(account);
       const room = account.state.rooms[input.activeRoomId];
       const mentoringUpload =
         isMentorRoom(room) &&

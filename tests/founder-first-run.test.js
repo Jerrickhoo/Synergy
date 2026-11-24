@@ -528,5 +528,5 @@ test("D6: a mentorship room has one name in the breadcrumb for both roles", () =
     "Mentorship room",
   );
   assert.equal(pageLabel("room-detail", "founder", "beta"), "Deal Room");
-  assert.equal(pageLabel("rooms", "founder"), "Deal Rooms");
+  assert.equal(pageLabel("rooms", "founder"), "Rooms");
 });

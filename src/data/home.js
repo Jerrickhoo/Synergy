@@ -110,6 +110,8 @@ export function homeNextStep(state, now = new Date()) {
       : "Explore people whose skills and goals connect with yours.",
     label: mentor ? "Explore startups" : "Explore matches",
     command: { page: "discover" },
+    // Nothing specific to do: Home can let the match list lead instead.
+    generic: true,
   };
 }
 

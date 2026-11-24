@@ -9,6 +9,7 @@ import {
 } from "../data/request-assistant.js";
 import VerificationGate from "./VerificationGate.jsx";
 import { verificationRequired } from "../data/collaboration.js";
+import SelectField from "./SelectField.jsx";
 
 export function MentorAlternatives({ alternatives, referralId }) {
   const { onAction } = useApp();
@@ -203,7 +204,7 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
           <label htmlFor="mentor-request-format">
             Which format do you prefer?
           </label>
-          <select
+          <SelectField
             id="mentor-request-format"
             name="format"
             value={draft.format}
@@ -221,7 +222,7 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
                 </option>
               );
             })}
-          </select>
+          </SelectField>
           {person.formats
             ?.filter(({ id }) => id !== "office-hours" && !formats.includes(id))
             .map(({ id }) => (
@@ -248,7 +249,15 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
             {errors?.links || "Add up to five links, one per line."}
           </p>
         </div>
-        <section className="mentoring-banner" aria-label="Request assistant">
+        {/* Amber only when the request needs work (readiness plan P6). */}
+        <section
+          className={
+            assistant.score < 60
+              ? "mentoring-banner"
+              : "mentoring-banner request-quality-good"
+          }
+          aria-label="Request assistant"
+        >
           <h3>Request quality {assistant.score}/100</h3>
           {assistant.reasons.length > 0 && (
             <ul>
@@ -289,9 +298,8 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
         <button className="btn primary full" disabled={state.busy || locked}>
           {state.busy ? "Sending…" : "Send mentorship request"}
         </button>
-        <p className="field-help">Only {person.name} will see this request.</p>
         <details className="field-help">
-          <summary>Who sees this request?</summary>
+          <summary>Only {person.name} sees this request</summary>
           <p>
             A referral shares mentor suggestions with you. You choose whether to
             send a new request. If this request is declined, expires or is

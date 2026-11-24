@@ -334,6 +334,7 @@ export function createInitialState() {
     toast: "",
     toastType: "success",
     toastTitle: "",
+    toastField: false,
     toastId: 0,
     rating: 0,
   };

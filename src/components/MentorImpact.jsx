@@ -109,6 +109,20 @@ export default function MentorImpact({
     !trust.highlights?.length
   )
     return null;
+  // Before the first held session, one specific line replaces a grid of
+  // "Not enough data yet" tiles (readiness plan P8).
+  if (!sessions && !metrics.some((data) => hasData(data, min)))
+    return (
+      <section className="card panel section-gap">
+        <h2>Mentoring impact</h2>
+        <MentorshipBadges badges={badges} reliable={trust.reliable} />
+        <p>
+          Your impact appears here after your first held session: sessions,
+          founders helped, mentoring hours and, after {min} reviews, ratings and
+          response rates.
+        </p>
+      </section>
+    );
   return (
     <section className="card panel section-gap">
       <h2>Mentoring impact</h2>
@@ -132,35 +146,35 @@ export default function MentorImpact({
         />
         <Metric
           label="Average rating"
-          hideEmpty={hideEmpty}
+          hideEmpty
           data={trust.averageRating}
           format={rating}
           min={min}
         />
         <Metric
           label="Top-rated skills"
-          hideEmpty={hideEmpty}
+          hideEmpty
           data={trust.topSkills}
           format={(items) => items.join(", ") || "No topics recorded"}
           min={min}
         />
         <Metric
           label="Follow-through rate"
-          hideEmpty={hideEmpty}
+          hideEmpty
           data={trust.followThrough}
           format={percent}
           min={min}
         />
         <Metric
           label="Request response rate"
-          hideEmpty={hideEmpty}
+          hideEmpty
           data={trust.responseRate}
           format={percent}
           min={min}
         />
         <Metric
           label="Median response time"
-          hideEmpty={hideEmpty}
+          hideEmpty
           data={trust.responseHours}
           format={hours}
           min={min}
@@ -169,18 +183,32 @@ export default function MentorImpact({
           <>
             <Metric
               label="No-show rate"
+              hideEmpty
               data={trust.noShowRate}
               format={percent}
               min={min}
             />
             <Metric
               label="Late cancellations in the last 90 days"
+              hideEmpty
               data={trust.lateCancellations}
               min={min}
             />
           </>
         )}
       </dl>
+      {/* Rates wait for enough data; one line says so instead of a tile
+          per rate (readiness plan P8). */}
+      {!hideEmpty &&
+        [
+          ...metrics,
+          ...(privateView ? [trust.noShowRate, trust.lateCancellations] : []),
+        ].some((data) => !hasData(data, min)) && (
+          <p className="muted">
+            Ratings and rates appear once there are at least {min} data points
+            for each.
+          </p>
+        )}
       {trust.testimonials?.length > 0 && (
         <section>
           <h3>Testimonials</h3>

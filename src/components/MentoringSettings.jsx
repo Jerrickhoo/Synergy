@@ -49,6 +49,18 @@ export default function MentoringSettings() {
   };
   const busy = (form) => working === form;
   const locked = Boolean(working) || state.busy;
+  // Pausing returns pending requests to founders, so it asks first.
+  const pending = state.mentorRequests || [];
+  const [confirmPause, setConfirmPause] = useState(false);
+  const pause = (event) => {
+    if (pending.length && !confirmPause) {
+      event.preventDefault();
+      setConfirmPause(true);
+      return;
+    }
+    setConfirmPause(false);
+    return submit(event);
+  };
   const blocked = usage && !usage.available && usage.reason !== "paused";
 
   return (
@@ -90,7 +102,7 @@ export default function MentoringSettings() {
           <form
             data-form="set-mentor-pause"
             className="mentoring-inline"
-            onSubmit={submit}
+            onSubmit={pause}
           >
             <p>
               Stop new requests. Your current mentees are not affected, and
@@ -108,9 +120,41 @@ export default function MentoringSettings() {
                 min={nextDayKey(dayKeyIn(Date.now(), mentor.timeZone))}
               />
             </div>
-            <SubmitButton busy={busy("set-mentor-pause")} busyText="Pausing…">
-              Pause new requests
-            </SubmitButton>
+            {confirmPause ? (
+              <div className="pause-confirm" role="alert">
+                <p>
+                  Pausing returns{" "}
+                  {pending.length === 1
+                    ? `${pending[0].name}'s request`
+                    : `${pending.length} pending requests (${pending.map((request) => request.name).join(", ")})`}
+                  . {pending.length === 1 ? "The founder sees" : "Founders see"}{" "}
+                  "The mentor paused new requests" and other mentors to ask.
+                  {state.integrations?.guest &&
+                    " In this preview, the sample request won't come back."}
+                </p>
+                <div className="mentor-request-controls">
+                  <SubmitButton
+                    primary
+                    busy={busy("set-mentor-pause")}
+                    busyText="Pausing…"
+                  >
+                    Pause and return{" "}
+                    {pending.length === 1 ? "request" : "requests"}
+                  </SubmitButton>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => setConfirmPause(false)}
+                  >
+                    Keep requests open
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <SubmitButton busy={busy("set-mentor-pause")} busyText="Pausing…">
+                Pause new requests
+              </SubmitButton>
+            )}
             <FormErrors scope="set-mentor-pause" />
           </form>
         )}

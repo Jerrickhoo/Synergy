@@ -213,7 +213,7 @@ function ExchangeRoom() {
                 )
               }
             >
-              <Icon name="back" /> All Deal Rooms
+              <Icon name="back" /> All rooms
             </button>
             <details className="room-more">
               <summary className="btn">More</summary>

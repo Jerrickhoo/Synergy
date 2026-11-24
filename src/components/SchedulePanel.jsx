@@ -12,6 +12,7 @@ import {
 } from "../data/planning.js";
 import Icon from "./Icon.jsx";
 import FormErrors from "./FormErrors.jsx";
+import { timeZoneLabel } from "../data/dates.js";
 
 export default function SchedulePanel({ room, partner }) {
   return <SessionPlanner key={room.id} room={room} partner={partner} />;
@@ -243,12 +244,13 @@ function SessionPlanner({ room, partner }) {
               <p className="session-selected-date">{dateLabel}</p>
               <p className="session-zone">
                 <Icon name="clock" />
-                {timeZone}
+                {timeZoneLabel(timeZone)}
               </p>
               {timeZone !== deviceTimeZone && (
                 <p className="series-zone-note">
-                  Enter times in {timeZone}, the saved series timezone. Your
-                  device timezone is {deviceTimeZone}.
+                  Enter times in {timeZoneLabel(timeZone)}, the saved series
+                  timezone. Your device timezone is{" "}
+                  {timeZoneLabel(deviceTimeZone)}.
                 </p>
               )}
               <p className="availability-note">
@@ -371,7 +373,7 @@ function SessionPlanner({ room, partner }) {
               </div>
               <div>
                 <dt>Timezone</dt>
-                <dd>{timeZone}</dd>
+                <dd>{timeZoneLabel(timeZone)}</dd>
               </div>
               <div>
                 <dt>Repeat</dt>

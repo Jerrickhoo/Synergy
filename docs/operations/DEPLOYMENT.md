@@ -66,7 +66,17 @@ Mentorship email defaults to the local stub. To validate transactional email on 
 
 Register a transactional webhook at `/api/email/brevo-webhook` for `hardBounce`, `invalid`, `blocked`, `spam` and `unsubscribed`. Configure bearer authorization with the same webhook secret; Brevo's built-in token option and an explicit `Authorization: Bearer` header both work. The workspace checks it before applying suppression. It retries temporary send failures, including a rejected API key (HTTP 401/403), for up to five attempts over about an hour, logs each failure as `email_delivery_failed`, and stops sending to suppressed addresses. [Brevo secure webhook setup](https://developers.brevo.com/docs/secured-webhooks)
 
-Use dedicated staging accounts to send and accept a mentorship request. Switch one mentor to instant email and verify the other receives a digest at the configured time in their time zone. Confirm the links open the right request or room and that the email contains only notice details. Verify a per-kind unsubscribe and a bounce suppression using the staging provider. The regular server process runs the maintenance and delivery job every minute.
+### Sign-in email
+
+With Brevo enabled, the same configuration also sends three sign-in emails. They ignore mentorship email preferences and carry no unsubscribe link, but stop for bounced addresses; sign-in alerts also stop after a spam complaint or full unsubscribe.
+
+- **Email verification.** Signup emails a link that works for 24 hours. Until it is opened, the account sees only a "Check your inbox" screen that offers a new link (at most one a minute, with a countdown) and a way to sign out. The server refuses every action, profile save and upload with reason `email-unverified`; reading the account state stays open, so the screen opens the workspace as soon as the link is opened, even on another device. Accounts that existed before Brevo was enabled are unverified and must verify on their next visit. Preview accounts are exempt, and with the stub nobody is asked to verify.
+- **Password reset.** "Forgot password?" on the sign-in page emails a link that works once, for 1 hour. The response is the same whether or not the address has an account. Saving a new password signs out every session, signs in on the current one and marks the email as verified.
+- **Sign-in alert.** Each successful password sign-in emails the time (UTC) and a coarse browser and platform, such as "Chrome on Windows", with a link to reset the password. Signup and password reset don't send one.
+
+Links are signed with `BREVO_WEBHOOK_SECRET` and name a nonce stored on the account. Asking again while a link is live sends the same link with a fresh expiry, so every email in the inbox works; using a reset link, verifying, or letting the link expire ends it. Rotating the secret invalidates every outstanding link. Sign-in emails are sent right after the request and go ahead of mentorship emails in each delivery batch; failures retry like any other email. The `/api/auth/*` endpoints share the sign-in rate limit and return 404 without Brevo.
+
+Use dedicated staging accounts to send and accept a mentorship request. Switch one mentor to instant email and verify the other receives a digest at the configured time in their time zone. Confirm the links open the right request or room and that the email contains only notice details. Verify a per-kind unsubscribe and a bounce suppression using the staging provider. Sign up a new account, open the verification link on another device, reset its password from the sign-in page and confirm the earlier session ends, then sign in again and check the alert. The regular server process runs the maintenance and delivery job every minute.
 
 ## v1.1 payment simulation
 

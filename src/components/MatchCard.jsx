@@ -16,6 +16,7 @@ import {
 } from "../data/mentor-rules.js";
 import {
   matchReason,
+  needsYouCover,
   offeredToYou,
   stageLabel,
   trustLine,
@@ -46,14 +47,23 @@ export default function MatchCard({ person, large = false }) {
   // matched. The labels then describe that profile, not an exchange with you.
   const fallbackGets = !youGet.length;
   const fallbackGives = !theyGet.length;
-  const gets = youGet.length
-    ? youGet
-    : (mentoring ? person.need : person.offer)?.slice(0, 2) || [];
-  const gives = theyGet.length
-    ? theyGet
-    : mentor
-      ? []
-      : (mentoring ? person.offer : person.need)?.slice(0, 2) || [];
+  // A mentor sees the startup's needs they can help with, as on the match
+  // details page; a mentorship gives the mentor nothing to list in return.
+  const covered = mentoring
+    ? needsYouCover(person, state.profiles.mentor?.offer)
+    : [];
+  const gets = mentoring
+    ? (covered.length ? covered : person.need)?.slice(0, 2) || []
+    : youGet.length
+      ? youGet
+      : person.offer?.slice(0, 2) || [];
+  const gives = mentoring
+    ? []
+    : theyGet.length
+      ? theyGet
+      : mentor
+        ? []
+        : person.need?.slice(0, 2) || [];
   const connection = existingRoom
     ? "You already have a Deal Room together"
     : incoming
@@ -125,19 +135,24 @@ export default function MatchCard({ person, large = false }) {
           .join(" · ")}
       </p>
       {person.summary && <p className="preview-summary">{person.summary}</p>}
-      <p
-        className={`preview-reason${person.audienceWarning ? " warning" : ""}`}
-      >
-        {person.audienceWarning && <Icon name="alert" />}
-        {matchReason(person)}
-      </p>
+      {/* "Offers what you need: X" would repeat the You get chips below. */}
+      {(mentoring || !youGet.length || person.audienceWarning) && (
+        <p
+          className={`preview-reason${person.audienceWarning ? " warning" : ""}`}
+        >
+          {person.audienceWarning && <Icon name="alert" />}
+          {matchReason(person)}
+        </p>
+      )}
       {(gets.length > 0 || gives.length > 0) && (
         <dl className="preview-exchange">
           {gets.length > 0 && (
             <div>
               <dt>
                 {mentoring
-                  ? "Needs guidance with"
+                  ? covered.length
+                    ? "Needs help you offer"
+                    : "Needs guidance with"
                   : fallbackGets
                     ? "They offer"
                     : "You get"}

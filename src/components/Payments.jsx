@@ -10,6 +10,7 @@ import {
 } from "../data/pricing.js";
 import { formatUnavailableText } from "../data/mentor-rules.js";
 import PrototypeShortcut from "./PrototypeShortcut.jsx";
+import SelectField from "./SelectField.jsx";
 function Action({ action, values, children }) {
   const { onAction, state } = useApp();
   return (
@@ -363,7 +364,7 @@ export function PaymentModeration() {
       >
         <label>
           Pricing option
-          <select name="key">
+          <SelectField name="key">
             {Object.entries(state.pricingConfig || {})
               .filter(([key]) => key !== "currency")
               .map(([key, value]) => (
@@ -371,7 +372,7 @@ export function PaymentModeration() {
                   {key} ({value})
                 </option>
               ))}
-          </select>
+          </SelectField>
         </label>
         <label>
           Updated pricing amount
@@ -382,7 +383,7 @@ export function PaymentModeration() {
       <ul>
         {(state.pricingHistory || []).slice(-10).map((item, index) => (
           <li key={index}>
-            {item.key} · {item.before} → {item.value} · {item.by} · {item.at}
+            {item.key}: {item.before} to {item.value} · {item.by} · {item.at}
           </li>
         ))}
       </ul>
