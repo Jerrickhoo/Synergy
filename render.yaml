@@ -22,10 +22,24 @@ services:
       - key: SYNERGY_DATA_FILE
         value: /var/data/synergy.sqlite
       - key: SYNERGY_DEMO_MODE
-        value: "true"
+        value: "false"
       - key: SYNERGY_REQUIRE_VERIFICATION
         value: "true"
       - key: SYNERGY_ALLOWED_ORIGINS
         value: https://synergy-prototype.netlify.app
       - key: SYNERGY_ADMIN_EMAILS
         sync: false
+      # Sign-in and mentorship email through Brevo. Render asks for the two
+      # sync: false values when the Blueprint is created; EMAIL_FROM must be a
+      # verified Brevo sender. Copy the generated webhook secret into the
+      # Brevo webhook's bearer token (docs/operations/DEPLOYMENT.md).
+      - key: EMAIL_PROVIDER
+        value: brevo
+      - key: BREVO_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: BREVO_WEBHOOK_SECRET
+        generateValue: true
+      - key: SYNERGY_PUBLIC_URL
+        value: https://synergy-prototype.netlify.app

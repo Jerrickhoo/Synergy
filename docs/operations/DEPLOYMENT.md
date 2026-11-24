@@ -12,7 +12,7 @@ Use Node.js 24+ and run `npm install` followed by `npm run dev`. For a built pre
 
 1. Commit and push the reviewed source, including `render.yaml`, to the repository connected to Render.
 2. Create or update a Blueprint using `render.yaml`. It configures one Node service in Singapore with a 1 GB persistent disk. Review the displayed hosting charges before provisioning.
-3. Keep `SYNERGY_DEMO_MODE=true`. No provider secrets are needed. `SYNERGY_ADMIN_EMAILS` is optional and lists local password accounts allowed to moderate.
+3. The Blueprint runs real accounts (`SYNERGY_DEMO_MODE=false`) with Brevo email. When asked, enter `BREVO_API_KEY` and `EMAIL_FROM` (a verified Brevo sender); Render generates `BREVO_WEBHOOK_SECRET`. Then register the Brevo webhook described under Mentorship email at `https://synergy-prototype.netlify.app/api/email/brevo-webhook`, with that generated secret as the bearer token. `SYNERGY_ADMIN_EMAILS` is optional and lists local password accounts allowed to moderate. For a demo-only service, set `SYNERGY_DEMO_MODE=true` and remove the email variables.
 4. The build runs `npm ci --include=dev && npm run build`; startup runs `npm start`. The server binds to `0.0.0.0:$PORT` in production and uses `/api/health` for readiness.
 5. Check both roles, refresh, sign-out and the collaboration flows you will present on the resulting HTTPS URL.
 
