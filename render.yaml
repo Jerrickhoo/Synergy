@@ -29,6 +29,11 @@ services:
       # verification request, so anyone can verify themselves. Remove after.
       - key: SYNERGY_SIMULATE_VERIFICATION
         value: "true"
+      # Adds the fictional showcase mentors and startups at every start-up, so
+      # Matches is populated even though the free plan starts from an empty
+      # database. They share the public password in README.md.
+      - key: SYNERGY_SHOWCASE_PROFILES
+        value: "true"
       - key: SYNERGY_ALLOWED_ORIGINS
         value: https://synergy-prototype.netlify.app
       - key: SYNERGY_ADMIN_EMAILS
