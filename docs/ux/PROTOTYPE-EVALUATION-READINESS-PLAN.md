@@ -154,7 +154,7 @@ No confirmation appeared after "Share preparation" or "Send introduction" (the m
 
 ### P5. Use the same arrows everywhere (S)
 
-The profile assistant shows "Empty → …" ([ProfileAssistant.jsx:204](../../src/components/ProfileAssistant.jsx)). Show it as before and after values ("Now: empty", "Suggested: …"), or use the SVG arrow icon.
+The profile assistant showed "Empty → …". The assistant was removed from Edit profile on November 24, 2026, so this item no longer applies.
 
 ### P6. Colour the request quality by score (S)
 
