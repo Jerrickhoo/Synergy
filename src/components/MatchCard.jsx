@@ -4,7 +4,6 @@ import TrustSummary from "./TrustSummary.jsx";
 import { useApp } from "../state/AppContext.jsx";
 import Avatar from "./Avatar.jsx";
 import VerificationGate from "./VerificationGate.jsx";
-import { verificationRequired } from "../data/collaboration.js";
 import Tags from "./Tags.jsx";
 import Icon from "./Icon.jsx";
 import { useState } from "react";
@@ -222,14 +221,9 @@ export default function MatchCard({ person, large = false }) {
             : connection}
         </p>
       )}
-      {!existingRoom && verificationRequired(state) && (
-        <>
-          <button className="btn small" disabled>
-            Verify to send introductions
-          </button>
-          <VerificationGate />
-        </>
-      )}
+      {/* One line with the link; the disabled button that repeated the same
+          words is gone, and View match stays the card's action. */}
+      {!existingRoom && <VerificationGate />}
       <div className="preview-footer">
         <button
           className="preview-fit interactive-surface"

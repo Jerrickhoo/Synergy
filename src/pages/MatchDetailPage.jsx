@@ -485,7 +485,7 @@ function MatchDetail() {
                         : "Send introduction"}
                 <Icon name="arrow" />
               </button>
-              {!existingRoom && <VerificationGate />}
+              {!existingRoom && <VerificationGate repeatsButton />}
               {incoming && !existingRoom && (
                 <DeclineIntroduction person={person} />
               )}

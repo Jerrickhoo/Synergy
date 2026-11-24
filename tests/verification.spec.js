@@ -22,12 +22,13 @@ test("unverified founders can browse and save but introduction controls direct t
   const card = page.locator(
     `.match-card[aria-labelledby="match-name-${b.state.accountId}:founder"]`,
   );
+  // The card says it once, with the link inline, and keeps View match.
+  await expect(card.locator(".verification-gate")).toHaveText(
+    "Verify to send introductions. Go to Verification",
+  );
   await expect(
-    card.getByRole("button", {
-      name: "Verify to send introductions",
-      exact: true,
-    }),
-  ).toBeDisabled();
+    card.getByRole("button", { name: "Verify to send introductions" }),
+  ).toHaveCount(0);
   await card.getByRole("button", { name: /^Save / }).click();
   await card.getByRole("button", { name: /View match/ }).click();
   await expect(
