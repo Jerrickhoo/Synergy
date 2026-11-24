@@ -4,7 +4,7 @@ import AxeBuilder from "@axe-core/playwright";
 import sharp from "sharp";
 import { mkdirSync } from "node:fs";
 import { decode } from "../src/state/serialization.js";
-import { selectValue } from "./ui-helpers.js";
+import { horizontalOverflow, selectValue } from "./ui-helpers.js";
 
 const profiles = {
   founder: {
@@ -99,12 +99,13 @@ async function accessible(page) {
     })),
   ).toEqual([]);
 }
-const noOverflow = async (page) =>
+const noOverflow = async (page) => {
+  const { scrollWidth, width, offenders } = await horizontalOverflow(page);
   expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth + 1,
-    ),
-  ).toBe(true);
+    scrollWidth,
+    `Wider than the ${width}px window: ${offenders.join("; ")}`,
+  ).toBeLessThanOrEqual(width + 1);
+};
 
 test("first visit ignores OS dark mode and explicit theme survives refresh and sign-out", async ({
   page,

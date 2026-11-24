@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { command, getState, open, user } from "./founder-browser-helpers.js";
 import { mentorRequestValues } from "./mentor-request-fixtures.js";
+import { horizontalOverflow } from "./ui-helpers.js";
 
 const mentorProfile = {
   bio: "Advising early student teams",
@@ -18,7 +19,14 @@ async function audit(page) {
       .poll(() =>
         page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       )
-      .toBe(true);
+      .toBe(true)
+      .catch(async (error) => {
+        const { offenders } = await horizontalOverflow(page);
+        throw new Error(
+          `Wider than the ${width}px window: ${offenders.join("; ")}
+${error.message}`,
+        );
+      });
   }
   const result = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
