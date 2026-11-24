@@ -903,17 +903,6 @@ ol.stage-line {
   }
 }
 
-/* Profile record: stats grouped by spacing, not rules. */
-.profile-side-column .profile-stats,
-.profile-side-column .profile-stat {
-  border: 0;
-}
-.profile-side-column .profile-stat {
-  padding: var(--space-2) 0;
-}
-.profile-side-column .profile-stat span {
-  font-size: var(--text-sm);
-}
 .top-matches-head .link-btn {
   white-space: nowrap;
 }

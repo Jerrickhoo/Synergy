@@ -841,6 +841,7 @@ function ProfileContent() {
                   <MentorImpact
                     trust={state.trustSummary?.mentorship}
                     privateView
+                    embedded
                   />
                 ) : (
                   state.trustSummary?.mentorship && (

@@ -38,7 +38,7 @@ export default function ProfileStats() {
         <strong>{state.trustSummary?.completed ?? history.length}</strong>
         <span>Completed collaborations</span>
       </div>
-      <div className="profile-stat">
+      <div className="profile-stat profile-stat-completion">
         <div
           className="profile-completion-ring"
           role="progressbar"

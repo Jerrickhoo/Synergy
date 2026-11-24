@@ -44,30 +44,43 @@ export function FounderTrackRecord({ trackRecord, own = false }) {
   const min = state.mentorConfig?.minDataPoints || mentorConfig.minDataPoints;
   if (!own && (!trackRecord || trackRecord.newFounder))
     return <p>First mentorship request</p>;
+  // On the founder's own profile, metrics without enough data are left out
+  // and one line says what will appear, instead of a tile per empty metric.
+  const metrics = [
+    ["Follow-up rate", trackRecord.followupRate, percent],
+    ["Preparedness", trackRecord.preparedness, rating],
+    ["No-shows", trackRecord.noShows, String],
+    ["Late cancellations", trackRecord.lateCancellations, String],
+  ];
+  const shown = own
+    ? metrics.filter(([, data]) => hasData(data, min))
+    : metrics;
   return (
-    <section className="founder-track-record">
+    <section
+      className={`founder-track-record${own ? " profile-record-detail" : ""}`}
+    >
       <h3>Founder track record</h3>
       <MentorshipBadges badges={trackRecord.badges} />
-      <dl className="impact-stats">
-        <Metric
-          label="Follow-up rate"
-          data={trackRecord.followupRate}
-          format={percent}
-          min={min}
-        />
-        <Metric
-          label="Preparedness"
-          data={trackRecord.preparedness}
-          format={rating}
-          min={min}
-        />
-        <Metric label="No-shows" data={trackRecord.noShows} min={min} />
-        <Metric
-          label="Late cancellations"
-          data={trackRecord.lateCancellations}
-          min={min}
-        />
-      </dl>
+      {shown.length > 0 && (
+        <dl className="impact-stats">
+          {shown.map(([label, data, format]) => (
+            <Metric
+              key={label}
+              label={label}
+              data={data}
+              format={format}
+              min={min}
+            />
+          ))}
+        </dl>
+      )}
+      {shown.length < metrics.length && (
+        <p className="muted">
+          {shown.length
+            ? `Other measures appear once each has ${min} data points.`
+            : `Follow-up rate, preparedness, no-shows and late cancellations appear once each has ${min} data points.`}
+        </p>
+      )}
       {own && (
         <p>
           Share materials before a session, attend on time and submit your
@@ -84,6 +97,7 @@ export default function MentorImpact({
   trust,
   privateView = false,
   hideEmpty = false,
+  embedded = false,
 }) {
   const { state } = useApp();
   const min = state.mentorConfig?.minDataPoints || mentorConfig.minDataPoints;
@@ -99,6 +113,10 @@ export default function MentorImpact({
     trust.responseHours,
   ];
   const sessions = trust.sessions?.value || 0;
+  // Inside another card (the profile's Collaboration record) it drops its own
+  // card and steps the heading down a level, so cards are not nested.
+  const Heading = embedded ? "h3" : "h2";
+  const frame = embedded ? "profile-record-detail" : "card panel section-gap";
   if (
     hideEmpty &&
     !sessions &&
@@ -113,8 +131,8 @@ export default function MentorImpact({
   // "Not enough data yet" tiles (readiness plan P8).
   if (!sessions && !metrics.some((data) => hasData(data, min)))
     return (
-      <section className="card panel section-gap">
-        <h2>Mentoring impact</h2>
+      <section className={frame}>
+        <Heading>Mentoring impact</Heading>
         <MentorshipBadges badges={badges} reliable={trust.reliable} />
         <p>
           Your impact appears here after your first held session: sessions,
