@@ -251,7 +251,9 @@ test("blank profile fields, validation, saving and cancel work with user details
   await fillProfile(page);
   await page.getByLabel("About me").fill("   ");
   await page.getByRole("button", { name: "Save profile", exact: true }).click();
-  await expect(page.getByText("About me is required.")).toBeVisible();
+  await expect(page.getByLabel("About me")).toHaveAccessibleDescription(
+    /About me is required\./,
+  );
   await expect(page.locator(".toast-error")).toContainText(
     "Couldn't save your profile",
   );
@@ -307,9 +309,7 @@ test("custom profile selects retain native required validation and failed-save d
   const stage = page.getByRole("combobox", { name: "Stage", exact: true });
   await expect(stage).toBeFocused();
   await expect(stage).toHaveAttribute("aria-invalid", "true");
-  await expect(
-    page.getByText("Stage is required.", { exact: true }),
-  ).toBeVisible();
+  await expect(stage).toHaveAccessibleDescription(/Choose an option\./);
   expect(profileSaves).toBe(0);
   await selectValue(stage, "idea");
   await page.getByRole("button", { name: "Save profile", exact: true }).click();
@@ -324,7 +324,7 @@ test("custom profile selects retain native required validation and failed-save d
   await page.route("**/api/profile", (route) => route.abort());
   await page.getByRole("button", { name: "Save profile", exact: true }).click();
   await expect(
-    page.getByText(/We couldn't confirm this change was saved/),
+    page.getByText(/We couldn't confirm your last change was saved/),
   ).toBeVisible();
   await expect(stage).toHaveAttribute("value", "growth");
   await page.unroute("**/api/profile");
