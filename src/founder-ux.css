@@ -264,10 +264,68 @@ ol.stage-line {
 }
 .verification-gate {
   font-size: var(--font-caption);
-  overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 .verification-gate p {
-  margin: 6px 0;
+  margin: var(--space-1) 0;
+}
+.verification-gate a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.verification-gate a svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 150ms ease;
+}
+.verification-gate a:hover svg {
+  transform: translateX(2px);
+}
+/* Unverified founders: the accent tint makes the reason they can't send
+   introductions stand out from the card's body text. */
+.verification-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.verification-notice > svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+.verification-notice p {
+  margin: 0;
+}
+.verification-notice p + p {
+  margin-top: var(--space-1);
+}
+.verification-notice strong {
+  font-weight: 650;
+}
+.verification-notice a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .verification-gate a svg {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  .verification-notice {
+    border-color: CanvasText;
+  }
 }
 .cycle-panel {
   display: grid;
