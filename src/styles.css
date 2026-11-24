@@ -4177,7 +4177,7 @@ main,
 }
 .profile-completion-note {
   background: var(--green-soft);
-  border-left: 3px solid var(--green);
+  border-radius: var(--radius-md);
   padding: 14px 16px;
   margin-top: 24px;
   font-size: 13px;
