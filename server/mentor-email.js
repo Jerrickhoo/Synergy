@@ -71,6 +71,14 @@ export function equalSecret(actual, expected) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+// The token from an Authorization header. The scheme is case-insensitive
+// (RFC 9110 §11.1); Brevo's built-in token option sends lowercase "bearer".
+export function bearerToken(header) {
+  return typeof header === "string"
+    ? /^bearer[ \t]+(\S+)$/i.exec(header.trim())?.[1] || null
+    : null;
+}
+
 export function emailKindAllowed(account, kind) {
   const preference = kindFor(kind);
   const status = account?.emailDeliveryStatus;
@@ -254,15 +262,18 @@ export function createBrevoSender({
       const body = await response.json().catch(() => ({}));
       if (response.ok || body.code === "duplicate_parameter")
         return { delivered: true, messageId: body.messageId || null };
+      // 401/403 mean Synergy's key or account is wrong, not this message:
+      // retry so messages survive until the configuration is fixed.
       return {
         reason: `Brevo returned HTTP ${response.status}.`,
+        status: response.status,
         permanent:
           response.status >= 400 &&
           response.status < 500 &&
-          ![408, 429].includes(response.status),
+          ![401, 403, 408, 429].includes(response.status),
       };
     } catch {
-      return { reason: "Couldn't reach Brevo." };
+      return { reason: "Couldn't reach Brevo.", status: null };
     }
   };
 }
@@ -277,7 +288,10 @@ export function applyEmailWebhook(db, raw, now) {
       typeof item?.event === "string"
         ? item.event.replace(/[_-]/g, "").toLowerCase()
         : "";
-    const key = ["hardbounce", "invalid", "blocked"].includes(type)
+    // Webhook payloads say "invalid_email"; "invalid" is the subscription name.
+    const key = ["hardbounce", "invalid", "invalidemail", "blocked"].includes(
+      type,
+    )
       ? "bouncedAt"
       : ["unsubscribed", "spam"].includes(type)
         ? "unsubscribedAt"

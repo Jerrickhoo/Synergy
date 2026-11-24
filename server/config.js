@@ -6,7 +6,11 @@ if (existsSync(".env")) loadEnvFile(".env");
 
 export function configuration(env = process.env) {
   const production = env.NODE_ENV === "production";
-  const demoMode = env.SYNERGY_DEMO_MODE !== "false";
+  // Unset means demo. Anything other than true/false is a typo, not a default.
+  const demoSetting = (env.SYNERGY_DEMO_MODE || "true").trim().toLowerCase();
+  if (!["true", "false"].includes(demoSetting))
+    throw new Error("SYNERGY_DEMO_MODE must be true or false.");
+  const demoMode = demoSetting === "true";
   const file = resolve(env.SYNERGY_DATA_FILE || ".data/synergy.sqlite");
   if (env.PAYMENTS_PROVIDER && env.PAYMENTS_PROVIDER !== "simulated")
     throw new Error(
@@ -17,7 +21,7 @@ export function configuration(env = process.env) {
     demoMode,
     paymentsProvider: env.PAYMENTS_PROVIDER || "simulated",
     paymentsWebhookSecret: env.PAYMENTS_WEBHOOK_SECRET || "",
-    emailProvider: demoMode ? "stub" : env.EMAIL_PROVIDER || "stub",
+    emailProvider: env.EMAIL_PROVIDER || "stub",
     brevoApiKey: env.BREVO_API_KEY || "",
     emailFrom: env.EMAIL_FROM || "",
     brevoWebhookSecret: env.BREVO_WEBHOOK_SECRET || "",
@@ -49,6 +53,11 @@ export function configuration(env = process.env) {
   if (!["stub", "brevo"].includes(config.emailProvider))
     throw new Error("EMAIL_PROVIDER must be stub or brevo.");
   if (config.emailProvider === "brevo") {
+    // Demo mode never sends email; fail instead of silently using the stub.
+    if (demoMode)
+      throw new Error(
+        "EMAIL_PROVIDER=brevo requires SYNERGY_DEMO_MODE=false. Demo mode never sends email.",
+      );
     if (
       !config.brevoApiKey ||
       !config.emailFrom ||

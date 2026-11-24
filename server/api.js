@@ -1,4 +1,4 @@
-import { equalSecret } from "./mentor-email.js";
+import { bearerToken, equalSecret } from "./mentor-email.js";
 import { mentorEmailKinds } from "../src/data/mentor-email.js";
 import { createOperations, logFailure } from "./operations.js";
 import { resolve, dirname, join } from "node:path";
@@ -48,8 +48,8 @@ export function createApi({
         if (
           !config.brevoWebhookSecret ||
           !equalSecret(
-            req.headers.authorization,
-            `Bearer ${config.brevoWebhookSecret}`,
+            bearerToken(req.headers.authorization),
+            config.brevoWebhookSecret,
           )
         )
           throw new WorkspaceError("Webhook authentication required.", 403);

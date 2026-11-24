@@ -10,6 +10,13 @@ import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { backupWorkspace } from "./backup.js";
 
+// Structured event; callers pass only non-sensitive fields (no keys, tokens,
+// addresses or submitted text).
+export const logEvent = (event, fields) =>
+  console.error(
+    JSON.stringify({ event, at: new Date().toISOString(), ...fields }),
+  );
+
 export const logFailure = (event, error) =>
   console.error(
     JSON.stringify({

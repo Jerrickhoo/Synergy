@@ -21,10 +21,9 @@ test("mentor digest follows the recipient's wall clock and uses the stub for dem
     nextRequestDigest(now, "America/Los_Angeles", 8),
     "2031-01-21T16:00:00.000Z",
   );
-  assert.equal(
-    configuration({ SYNERGY_DEMO_MODE: "true", EMAIL_PROVIDER: "brevo" })
-      .emailProvider,
-    "stub",
+  assert.throws(
+    () => configuration({ SYNERGY_DEMO_MODE: "true", EMAIL_PROVIDER: "brevo" }),
+    /requires SYNERGY_DEMO_MODE=false/,
   );
   assert.throws(
     () =>

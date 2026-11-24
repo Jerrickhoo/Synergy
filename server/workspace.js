@@ -45,12 +45,14 @@ import {
 } from "./mentor-admin.js";
 import {
   applyEmailWebhook,
+  bearerToken,
   createBrevoSender,
   emailKindAllowed,
   equalSecret,
   nextRequestDigest,
   parseUnsubscribe,
 } from "./mentor-email.js";
+import { logEvent } from "./operations.js";
 import { createMentorSafety, safetyActions } from "./mentor-safety.js";
 import { createMentorshipRooms } from "./mentorship-rooms.js";
 import { createMentorPayments, paymentActions } from "./mentor-payments.js";
@@ -3054,6 +3056,13 @@ export function createWorkspace(file, options = {}) {
       else {
         saved.lastError = result.reason;
         if (result.permanent || saved.attempts >= 5) saved.status = "failed";
+        logEvent("email_delivery_failed", {
+          entryId: saved.id,
+          kind: saved.kind,
+          status: result.status ?? null,
+          attempts: saved.attempts,
+          final: saved.status === "failed",
+        });
       }
       save();
     }
@@ -3187,7 +3196,7 @@ export function createWorkspace(file, options = {}) {
     emailWebhook(authorization, data) {
       if (
         !brevoSender ||
-        !equalSecret(authorization, `Bearer ${options.brevoWebhookSecret}`)
+        !equalSecret(bearerToken(authorization), options.brevoWebhookSecret)
       )
         fail("Webhook authentication required.", 403);
       if (applyEmailWebhook(db, data, now())) save();
