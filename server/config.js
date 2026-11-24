@@ -30,6 +30,9 @@ export function configuration(env = process.env) {
     // TEMPORARY demo shortcut: lets a founder approve their own pending
     // verification request. Anyone can self-verify while it is on.
     simulateVerification: env.SYNERGY_SIMULATE_VERIFICATION === "true",
+    // Adds the fictional showcase accounts at start-up (see server/showcase.js),
+    // for hosts like Render's free plan that start from an empty database.
+    showcaseProfiles: env.SYNERGY_SHOWCASE_PROFILES === "true",
     file,
     backupDirectory: env.SYNERGY_BACKUP_DIR
       ? resolve(env.SYNERGY_BACKUP_DIR)

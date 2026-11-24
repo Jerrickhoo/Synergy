@@ -456,7 +456,8 @@ test("simulation rejects real actors, real targets, other previews, withdrawn, h
         demo: true,
         canSimulateAcceptance: true,
       }),
-    /prototype preview accounts/,
+    // A real account may simulate only showcase profiles, never demo samples.
+    /fictional prototype collaborator/,
   );
   assert.throws(
     () =>

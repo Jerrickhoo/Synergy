@@ -73,11 +73,12 @@ test("prototype discovery preserves filters, sort, saved profiles and image fall
   await page.keyboard.press("Enter");
   await expect(sort).toHaveText("Completed collaborations");
   await sort.click();
-  await page.keyboard.press("n");
+  await page.keyboard.press("h");
   await page.keyboard.press("Enter");
-  await expect(sort).toHaveText("Name");
-  const names = await page.locator(".match-card h3").allTextContents();
-  expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+  await expect(sort).toHaveText("Highest fit");
+  await expect(
+    page.getByRole("option", { name: "Name", exact: true }),
+  ).toHaveCount(0);
   await sort.click();
   await page.keyboard.press("Tab");
   await expect(page.getByRole("listbox")).toHaveCount(0);

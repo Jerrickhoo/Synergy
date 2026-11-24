@@ -70,6 +70,7 @@ export function emailKindAllowed(account, kind) {
   return Boolean(
     account?.email &&
     !account.demo &&
+    !account.showcase &&
     !account.deletedAt &&
     !status?.bouncedAt &&
     !status?.unsubscribedAt &&

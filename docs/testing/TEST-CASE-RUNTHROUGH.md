@@ -221,11 +221,11 @@ Copy the row for each case. Include the tested commit or working-tree version, t
 
 **Dataset:** Use Pass A for enough results to paginate.
 
-1. In Browse all, choose **Highest fit**, then **Name**, then **Completed collaborations** under **Sort by**.
+1. In Browse all, check that **Sort by** starts on **Highest fit** and offers only **Highest fit** and **Completed collaborations**, then choose **Completed collaborations**.
 2. Use **Next** and **Previous** where available.
 3. Apply a filter while on a later page.
 
-**Expected:** Fit sorts descending and names alphabetically. Pagination retains the sort and never strands the tester on an invalid empty page after filtering. Zero completed-collaboration counts do not imply sample history.
+**Expected:** Fit sorts descending on every tab, including Browse all. Pagination retains the sort and never strands the tester on an invalid empty page after filtering. Zero completed-collaboration counts do not imply sample history.
 
 ### TC-16 - Saved matches
 

@@ -192,8 +192,7 @@ function ExchangeRoom() {
     );
   const roomTitle =
     room.type === "mentorship" ? "Mentorship room" : room.engagementType;
-  const prototypePartner =
-    state.integrations?.demoMode && state.integrations?.guest;
+  const prototypePartner = Boolean(partner?.prototypePartner);
   return (
     <div className="page room-detail-page page-enter">
       <PageHeader

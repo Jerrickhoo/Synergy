@@ -120,12 +120,10 @@ export default function DiscoverPage() {
       ? available.filter((person) => savedMatches().has(person.id))
       : available;
   const list = filterPeople(candidates, state.matchFilters).sort((a, b) =>
-    (sort || (state.matchTab === "browse" ? "name" : "fit")) === "name"
-      ? a.name.localeCompare(b.name)
-      : sort === "experience"
-        ? (b.trust?.completed || 0) - (a.trust?.completed || 0) ||
-          b.score - a.score
-        : b.score - a.score || a.name.localeCompare(b.name),
+    sort === "experience"
+      ? (b.trust?.completed || 0) - (a.trust?.completed || 0) ||
+        b.score - a.score
+      : b.score - a.score || a.name.localeCompare(b.name),
   );
   const pageCount = Math.max(1, Math.ceil(list.length / 12));
   const currentPage = Math.min(page, pageCount);
@@ -519,11 +517,10 @@ export default function DiscoverPage() {
               <SelectField
                 id="match-sort"
                 label="Sort by"
-                value={sort || (state.matchTab === "browse" ? "name" : "fit")}
+                value={sort || "fit"}
                 onChange={(event) => setSort(event.target.value)}
                 options={[
                   { value: "fit", label: "Highest fit" },
-                  { value: "name", label: "Name" },
                   { value: "experience", label: "Completed collaborations" },
                 ]}
               />

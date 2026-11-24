@@ -114,6 +114,7 @@ import {
   sampleMentorRequest,
   seedDemoImpact,
 } from "./demo-directory.js";
+import { seedShowcase } from "./showcase.js";
 
 export class WorkspaceError extends Error {
   // `data` adds machine-readable details to the response, such as the reason a
@@ -669,6 +670,7 @@ export function createWorkspace(file, options = {}) {
     }
     if (seedDemoImpact(db.accounts) || samplesChanged) save();
   }
+  if (options.showcaseProfiles && seedShowcase(db.accounts, now())) save();
 
   const event = (account, role, text, roomId, extra = {}) => {
     const time = now();
@@ -719,18 +721,11 @@ export function createWorkspace(file, options = {}) {
   });
   const mentorshipRooms = createMentorshipRooms({
     accounts: () => db.accounts,
-    // Prototype only, with the same gate as simulate-acceptance: demo mode, a
-    // preview account and a server-verified fictional fixture partner.
+    // Prototype only, with the same gate as simulate-acceptance: a
+    // server-verified fictional partner (see simulatedAcceptor).
     canSimulatePartner(account, room) {
       const partner = db.accounts[room.partnerAccountId];
-      return Boolean(
-        options.demoMode &&
-        account.demo &&
-        !account.demoSample &&
-        partner?.demo &&
-        partner.demoSample &&
-        !partner.deletedAt,
-      );
+      return Boolean(partner && simulatedAcceptor(account, partner));
     },
     config: mentorSettings,
     now,
@@ -1258,6 +1253,16 @@ export function createWorkspace(file, options = {}) {
         profileCompleteness(account.state.profiles.mentor, "mentor") === 100)
     );
   }
+  // Whether `other` is fictional and may act for itself on `account`'s behalf
+  // (accept an introduction, answer in a room): a demo-mode sample for a
+  // preview account, or a showcase profile (server/showcase.js) for a real
+  // account.
+  function simulatedAcceptor(account, other) {
+    if (other.deletedAt || account.demoSample || account.showcase) return false;
+    if (account.demo)
+      return Boolean(options.demoMode && other.demo && other.demoSample);
+    return Boolean(other.showcase && !other.demo);
+  }
   function directoryVisible(other, account) {
     return (
       other.id !== account.id &&
@@ -1367,19 +1372,9 @@ export function createWorkspace(file, options = {}) {
           if (until) item.cooldownUntil = until;
         }
         // Display hint only; each simulated action re-checks on the server.
-        item.prototypePartner = Boolean(
-          options.demoMode &&
-          account.demo &&
-          !account.demoSample &&
-          other.demo &&
-          other.demoSample,
-        );
+        item.prototypePartner = simulatedAcceptor(account, other);
         item.canSimulateAcceptance = Boolean(
-          options.demoMode &&
-          account.demo &&
-          !account.demoSample &&
-          other.demo &&
-          other.demoSample &&
+          simulatedAcceptor(account, other) &&
           account.profileVisible !== false &&
           state.waitingByRole[state.role].has(item.id) &&
           state.interestByRole[state.role].has(item.id) &&
@@ -2034,7 +2029,7 @@ export function createWorkspace(file, options = {}) {
   // actions so the whole Deal Room can be explored without a second person.
   function simulatePartner(account, state, room) {
     const partner = db.accounts[room.partnerAccountId];
-    if (!options.demoMode || !account.demo || !partner?.demoSample) return;
+    if (!partner || !simulatedAcceptor(account, partner)) return;
     if (["cancelled", "reviewed"].includes(room.status)) return;
     const before = encode(room);
     const name = displayName(partner, room.partnerRole);
@@ -2596,7 +2591,7 @@ export function createWorkspace(file, options = {}) {
     }
     let partnerText;
     if (input.action === "simulate-acceptance") {
-      if (!options.demoMode || !account.demo || account.demoSample)
+      if (account.demoSample || account.showcase)
         fail(
           "Acceptance simulation is available only to prototype preview accounts.",
           403,
@@ -2605,7 +2600,7 @@ export function createWorkspace(file, options = {}) {
         .rolePeople()
         .find((person) => person.id === input.id);
       const fictional = target && db.accounts[target.accountId];
-      if (!fictional?.demo || !fictional.demoSample || fictional.deletedAt)
+      if (!fictional || !simulatedAcceptor(account, fictional))
         fail(
           "Only a fictional prototype collaborator can simulate acceptance.",
           403,
