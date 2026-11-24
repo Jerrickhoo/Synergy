@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useApp } from "../state/AppContext.jsx";
-import { fieldName, toastOnlyScopes } from "../state/feedback.js";
+import { fieldName } from "../state/feedback.js";
 
 export default function FormErrors({ scope }) {
   const { state } = useApp();
@@ -39,15 +39,14 @@ export default function FormErrors({ scope }) {
         ?.focus();
     lastFocusId.current = state.toastId;
   }, [errors, scope, state.toastId]);
-  // The toast shows these forms' errors; the list stays for the fields'
-  // screen-reader descriptions.
-  const toastOnly = toastOnlyScopes.has(scope);
+  // One warning per failed submit: the toast and the highlighted fields carry
+  // it, so this list is kept only for the fields' screen-reader descriptions.
   return (
     <div
       ref={ref}
       hidden={!errors}
       data-error-scope={scope}
-      className={toastOnly ? "visually-hidden" : undefined}
+      className="visually-hidden"
     >
       {errors && (
         <div id={`${scope}-errors`} className="form-errors">
