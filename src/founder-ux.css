@@ -748,6 +748,13 @@ ol.stage-line {
   max-width: 64ch;
   color: var(--muted);
 }
+/* The title column never outgrows the header, in a row or stacked on
+   phones, so a long name (in a wide font) wraps instead of pushing the page
+   wider than the window. */
+.page-head > div:first-child {
+  min-width: 0;
+  max-width: 100%;
+}
 
 /* The sidebar already names the signed-in person on wide screens. */
 @media (min-width: 1251px) {
