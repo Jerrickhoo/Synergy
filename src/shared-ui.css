@@ -226,6 +226,11 @@
 .password-wrap input {
   padding-right: 54px;
 }
+/* Edge/IE draw their own reveal eye inside password inputs; we already have a toggle. */
+.password-wrap input::-ms-reveal,
+.password-wrap input::-ms-clear {
+  display: none;
+}
 .password-toggle {
   display: grid;
   place-items: center;
