@@ -93,6 +93,11 @@ export default function ModerationPage() {
       </div>
     );
   const { reports, tags, affiliations, accounts, audit } = state.moderation;
+  const managedAccounts = accounts.filter(
+    (a) =>
+      a.id !== state.accountId &&
+      !state.moderation.moderators.includes(a.email),
+  );
   return (
     <div className="page page-enter">
       <PageHeader
@@ -215,28 +220,25 @@ export default function ModerationPage() {
           ))}
         {!tags.some((t) => t.status === "pending") && <p>No pending tags.</p>}
       </section>
-      <section className="card panel section-gap">
-        <h2>Account access</h2>
-        {accounts
-          .filter(
-            (a) =>
-              a.id !== state.accountId &&
-              !state.moderation.moderators.includes(a.email),
-          )
-          .map((account) => (
-            <details className="moderation-entry" key={account.id}>
-              <summary>
-                {account.name} · {account.suspended ? "Suspended" : "Active"}
-              </summary>
-              {account.mentor && <MentorSuspension account={account} />}
-              <Decision
-                kind="account"
-                id={account.id}
-                decisions={[account.suspended ? "restore" : "suspend"]}
-              />
-            </details>
-          ))}
-      </section>
+      {/* Waiting applications sit with the other queues, above the long
+          account list, so a moderator sees them without scrolling. */}
+      <MentorApprovals approvals={state.moderation.mentorApprovals || []} />
+      <details className="card panel section-gap">
+        <summary>Account access ({managedAccounts.length} accounts)</summary>
+        {managedAccounts.map((account) => (
+          <details className="moderation-entry" key={account.id}>
+            <summary>
+              {account.name} · {account.suspended ? "Suspended" : "Active"}
+            </summary>
+            {account.mentor && <MentorSuspension account={account} />}
+            <Decision
+              kind="account"
+              id={account.id}
+              decisions={[account.suspended ? "restore" : "suspend"]}
+            />
+          </details>
+        ))}
+      </details>
       <details className="card panel section-gap">
         <summary>Decision history ({audit.length} latest)</summary>
         {audit.map((item) => (
@@ -387,7 +389,7 @@ function MentorApprovals({ approvals }) {
   const { onAction, state } = useApp();
   return (
     <section className="card panel section-gap" aria-label="Mentor approvals">
-      <h2>Mentor approvals</h2>
+      <h2>Mentor approvals ({approvals.length} waiting)</h2>
       {approvals.length === 0 && <p>No mentor applications waiting.</p>}
       {approvals.map((application) => (
         <details className="moderation-entry" key={application.accountId}>
@@ -575,7 +577,6 @@ function MentorshipModeration() {
         >
           {[
             ["all", "All mentorship items"],
-            ["approval", "Mentor approvals"],
             ["sessions", "Session disputes"],
             ["safety", "Safety flags"],
             ["ratings", "Rating flags"],
@@ -587,9 +588,6 @@ function MentorshipModeration() {
           ))}
         </SelectField>
       </div>
-      {["all", "approval"].includes(filter) && (
-        <MentorApprovals approvals={state.moderation.mentorApprovals || []} />
-      )}
       {["all", "sessions"].includes(filter) && (
         <SessionDisputes disputes={state.moderation.sessionDisputes || []} />
       )}

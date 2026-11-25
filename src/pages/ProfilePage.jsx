@@ -429,12 +429,16 @@ function ProfileContent() {
       {!state.profileEditing && state.profileWentLive && (
         <section className="card panel profile-live" role="status">
           <h2>Your profile is live</h2>
-          <p>Partners can now find you. See who fits what you need.</p>
+          <p>
+            {state.role === "mentor"
+              ? "Founders can now find you. See which startups need what you offer."
+              : "Partners can now find you. See who fits what you need."}
+          </p>
           <button
             className="btn primary"
             onClick={() => onAction({ page: "discover" })}
           >
-            See your matches
+            {state.role === "mentor" ? "See startups" : "See your matches"}
           </button>
         </section>
       )}

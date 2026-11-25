@@ -15,6 +15,8 @@ import {
   sampleFounderProfile,
 } from "../src/data/profile-assistant.js";
 import {
+  missingProfileKeys,
+  missingProfileText,
   profileCompleteness,
   roomProgress,
   launchBlockers,
@@ -518,6 +520,7 @@ export function createWorkspace(file, options = {}) {
     isAdmin: (account) => features.isAdmin(account),
     audit,
     required: options.mentorApprovalRequired !== false,
+    simulate: () => Boolean(options.simulateVerification),
   });
   function audit(account, kind, id, decision, note = "") {
     (db.moderationAudit ||= []).push({
@@ -2896,12 +2899,16 @@ export function createWorkspace(file, options = {}) {
         .rolePeople()
         .find((item) => item.id === input.id);
       if (!person) fail("This profile is unavailable.", 404);
+      const missingProfile = missingProfileKeys(
+        state.profiles[state.role],
+        state.role,
+      );
       if (
         ["interest", "accept-interest"].includes(input.action) &&
-        profileCompleteness(state.profiles[state.role], state.role) !== 100
+        missingProfile.length
       )
         fail(
-          "Complete your profile before sending or accepting an introduction.",
+          `Add ${missingProfileText(missingProfile)} to your profile before sending or accepting an introduction.`,
         );
       const other = db.accounts[person.accountId];
       const proposedType =

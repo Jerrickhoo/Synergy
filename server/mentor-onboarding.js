@@ -11,6 +11,7 @@ import {
 import {
   bioLimit,
   experienceLimit,
+  finalRejection,
   mentorApplicationSteps,
 } from "../src/data/mentor-onboarding.js";
 import { dayMs } from "../src/data/mentor-room.js";
@@ -20,6 +21,7 @@ export const applicationActions = new Set([
   "mentor-onboarding-back",
   "approve-mentor",
   "reject-mentor",
+  "simulate-mentor-approval",
 ]);
 const clean = (value, length = 150) =>
   typeof value === "string" ? value.trim().slice(0, length) : "";
@@ -68,8 +70,37 @@ export function createMentorOnboarding({
   event,
   vocabulary,
   required = true,
+  simulate = () => false,
 }) {
   const stamp = () => new Date(now()).toISOString();
+  const approvedText =
+    "Your mentor profile is approved. Founders can now request your guidance.";
+  const simulatedNote =
+    "Simulated approval for a demo. No moderator reviewed it.";
+  // Approves `target`'s pending application. `state` is the state that holds
+  // their mentor profile: the stored one for a moderator, or the working copy
+  // when the mentor approves their own through the demo shortcut.
+  function markApproved(target, state, by) {
+    const application = target.mentorApplication;
+    application.status = "approved";
+    application.reason = null;
+    application.decidedAt = stamp();
+    Object.assign(state.profiles.mentor, {
+      mentorApprovedAt: stamp(),
+      mentorApprovedBy: by,
+    });
+    if (
+      ["work-email", "organization"].includes(application.verification.method)
+    )
+      target.affiliation ||= {
+        status: "verified",
+        organization:
+          application.verification.method === "organization"
+            ? "Endorsing organization"
+            : "Work email verified",
+        confirmedAt: stamp(),
+      };
+  }
   const migrations = (db) => {
     if (!required || db.mentorRules.phase6At) return false;
     const at = stamp();
@@ -208,19 +239,23 @@ export function createMentorOnboarding({
       profile.guidelinesGraceUntil = null;
     } else if (step === 6) {
       // The summary is past experience only. The introduction founders read
-      // first is its own optional answer, never a copy of the summary.
+      // first is its own answer, never a copy of the summary. It is required:
+      // a mentor profile without one can't send introductions.
       const errors = {};
       const experience =
         typeof values.experience === "string" ? values.experience.trim() : "";
       const bio = typeof values.bio === "string" ? values.bio.trim() : "";
       if (experience.length > experienceLimit)
         errors.experience = `Experience summary: shorten it to ${experienceLimit.toLocaleString("en")} characters (now ${experience.length.toLocaleString("en")}).`;
-      if (bio.length > bioLimit)
+      if (!bio)
+        errors.bio =
+          "Short introduction: add two or three sentences on who you help.";
+      else if (bio.length > bioLimit)
         errors.bio = `Short introduction: shorten it to ${bioLimit.toLocaleString("en")} characters (now ${bio.length.toLocaleString("en")}).`;
       if (Object.keys(errors).length)
         fail(Object.values(errors).join(" "), 400, errors);
       if (experience) profile.pastExperience = experience;
-      if (bio) profile.bio = bio;
+      profile.bio = bio;
     } else {
       profile.stages = clean(values.stages, 250)
         .split(",")
@@ -232,6 +267,16 @@ export function createMentorOnboarding({
         .filter(Boolean);
       if (profile.industries.length)
         profile.startups ||= profile.industries.join(", ");
+      // An application saved past this step before the introduction was
+      // required still needs one before it goes to a moderator.
+      if (!String(profile.bio || "").trim())
+        fail(
+          "Go back to the Experience step and add a short introduction.",
+          400,
+          {
+            bio: "Short introduction: add two or three sentences on who you help.",
+          },
+        );
       if (profile.guidelinesVersion !== c.guidelinesVersion) {
         fail(
           "The guidelines changed. Go back to the Mentor guidelines step and accept the new version.",
@@ -246,7 +291,7 @@ export function createMentorOnboarding({
         c.approvalTargetBusinessDays,
       );
       application.reason = null;
-      state.page = "home";
+      state.page = "onboarding";
       state.toast = "Mentor application submitted for review.";
       return;
     }
@@ -274,35 +319,18 @@ export function createMentorOnboarding({
       const reason = clean(values.reason, 500);
       if (!approve && !reason)
         fail("Explain why the application was rejected.");
-      application.status = approve ? "approved" : "rejected";
-      application.reason = reason || null;
-      application.decidedAt = stamp();
-      if (approve) {
-        Object.assign(target.state.profiles.mentor, {
-          mentorApprovedAt: stamp(),
-          mentorApprovedBy: account.id,
-        });
-        if (
-          ["work-email", "organization"].includes(
-            application.verification.method,
-          )
-        ) {
-          target.affiliation ||= {
-            status: "verified",
-            organization:
-              application.verification.method === "organization"
-                ? "Endorsing organization"
-                : "Work email verified",
-            confirmedAt: stamp(),
-          };
-        }
+      if (approve) markApproved(target, target.state, account.id);
+      else {
+        application.status = "rejected";
+        application.reason = reason;
+        application.decidedAt = stamp();
       }
       audit(account, "mentor-approval", target.id, application.status, reason);
       event(
         target,
         "mentor",
         approve
-          ? "Your mentor profile is approved. Founders can now request your guidance."
+          ? approvedText
           : `Your mentor application was rejected. ${reason}`,
         undefined,
         {
@@ -315,14 +343,38 @@ export function createMentorOnboarding({
         : "Mentor application rejected.";
       return;
     }
+    if (input.action === "simulate-mentor-approval") {
+      // TEMPORARY demo shortcut (SYNERGY_SIMULATE_VERIFICATION). Approves the
+      // caller's own pending application as if a moderator had, and audits it.
+      if (!simulate()) fail("Simulated approval is turned off.", 403);
+      if (
+        state.role !== "mentor" ||
+        account.mentorApplication?.status !== "pending"
+      )
+        fail("Submit your mentor application first.", 409);
+      // `state` is this request's working copy and replaces account.state
+      // afterwards, so the profile change and the Update go to it.
+      markApproved(account, state, "simulated");
+      account.mentorApplication.reason = simulatedNote;
+      audit(
+        { email: "simulated" },
+        "mentor-approval",
+        account.id,
+        "approved",
+        simulatedNote,
+      );
+      event({ state }, "mentor", approvedText, undefined, {
+        kind: "mentor-approved",
+        page: "onboarding",
+      });
+      state.toast = "Mentor approved (simulated).";
+      return;
+    }
     if (state.role !== "mentor" || approved(account))
       fail("There is no mentor application to edit.", 409);
     const current = account.mentorApplication || fresh();
     const application = structuredClone(current);
-    if (
-      application.status === "pending" ||
-      (application.status === "rejected" && application.attempts >= 2)
-    )
+    if (application.status === "pending" || finalRejection(application))
       fail("This mentor application cannot be edited.", 409);
     if (application.status === "rejected") {
       application.status = "draft";

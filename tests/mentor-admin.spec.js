@@ -29,8 +29,12 @@ test("mentoring moderation filters queues and logs validated settings with live 
     page.getByRole("heading", { name: "Session disputes" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Mentor approvals" }),
+    page.getByRole("heading", { name: "Mentorship safety" }),
   ).toHaveCount(0);
+  // Waiting applications sit above the queue filter, so they always show.
+  await expect(
+    page.getByRole("heading", { name: /^Mentor approvals \(\d+ waiting\)$/ }),
+  ).toBeVisible();
   await page.getByLabel("New value").fill("2");
   await page
     .getByRole("button", { name: "Save mentoring setting", exact: true })

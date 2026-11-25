@@ -98,6 +98,7 @@ const remoteActions = new Set([
   "reinstate-mentor",
   "lift-limit",
   "reject-mentor",
+  "simulate-mentor-approval",
   "open-office-slot",
   "set-office-preferred-time",
   "close-office-slot",
@@ -233,7 +234,7 @@ const reducer = (state, payload) =>
             payload.command.action === "mentor-onboarding-save" &&
             payload.state.mentorApplication?.status === "pending"
           )
-            draft.page = "home";
+            draft.page = "onboarding";
           if (payload.command.action === "choose-role") {
             draft.role = payload.state.role;
             if (payload.command.goHome)
@@ -839,6 +840,24 @@ export function AppProvider({ children }) {
         section?.querySelector("h2")?.setAttribute("tabindex", "-1");
         section?.querySelector("h2")?.focus({ preventScroll: true });
       });
+      return;
+    }
+    if (payload.action === "open-profile-switch") {
+      dispatch({ page: "settings" });
+      // Settings shows its sections once account settings load, so wait up
+      // to about a second for this one before giving up.
+      let frames = 60;
+      const jump = () => {
+        const section = document.getElementById("settings-profiles");
+        if (!section) {
+          if (--frames > 0) requestAnimationFrame(jump);
+          return;
+        }
+        section.scrollIntoView({ block: "start" });
+        section.querySelector("h2")?.setAttribute("tabindex", "-1");
+        section.querySelector("h2")?.focus({ preventScroll: true });
+      };
+      requestAnimationFrame(jump);
       return;
     }
     if (remoteActions.has(payload.action))

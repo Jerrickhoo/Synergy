@@ -39,7 +39,12 @@ import {
   mentorshipNextAction,
   paymentNextAction,
 } from "../src/data/mentor-room.js";
-import { profileKeys } from "../src/data/selectors.js";
+import {
+  missingProfileKeys,
+  missingProfileText,
+  profileKeys,
+} from "../src/data/selectors.js";
+import { approvalCopy, finalRejection } from "../src/data/mentor-onboarding.js";
 import {
   dayKeyIn,
   formatDate,
@@ -535,16 +540,146 @@ test("P3.12 and P3.16 an approved mentor is listed and verified, and mentor keys
   const own = s.view(mentor);
   assert.equal(own.mentorListing.listed, true);
   assert.equal(own.mentorVerification.label, "Endorsing organization checked");
-  // The summary is past experience only, never copied into the bio.
+  // The summary is past experience only, never copied into the bio, which
+  // holds the separate introduction.
   assert.equal(
     own.profiles.mentor.pastExperience,
     "Startup product and design advisor.",
   );
-  assert.equal(own.profiles.mentor.bio, "");
+  assert.equal(
+    own.profiles.mentor.bio,
+    "I help student founders test their product with real users.",
+  );
   const listed = s
     .view(founder)
     .directory.mentors.find((person) => person.id === idOf(mentor));
   assert.equal(listed.affiliation.status, "verified");
+});
+
+test("simulated mentor approval approves only your own pending application, and only when the flag is on", (t) => {
+  const submit = (s, mentor) => {
+    for (const values of applicationSteps)
+      s.act(mentor, {
+        action: "mentor-onboarding-save",
+        values: { ...values, step: s.view(mentor).mentorApplication.step },
+      });
+  };
+  const off = setup(t, { mentorApprovalRequired: true });
+  const kept = off.user("Pat", "mentor", undefined, { guidelines: false });
+  submit(off, kept);
+  assert.throws(
+    () => off.act(kept, { action: "simulate-mentor-approval" }),
+    /turned off/,
+  );
+  assert.equal(off.view(kept).mentorApplication.status, "pending");
+
+  const s = setup(t, {
+    mentorApprovalRequired: true,
+    simulateVerification: true,
+  });
+  const mentor = s.user("Sam", "mentor", undefined, { guidelines: false });
+  assert.throws(
+    () => s.act(mentor, { action: "simulate-mentor-approval" }),
+    /Submit your mentor application first/,
+  );
+  submit(s, mentor);
+  const state = s.act(mentor, { action: "simulate-mentor-approval" });
+  assert.equal(state.toast, "Mentor approved (simulated).");
+  const own = s.view(mentor);
+  assert.equal(own.mentorApplication, null);
+  assert.equal(own.mentorListing.listed, true);
+  assert.equal(own.mentorVerification.label, "Endorsing organization checked");
+  assert.ok(own.profiles.mentor.mentorApprovedAt);
+  assert.equal(own.profiles.mentor.mentorApprovedBy, "simulated");
+  assert.ok(own.notifications.some((item) => item.kind === "mentor-approved"));
+  // Already approved, so there is nothing left to simulate.
+  assert.throws(
+    () => s.act(mentor, { action: "simulate-mentor-approval" }),
+    /Submit your mentor application first/,
+  );
+});
+
+test("an introduction from an incomplete profile names the missing fields", (t) => {
+  assert.equal(
+    missingProfileText(["startups"]),
+    "the startups you want to help",
+  );
+  assert.equal(
+    missingProfileText(["bio", "industry", "teamSize"]),
+    "an introduction, your industry and your team size",
+  );
+  assert.deepEqual(
+    missingProfileKeys({ ...mentorValues, startups: " " }, "mentor"),
+    ["startups"],
+  );
+  // Industries is optional in the application and is the only thing that
+  // fills "Startups I want to help", so an approved mentor can still lack it.
+  const s = setup(t, { mentorApprovalRequired: true });
+  const admin = s.user("Admin", "founder", founderValues);
+  const founder = s.user("Alex", "founder", {
+    ...founderValues,
+    startupName: "Kitabook",
+  });
+  const mentor = s.user("Pat", "mentor", undefined, { guidelines: false });
+  for (const values of applicationSteps.slice(0, -1))
+    s.act(mentor, {
+      action: "mentor-onboarding-save",
+      values: { ...values, step: s.view(mentor).mentorApplication.step },
+    });
+  s.act(mentor, {
+    action: "mentor-onboarding-save",
+    values: { industries: "", stages: "", step: 7 },
+  });
+  s.act(admin, { action: "approve-mentor", id: mentor.state.accountId });
+  assert.deepEqual(
+    missingProfileKeys(s.view(mentor).profiles.mentor, "mentor"),
+    ["startups"],
+  );
+  assert.throws(
+    () => s.act(mentor, { action: "interest", id: idOf(founder) }),
+    /^Error: Add the startups you want to help to your profile before sending or accepting an introduction\.$/,
+  );
+});
+
+test("a second rejection closes the application and says what is still possible", (t) => {
+  const s = setup(t, { mentorApprovalRequired: true });
+  const admin = s.user("Admin", "founder", founderValues);
+  const mentor = s.user("Pat", "mentor", undefined, { guidelines: false });
+  const submit = () => {
+    for (const values of applicationSteps)
+      s.act(mentor, {
+        action: "mentor-onboarding-save",
+        values: { ...values, step: s.view(mentor).mentorApplication.step },
+      });
+  };
+  const reject = () =>
+    s.act(admin, {
+      action: "reject-mentor",
+      id: mentor.state.accountId,
+      values: { reason: "The endorsement could not be checked." },
+    });
+  submit();
+  reject();
+  let application = s.view(mentor).mentorApplication;
+  assert.equal(finalRejection(application), false);
+  assert.equal(
+    approvalCopy(application, 2),
+    "The endorsement could not be checked.",
+  );
+  // The first rejection can be edited and sent again.
+  s.act(mentor, { action: "mentor-onboarding-save" });
+  submit();
+  reject();
+  application = s.view(mentor).mentorApplication;
+  assert.equal(finalRejection(application), true);
+  assert.equal(
+    approvalCopy(application, 2),
+    "The endorsement could not be checked. This was your second application, so it can't be resubmitted. You can still use Synergy as a startup founder: switch profiles in Settings.",
+  );
+  assert.throws(
+    () => s.act(mentor, { action: "mentor-onboarding-save" }),
+    /cannot be edited/,
+  );
 });
 
 test("P3.14 and P4.26 the application stores a separate introduction and refuses over-long text", (t) => {
@@ -557,11 +692,21 @@ test("P3.14 and P4.26 the application stores a separate introduction and refuses
     });
   for (const values of applicationSteps.slice(0, 6)) save(values);
   assert.throws(
-    () => save({ experience: "x".repeat(1501) }),
+    () => save({ experience: "x".repeat(1501), bio: "Product mentor." }),
     (error) =>
       error.fields.experience ===
       "Experience summary: shorten it to 1,500 characters (now 1,501).",
   );
+  // The introduction is required: without it the approved mentor couldn't
+  // send an introduction, so the application refuses to move on.
+  for (const bio of [undefined, "", "   "])
+    assert.throws(
+      () => save({ experience: "Ten years in product.", bio }),
+      (error) =>
+        error.fields.bio ===
+        "Short introduction: add two or three sentences on who you help.",
+    );
+  assert.equal(s.view(mentor).mentorApplication.step, 6);
   save({
     experience: "Ten years in product.",
     bio: "I help student founders choose their next experiment.",

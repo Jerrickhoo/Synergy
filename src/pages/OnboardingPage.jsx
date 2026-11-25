@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import FormErrors from "../components/FormErrors.jsx";
+import PrototypeShortcut from "../components/PrototypeShortcut.jsx";
 import SignupPage from "./SignupPage.jsx";
 import { mentorFormats } from "../data/mentor-formats.js";
 import { mentorGuidelines } from "../data/mentor-guidelines.js";
@@ -19,6 +20,7 @@ import {
   approvalCopy,
   bioLimit,
   experienceLimit,
+  finalRejection,
   mentorApplicationSteps,
 } from "../data/mentor-onboarding.js";
 
@@ -260,11 +262,12 @@ function ApplicationFields({ application, profile, config, vocabulary }) {
           <LimitedTextarea
             id="application-bio"
             name="bio"
-            label="Short introduction (optional)"
+            label="Short introduction"
             limit={bioLimit}
             defaultValue={profile.bio}
+            required
             placeholder="In two or three sentences: who you help and what founders leave a session with."
-            help="Founders read this first on your profile. You can add it later in Edit profile."
+            help="Founders read this first on your profile, and you need it to send introductions."
           />
         </>
       );
@@ -299,6 +302,7 @@ function MentorApplication({ application }) {
   const step = application?.step || 0;
   const status = application?.status;
   const config = state.mentorConfig;
+  const closed = finalRejection(application);
   if (status !== "draft")
     return (
       <div className="page page-enter">
@@ -308,14 +312,39 @@ function MentorApplication({ application }) {
               ? "Mentor profile approved"
               : status === "pending"
                 ? "Application under review"
-                : "Mentor application needs changes"
+                : closed
+                  ? "Mentor application not approved"
+                  : "Mentor application needs changes"
           }
         />
         {application && (
           <p>{approvalCopy(application, config.approvalTargetBusinessDays)}</p>
         )}
+        {/* TEMPORARY demo shortcut, shown only when the server allows it. */}
+        {status === "pending" && state.integrations?.simulateVerification && (
+          <PrototypeShortcut note="skip the moderator and approve this application now.">
+            <button
+              type="button"
+              className="btn small"
+              disabled={state.busy}
+              onClick={(event) =>
+                onAction({ action: "simulate-mentor-approval" }, event)
+              }
+            >
+              {state.busy ? "Approving…" : "Simulate approval"}
+            </button>
+          </PrototypeShortcut>
+        )}
         <div className="mentor-request-controls">
-          {status === "rejected" && application.attempts < 2 && (
+          {closed && (
+            <button
+              className="btn primary"
+              onClick={() => onAction({ action: "open-profile-switch" })}
+            >
+              Switch profiles in Settings
+            </button>
+          )}
+          {status === "rejected" && !closed && (
             <button
               className="btn primary"
               disabled={state.busy}

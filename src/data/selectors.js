@@ -22,12 +22,24 @@ export const profileKeys = (role) =>
     ? ["bio", "offer", "need", "industry", "stage", "teamSize"]
     : ["bio", "offer", "expertise", "startups"];
 
+// The profile fields still empty, in profileKeys order.
+export function missingProfileKeys(profile, role) {
+  profile = normalizeProfile(profile || {});
+  return profileKeys(role).filter((key) => !String(profile[key] || "").trim());
+}
+
+// "your industry, your stage and your team size", for error messages.
+export function missingProfileText(keys) {
+  const names = keys.map((key) => profileFieldNames[key]);
+  return names.length > 1
+    ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`
+    : names[0] || "";
+}
+
 export function profileCompleteness(profile, role) {
-  profile = normalizeProfile(profile);
   const keys = profileKeys(role);
   return Math.round(
-    (keys.filter((key) => String(profile[key] || "").trim()).length /
-      keys.length) *
+    ((keys.length - missingProfileKeys(profile, role).length) / keys.length) *
       100,
   );
 }

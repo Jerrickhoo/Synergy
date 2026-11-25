@@ -375,7 +375,10 @@ export default function SettingsPage() {
         </section>
       ) : (
         <>
-          <section className="card panel settings-section section-gap">
+          <section
+            id="settings-profiles"
+            className="card panel settings-section section-gap"
+          >
             <h2>Profiles</h2>
             <p>
               Switch between your founder and mentor profiles. Each keeps its

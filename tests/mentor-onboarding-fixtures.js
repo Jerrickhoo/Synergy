@@ -15,6 +15,9 @@ export const applicationSteps = [
   { formats: ["single-session", "quick-ask", "office-hours"] },
   { noConflicts: true },
   { version: 2, agreed: true },
-  { experience: "Startup product and design advisor." },
+  {
+    experience: "Startup product and design advisor.",
+    bio: "I help student founders test their product with real users.",
+  },
   { industries: "EdTech", stages: "Idea" },
 ];

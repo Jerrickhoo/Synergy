@@ -81,8 +81,18 @@ test("mentor application survives a reload and approval is required for discover
   ).toBeVisible();
   await experience.fill("Product advisor for student founders.");
   await expect(page.getByText("37 / 1,500")).toBeVisible();
+  // The introduction is required, so the step won't move on without it.
+  await next();
+  await expect(page.getByText(/Step 7 of 8/)).toBeVisible();
+  await page
+    .getByLabel("Short introduction")
+    .fill("I help student founders test their product with real users.");
   await next();
   await page.getByRole("button", { name: "Submit for approval" }).click();
+  // Submitting lands on the review page, not Home.
+  await expect(
+    page.getByRole("heading", { name: "Application under review" }),
+  ).toBeVisible();
   await expect(page.getByText(/Your profile is with our team/)).toBeVisible();
   expect(await listed()).toBe(false);
   for (const width of [1440, 768, 390, 360]) {

@@ -1,19 +1,19 @@
 # Mentor rundown script: hosted site
 
-A start-to-finish pass through the hosted Synergy site (synergy-prototype.netlify.app) as a mentor: create a real account, apply to mentor, get approved, set your limits, help one startup you reach out to and one founder who asks you, then come back later. It takes about 50 minutes.
+A start-to-finish pass through the hosted Synergy site (synergy-prototype.netlify.app) as a mentor: create a real account, apply to mentor, get approved, set your limits, help one startup you reach out to and one founder who asks you, then come back later. It takes about 50 minutes, plus 10 for the optional rejection check in Act 8.
 
-This is the mentor companion to [FOUNDER-RUNDOWN-HOSTED.md](FOUNDER-RUNDOWN-HOSTED.md). Unlike the founder run, it needs a second account. A moderator has to approve every mentor application, the server won't let anyone approve their own, and there is no simulated approval for mentors. The second account also plays a real founder in Act 6, so you see a request arrive in your inbox.
+This is the mentor companion to [FOUNDER-RUNDOWN-HOSTED.md](FOUNDER-RUNDOWN-HOSTED.md). Unlike the founder run, it needs a second account. A moderator has to approve every mentor application, and the server won't let anyone approve their own. Act 3 has a simulated approval shortcut, but use the helper as the moderator when you can, because that tests the real flow. The second account also plays a real founder in Act 6, so you see a request arrive in your inbox.
 
 ## Before you start
 
 **Check the hosted setup first.**
 
-| Setting                         | Needed for                                                  | Value                                   |
-| ------------------------------- | ----------------------------------------------------------- | --------------------------------------- |
-| `SYNERGY_ADMIN_EMAILS`          | Approving your mentor application (Act 3)                   | Must include the **helper** email below |
-| `SYNERGY_SHOWCASE_PROFILES`     | ShelfShare and the other sample startups under **Startups** | `true`                                  |
-| `SYNERGY_SIMULATE_VERIFICATION` | The helper founder verifying themselves in Act 6            | `true` (already in `render.yaml`)       |
-| Deployed branch                 | Showcase profiles and simulated verification                | A commit that includes `ade13d6`        |
+| Setting                         | Needed for                                                                                  | Value                                   |
+| ------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `SYNERGY_ADMIN_EMAILS`          | Approving your mentor application (Act 3)                                                   | Must include the **helper** email below |
+| `SYNERGY_SHOWCASE_PROFILES`     | ShelfShare and the other sample startups under **Startups**                                 | `true`                                  |
+| `SYNERGY_SIMULATE_VERIFICATION` | The helper founder verifying themselves in Act 6, and the mentor approval shortcut in Act 3 | `true` (already in `render.yaml`)       |
+| Deployed branch                 | Showcase profiles and simulated verification                                                | A commit that includes `ade13d6`        |
 
 Changing an environment variable in Render restarts the service, and on the free plan a restart wipes every account. Set all of these before anyone signs up, not halfway through.
 
@@ -53,7 +53,7 @@ The application has eight steps. Select **Save and continue** after each one. Be
 
 5. **Verification:** choose **Endorsing organization** and enter "Rundown test cohort, checked by the test moderator".
 
-6. **Expertise:** choose at least three tags, including **Pricing strategy** and **Customer retention**.
+6. **Expertise:** choose **Pricing Strategy**, **Distribution**, **Mentorship** and **Fundraising**. The list has no retention tag. Pricing Strategy is the one ShelfShare and the Fairway founder in Act 6 need, so without it neither matches you.
 
 7. **Capacity and time zone:** set 3 mentees, 6 hours a month and a 2-day response time. Check that your time zone is right.
 
@@ -63,15 +63,17 @@ The application has eight steps. Select **Save and continue** after each one. Be
 
 10. **Mentor guidelines:** open at least two sections, then tick **I accept the mentor guidelines**.
 
-11. **Experience** and **Preferences:** add a one-line experience summary, for example "Ran pricing and retention for a 40-person subscription software company". Fill whatever Preferences asks, then select **Submit for approval**.
+11. **Experience:** add a one-line experience summary, for example "Ran pricing and retention for a 40-person subscription software company", and a **Short introduction**, which is required, for example "I help early-stage founders price their product and keep the customers they win." **Preferences:** fill both fields, including **Industries**, which becomes _Startups I want to help_ on your profile. Then select **Submit for approval**.
 
-12. Check that you see _Application under review_ with how long approval usually takes. Go to **Home** and **Startups** and note what you can and can't do while you wait.
+12. Check that you land on _Application under review_, which says how long approval usually takes. Select **Go to Home** and check that Home shows the same banner with **View application**. Open **Startups** and note what you can and can't do while you wait.
 
 ## Act 3: Get approved (about 5 min)
 
+**Shortcut:** if the helper can't moderate, for example because its email isn't in `SYNERGY_ADMIN_EMAILS`, select **Simulate approval** on _Application under review_ in the **Mentor** window (from Home, select **View application** to get there) in the dashed _Prototype only_ box. Then skip to step 15, and record in the findings log that you used the shortcut. You still need the helper account for Act 6.
+
 13. In the **Helper** window, create an account with the helper email, set **I'm here as a** to **Startup founder** and confirm the email.
 
-14. Select **Moderation** in the sidebar. Under **Mentor approvals**, find Sam Ortega and check that the application shows what you entered in Act 2. Select **Approve mentor**.
+14. Select **Moderation** in the sidebar. Under **Mentor approvals (1 waiting)**, below Tag proposals, expand the "Sam Ortega" row and check that the application shows what you entered in Act 2. Select **Approve mentor**.
 
 15. Back in the **Mentor** window, check that an Update says your mentor profile is approved and that your profile shows a Verified badge. Note whether you had to reload to see it.
 
@@ -79,9 +81,9 @@ The application has eight steps. Select **Save and continue** after each one. Be
 
 ## Act 4: Set your limits (about 3 min)
 
-17. Open **Settings → Mentoring**. Check that the guidelines show as accepted and that capacity reads something like "You're using 0 of 3 mentee slots and 0 of 6 hours this month".
+17. Open **Settings → Mentoring**. Check that the guidelines show as accepted and that capacity reads something like "You're using 0 of 3 session slots and 0 of 6 hours this month".
 
-18. Turn on **Pause new requests** with a resume date next week, save, and check the confirmation. Then turn it off again. Leave it off for the rest of the run.
+18. Under **Pause Mode**, pick a **Resume on** date next week and select **Pause new requests**. It takes effect straight away, with no separate save. Check the confirmation, then select **Turn off Pause Mode**. Leave it off for the rest of the run.
 
 ## Act 5: Offer help to a startup (about 12 min)
 
@@ -93,11 +95,11 @@ ShelfShare is a fictional showcase startup that needs pricing and retention help
 
 21. On ShelfShare, select **Send introduction**. Check that the card explains what happens if they accept.
 
-22. In **Requests**, find the introduction you sent, check that it is pending, then select **Simulate acceptance** in the dashed _Prototype only_ box. Open the Mentorship room.
+22. In **Requests**, under **Your requests**, find the introduction you sent, check that it is waiting for their reply, then select **Simulate acceptance** in the dashed _Prototype only_ box. Open the Mentorship room.
 
 23. Confirm the goal, for example "Choose between per-seat pricing and a lower tier before the next renewal cycle", with **Confirm goal**.
 
-24. Open **Schedule**, pick tomorrow at 10:00, save it, then select **Get calendar file** and **Download .ics**.
+24. Open **Schedule**, pick tomorrow at 10:00 and select **Schedule session**, then select **Get calendar file** to download the .ics. Open **Calendar** and check that tomorrow's session is there. Do it now: once the room is reviewed, its session leaves Calendar. Go back to the room through **Mentees → Open room**.
 
 25. Add a note under **Shared notes** and one action item, for example "Draft two pricing options for ShelfShare".
 
@@ -107,11 +109,16 @@ ShelfShare is a fictional showcase startup that needs pricing and retention help
 
 ## Act 6: Answer a real founder's request (about 12 min)
 
-28. In the **Helper** window, open **Profile**, paste a short description such as "Fairway is a seed-stage golf booking app. We need help with pricing strategy." and select **Suggest profile details**, **Apply suggestions** and **Save profile**. Fill anything still missing.
+28. In the **Helper** window, open your profile and select **Edit profile**. Fill Startup name "Fairway", Description "Fairway is a seed-stage golf booking app. We need help with pricing strategy.", any Industry, Stage **Seed** and Team size 4. Under _What Fairway needs_, choose **Pricing Strategy**, or Fairway won't match Sam. Under _What Fairway can offer_, choose any tag. Select **Save profile**.
 
-29. Still as the helper, open **Verification**, request verification with any test details, then select **Simulate approval**.
+29. Still as the helper, go to Home and select **Go to Verification**. Fill **Program, organization or person** and **How can a moderator check it?** with any test details, select **Request verification**, then **Simulate approval**.
 
-30. As the helper, open **Matches**, find **Sam Ortega** and choose **Quick Ask**. Ask "Should a golf booking app charge per booking or a monthly fee?" and send it.
+30. As the helper, open **Matches** and find **Sam Ortega** under Suggested, or search for Sam under **Browse all**. Open the match. In **Request mentorship**, set **Which format do you prefer?** to **Quick Ask** and fill:
+    - **What's the problem?** "We don't know how to price bookings for golf courses."
+    - **What have you already tried?** "We charged a flat 5% fee for two months."
+    - **What specific question do you want answered?** "Should a golf booking app charge per booking or a monthly fee?"
+
+    Then select **Send mentorship request**.
 
 31. In the **Mentor** window, check that **Requests** shows a count without reloading. Check your mentor inbox and record whether a request email arrived and whether its link opens the request.
 
@@ -127,32 +134,47 @@ ShelfShare is a fictional showcase startup that needs pricing and retention help
 
 Do this act straight after Act 6. A server restart wipes your accounts, so a long pause here tests Render, not Synergy.
 
-36. Open **Mentees** and check that ShelfShare and Fairway are both listed. Open **Calendar** and find tomorrow's session. Open **Impact** and note whether it reflects the two completed mentorships.
+36. Open **Mentees**. With both mentorships finished, it says "No active mentees". Select **Room history** and check that ShelfShare and Fairway are both listed as **Reviewed**. Open **Impact** and note whether it reflects the two completed mentorships.
 
 37. Open **Updates**, switch between **All** and **Unread**, open one update, then select **Mark all as read**.
 
-38. In **Settings**, switch to Dark appearance and back.
+38. In **Settings**, under **Appearance**, set **Color theme** to Dark, then back to Light.
 
 39. Sign out. Then sign back in with the same email and password and check that your approval, your settings, both rooms and both reviews are still there.
 
 40. Resize the window to phone width (about 390px) and repeat one task, such as opening a request or a room from Home.
 
+## Act 8: A rejected application (optional, about 10 min)
+
+This checks what a mentor sees when a moderator says no. It needs a third address, because Sam is already approved. Use the helper as the moderator, and record findings for the new mentor.
+
+41. In a third window, create an account as **Mentor** with a fresh email, for example `you+reject3@example.com`, and submit the application with the [sample answers](MENTOR-SAMPLE-ANSWERS.md).
+
+42. In the **Helper** window, open **Moderation**, expand the new applicant under **Mentor approvals**, enter a reason such as "The endorsement could not be checked" and select **Reject application**.
+
+43. In the new mentor's window, check that the page reads _Mentor application needs changes_ and shows the reason. Select **Edit and resubmit**, check that it reopens at step 1 with your answers kept, then save each step and submit again.
+
+44. As the helper, reject it a second time with a reason.
+
+45. As the new mentor, check that the page reads _Mentor application not approved_, shows the reason, and says the application can't be resubmitted. Select **Switch profiles in Settings** and check that it opens the **Profiles** section. Check that Home shows the same message.
+
 ## Goal: when the rundown counts as done
 
-The rundown is done when all ten of these are true. Tick each one as you confirm it.
+The rundown is done when items 1–10 are true, and item 11 too if you ran Act 8. Tick each one as you confirm it.
 
-| #   | Done when…                                                                                                                       | Done |
-| --- | -------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| 1   | You created the mentor account with your own email and opened the workspace through the emailed link                             | [ ]  |
-| 2   | Your mentor application was submitted, approved by the helper moderator, and your profile shows **Verified**                     | [ ]  |
-| 3   | **Settings → Mentoring** shows your capacity, and Pause new requests was turned on and off                                       | [ ]  |
-| 4   | Suggested showed ShelfShare or another startup that needs one of your tags, and you opened **Why this match**                    | [ ]  |
-| 5   | The ShelfShare Mentorship room shows **Reviewed**, with both reviews visible and a calendar file downloaded                      | [ ]  |
-| 6   | You accepted a real request in **Requests**, delivered a Quick Ask answer, and that room shows **Reviewed**                      | [ ]  |
-| 7   | **Mentees** lists both founders                                                                                                  | [ ]  |
-| 8   | **Updates** shows 0 unread                                                                                                       | [ ]  |
-| 9   | After signing out and back in, items 2–8 are still true                                                                          | [ ]  |
-| 10  | The findings log lists every friction point with its step number, and the run has a 1–5 "would a real mentor finish this?" score | [ ]  |
+| #   | Done when…                                                                                                                         | Done |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| 1   | You created the mentor account with your own email and opened the workspace through the emailed link                               | [ ]  |
+| 2   | Your mentor application was submitted, approved by the helper moderator, and your profile shows **Verified**                       | [ ]  |
+| 3   | **Settings → Mentoring** shows your capacity, and Pause new requests was turned on and off                                         | [ ]  |
+| 4   | Suggested showed ShelfShare or another startup that needs one of your tags, and you opened **Why this match**                      | [ ]  |
+| 5   | The ShelfShare Mentorship room shows **Reviewed**, with both reviews visible and a calendar file downloaded                        | [ ]  |
+| 6   | You accepted a real request in **Requests**, delivered a Quick Ask answer, and that room shows **Reviewed**                        | [ ]  |
+| 7   | **Mentees → Room history** lists both founders as **Reviewed**                                                                     | [ ]  |
+| 8   | **Updates** shows 0 unread                                                                                                         | [ ]  |
+| 9   | After signing out and back in, items 2–8 are still true                                                                            | [ ]  |
+| 10  | The findings log lists every friction point with its step number, and the run has a 1–5 "would a real mentor finish this?" score   | [ ]  |
+| 11  | Optional, if you ran Act 8: the second rejection shows _Mentor application not approved_ and **Switch profiles in Settings** works | [ ]  |
 
 If you can't finish a step, record it as **Blocked at step N** with a screenshot and keep going where you can. A rundown with honest blocked steps still counts. Skipping a step quietly doesn't. If the server restarts mid-run and wipes your accounts, record the step where it happened and start again from Act 1 with new emails.
 
@@ -186,6 +208,7 @@ Status is **Pass**, **Fail**, **Blocked** or **Not run**.
 | 19–27 | Not run |       |
 | 28–35 | Not run |       |
 | 36–40 | Not run |       |
+| 41–45 | Not run |       |
 
 ## Findings log
 

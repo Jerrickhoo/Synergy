@@ -35,6 +35,7 @@ import {
   preferenceLabel,
 } from "../data/profile-presentation.js";
 import { formatDate } from "../data/dates.js";
+import { missingProfileKeys, missingProfileText } from "../data/selectors.js";
 
 const typeNames = {
   beta: "Beta Testing Exchange",
@@ -159,6 +160,13 @@ function MatchDetail() {
     !state.mentorUsage.available;
   const startBlocked =
     !existingRoom && !interested && (mentorUnavailable || ownUnavailable);
+  // The server refuses an introduction from an incomplete profile, so say
+  // which fields are missing here instead of after a failed send.
+  const missingProfile =
+    existingRoom || (interested && !incoming)
+      ? []
+      : missingProfileKeys(state.profiles[state.role], state.role);
+  const profileBlocked = missingProfile.length > 0;
   return (
     <div className="page match-detail-page page-enter">
       <button
@@ -342,6 +350,24 @@ function MatchDetail() {
               {incoming && meta?.note && (
                 <blockquote className="intro-note">“{meta.note}”</blockquote>
               )}
+              {profileBlocked && !startBlocked && (
+                <div className="mentoring-banner" role="status">
+                  <p>
+                    Add {missingProfileText(missingProfile)} to your profile
+                    before you{" "}
+                    {incoming
+                      ? "accept this introduction"
+                      : "introduce yourself"}
+                    .
+                  </p>
+                  <button
+                    className="btn small"
+                    onClick={() => onAction({ action: "edit-profile" })}
+                  >
+                    Edit profile
+                  </button>
+                </div>
+              )}
               {startBlocked && (
                 <div className="mentoring-banner" role="status">
                   <p>
@@ -456,6 +482,7 @@ function MatchDetail() {
                 disabled={
                   state.busy ||
                   startBlocked ||
+                  profileBlocked ||
                   (!existingRoom && verificationRequired(state)) ||
                   (interested && !existingRoom && !incoming)
                 }
