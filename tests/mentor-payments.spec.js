@@ -174,13 +174,15 @@ test("payouts show money amounts, the price range and their own messages", async
   await open(page, mentor, "settings");
   // Money totals are amounts, never the "Free" price label.
   await expect(page.getByText("Held ₱0.00 · Released ₱0.00")).toBeVisible();
-  await expect(
-    page.getByText(/0 for Free, or ₱300–₱10,000\./).first(),
-  ).toBeVisible();
+  // Before payout setup there is nothing to price yet.
+  await expect(page.getByLabel("Single Session price in PHP")).toHaveCount(0);
   await page
     .getByRole("button", { name: "Complete simulated payout setup" })
     .click();
   await expect(page.locator(".toast")).toContainText("Payout setup complete.");
+  await expect(
+    page.getByText(/0 for Free, or ₱300–₱10,000\./).first(),
+  ).toBeVisible();
   const price = page.getByLabel("Single Session price in PHP");
   await price.fill("1");
   await price

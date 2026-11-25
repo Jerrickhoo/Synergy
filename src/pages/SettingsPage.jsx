@@ -11,6 +11,66 @@ import { readTheme, applyTheme, themeKey } from "../state/theme.js";
 import MentoringSettings from "../components/MentoringSettings.jsx";
 import { formatDateTime } from "../data/dates.js";
 
+const emailGroups = [
+  [
+    "Requests and approval",
+    ["request", "accepted", "mentor-approved", "guidelines-required"],
+  ],
+  ["Sessions", ["session-reminder", "attendance-needed", "followup-due"]],
+  [
+    "Payments",
+    [
+      "payment-due",
+      "payment-lapsed",
+      "payment-received",
+      "payout-released",
+      "refund",
+      "payment-dispute",
+    ],
+  ],
+];
+
+// A mentor's settings run long, so a sticky list jumps to each section.
+const mentorSections = [
+  ["mentoring-settings", "Mentoring"],
+  ["settings-payouts", "Payouts"],
+  ["appearance-settings", "Appearance"],
+  ["notification-settings-section", "Notifications"],
+  ["settings-profiles", "Profiles"],
+  ["settings-blocked", "Blocked"],
+  ["settings-account", "Account"],
+];
+function SettingsNav() {
+  const jump = (id) => {
+    const target = document.getElementById(id);
+    if (!target) return;
+    const reduce = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    target.scrollIntoView({
+      behavior: reduce ? "auto" : "smooth",
+      block: "start",
+    });
+    (target.matches("h2") ? target : target.querySelector("h2"))?.focus({
+      preventScroll: true,
+    });
+  };
+  return (
+    <nav className="settings-nav" aria-label="Settings sections">
+      {mentorSections.map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          className="settings-nav-link"
+          onClick={() => jump(id)}
+        >
+          {label}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 export default function SettingsPage() {
   const { state, integrationRequest, onAction, notify, onSubmit } = useApp();
   const prefs = state.notificationPreferences || {
@@ -153,10 +213,14 @@ export default function SettingsPage() {
             : "Control your visibility, account access and personal data."
         }
       />
+      {state.role === "mentor" && <SettingsNav />}
       {state.role === "mentor" && <MentoringSettings />}
       <PaymentSettings />
-      <section className="card panel settings-section appearance-settings section-gap">
-        <h2>Appearance</h2>
+      <section
+        className="card panel settings-section appearance-settings section-gap"
+        id="appearance-settings"
+      >
+        <h2 tabIndex={-1}>Appearance</h2>
         <p>Choose Light or Dark for this browser. Light is the default.</p>
         <SelectField
           id="appearance-theme"
@@ -184,15 +248,11 @@ export default function SettingsPage() {
       <section
         className="card panel settings-section section-gap"
         aria-labelledby="notification-settings"
+        id="notification-settings-section"
       >
-        <h2 id="notification-settings">Notifications</h2>
-        <button
-          type="button"
-          className="link-btn"
-          onClick={() => onAction({ page: "calendar" })}
-        >
-          View calendar
-        </button>
+        <h2 id="notification-settings" tabIndex={-1}>
+          Notifications
+        </h2>
         <p>
           Choose what reaches your Updates and bell. Requests that need your
           reply, such as terms to accept or a milestone to confirm, always show.
@@ -249,36 +309,49 @@ export default function SettingsPage() {
               ]}
             />
           )}
-          <fieldset className="checkbox-group">
+          {/* Mentorship emails, grouped by what they are about so the list
+              reads in three short sets instead of one long column. */}
+          <fieldset className="checkbox-group email-groups">
             <legend>Mentorship emails</legend>
             <input
               type="hidden"
               name="mentorshipEmailPreferences"
               value="yes"
             />
-            {Object.entries(mentorEmailKinds)
-              .filter(
-                ([key]) =>
-                  state.role === "mentor" ||
-                  ![
-                    "request",
-                    "mentor-approved",
-                    "guidelines-required",
-                  ].includes(key),
-              )
-              .map(([key, label]) => (
-                <label className="checkbox-label" key={key}>
-                  <input
-                    type="checkbox"
-                    name={`email-${key}`}
-                    defaultChecked={
-                      prefs.mentorEmailKinds?.[key] !== false &&
-                      !state.mentorEmailStatus?.unsubscribedKinds?.includes(key)
-                    }
-                  />{" "}
-                  {label}
-                </label>
-              ))}
+            {emailGroups.map(([title, keys]) => {
+              const shown = keys.filter(
+                (key) =>
+                  mentorEmailKinds[key] &&
+                  (state.role === "mentor" ||
+                    ![
+                      "request",
+                      "mentor-approved",
+                      "guidelines-required",
+                    ].includes(key)),
+              );
+              return (
+                shown.length > 0 && (
+                  <div className="email-group" key={title}>
+                    <h3>{title}</h3>
+                    {shown.map((key) => (
+                      <label className="checkbox-label" key={key}>
+                        <input
+                          type="checkbox"
+                          name={`email-${key}`}
+                          defaultChecked={
+                            prefs.mentorEmailKinds?.[key] !== false &&
+                            !state.mentorEmailStatus?.unsubscribedKinds?.includes(
+                              key,
+                            )
+                          }
+                        />{" "}
+                        {mentorEmailKinds[key]}
+                      </label>
+                    ))}
+                  </div>
+                )
+              );
+            })}
             {(state.mentorEmailStatus?.bouncedAt ||
               state.mentorEmailStatus?.unsubscribedAt) && (
               <p>
@@ -322,45 +395,6 @@ export default function SettingsPage() {
           </section>
         )}
       </section>
-      {state.role === "mentor" && (
-        <section className="card panel section-gap">
-          <h2>Mentoring survey</h2>
-          <form
-            data-form="mentorship-survey"
-            className="mentor-request-form"
-            onSubmit={onSubmit}
-          >
-            <fieldset>
-              <legend>
-                Would you charge for any format if Synergy handled payments?
-              </legend>
-              <label>
-                <input
-                  type="radio"
-                  name="wouldCharge"
-                  value="yes"
-                  required
-                  defaultChecked={state.mentorshipSurvey?.wouldCharge === true}
-                />{" "}
-                Yes
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="wouldCharge"
-                  value="no"
-                  required
-                  defaultChecked={state.mentorshipSurvey?.wouldCharge === false}
-                />{" "}
-                No
-              </label>
-            </fieldset>
-            <button className="btn" disabled={state.busy}>
-              Save survey response
-            </button>
-          </form>
-        </section>
-      )}
       {error && (
         <div className="connection-banner" role="alert">
           <p>{error}</p>
@@ -379,7 +413,7 @@ export default function SettingsPage() {
             id="settings-profiles"
             className="card panel settings-section section-gap"
           >
-            <h2>Profiles</h2>
+            <h2 tabIndex={-1}>Profiles</h2>
             <p>
               Switch between your founder and mentor profiles. Each keeps its
               own details and drafts.
@@ -398,8 +432,11 @@ export default function SettingsPage() {
               <option value="mentor">Mentor</option>
             </SelectField>
           </section>
-          <section className="card panel settings-section section-gap">
-            <h2>Blocked collaborators</h2>
+          <section
+            className="card panel settings-section section-gap"
+            id="settings-blocked"
+          >
+            <h2 tabIndex={-1}>Blocked collaborators</h2>
             <p>
               Blocking hides both accounts from each other in Matches, withdraws
               introductions, closes unfinished rooms and stops further chat.
@@ -430,8 +467,11 @@ export default function SettingsPage() {
               </p>
             )}
           </section>
-          <section className="card panel settings-section section-gap">
-            <h2>Account access</h2>
+          <section
+            className="card panel settings-section section-gap"
+            id="settings-account"
+          >
+            <h2 tabIndex={-1}>Account access</h2>
             <h3>Sign-in sessions</h3>
             {settings.sessions.map((session) => (
               <div className="collaboration-row" key={session.id}>

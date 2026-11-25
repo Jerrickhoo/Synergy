@@ -1,6 +1,7 @@
 import {
   CalendarFeed,
   OfficeHoursManager,
+  focusOfficeHours,
 } from "../components/OfficeHours.jsx";
 import SelectField from "../components/SelectField.jsx";
 import { useState } from "react";
@@ -75,11 +76,10 @@ function CalendarContent() {
   const partnerName = (room) =>
     people.find((person) => person.id === room.partnerId)?.name ||
     "Your collaborator";
+  const mentor = state.role === "mentor";
   const openEvent = (event) => {
     if (!event.room) {
-      const section = document.getElementById("office-hours");
-      section?.scrollIntoView({ block: "start" });
-      section?.querySelector("h2")?.focus({ preventScroll: true });
+      focusOfficeHours();
       return;
     }
     onAction({ action: "open-room", id: event.room.id, tab: event.tab });
@@ -104,13 +104,26 @@ function CalendarContent() {
   );
   return (
     <div className="page calendar-page page-enter">
+      {/* A mentor's calendar leads with the calendar itself; opening Office
+          Hours is one button away, and its form and the subscription link
+          follow below. */}
       <PageHeader
         title="Calendar"
-        intro="Sessions and deadlines across your collaborations."
+        intro={
+          mentor
+            ? "Sessions, deadlines and your open Office Hours."
+            : "Sessions and deadlines across your collaborations."
+        }
+        actions={
+          mentor && (
+            <button className="btn primary" onClick={() => focusOfficeHours()}>
+              Open Office Hours
+            </button>
+          )
+        }
       />
-      {state.role === "mentor" && <OfficeHoursManager />}
-      <CalendarFeed />
-      <div className="calendar-controls section-gap">
+      {!mentor && <CalendarFeed />}
+      <div className={`calendar-controls${mentor ? "" : " section-gap"}`}>
         <div
           className="calendar-view-switch"
           role="group"
@@ -222,7 +235,7 @@ function CalendarContent() {
             </span>
             <span>
               <i className="legend-dot kind-milestone" />
-              Milestones (UTC)
+              Milestone deadlines
             </span>
             {state.role === "mentor" && (
               <span>
@@ -247,19 +260,17 @@ function CalendarContent() {
             id="selected-day-agenda"
             aria-label="Selected day agenda"
           >
-            <p className="section-eyebrow">Selected day</p>
             <h2>
               {dateFromKey(date).toLocaleDateString(undefined, {
+                weekday: "long",
                 month: "long",
                 day: "numeric",
               })}
             </h2>
             <p className="agenda-day-description" role="status">
-              {dateFromKey(date).toLocaleDateString(undefined, {
-                weekday: "long",
-              })}{" "}
-              · {dateFromKey(date).getFullYear()} · {dayEvents.length}{" "}
-              {dayEvents.length === 1 ? "event" : "events"}
+              {dayEvents.length
+                ? `${dayEvents.length} ${dayEvents.length === 1 ? "event" : "events"}`
+                : "No events"}
             </p>
             <div className="agenda-events">
               {dayEvents.length ? (
@@ -273,16 +284,20 @@ function CalendarContent() {
                 ))
               ) : (
                 <div className="agenda-empty">
-                  <h3>No events on this day</h3>
                   <p>
-                    Select another date or add a session or deadline in a
-                    collaboration.
+                    {mentor
+                      ? "Select another date, or open an Office Hours slot on this day."
+                      : "Select another date or add a session or deadline in a collaboration."}
                   </p>
                 </div>
               )}
             </div>
             <div className="agenda-plan">
-              <h3>Plan a session</h3>
+              <h3>
+                {mentor && !mentorships.length
+                  ? "Office Hours"
+                  : "Plan a session"}
+              </h3>
               {mentorships.length ? (
                 mentorships.map((room) => (
                   <button
@@ -301,6 +316,14 @@ function CalendarContent() {
                     <Icon name="arrow" />
                   </button>
                 ))
+              ) : mentor ? (
+                <button
+                  className="btn full"
+                  disabled={date < localDateKey(new Date())}
+                  onClick={() => focusOfficeHours(date)}
+                >
+                  Open a slot on this day
+                </button>
               ) : (
                 <>
                   <p className="muted">
@@ -322,6 +345,8 @@ function CalendarContent() {
           </aside>
         )}
       </div>
+      {mentor && <OfficeHoursManager />}
+      {mentor && <CalendarFeed />}
     </div>
   );
 }

@@ -40,9 +40,13 @@ test("Impact suppresses sparse data and opens a printable volunteer certificate"
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
     .analyze();
   expect(audit.violations.map(({ id }) => id)).toEqual([]);
-  await page
-    .getByRole("button", { name: "View volunteer certificate" })
-    .click();
+  // Nothing to certify yet: no certificate button, and the starter badge
+  // is not shown as an achievement.
+  await expect(
+    page.getByRole("button", { name: "View volunteer certificate" }),
+  ).toHaveCount(0);
+  await expect(page.getByText("New Mentor", { exact: true })).toHaveCount(0);
+  await open(page, mentor, "impact/certificate");
   await expect(page).toHaveURL(/#\/impact\/certificate$/);
   await expect(
     page.getByRole("heading", { name: "ImpactMentor Audit", exact: true }),

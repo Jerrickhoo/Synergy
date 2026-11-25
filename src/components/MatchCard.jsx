@@ -7,6 +7,7 @@ import VerificationGate from "./VerificationGate.jsx";
 import Tags from "./Tags.jsx";
 import Icon from "./Icon.jsx";
 import { useState } from "react";
+import { mentorFormat } from "../data/mentor-formats.js";
 import Overlay from "./Overlay.jsx";
 import {
   cooldownActive,
@@ -63,17 +64,27 @@ export default function MatchCard({ person, large = false }) {
       : mentor
         ? []
         : person.need?.slice(0, 2) || [];
+  // A founder who has already asked this mentor: say what they asked for
+  // and send the mentor straight to the request instead of the match page.
+  const request = mentoring
+    ? (state.mentorRequests || []).find((item) => item.partnerId === person.id)
+    : null;
+  const requestFormat = request
+    ? mentorFormat(request.format)?.label || "mentorship"
+    : "";
   const connection = existingRoom
     ? "You already have a Deal Room together"
-    : incoming
-      ? "Wants to connect with you · View match to reply"
-      : interested
-        ? "Introduction sent"
-        : "";
+    : request
+      ? `Sent you a ${requestFormat} request`
+      : incoming
+        ? "Wants to connect with you · View match to reply"
+        : interested
+          ? "Introduction sent"
+          : "";
 
   return (
     <article
-      className={`match-card match-preview${large ? " large" : ""}${leaving ? " is-leaving" : ""}`}
+      className={`match-card match-preview${large ? " large" : ""}${leaving ? " is-leaving" : ""}${mentoring ? " mentor-view" : ""}`}
       aria-labelledby={`match-name-${person.id}`}
       onAnimationEnd={(event) => {
         if (event.animationName === "match-leave") toggleSaved();
@@ -88,14 +99,18 @@ export default function MatchCard({ person, large = false }) {
           color={person.color}
         />
         <div className="preview-identity">
-          <span className="preview-kind">
-            {person.kind}
-            {person.affiliation && (
-              <span className="badge-verified">
-                <Icon name="check" /> Verified
-              </span>
-            )}
-          </span>
+          {/* Every card on a mentor's Startups page is a startup, so only
+              the Verified badge is left to say. */}
+          {(!mentoring || person.affiliation) && (
+            <span className="preview-kind">
+              {!mentoring && person.kind}
+              {person.affiliation && (
+                <span className="badge-verified">
+                  <Icon name="check" /> Verified
+                </span>
+              )}
+            </span>
+          )}
           <h3 id={`match-name-${person.id}`}>{person.name}</h3>
           {person.founderName && person.founderName !== person.name && (
             <span className="preview-founder">{person.founderName}</span>
@@ -135,7 +150,9 @@ export default function MatchCard({ person, large = false }) {
       </p>
       {person.summary && <p className="preview-summary">{person.summary}</p>}
       {/* "Offers what you need: X" would repeat the You get chips below. */}
-      {(mentoring || !youGet.length || person.audienceWarning) && (
+      {/* For a mentor, the fit ring and the "Needs you cover" chips already
+          say how strong the fit is. */}
+      {((!mentoring && !youGet.length) || person.audienceWarning) && (
         <p
           className={`preview-reason${person.audienceWarning ? " warning" : ""}`}
         >
@@ -150,7 +167,7 @@ export default function MatchCard({ person, large = false }) {
               <dt>
                 {mentoring
                   ? covered.length
-                    ? "Needs help you offer"
+                    ? "Needs you cover"
                     : "Needs guidance with"
                   : fallbackGets
                     ? "They offer"
@@ -215,7 +232,7 @@ export default function MatchCard({ person, large = false }) {
       )}
       {connection && (
         <p className="preview-connection">
-          <Icon name={incoming ? "inbox" : "check"} />
+          <Icon name={incoming || request ? "inbox" : "check"} />
           {existingRoom?.type === "mentorship"
             ? "You have a mentorship room together"
             : connection}
@@ -244,17 +261,29 @@ export default function MatchCard({ person, large = false }) {
             </span>
           </span>
         </button>
-        <button
-          className="btn small"
-          data-action="match-detail"
-          data-id={person.id}
-          onClick={(event) =>
-            onAction({ action: "match-detail", id: person.id }, event)
-          }
-        >
-          View match <Icon name="arrow" />
-          <span className="visually-hidden">: {person.name}</span>
-        </button>
+        {request && !existingRoom ? (
+          <button
+            className="btn small primary"
+            onClick={() =>
+              onAction({ page: "requests", requestId: request.id })
+            }
+          >
+            Reply to request
+            <span className="visually-hidden">: {person.name}</span>
+          </button>
+        ) : (
+          <button
+            className="btn small"
+            data-action="match-detail"
+            data-id={person.id}
+            onClick={(event) =>
+              onAction({ action: "match-detail", id: person.id }, event)
+            }
+          >
+            View match <Icon name="arrow" />
+            <span className="visually-hidden">: {person.name}</span>
+          </button>
+        )}
       </div>
       {fitOpen && (
         <Overlay

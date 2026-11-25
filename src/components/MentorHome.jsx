@@ -24,9 +24,12 @@ import {
   ownUnavailableText,
 } from "../data/mentor-rules.js";
 import { mentorFormat } from "../data/mentor-formats.js";
+import { roomFormat } from "../data/mentor-room.js";
 import { formatDate } from "../data/dates.js";
-import { localDateKey } from "../data/planning.js";
+import { calendarEvents, localDateKey } from "../data/planning.js";
+import Icon from "./Icon.jsx";
 import HomeMetrics from "./HomeMetrics.jsx";
+import { OpenSlotButton } from "./OfficeHours.jsx";
 import { collaboratorSlots } from "../data/home-planner.js";
 import {
   HomeActivity,
@@ -135,7 +138,12 @@ function ListingStatus({ usage, settings, busy = false }) {
             <dd>{formatList(formats) || "None yet"}</dd>
           </div>
         </dl>
-        {closed && <p className="mentor-closed-line">{closed}</p>}
+        {closed && (
+          <div className="mentor-closed">
+            <p className="mentor-closed-line">{closed}</p>
+            <OpenSlotButton usage={usage} />
+          </div>
+        )}
         <div className="mentor-request-controls">
           {usage?.paused && <ResumeRequests />}
           {usage?.reason === "guidelines" && !usage.paused && (
@@ -146,7 +154,7 @@ function ListingStatus({ usage, settings, busy = false }) {
           <button className="btn" onClick={viewProfile}>
             View your profile
           </button>
-          <button className="link-btn" onClick={settings}>
+          <button className="btn" onClick={settings}>
             {usage?.paused ? "Change resume date" : "Change availability"}
           </button>
         </div>
@@ -182,6 +190,73 @@ function ListingStatus({ usage, settings, busy = false }) {
           Set up your profile
         </button>
       </div>
+    </section>
+  );
+}
+
+// After a room opens, bring the step's section into view and focus its first
+// field, retrying for a few frames while the room page renders.
+function focusStep(id, tries = 10) {
+  const target = document.getElementById(id);
+  if (!target) {
+    if (tries > 0) requestAnimationFrame(() => focusStep(id, tries - 1));
+    return;
+  }
+  const reduce = window.matchMedia?.(
+    "(prefers-reduced-motion: reduce)",
+  ).matches;
+  target.scrollIntoView({
+    behavior: reduce ? "auto" : "smooth",
+    block: "start",
+  });
+  target
+    .querySelector("textarea, input:not([type=hidden]), select, button")
+    ?.focus({ preventScroll: true });
+}
+
+// The mentee waiting longest on the mentor leads Home: their step, the
+// founder's own question and one primary button that lands on the step.
+// Anyone else waiting follows as a short list.
+function MentorTurn({ items, nameOf, go }) {
+  const [first, ...rest] = items;
+  const format = mentorFormat(roomFormat(first.room))?.label;
+  const question = first.room.mentorship?.question?.trim();
+  return (
+    <section
+      className="card panel mentor-turn section-gap"
+      aria-labelledby="mentor-turn-title"
+    >
+      <p className="mentor-turn-who">
+        {nameOf(first.room)}
+        {format ? ` · ${format}` : ""}
+      </p>
+      <h2 id="mentor-turn-title">{first.next.text}</h2>
+      {question && (
+        <blockquote className="mentor-turn-question preserve-lines">
+          {question}
+        </blockquote>
+      )}
+      <div className="mentor-request-controls">
+        <button className="btn primary" onClick={() => go(first)}>
+          {first.next.action || "Open room"}
+          <span className="visually-hidden">: {nameOf(first.room)}</span>
+        </button>
+      </div>
+      {rest.length > 0 && (
+        <ul className="mentor-turn-rest" aria-label="Also waiting on you">
+          {rest.map((item) => (
+            <li key={item.room.id}>
+              <span>
+                <strong>{nameOf(item.room)}</strong> · {item.next.text}
+              </span>
+              <button className="btn small" onClick={() => go(item)}>
+                Open room
+                <span className="visually-hidden">: {nameOf(item.room)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
@@ -231,8 +306,6 @@ export default function MentorHome() {
   const usage = state.mentorUsage;
   const partner = (room) =>
     model.allPeople().find((person) => person.id === room.partnerId);
-  const open = (room, tab) =>
-    onAction({ action: "open-room", id: room.id, tab });
   const settings = () => onAction({ page: "settings" });
   const guidelines = usage?.guidelines;
   const banner =
@@ -306,8 +379,19 @@ export default function MentorHome() {
     })),
   ];
   const yourTurn = mentees.filter(({ next }) => next.mine);
+  // Mentees already in the "your turn" card aren't listed a second time.
+  const others = mentees.filter(({ next }) => !next.mine);
+  const hasEvents = calendarEvents(state).some((event) => event.room);
+  const go = async ({ room, next }) => {
+    await onAction({
+      action: "open-room",
+      id: room.id,
+      tab: next.tab,
+      review: next.review && next.mine,
+    });
+    if (next.target) focusStep(next.target);
+  };
   const firstTurn = yourTurn[0];
-  const lower = (text) => text.charAt(0).toLowerCase() + text.slice(1);
   return (
     <div className="page simple-home mentor-home page-enter">
       <PageHeader
@@ -324,7 +408,7 @@ export default function MentorHome() {
             : requests.length
               ? "Reply to founders who match your expertise."
               : firstTurn
-                ? `Next for ${partner(firstTurn.room)?.name || "your mentee"}: ${lower(firstTurn.next.text)}${yourTurn.length > 1 ? `, and ${yourTurn.length - 1} more` : ""}.`
+                ? "" // The card below names the step and holds its button.
                 : "No new mentorship requests."
         }
       />
@@ -410,22 +494,31 @@ export default function MentorHome() {
           </button>
         </div>
       )}
+      {/* The oldest request leads; the rest wait one click away. */}
       {requests.length > 0 && (
         <section className="mentor-requests-list" aria-label="Top requests">
-          {requests.slice(0, 2).map((request) => (
-            <RequestCard key={request.id} request={request} />
-          ))}
-          <button
-            className="btn"
-            onClick={() => onAction({ page: "requests" })}
-          >
-            View all requests
-          </button>
+          <RequestCard request={requests[0]} />
+          {requests.length > 1 && (
+            <button
+              className="link-btn home-more-link"
+              onClick={() => onAction({ page: "requests" })}
+            >
+              View all {requests.length} requests <Icon name="arrow" />
+            </button>
+          )}
         </section>
       )}
-      {rooms.length > 0 && (
-        <div className="home-planner section-gap">
-          <HomeCalendar rooms={rooms} nameOf={nameOf} slots={slots} />
+      {yourTurn.length > 0 && (
+        <MentorTurn items={yourTurn} nameOf={nameOf} go={go} />
+      )}
+      {/* The calendar earns its space only once something is on it; until
+          then the tasks list alone carries attendance, check-ins and
+          follow-ups. */}
+      {rooms.length > 0 && (hasEvents || mentorTasks.length > 0) && (
+        <div className={`home-planner section-gap${hasEvents ? "" : " solo"}`}>
+          {hasEvents && (
+            <HomeCalendar rooms={rooms} nameOf={nameOf} slots={slots} />
+          )}
           <HomeTasks
             rooms={rooms}
             nameOf={nameOf}
@@ -435,15 +528,22 @@ export default function MentorHome() {
         </div>
       )}
       <div
-        className={`home-overview section-gap${mentees.length ? " paired" : ""}`}
+        className={`home-overview section-gap${others.length ? " paired" : ""}`}
       >
-        <HomeMetrics />
-        {mentees.length > 0 && (
+        {/* Requests and mentees are already on this page; their tiles would
+            only count them again. */}
+        <HomeMetrics
+          omit={[
+            ...(requests.length ? ["introductions"] : []),
+            ...(mentees.length ? ["rooms"] : []),
+          ]}
+        />
+        {others.length > 0 && (
           <HomeCollaborations
-            rooms={mentees.map(({ room }) => room)}
+            rooms={others.map(({ room }) => room)}
             nameOf={nameOf}
             slots={slots}
-            title="Active mentees"
+            title={yourTurn.length ? "Other mentees" : "Active mentees"}
           />
         )}
       </div>
@@ -476,7 +576,10 @@ export default function MentorHome() {
             ))}
           </dl>
           {!state.mentorListing?.listed && closedFormatsLine(usage) && (
-            <p className="mentor-closed-line">{closedFormatsLine(usage)}</p>
+            <div className="mentor-closed">
+              <p className="mentor-closed-line">{closedFormatsLine(usage)}</p>
+              <OpenSlotButton usage={usage} />
+            </div>
           )}
           <button className="btn" onClick={settings}>
             Edit mentoring settings

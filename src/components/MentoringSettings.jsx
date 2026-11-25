@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import SelectField from "./SelectField.jsx";
 import FormErrors from "./FormErrors.jsx";
+import { OpenSlotButton } from "./OfficeHours.jsx";
 import { mentorFormats } from "../data/mentor-formats.js";
 import { mentorGuidelines } from "../data/mentor-guidelines.js";
 import {
@@ -68,11 +69,17 @@ export default function MentoringSettings() {
       className="card panel settings-section mentoring-settings"
       aria-labelledby="mentoring-settings"
     >
-      <h2 id="mentoring-settings">Mentoring</h2>
-      <p>
-        Set how much you can take on. Founders only see you as available while
-        you have room.
-      </p>
+      {/* Heading and its description stay together; the section's wider
+          gap separates the groups below. */}
+      <div className="mentoring-head">
+        <h2 id="mentoring-settings" tabIndex={-1}>
+          Mentoring
+        </h2>
+        <p>
+          Set how much you can take on. Founders only see you as available while
+          you have room.
+        </p>
+      </div>
       {blocked && (
         <p className="mentoring-status" role="status">
           {ownUnavailableText(usage.reason)}
@@ -80,7 +87,7 @@ export default function MentoringSettings() {
       )}
 
       <div className="mentoring-group">
-        <h3>Pause Mode</h3>
+        <h3>Pause new requests</h3>
         {mentor.paused ? (
           <form data-form="set-mentor-pause" onSubmit={submit}>
             <p>
@@ -173,7 +180,10 @@ export default function MentoringSettings() {
           </p>
         )}
         {usage && closedFormatsLine(usage) && (
-          <p className="mentor-closed-line">{closedFormatsLine(usage)}</p>
+          <div className="mentor-closed">
+            <p className="mentor-closed-line">{closedFormatsLine(usage)}</p>
+            <OpenSlotButton usage={usage} />
+          </div>
         )}
         <div className="mentoring-fields">
           {["maxMentees", "monthlyHours", "maxOpenAsync"].map((key) => (

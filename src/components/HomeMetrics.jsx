@@ -40,7 +40,7 @@ export default function HomeMetrics({ omit = [] }) {
         },
     {
       id: "introductions",
-      label: "Introductions to answer",
+      label: mentor ? "Requests to answer" : "Introductions to answer",
       icon: "people",
       value: incoming,
       detail: incoming
@@ -50,7 +50,7 @@ export default function HomeMetrics({ omit = [] }) {
           : mentor
             ? "Meet a startup you can support"
             : "Send one from Matches",
-      destination: { page: "waiting" },
+      destination: { page: mentor ? "requests" : "waiting" },
     },
     {
       id: "saved",

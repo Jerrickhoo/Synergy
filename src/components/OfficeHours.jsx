@@ -14,6 +14,50 @@ import {
 } from "../data/dates.js";
 import SelectField from "./SelectField.jsx";
 import PrototypeShortcut from "./PrototypeShortcut.jsx";
+import { closedFormats } from "../data/mentor-rules.js";
+
+// Brings the Office Hours form on Calendar into view and focuses it, with the
+// chosen day filled in when it is today or later. Retries while the page
+// renders after navigating.
+export function focusOfficeHours(date = "", tries = 10) {
+  const section = document.getElementById("office-hours");
+  if (!section) {
+    if (tries > 0)
+      requestAnimationFrame(() => focusOfficeHours(date, tries - 1));
+    return;
+  }
+  const input = section.querySelector("#office-date");
+  if (input && date && date >= input.min) input.value = date;
+  const reduce = window.matchMedia?.(
+    "(prefers-reduced-motion: reduce)",
+  ).matches;
+  section.scrollIntoView({
+    behavior: reduce ? "auto" : "smooth",
+    block: "start",
+  });
+  (date && input?.value === date
+    ? section.querySelector("#office-time")
+    : input || section.querySelector("h2")
+  )?.focus({ preventScroll: true });
+}
+
+// The fix for "Office Hours (no open slots)", placed next to that line.
+export function OpenSlotButton({ usage }) {
+  const { state, onAction } = useApp();
+  if (!closedFormats(usage).some((item) => item.reason === "no-office-hours"))
+    return null;
+  return (
+    <button
+      className="btn small"
+      onClick={async () => {
+        if (state.page !== "calendar") await onAction({ page: "calendar" });
+        focusOfficeHours();
+      }}
+    >
+      Open an Office Hours slot
+    </button>
+  );
+}
 
 const slotLabel = (slot) =>
   `${scheduleLabel(slot)} · ${slot.durationMinutes} min`;

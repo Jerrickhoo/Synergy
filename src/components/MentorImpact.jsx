@@ -102,9 +102,15 @@ export default function MentorImpact({
   const { state } = useApp();
   const min = state.mentorConfig?.minDataPoints || mentorConfig.minDataPoints;
   if (!trust) return null;
-  const badges = hideEmpty
-    ? (trust.badges || []).filter((badge) => badge !== "New Mentor")
-    : trust.badges;
+  // "New Mentor" says nothing the empty state doesn't already: it is left
+  // out on public profiles and on the mentor's own Impact page.
+  const badges =
+    hideEmpty || privateView
+      ? (trust.badges || []).filter((badge) => badge !== "New Mentor")
+      : trust.badges;
+  // On the Impact page the page title already says "Impact"; the section
+  // keeps its heading for screen readers only.
+  const headingClass = privateView ? "visually-hidden" : undefined;
   const metrics = [
     trust.averageRating,
     trust.topSkills,
@@ -132,7 +138,7 @@ export default function MentorImpact({
   if (!sessions && !metrics.some((data) => hasData(data, min)))
     return (
       <section className={frame}>
-        <Heading>Mentoring impact</Heading>
+        <Heading className={headingClass}>Mentoring impact</Heading>
         <MentorshipBadges badges={badges} reliable={trust.reliable} />
         <p>
           Your impact appears here after your first held session: sessions,
@@ -143,7 +149,7 @@ export default function MentorImpact({
     );
   return (
     <section className="card panel section-gap">
-      <h2>Mentoring impact</h2>
+      <h2 className={headingClass}>Mentoring impact</h2>
       <MentorshipBadges badges={badges} reliable={trust.reliable} />
       <dl className="impact-stats">
         <Metric

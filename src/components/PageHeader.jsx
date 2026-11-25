@@ -5,7 +5,7 @@ export default function PageHeader({ title, intro, actions = "" }) {
       <div className="page-head">
         <div>
           <h1 tabIndex="-1">{title}</h1>
-          <p className="intro">{intro}</p>
+          {intro && <p className="intro">{intro}</p>}
         </div>
         {actions ? <div className="page-head-actions">{actions}</div> : ""}
       </div>

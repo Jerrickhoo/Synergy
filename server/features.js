@@ -504,7 +504,11 @@ export function createFeatures({
         );
     }
     const trust = state.trustSummary?.mentorship;
-    for (const badge of trust?.badges || [])
+    // "New Mentor" is the starting badge every mentor has, not an
+    // achievement, so it doesn't send an update.
+    for (const badge of (trust?.badges || []).filter(
+      (item) => item !== "New Mentor",
+    ))
       add(
         `badge:${badge}`,
         `You earned the ${badge} badge.`,

@@ -199,8 +199,11 @@ export function PaymentSettings() {
   // A founder with no payments yet would see only the heading.
   if (state.role !== "mentor" && !records.length) return null;
   return (
-    <section className="card panel">
-      <h2>{state.role === "mentor" ? "Payouts" : "Payments"}</h2>
+    <section
+      className="card panel settings-section section-gap"
+      id="settings-payouts"
+    >
+      <h2 tabIndex={-1}>{state.role === "mentor" ? "Payouts" : "Payments"}</h2>
       {state.role === "mentor" && (
         <>
           <p>
@@ -229,60 +232,72 @@ export function PaymentSettings() {
               ),
             )}
           </p>
-          {state.profiles.mentor.formats.map((format) => (
-            <form
-              key={format.id}
-              className="payment-price-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                setPricing(format.id);
-                onAction({
-                  action: "set-format-price",
-                  values: {
-                    format: format.id,
-                    price: Math.round(
-                      Number(new FormData(event.currentTarget).get("price")) *
-                        100,
-                    ),
-                  },
-                });
-              }}
-            >
-              <label htmlFor={`price-${format.id}`}>
-                {mentorFormat(format.id)?.label} price in PHP
-              </label>
-              <input
-                id={`price-${format.id}`}
-                name="price"
-                type="number"
-                min="0"
-                max={limits.maxPrice / 100}
-                step="0.01"
-                defaultValue={format.price / 100}
-                aria-describedby={`price-help-${format.id}${pricing === format.id && priceError ? ` price-error-${format.id}` : ""}`}
-                aria-invalid={
-                  pricing === format.id && priceError ? true : undefined
-                }
-                required
-              />
-              <p className="field-help" id={`price-help-${format.id}`}>
-                0 for Free, or {priceRangeText(limits)}.
-                {ready ? "" : " Complete payout setup to charge."}
-              </p>
-              {pricing === format.id && priceError && (
-                <p
-                  className="field-error"
-                  id={`price-error-${format.id}`}
-                  role="alert"
+          {/* Prices can't be charged before payout setup, so until then
+              the setup step stands alone instead of five idle price forms. */}
+          {!ready && (
+            <p className="field-help">
+              Every format stays free until payout setup is complete. You can
+              set prices after that.
+            </p>
+          )}
+          {ready && (
+            <div className="payment-price-list">
+              {state.profiles.mentor.formats.map((format) => (
+                <form
+                  key={format.id}
+                  className="payment-price-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    setPricing(format.id);
+                    onAction({
+                      action: "set-format-price",
+                      values: {
+                        format: format.id,
+                        price: Math.round(
+                          Number(
+                            new FormData(event.currentTarget).get("price"),
+                          ) * 100,
+                        ),
+                      },
+                    });
+                  }}
                 >
-                  {priceError}
-                </p>
-              )}
-              <button className="btn" disabled={state.busy}>
-                Save price
-              </button>
-            </form>
-          ))}
+                  <label htmlFor={`price-${format.id}`}>
+                    {mentorFormat(format.id)?.label} price in PHP
+                  </label>
+                  <input
+                    id={`price-${format.id}`}
+                    name="price"
+                    type="number"
+                    min="0"
+                    max={limits.maxPrice / 100}
+                    step="0.01"
+                    defaultValue={format.price / 100}
+                    aria-describedby={`price-help-${format.id}${pricing === format.id && priceError ? ` price-error-${format.id}` : ""}`}
+                    aria-invalid={
+                      pricing === format.id && priceError ? true : undefined
+                    }
+                    required
+                  />
+                  <p className="field-help" id={`price-help-${format.id}`}>
+                    0 for Free, or {priceRangeText(limits)}.
+                  </p>
+                  {pricing === format.id && priceError && (
+                    <p
+                      className="field-error"
+                      id={`price-error-${format.id}`}
+                      role="alert"
+                    >
+                      {priceError}
+                    </p>
+                  )}
+                  <button className="btn" disabled={state.busy}>
+                    Save price
+                  </button>
+                </form>
+              ))}
+            </div>
+          )}
         </>
       )}
       <ul>

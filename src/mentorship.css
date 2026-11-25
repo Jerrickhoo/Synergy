@@ -1,13 +1,13 @@
 .mentor-next {
-  margin-bottom: 24px;
+  margin-bottom: var(--space-5);
 }
 
 .mentor-next h2,
 .mentorship-brief h2 {
-  margin: 6px 0 12px;
+  margin: var(--space-2) 0 var(--space-3);
 }
 .mentor-next > .btn {
-  margin-top: 16px;
+  margin-top: var(--space-4);
 }
 .mentor-home .collaboration-row > div,
 .mentee-identity > div,
@@ -22,21 +22,21 @@
 .mentee-identity {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--space-3);
 }
 .mentorship-brief {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
-  gap: 28px;
-  margin-bottom: 24px;
+  gap: var(--space-6);
+  margin-bottom: var(--space-5);
 }
 .mentorship-brief p {
   line-height: 1.6;
-  margin: 8px 0 12px;
+  margin: var(--space-2) 0 var(--space-3);
   white-space: pre-line;
 }
 .introduction-brief {
-  margin-top: 12px;
+  margin-top: var(--space-3);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -55,15 +55,15 @@
   text-wrap: balance;
 }
 .introduction-brief p + p {
-  margin-top: 6px;
+  margin-top: var(--space-2);
 }
 .introduction-brief small {
   display: block;
-  margin-top: 8px;
+  margin-top: var(--space-2);
   color: var(--muted);
 }
 .preview-goal {
-  font-size: 13px;
+  font-size: var(--text-sm);
   line-height: 1.5;
   overflow-wrap: anywhere;
   display: -webkit-box;
@@ -80,14 +80,14 @@
   }
   .mentorship-brief {
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: var(--space-5);
   }
 }
 @media (max-width: 480px) {
   .mentor-home .collaboration-row {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: var(--space-3);
   }
 }
 
@@ -288,7 +288,7 @@
 .mentor-requests-list,
 .mentor-request-answers {
   display: grid;
-  gap: var(--space-3, 0.75rem);
+  gap: var(--space-3);
 }
 
 .mentor-request-card {
@@ -308,10 +308,13 @@
 .mentor-request-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2, 0.5rem);
+  gap: var(--space-2);
 }
 .mentor-request-card .mentor-request-form {
   margin-top: var(--space-4);
+}
+.incoming-request .mentor-request-form {
+  margin-top: 0;
 }
 .request-commitment {
   margin: var(--space-2) 0 0;
@@ -355,25 +358,25 @@
 }
 
 .mentor-session {
-  padding-block: 0.75rem;
+  padding-block: var(--space-3);
   border-block-start: 1px solid var(--line);
 }
 
 .impact-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
-  gap: 0.75rem;
+  gap: var(--space-3);
 }
 
 .impact-stats > div {
   min-width: 0;
-  padding: 0.75rem;
+  padding: var(--space-3);
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm, 0.5rem);
+  border-radius: var(--radius-md);
 }
 
 .impact-stats dd {
-  margin: 0.35rem 0 0;
+  margin: var(--space-1) 0 0;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -391,7 +394,7 @@
 
   .mentor-certificate {
     margin: 0;
-    padding: 1.5rem;
+    padding: var(--space-5);
   }
 }
 
@@ -565,4 +568,273 @@
 .mentoring-banner.request-quality-good {
   background: var(--green-soft);
   color: var(--ink);
+}
+
+/* Mentor request card: who, then format, deadline and fit, then the
+   founder's answers and the reply. Tight inside each group, wider between. */
+.incoming-request {
+  display: grid;
+  gap: var(--space-4);
+}
+.incoming-request > * {
+  margin: 0;
+}
+.request-head {
+  display: grid;
+  gap: var(--space-1);
+}
+.request-head h2 {
+  margin: 0;
+  text-wrap: balance;
+}
+.request-founder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  color: var(--muted);
+}
+.request-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.request-facts li {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+.request-facts .request-due.soon {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+.incoming-request .mentor-request-answers {
+  gap: var(--space-4);
+}
+.incoming-request .mentor-request-answers > div {
+  display: grid;
+  gap: var(--space-1);
+}
+.incoming-request .mentor-request-answers dt {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  font-weight: 600;
+}
+.request-safety {
+  justify-self: start;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.request-safety summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.request-safety-actions {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  margin-top: var(--space-3);
+}
+.request-safety-actions .block-collaborator {
+  margin-top: 0;
+}
+
+/* The answer is the room's main job for a Quick Ask or Doc Review: its
+   submit is the primary action at its natural width, not a full-width bar. */
+.room-answer .mentor-request-form > .btn {
+  justify-self: start;
+}
+
+/* Mentor Home: the step a mentee is waiting on leads the page. */
+.mentor-turn {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+.mentor-turn > * {
+  margin: 0;
+}
+.mentor-turn-who {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.mentor-turn h2 {
+  font-size: var(--text-xl);
+  text-wrap: balance;
+}
+.mentor-turn-question {
+  max-width: 65ch;
+  padding-inline-start: var(--space-3);
+  border-inline-start: 2px solid var(--line);
+  color: var(--ink);
+  text-wrap: pretty;
+}
+.mentor-turn .mentor-request-controls {
+  margin-top: var(--space-2);
+}
+.mentor-turn-rest {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.mentor-turn-rest li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.home-planner.solo {
+  grid-template-columns: minmax(0, 1fr);
+}
+.home-more-link {
+  justify-self: start;
+}
+.mentor-closed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+/* Office Hours form on Calendar: fields at a readable width and a submit at
+   its natural size, so the form reads as one secondary task below the
+   calendar. */
+#office-hours .mentor-request-form {
+  justify-items: start;
+}
+#office-hours .mentor-request-form .field,
+#office-hours .mentor-request-form .select-field {
+  width: min(100%, 320px);
+}
+.calendar-page > #office-hours {
+  margin-top: var(--space-6);
+}
+
+/* Payout prices: one row per format, label, amount and its own save. */
+.payment-price-list {
+  display: grid;
+  gap: var(--space-4);
+}
+.payment-price-list .payment-price-form {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  column-gap: var(--space-3);
+  margin-top: 0;
+}
+.payment-price-list .payment-price-form label {
+  grid-column: 1 / -1;
+}
+.payment-price-list .payment-price-form input {
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+.payment-price-list .payment-price-form :is(.field-help, .field-error) {
+  grid-column: 1 / -1;
+}
+.mentoring-head {
+  display: grid;
+  gap: var(--space-2);
+}
+.mentoring-head > * {
+  margin: 0;
+}
+
+/* Mentor settings: a row of section links above the long page. */
+.settings-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-5);
+}
+.settings-nav-link {
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.settings-nav-link:hover {
+  background: var(--surface-hover);
+}
+.settings-nav-link:focus-visible {
+  outline: 2px solid var(--control-focus);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-nav-link {
+    transition: none;
+  }
+}
+
+/* Notification email preferences in three short groups. */
+.email-groups {
+  display: grid;
+  gap: var(--space-4);
+}
+.email-group {
+  display: grid;
+  gap: var(--space-1);
+}
+.email-group h3 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+/* Mentor Home activity: the label in sentence case at caption size. */
+.mentor-home .activity-label {
+  font-size: var(--text-sm);
+  letter-spacing: 0;
+  text-transform: none;
+}
+/* Without the calendar beside it, a task's colour mark has no legend to
+   match, so it is left out. */
+.mentor-home:not(:has(.home-calendar)) .collab-swatch {
+  display: none;
+}
+/* Counts, dates and scores line up. */
+.calendar-date-number,
+.agenda-day-description,
+.request-facts,
+.workspace-metric strong,
+.mentor-turn-who {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The one-time survey on Impact: a plain question, two choices, one save. */
+.survey-form {
+  justify-items: start;
+}
+.survey-form fieldset {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.survey-form legend {
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+}
+
+/* Mentor view of a startup card: the single label sits on one line. */
+.match-card.mentor-view .preview-exchange > div {
+  grid-template-columns: max-content minmax(0, 1fr);
 }

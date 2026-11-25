@@ -13,6 +13,14 @@ export default function Topbar() {
   const unread = (state.notifications || []).filter(
     (item) => !item.read,
   ).length;
+  // A mentor's room sits under Mentees (the highlighted nav item) and is
+  // named by its startup, matching the room's own heading.
+  const activeRoom = state.page === "room-detail" ? model.activeRoom() : null;
+  const mentorRoom =
+    state.role === "mentor" && activeRoom?.type === "mentorship"
+      ? model.allPeople().find((person) => person.id === activeRoom.partnerId)
+          ?.name || ""
+      : "";
   return (
     <header ref={headerRef} className="topbar simple-topbar">
       <button
@@ -32,11 +40,21 @@ export default function Topbar() {
         state.page,
       ) && (
         <div className="workspace-heading">
-          <span>Workspace</span>
-          <span aria-hidden="true">/</span>
-          <strong>
-            {pageLabel(state.page, state.role, model.activeRoom()?.type)}
-          </strong>
+          {mentorRoom ? (
+            <>
+              <span>Mentees</span>
+              <span aria-hidden="true">/</span>
+              <strong>{mentorRoom}</strong>
+            </>
+          ) : (
+            <>
+              <span>Workspace</span>
+              <span aria-hidden="true">/</span>
+              <strong>
+                {pageLabel(state.page, state.role, model.activeRoom()?.type)}
+              </strong>
+            </>
+          )}
         </div>
       )}
       <div ref={actionsRef} className="top-actions">

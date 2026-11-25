@@ -198,9 +198,15 @@ export default function NotificationsPage() {
         {state.incomingByRole[state.role].size > 0 && (
           <button
             className="link-btn updates-intros"
-            onClick={() => onAction({ page: "waiting" })}
+            onClick={() =>
+              onAction({
+                page: state.role === "mentor" ? "requests" : "waiting",
+              })
+            }
           >
-            Respond to introductions{" "}
+            {state.role === "mentor"
+              ? "Answer requests"
+              : "Respond to introductions"}{" "}
             <span className="update-count">
               {state.incomingByRole[state.role].size}
             </span>

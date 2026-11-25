@@ -1063,9 +1063,19 @@ export default function MentorshipRoom({ room }) {
   const tab = tabs.find(([id]) => id === state.roomTab)?.[0] || "overview";
   return (
     <div className="page room-detail-page page-enter">
+      {/* A mentor keeps several rooms, so theirs is titled by the startup;
+          the founder's stays "Mentorship room" with the mentor named below. */}
       <PageHeader
-        title="Mentorship room"
-        intro={`${format.label} with ${partner?.name || "your collaborator"}`}
+        title={
+          state.role === "mentor" && partner?.name
+            ? partner.name
+            : "Mentorship room"
+        }
+        intro={
+          state.role === "mentor" && partner?.name
+            ? `${format.label} mentorship`
+            : `${format.label} with ${partner?.name || "your collaborator"}`
+        }
         actions={
           <button
             className="btn"
@@ -1364,7 +1374,7 @@ export default function MentorshipRoom({ room }) {
               />
             ) : null}
             {!format.sync && (
-              <section className="card panel">
+              <section className="card panel room-answer" id="room-answer">
                 <h2>
                   {format.id === "quick-ask" ? "Answer" : "Document review"}
                 </h2>
@@ -1400,6 +1410,7 @@ export default function MentorshipRoom({ room }) {
                   <RoomForm
                     command={{ action: "deliver-answer" }}
                     label="Deliver response"
+                    primary
                     fields={
                       <RoomField
                         name="answer"

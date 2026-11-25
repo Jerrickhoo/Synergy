@@ -172,8 +172,14 @@ for (const initiator of ["founder", "mentor"]) {
           name: initiator === "founder" ? /^Accept$/ : /^Accept introduction/,
         })
         .click();
+      // A mentor's room is titled by the startup; a founder's stays
+      // "Mentorship room".
       await expect(
-        inbox.getByRole("heading", { name: "Mentorship room", exact: true }),
+        inbox.getByRole("heading", {
+          level: 1,
+          name: receiver.role === "mentor" ? founder.name : "Mentorship room",
+          exact: true,
+        }),
       ).toBeVisible();
       await expect(
         inbox.getByRole("tab", { name: "Terms", exact: true }),

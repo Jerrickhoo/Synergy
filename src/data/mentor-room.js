@@ -580,7 +580,9 @@ export function mentorshipNextAction(room) {
         room.role === "mentor"
           ? `Deliver your ${response}`
           : `Waiting for the mentor's ${response}`,
+      action: room.role === "mentor" ? `Write your ${response}` : undefined,
       tab: "overview",
+      target: room.role === "mentor" ? "room-answer" : undefined,
     };
   }
   const noSession =

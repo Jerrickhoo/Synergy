@@ -51,6 +51,7 @@ const pendingTime = (expiry) => {
     ? `Expires in ${hours} ${hours === 1 ? "hour" : "hours"}`
     : `Expires in ${days} days`;
 };
+const expiresSoon = (expiry) => Date.parse(expiry) - Date.now() <= 86400000;
 
 // What the founder sent, so a pending request can be reread while waiting.
 function SentRequestDetails({ request }) {
@@ -117,6 +118,7 @@ export function RequestCard({ request }) {
   const [message, setMessage] = useState("");
   const [selected, setSelected] = useState([]);
   const cooldown = state.mentorConfig?.cooldownDays?.[reason] || 0;
+  const format = mentorFormat(request.format);
   const commitment =
     commitments[request.format] ||
     (format?.effort
@@ -126,7 +128,7 @@ export function RequestCard({ request }) {
   const error =
     state.mentorshipActionError?.id === request.partnerId &&
     state.mentorshipActionError;
-  const format = mentorFormat(request.format);
+  const firstRequest = !request.trackRecord || request.trackRecord.newFounder;
   const act = (action, event, values) =>
     onAction(
       {
@@ -139,42 +141,56 @@ export function RequestCard({ request }) {
     );
   return (
     <article
-      className="card panel mentor-request-card"
+      className="card panel mentor-request-card incoming-request"
       id={`request-${request.id}`}
       tabIndex={-1}
     >
-      <h2>{request.name}</h2>
-      {founder && (
-        <p className="request-founder">
-          {[
-            founder.founderName && founder.founderName !== founder.name
-              ? founder.founderName
-              : "",
-            stageLabel(founder.stage),
-            founder.sector,
-          ]
-            .filter(Boolean)
-            .join(" · ")}{" "}
-          <button
-            className="link-btn"
-            onClick={(event) =>
-              onAction({ action: "match-detail", id: founder.id }, event)
-            }
-          >
-            View profile
-            <span className="visually-hidden"> of {request.name}</span>
-          </button>
-        </p>
+      <header className="request-head">
+        <h2>{request.name}</h2>
+        {founder && (
+          <p className="request-founder">
+            {[
+              founder.founderName && founder.founderName !== founder.name
+                ? founder.founderName
+                : "",
+              stageLabel(founder.stage),
+              founder.sector,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+            <button
+              className="link-btn"
+              onClick={(event) =>
+                onAction({ action: "match-detail", id: founder.id }, event)
+              }
+            >
+              View profile
+              <span className="visually-hidden"> of {request.name}</span>
+            </button>
+          </p>
+        )}
+      </header>
+      {/* Format and deadline first, then fit: what the mentor weighs before
+          reading the founder's answers. The deadline turns to the accent
+          colour in its last day. */}
+      <ul className="request-facts" aria-label="Request details">
+        <li>
+          {formatLabel(request)} · {format?.effort}
+          {request.price ? ` · ${priceLabel(request.price)}` : ""}
+        </li>
+        <li
+          className={expiresSoon(request.expiresAt) ? "request-due soon" : ""}
+        >
+          {pendingTime(request.expiresAt)}
+        </li>
+        <li className="request-meta">
+          {request.score}% match · {matchStrength(request.score)}
+        </li>
+        {firstRequest && <li>First mentorship request</li>}
+      </ul>
+      {!firstRequest && (
+        <FounderTrackRecord trackRecord={request.trackRecord} />
       )}
-      <p className="muted request-meta">
-        {formatLabel(request)} · {format?.effort}
-        {request.price ? ` · ${priceLabel(request.price)}` : ""} ·{" "}
-        {pendingTime(request.expiresAt)}
-      </p>
-      <p className="request-meta">
-        {request.score}% match · {matchStrength(request.score)}
-      </p>
-      <FounderTrackRecord trackRecord={request.trackRecord} />
       {request.conflictWarning && (
         <p className="warning-note">{request.conflictWarning}</p>
       )}
@@ -376,12 +392,19 @@ export function RequestCard({ request }) {
           </button>
         </form>
       )}
-      {/* Safety actions sit below the reply, never beside Accept. */}
+      {/* Safety actions stay one step away from the reply, never beside
+          Accept: a quiet disclosure at the foot of the card. */}
       {founder && (
-        <div className="mentor-request-controls request-safety">
-          <ReportCollaborator person={founder} compact />
-          <BlockCollaborator person={founder} />
-        </div>
+        <details className="request-safety">
+          <summary>
+            Report or block
+            <span className="visually-hidden"> {request.name}</span>
+          </summary>
+          <div className="request-safety-actions">
+            <ReportCollaborator person={founder} quiet />
+            <BlockCollaborator person={founder} />
+          </div>
+        </details>
       )}
     </article>
   );
