@@ -34,6 +34,11 @@ services:
       # database. They share the public password in README.md.
       - key: SYNERGY_SHOWCASE_PROFILES
         value: "true"
+      # Adds the test logins startup@gmail.com and mentor@gmail.com (password
+      # 123123123, see server/dev-accounts.js) at every start-up. They never
+      # receive email. Remove before real users sign up.
+      - key: SYNERGY_DEV_ACCOUNTS
+        value: "true"
       - key: SYNERGY_ALLOWED_ORIGINS
         value: https://synergy-prototype.netlify.app
       - key: SYNERGY_ADMIN_EMAILS
