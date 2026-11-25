@@ -2,13 +2,17 @@ services:
   - type: web
     name: synergy-prototype-api
     runtime: node
-    # Free plan: no card needed, but no persistent disk (accounts and uploads
-    # reset on every deploy or restart) and the service sleeps when idle.
-    # For lasting data, use a paid plan, add a 1 GB disk mounted at /var/data
-    # and set SYNERGY_DATA_FILE to /var/data/synergy.sqlite.
-    plan: free
+    # Paid plan with a persistent disk, so accounts and uploads survive
+    # deploys, restarts and idle periods (the free plan has no disk and wiped
+    # them). Needs a payment card on the Render account. Keep one instance:
+    # SQLite allows a single writer.
+    plan: starter
     region: singapore
     numInstances: 1
+    disk:
+      name: synergy-data
+      mountPath: /var/data
+      sizeGB: 1
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
@@ -19,8 +23,9 @@ services:
         value: production
       - key: HOST
         value: 0.0.0.0
+      # On the disk; uploads go to /var/data/uploads beside it.
       - key: SYNERGY_DATA_FILE
-        value: .data/synergy.sqlite
+        value: /var/data/synergy.sqlite
       - key: SYNERGY_DEMO_MODE
         value: "false"
       - key: SYNERGY_REQUIRE_VERIFICATION
