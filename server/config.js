@@ -33,6 +33,11 @@ export function configuration(env = process.env) {
     // Adds the fictional showcase accounts at start-up (see server/showcase.js),
     // for hosts like Render's free plan that start from an empty database.
     showcaseProfiles: env.SYNERGY_SHOWCASE_PROFILES === "true",
+    // Built-in test logins startup@gmail.com and mentor@gmail.com (password
+    // 123123123, see server/dev-accounts.js). On by default outside production.
+    devAccounts: env.SYNERGY_DEV_ACCOUNTS
+      ? env.SYNERGY_DEV_ACCOUNTS === "true"
+      : !production,
     file,
     backupDirectory: env.SYNERGY_BACKUP_DIR
       ? resolve(env.SYNERGY_BACKUP_DIR)

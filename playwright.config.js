@@ -39,6 +39,7 @@ export default defineConfig({
         SYNERGY_TEST_CLOCK_FILE: resolve(
           ".data/mentor-payment-browser-clock.txt",
         ),
+        SYNERGY_DEV_ACCOUNTS: "false",
         SYNERGY_DATA_FILE: resolve(
           ".data",
           `e2e-payment-${randomUUID()}.sqlite`,
@@ -53,6 +54,7 @@ export default defineConfig({
         env: {
           PORT: String(5181 + index),
           SYNERGY_DEMO_MODE: browserName === "prototype" ? "true" : "false",
+          SYNERGY_DEV_ACCOUNTS: "false",
           SYNERGY_DATA_FILE: resolve(
             ".data",
             `e2e-${browserName}-${randomUUID()}.sqlite`,
@@ -69,6 +71,7 @@ export default defineConfig({
         SYNERGY_DEMO_MODE: "false",
         SYNERGY_REQUIRE_VERIFICATION: "true",
         SYNERGY_SIMULATE_VERIFICATION: "true",
+        SYNERGY_DEV_ACCOUNTS: "false",
         SYNERGY_DATA_FILE: resolve(
           ".data",
           `e2e-verification-${randomUUID()}.sqlite`,
@@ -83,6 +86,7 @@ export default defineConfig({
         PORT: "5186",
         SYNERGY_DEMO_MODE: "false",
         SYNERGY_TEST_MENTOR_APPROVAL: "true",
+        SYNERGY_DEV_ACCOUNTS: "false",
         SYNERGY_DATA_FILE: resolve(
           ".data",
           `e2e-mentor-approval-${randomUUID()}.sqlite`,

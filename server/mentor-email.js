@@ -71,6 +71,7 @@ export function emailKindAllowed(account, kind) {
     account?.email &&
     !account.demo &&
     !account.showcase &&
+    !account.devAccount &&
     !account.deletedAt &&
     !status?.bouncedAt &&
     !status?.unsubscribedAt &&

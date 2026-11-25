@@ -129,6 +129,7 @@ import {
   seedDemoImpact,
 } from "./demo-directory.js";
 import { seedShowcase } from "./showcase.js";
+import { seedDevAccounts } from "./dev-accounts.js";
 
 // Profile pictures: the startup logo (or a mentor's photo) and, for
 // founders only, the founder's own photo.
@@ -690,6 +691,7 @@ export function createWorkspace(file, options = {}) {
     if (seedDemoImpact(db.accounts) || samplesChanged) save();
   }
   if (options.showcaseProfiles && seedShowcase(db.accounts, now())) save();
+  if (options.devAccounts && seedDevAccounts(db.accounts, now())) save();
 
   const event = (account, role, text, roomId, extra = {}) => {
     const time = now();

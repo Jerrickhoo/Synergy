@@ -68,6 +68,7 @@ export function authEmailAllowed(account, kind) {
     account?.email &&
     !account.demo &&
     !account.showcase &&
+    !account.devAccount &&
     !account.deletedAt &&
     !account.suspended &&
     !status?.bouncedAt &&
