@@ -530,6 +530,11 @@ export default function RequestsPage() {
   const records = state.mentorRequests || [];
   useRequestFocus(state.activeMentorRequest);
   if (state.role !== "mentor") return <SentMentorRequests />;
+  const hasIntroductions = [
+    ...state.incomingByRole.mentor,
+    ...state.waitingByRole.mentor,
+  ].some((id) => !state.introductionMetaByRole.mentor[id]?.kind);
+  const hasList = records.length > 0 || hasIntroductions;
   return (
     <div className="page page-enter">
       <PageHeader
@@ -540,14 +545,14 @@ export default function RequestsPage() {
             : "No new mentorship requests"
         }
       />
-      <div className="mentor-requests-list">
-        {records.map((request) => (
-          <RequestCard key={request.id} request={request} />
-        ))}
-        {[...state.incomingByRole.mentor, ...state.waitingByRole.mentor].some(
-          (id) => !state.introductionMetaByRole.mentor[id]?.kind,
-        ) && <Introductions />}
-      </div>
+      {hasList && (
+        <div className="mentor-requests-list">
+          {records.map((request) => (
+            <RequestCard key={request.id} request={request} />
+          ))}
+          {hasIntroductions && <Introductions />}
+        </div>
+      )}
       {/* Prototype only: sample founders keep a preview inbox from running dry. */}
       {!records.length && state.prototypeMentor && (
         <PrototypeShortcut note="Bring in a new request from a fictional sample founder.">
@@ -563,7 +568,7 @@ export default function RequestsPage() {
         </PrototypeShortcut>
       )}
       <button
-        className="btn section-gap"
+        className={hasList ? "btn section-gap" : "btn"}
         onClick={() => onAction({ page: "discover" })}
       >
         Browse startups
