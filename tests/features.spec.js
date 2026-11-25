@@ -107,7 +107,9 @@ test("voluntary sign-out preserves drafts on cancel and confirms once across des
   expect(await page.evaluate(() => document.body.style.overflow)).toBe("");
   expect(logouts).toBe(0);
   await page.setViewportSize({ width: 1024, height: 768 });
-  await page.locator(".tablet-signout").click();
+  // On a tablet, sign out is in the sidebar's account menu.
+  await page.getByRole("button", { name: /^Account menu for / }).click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
   await page.route("**/api/logout", (route) => route.abort());
   await prompt
     .getByRole("button", { name: "Sign out", exact: true })

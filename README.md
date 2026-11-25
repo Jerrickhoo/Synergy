@@ -27,9 +27,22 @@ This serves the app and local API at http://localhost:4173. `npm run preview` al
 ### Five-minute founder walkthrough
 
 1. Choose **Founder** and sign in with any email and password. Select **Explore with a sample startup**. Open **David Park** from Home or find him in **Matches**.
-2. Choose **Single Session**. Describe the problem (“Students leave our budgeting app during onboarding”), what you tried (“We interviewed twelve teams and shortened the first form”), and the question (“Which experiment should we run next?”). Select **Send mentorship request**, then **Simulate acceptance**.
+2. Choose **Single Session**. Describe the problem (“Students leave our budgeting app during onboarding”), what you tried (“We interviewed twelve teams and shortened the first form”), and the question (“Which experiment should we run next?”). Select **Send mentorship request**. Open David Park's profile again and select **Simulate acceptance** in the **Prototype only** box under “Mentorship request sent”. The mentorship room opens. The same button is also on **Introductions**.
 3. In the Mentorship room, add a short note in **Session prep** and select **Share preparation**. Refresh the page and check that the note is still there. To continue, select **Simulate mentor confirming the goal**, then pick a time in **Schedule**.
 4. Select **Simulate the session taking place**. Submit the **Founder follow-up**, then select **Write review** and submit it. The fictional mentor reviews back, both reviews are released and the room reaches **Reviewed**.
+
+Every other format can also be finished with a sample mentor. Each step the mentor would take has its own **Prototype only** button:
+
+- **Quick Ask:** **Simulate mentor answering**.
+- **Doc/Pitch Review:** share a document link, then **Simulate mentor delivering the review**.
+- **Office Hours:** book a slot from Rafael Lim's profile, then **Simulate the session taking place**.
+- **Ongoing Advisory:**
+  1. **Simulate mentor confirming the goal**.
+  2. Propose a check-in time, then **Simulate mentor confirming the check-in time**.
+  3. **Simulate the next check-in taking place** once for each check-in.
+  4. Submit your cycle review and select **Finish**, then **Simulate mentor's cycle review**.
+
+Simulated answers, sessions and reviews are labelled as simulated in the room.
 
 Every control that stands in for a fictional collaborator or a simulated payment sits in a dashed **Prototype only** box. These shortcuts work only for preview accounts with fictional sample partners in demo mode; real accounts always need the other person. Founders also see sample startups (Fairtab, PaceCircle, StageBolt, Brightlane) that trade commonly needed help, so the founder exchange shows up in Suggested. Brightlane trades go-to-market help for testers and user research, the help founders most often offer, so a founder who sets up their own startup also has an exchange to try. Startup pairs choose a **Beta Testing Exchange**, **Co-Marketing Swap** or **Skill Swap** (advice, feedback or introductions). Beta testing is suggested when either startup wants its product tested, co-marketing when both sides mention marketing, and Skill Swap otherwise. A founder exploring with the sample startup sees whose profile they are using on Home.
 
@@ -37,10 +50,23 @@ The first time a founder signs in with new credentials, Synergy asks how to star
 
 ### Five-minute mentor walkthrough
 
-1. Choose **Mentor** and sign in with a new email and password. You are **Alex Navarro**, a preview mentor. Home and **Requests** show one request from **AccessLearn**, a fictional startup.
-2. Open the request, read the problem, what they tried and their question, then select **Accept**. The mentorship room opens with the request inside it.
+1. Choose **Mentor** and sign in with a new email and password. You are **Alex Navarro**, a preview mentor. Home and **Requests** show four requests from fictional startups, one per format: **AccessLearn** (Single Session), **CampusKit** (Quick Ask), **LedgerLeaf** (Doc/Pitch Review) and **ClinicBridge** (Ongoing Advisory).
+2. Open AccessLearn's request, read the problem, what they tried and their question, then select **Accept**. The mentorship room opens with the request inside it.
 3. In **Mentorship goal**, select **Confirm goal**. Open **Schedule** and pick a time.
 4. Select **Simulate the session taking place**. AccessLearn shares a simulated follow-up, and your private review opens. Select **Write review** and submit it. The fictional founder reviews back, and the room reaches **Reviewed**.
+
+Each other format can be finished the same way. Every step the founder would take has its own **Prototype only** button:
+
+- **Quick Ask:** **Deliver response**, then **Simulate founder marking it helpful**.
+- **Doc/Pitch Review:** **Simulate founder sharing the document**, deliver your review, then **Simulate founder logging revisions**.
+- **Ongoing Advisory:**
+  1. **Confirm goal**, then **Simulate founder proposing a check-in time**, then **Confirm check-in time**.
+  2. **Simulate the next check-in taking place** once for each check-in.
+  3. Submit your cycle review, then **Simulate founder's cycle review**, then **Finish**.
+- **Office Hours:** open a slot in **Calendar**, select **Simulate a founder booking this slot**, then **Simulate the session taking place**. If you cancel the booked session, **Simulate founder booking another slot** books your next open one.
+- **Upgrade:** after a delivered answer or a held session, propose an upgrade, then choose **Simulate acceptance** or **Simulate decline**.
+
+When Requests is empty, **Get another sample request** brings one in. In chat and action items, a note reminds you that fictional founders don't reply.
 
 Mentors can also reach out first: **Startups** in the sidebar lists startups ranked by the needs you can help with, and **Simulate acceptance** opens a room that starts from the startup's own goal.
 
@@ -54,6 +80,8 @@ Mentors can also reach out first: **Startups** in the sidebar lists startups ran
 6. Use Updates for unread activity, match suggestions, deadlines and upcoming-session reminders. Settings provides Light/Dark appearance, confirmed active-profile switching, blocking, data export and a collapsed Danger zone containing profile visibility, session management and account deletion.
 
 Prototype Matches includes 33 fictional collaborators: 19 startups and 14 mentors, with a mix of local illustrated avatars and initials. Every standard tag is offered by at least two of them. Suggested shows eligible profiles with at least 30% fit that also offer at least one of your stated needs (for mentors: that need help the mentor offers); Browse all also includes weak and zero-fit profiles, and an empty Suggested list shows the closest profiles. When a stated need is not covered by any suggestion, Matches offers **Get notified when someone offers** that need. Scores use the normal matching algorithm. Restart an already-running server to load the expanded directory. Versioned fixture refreshes preserve edited sample profiles and existing references. See the [Phase 2 delivery notes](docs/ux/PHASE-2-DELIVERY.md) for sparse/no-suggestion reference scenarios and verification.
+
+The sidebar button next to the logo collapses the sidebar to an icon rail on desktop, and each browser remembers the choice. On tablets the rail opens the full sidebar over the page; see the [collapsible sidebar delivery](docs/ux/COLLAPSIBLE-SIDEBAR-DELIVERY.md).
 
 Match details now lead with identity, relevant support and a collaboration action panel, with the numerical fit breakdown available on demand. Profile viewing and editing have separate layouts for founders and mentors; drafts stay in the current browser tab and role until saved or canceled. Updates supports All/Unread filtering, date groups, relative times and the same rows in the header preview. Generated updates retain their first-seen time across polling and server restarts; session times and UTC deadlines remain separate. See the [Phase 3 delivery notes](docs/ux/PHASE-3-DELIVERY.md).
 

@@ -35,6 +35,12 @@ export default function Icon({ name }) {
         <path d="m8 12 3 3 5-6" />
       </>
     ),
+    panel: (
+      <>
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <path d="M9 3v18" />
+      </>
+    ),
     logout: (
       <>
         <path d="M9 3H4v18h5M13 12h8m-4-4 4 4-4 4" />

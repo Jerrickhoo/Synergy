@@ -37,6 +37,15 @@ export const mentorshipActions = new Set([
   "confirm-goal",
   "simulate-goal-confirmation",
   "simulate-session-held",
+  "simulate-delivery",
+  "simulate-check-in-confirmation",
+  "simulate-cycle-review",
+  "simulate-upgrade-acceptance",
+  "simulate-upgrade-decline",
+  "simulate-founder-rating",
+  "simulate-doc-upload",
+  "simulate-revisions",
+  "simulate-check-in-proposal",
   "confirm-check-in-time",
   "report-attendance",
   "reschedule-session",
@@ -126,6 +135,273 @@ export function createMentorshipRooms({
     room.terms.draft.goal = goal;
     if (room.cycle) room.cycle.goals = goal;
     setMentorMilestone(room, field);
+  }
+
+  // The one rule for delivering a Quick Ask answer or a document review,
+  // shared by the mentor's action and the prototype simulation. Returns the
+  // founder's update.
+  function deliver(room, answer, byAccountId, simulated = false) {
+    const info = room.mentorship;
+    const format = roomFormat(room);
+    if (mentorFormat(format).sync || info.deliveredAt || info.answerExpiredAt)
+      fail("An answer or review is no longer needed.", 400);
+    if (!answer) fail("Write your answer or review.", 400);
+    const item = room.milestones[deliveredMilestone(room)];
+    item.attachment = answer;
+    (item.evidenceItems ||= []).push({
+      label: answer,
+      at: stamp(),
+      byAccountId,
+      ...(simulated && { simulated: true }),
+    });
+    info.answer = answer;
+    info.deliveredAt = stamp();
+    if (simulated) info.answerSimulated = true;
+    setMentorMilestone(room, deliveredMilestone(room));
+    startReview(room);
+    return format === "quick-ask"
+      ? "The mentor answered the Quick Ask."
+      : "The mentor delivered the document review.";
+  }
+
+  // The one rule for confirming the proposed advisory check-in time, which
+  // books every check-in of the cycle. Returns the update for both sides.
+  function confirmCheckIns(room, mentor, founder) {
+    const cycle = room.cycle;
+    const { date, time, timeZone } = cycle.proposedTime;
+    const period = Math.floor(
+      (Date.parse(cycle.dueAt) - Date.parse(cycle.startsAt)) /
+        dayMs /
+        cycle.checkIns,
+    );
+    const proposed = Array.from({ length: cycle.checkIns }, (_, index) => {
+      const localDay = new Date(
+        Date.parse(date + "T00:00:00Z") + index * period * dayMs,
+      )
+        .toISOString()
+        .slice(0, 10);
+      return makeSession(
+        { date: localDay, time },
+        timeZone,
+        cycle.checkInMinutes,
+      );
+    });
+    if (
+      !proposed.every(
+        (session) =>
+          scheduleInstant(session).getTime() < Date.parse(cycle.dueAt),
+      )
+    )
+      fail(
+        "The proposed check-ins do not fit before the cycle ends. Propose an earlier start.",
+        400,
+      );
+    checkSchedule(mentor, founder, proposed, { reservationRoomId: room.id });
+    sessionMilestone(room).schedules = proposed;
+    cycle.confirmedAt = stamp();
+    return checkInsConfirmedText(proposed, now());
+  }
+
+  // The one rule for answering an upgrade proposal, shared by the person
+  // asked and the prototype simulation of a fictional partner.
+  function replyToUpgrade(room, accept, mentor, role) {
+    const info = room.mentorship;
+    const format = roomFormat(room);
+    const upgrade = info.upgrade;
+    if (accept) {
+      const usage = capacity(mentor.state);
+      const reason = [
+        "paused",
+        "guidelines",
+        "suspended",
+        "approval-required",
+        "no-show-limit",
+      ].includes(usage.reason)
+        ? usage.reason
+        : usage.fitReasons[upgrade.format];
+      if (reason)
+        fail(
+          ownUnavailableText(reason) ||
+            "The mentor has no capacity for this upgrade.",
+          409,
+          undefined,
+          { reason },
+        );
+      if (!usage.offeredFormats.includes(upgrade.format))
+        fail("The mentor does not offer this format.", 409);
+      if (info.followup)
+        info.followup.actionItemIds = followupTasks(room, info.followup).map(
+          ({ id }) => id,
+        );
+      info.history.push({
+        format,
+        price: room.terms.draft.price || 0,
+        milestones: room.milestones,
+        role,
+        review: room.review,
+        reviewOpenedAt: info.reviewOpenedAt,
+        deliveredAt: info.deliveredAt,
+        acceptedAt: info.acceptedAt,
+        followup: info.followup,
+      });
+      preserveSessions(room);
+      room.template = mentorTemplate(upgrade.format);
+      room.terms.draft.format = upgrade.format;
+      room.milestones = milestoneSet(upgrade.format);
+      room.status = "in-progress";
+      room.review = { me: false, partner: false };
+      for (const key of [
+        "deliveredAt",
+        "followup",
+        "reviewOpenedAt",
+        "reviewClosesAt",
+        "slotReleased",
+        "answer",
+        "answerSimulated",
+        "upgradeSimulated",
+        "answerRating",
+        "revisions",
+      ])
+        delete info[key];
+      info.acceptedAt = stamp();
+      if (upgrade.format === "ongoing-advisory")
+        ensureCycle(room, now(), config());
+      delete room.completedAt;
+      delete info.upgrade;
+      return {
+        kind: "upgrade-accepted",
+        message: "Mentorship upgrade accepted.",
+      };
+    }
+    delete info.upgrade;
+    return {
+      kind: "upgrade-declined",
+      message: "Mentorship upgrade declined.",
+    };
+  }
+
+  // Founder steps, each shared by the founder's own action and the
+  // prototype simulation of a fictional founder.
+  function rateAnswer(room, rating) {
+    const info = room.mentorship;
+    if (
+      mentorFormat(roomFormat(room)).sync ||
+      !info.deliveredAt ||
+      info.answerRating ||
+      !["helpful", "not-helpful"].includes(rating)
+    )
+      fail("Choose Helpful or Not helpful after delivery.", 400);
+    info.answerRating = rating;
+    info.answerRatedAt = stamp();
+    setMentorMilestone(room, "helpful");
+    return "Answer feedback saved.";
+  }
+  function logRevisions(room, summary) {
+    const info = room.mentorship;
+    if (
+      roomFormat(room) !== "doc-review" ||
+      !info.deliveredAt ||
+      now() > Date.parse(info.deliveredAt) + config().revisionWindowDays * dayMs
+    )
+      fail("The revision window has closed.", 400);
+    if (!summary) fail("Describe what you revised.", 400);
+    info.revisions = { summary, at: stamp() };
+    setMentorMilestone(room, "revisions");
+    return "Document revisions logged.";
+  }
+  function shareDocument(room, evidence) {
+    const item = room.milestones.uploaded;
+    (item.evidenceItems ||= []).push(evidence);
+    item.attachment = evidence.label;
+    setMentorMilestone(room, "uploaded");
+    return "Preparation material shared.";
+  }
+  function proposeCheckIn(room, session, role) {
+    if (
+      roomFormat(room) !== "ongoing-advisory" ||
+      room.cycle?.phase !== "active" ||
+      room.cycle.confirmedAt ||
+      !room.milestones.goals.me
+    )
+      fail("Confirm the advisory goal before proposing check-ins.", 400);
+    if (role === "founder") room.mentorship.founderTimeZone = session.timeZone;
+    room.cycle.proposedTime = {
+      date: session.date,
+      time: session.time,
+      timeZone: session.timeZone,
+      proposedBy: role,
+    };
+    return role === "founder"
+      ? "Founder proposed a regular advisory check-in time. Confirm it in the room."
+      : "Your mentor suggested another advisory check-in time. Confirm it in the room.";
+  }
+
+  // The one rule for saving a private cycle review, for either participant.
+  function saveCycleReview(room, accountId, scores, note, simulated = false) {
+    const cycle = room.cycle;
+    cycle.reviews[accountId] = {
+      scores,
+      rating:
+        Object.values(scores).reduce((sum, rating) => sum + rating, 0) /
+        Object.keys(scores).length,
+      note,
+      at: stamp(),
+      ...(simulated && { simulated: true }),
+    };
+    setMentorMilestone(room, "progress");
+    if (room.mentorship.endedAt && Object.keys(cycle.reviews).length === 2) {
+      room.status = "reviewed";
+      room.completedAt = stamp();
+    }
+  }
+
+  // The one rule for choosing Continue or Finish at the end of a cycle, for
+  // either participant. Returns the update for both sides.
+  function decideCycle(room, accountId, decision, mentor) {
+    const cycle = room.cycle;
+    const info = room.mentorship;
+    const format = roomFormat(room);
+    cycle.decisions[accountId] = decision;
+    if (decision === "finish") {
+      info.endedAt ||= stamp();
+      info.slotReleased = true;
+      room.status = "launched";
+      info.cycleReviewClosesAt = new Date(
+        now() + config().reviewWindowDays * dayMs,
+      ).toISOString();
+      if (Object.keys(cycle.reviews).length === 2) {
+        room.status = "reviewed";
+        room.completedAt = stamp();
+        cycle.endedAt ||= stamp();
+      }
+      return "The advisory cycle ended.";
+    }
+    if (
+      Object.values(cycle.decisions).filter((choice) => choice === "continue")
+        .length !== 2
+    )
+      return "Cycle decision saved.";
+    if (info.endedAt) fail("This advisory has ended.", 409);
+    if (
+      !mentorMinutesFit(
+        mentor.state,
+        cyclePlan(now(), config()),
+        config(),
+        officeAllocation?.(mentor.state, now(), config()).months ||
+          mentorCommitments(mentor.state, now(), config()),
+      )
+    )
+      fail("The next cycle exceeds the mentor's monthly hours.", 409);
+    (room.cycleHistory ||= []).push({
+      ...cycle,
+      milestones: room.milestones,
+    });
+    preserveSessions(room);
+    room.milestones = milestoneSet(format);
+    const number = cycle.number + 1;
+    delete room.cycle;
+    ensureCycle(room, now(), config()).number = number;
+    return `Advisory cycle ${number} started.`;
   }
 
   function startReview(room, at = stamp()) {
@@ -479,6 +755,11 @@ export function createMentorshipRooms({
       "set-testimonial-public",
       "cycle-review",
       "cycle-decision",
+      "simulate-cycle-review",
+      "simulate-upgrade-acceptance",
+      "simulate-upgrade-decline",
+      "simulate-founder-rating",
+      "simulate-revisions",
     ].includes(command);
     if (
       terminalStatuses.includes(room.status) &&
@@ -503,6 +784,31 @@ export function createMentorshipRooms({
     const counterpartName =
       (role === "founder" ? mentor : founder)?.state.accountName ||
       (role === "founder" ? "your mentor" : "the founder");
+    // Prototype only: a step a fictional partner takes reaches the person
+    // here as the partner's own update; the fictional account gets none.
+    const partnerUpdate = (update, toastText, options) => {
+      event({ state }, room.role, update, room.id, options);
+      room.updatedAt = stamp();
+      state.toast = toastText;
+      mirror(account, state, room, "", options);
+    };
+    const fictionalMentor = (what) => {
+      requireRole("founder");
+      need(
+        canSimulatePartner(account, room),
+        `${what} can be simulated only with a fictional prototype mentor.`,
+        403,
+      );
+    };
+    const fictionalFounder = (what) => {
+      requireRole("mentor");
+      need(
+        canSimulatePartner(account, room),
+        `${what} can be simulated only with a fictional prototype founder.`,
+        403,
+      );
+    };
+    const sample = () => simulatedOutcome(founder?.id, room.terms?.draft?.goal);
     if (command === "confirm-goal") {
       requireRole("mentor");
       confirmGoal(room, text(values, "goal", 1000));
@@ -510,33 +816,217 @@ export function createMentorshipRooms({
     } else if (command === "simulate-goal-confirmation") {
       // Prototype only: the fictional mentor confirms the goal the founder
       // already sent, through the same rule as a real confirmation.
-      requireRole("founder");
-      need(
-        canSimulatePartner(account, room),
-        "Goal confirmation can be simulated only with a fictional prototype mentor.",
-        403,
-      );
+      fictionalMentor("Goal confirmation");
       confirmGoal(room, "");
       const mentorName = mentor?.state.accountName || "The mentor";
       message = `${mentorName} confirmed the mentorship goal.`;
-      // The founder sees this as the mentor's update; the fixture gets none.
-      event({ state }, room.role, message, room.id, { kind, tab });
-      room.updatedAt = stamp();
-      state.toast = message;
-      mirror(account, state, room, "", { kind, tab });
+      partnerUpdate(message, message, { kind, tab });
+      return;
+    } else if (command === "simulate-delivery") {
+      // Prototype only: the fictional mentor answers the Quick Ask or reviews
+      // the document, through the same rule as a real delivery.
+      fictionalMentor("An answer or review");
+      need(
+        format !== "doc-review" || room.milestones.uploaded?.me,
+        "Share your document before simulating the review.",
+        409,
+      );
+      const sample = simulatedOutcome(founder?.id, room.terms?.draft?.goal);
+      message = deliver(
+        room,
+        format === "quick-ask" ? sample.answer : sample.docReview,
+        room.partnerAccountId,
+        true,
+      );
+      partnerUpdate(message, message, { kind: "answer-delivered", tab });
+      return;
+    } else if (command === "simulate-check-in-confirmation") {
+      // Prototype only: the fictional mentor confirms the founder's proposed
+      // check-in time, through the same rule as a real confirmation.
+      fictionalMentor("Check-in confirmation");
+      const cycle = room.cycle;
+      need(
+        format === "ongoing-advisory" &&
+          cycle?.phase === "active" &&
+          cycle.proposedTime &&
+          (cycle.proposedTime.proposedBy || "founder") === "founder" &&
+          !cycle.confirmedAt,
+        "No check-in time is awaiting the mentor's confirmation.",
+        409,
+      );
+      message = confirmCheckIns(room, mentor, founder);
+      cycle.confirmedSimulated = true;
+      partnerUpdate(message, "Check-in time confirmed.", {
+        kind,
+        tab: "schedule",
+      });
+      return;
+    } else if (command === "simulate-cycle-review") {
+      // Prototype only: once this person has reviewed the cycle, the
+      // fictional partner reviews it too and agrees with Continue, through
+      // the same rules as the partner's own review and decision.
+      need(
+        canSimulatePartner(account, room),
+        "A cycle review can be simulated only with a fictional prototype partner.",
+        403,
+      );
+      const cycle = room.cycle;
+      const partnerRole = role === "founder" ? "mentor" : "founder";
+      const mentorId = room.partnerAccountId;
+      const reviewDue =
+        cycle?.phase === "review" &&
+        cycle.reviews[account.id] &&
+        !cycle.reviews[mentorId] &&
+        !cycle.reviewWindowClosed;
+      const decisionDue =
+        cycle?.phase === "review" &&
+        cycle.decisions[account.id] === "continue" &&
+        !cycle.decisions[mentorId];
+      need(
+        format === "ongoing-advisory" && (reviewDue || decisionDue),
+        "Submit your own cycle review first.",
+        409,
+      );
+      const said = [];
+      if (reviewDue) {
+        const review =
+          sample()[partnerRole === "mentor" ? "mentorReview" : "founderReview"];
+        const scores = Object.fromEntries(
+          reviewCategories({ ...room, role: partnerRole }, now(), {
+            cycle: true,
+          }).map(({ id }) => [id, review.scores[id] || 4]),
+        );
+        saveCycleReview(room, mentorId, scores, review.note, true);
+        said.push("submitted a private cycle review");
+      }
+      if (decisionDue) {
+        message = decideCycle(room, mentorId, "continue", mentor);
+        said.push("agreed to continue");
+      }
+      partnerUpdate(
+        `Prototype: ${counterpartName} ${said.join(" and ")}. This is a simulated response from a fictional ${partnerRole}.`,
+        message ||
+          (room.status === "reviewed"
+            ? "Both cycle reviews are in. The mentorship is reviewed."
+            : `${counterpartName} submitted a cycle review.`),
+        { kind, tab },
+      );
+      return;
+    } else if (command === "simulate-founder-rating") {
+      // Prototype only: the fictional founder marks the answer or review
+      // helpful, through the same rule as the founder's own rating.
+      fictionalFounder("A rating");
+      message = rateAnswer(room, "helpful");
+      info.answerRatingSimulated = true;
+      partnerUpdate(message, `${counterpartName} marked it helpful.`, {
+        kind,
+        tab,
+      });
+      return;
+    } else if (command === "simulate-doc-upload") {
+      // Prototype only: the fictional founder shares the document to review.
+      fictionalFounder("A document upload");
+      need(
+        format === "doc-review" && !room.milestones.uploaded?.me,
+        "The document is already shared.",
+        409,
+      );
+      message = shareDocument(room, {
+        label: sample().document,
+        file: null,
+        at: stamp(),
+        byAccountId: room.partnerAccountId,
+        simulated: true,
+      });
+      partnerUpdate(message, `${counterpartName} shared the document.`, {
+        kind,
+        tab,
+      });
+      return;
+    } else if (command === "simulate-revisions") {
+      // Prototype only: the fictional founder logs what they revised.
+      fictionalFounder("Revisions");
+      need(!info.revisions, "Revisions are already logged.", 409);
+      message = logRevisions(room, sample().revisions);
+      info.revisions.simulated = true;
+      partnerUpdate(message, `${counterpartName} logged their revisions.`, {
+        kind,
+        tab,
+      });
+      return;
+    } else if (command === "simulate-check-in-proposal") {
+      // Prototype only: the fictional founder proposes the first check-in,
+      // three days ahead at 10:00 in the mentor's time zone.
+      fictionalFounder("A check-in proposal");
+      need(
+        !room.cycle?.proposedTime,
+        "A check-in time is already proposed.",
+        409,
+      );
+      const timeZone = validTimeZone(mentor?.state.profiles.mentor.timeZone)
+        ? mentor.state.profiles.mentor.timeZone
+        : "UTC";
+      need(room.cycle, "Confirm the advisory goal before proposing check-ins.");
+      const session = makeSession(
+        {
+          date: new Date(now() + 3 * dayMs).toISOString().slice(0, 10),
+          time: "10:00",
+        },
+        timeZone,
+        room.cycle.checkInMinutes,
+      );
+      message = proposeCheckIn(room, session, "founder");
+      room.cycle.proposedTime.simulated = true;
+      partnerUpdate(message, `${counterpartName} proposed a check-in time.`, {
+        kind: "check-in-time",
+        tab: "schedule",
+      });
+      return;
+    } else if (
+      ["simulate-upgrade-acceptance", "simulate-upgrade-decline"].includes(
+        command,
+      )
+    ) {
+      // Prototype only: a fictional partner answers the upgrade this person
+      // proposed, through the same rule as a real answer.
+      need(
+        canSimulatePartner(account, room),
+        "An upgrade answer can be simulated only with a fictional prototype partner.",
+        403,
+      );
+      const upgrade = info.upgrade;
+      need(
+        upgrade &&
+          upgrade.proposedBy === role &&
+          now() < Date.parse(upgrade.expiresAt),
+        "No upgrade you proposed is awaiting an answer.",
+        409,
+      );
+      const accepted = command === "simulate-upgrade-acceptance";
+      const label = mentorFormat(upgrade.format).label;
+      const reply = replyToUpgrade(room, accepted, mentor, role);
+      if (accepted) info.upgradeSimulated = true;
+      partnerUpdate(
+        reply.message,
+        accepted
+          ? `${counterpartName} accepted the upgrade to ${label}.`
+          : `${counterpartName} declined the upgrade to ${label}.`,
+        { kind: reply.kind, tab },
+      );
       return;
     } else if (command === "simulate-session-held") {
-      // Prototype only: the booked Single Session with a fictional partner
-      // takes place now, so either side can reach follow-up and review
-      // without waiting for the session time and the 14-day follow-up delay.
+      // Prototype only: the next booked session or check-in with a fictional
+      // partner takes place now, so either side can reach follow-up and
+      // review without waiting for the session time, the attendance window
+      // and the 14-day follow-up delay.
       need(
         canSimulatePartner(account, room),
         "A session can be simulated only with a fictional prototype partner.",
         403,
       );
       need(
-        format === "single-session",
-        "Session simulation is available for Single Sessions.",
+        mentorFormat(format).sync,
+        "Session simulation is available for formats with sessions.",
       );
       const session = mentorSessions(room).find(
         (entry) => !entry.cancelledAt && !entry.outcome,
@@ -573,17 +1063,30 @@ export function createMentorshipRooms({
       const partnerName =
         (role === "founder" ? mentor : founder)?.state.accountName ||
         (role === "founder" ? "your mentor" : "the founder");
-      message =
-        role === "founder"
-          ? `Prototype: your session with ${partnerName} was marked as held. Follow-up and review are open.`
-          : `Prototype: your session with ${partnerName} was marked as held. ${partnerName} shared a simulated follow-up, and your review is open.`;
-      event({ state }, room.role, message, room.id, {
-        kind,
-        tab: "overview",
-      });
-      room.updatedAt = stamp();
-      state.toast = "Session marked as held.";
-      mirror(account, state, room, "", { kind, tab: "overview" });
+      const sessions = mentorSessions(room);
+      const heldCount = sessions.filter(
+        (entry) => entry.outcome === "held",
+      ).length;
+      const next =
+        format === "ongoing-advisory"
+          ? room.cycle?.phase === "review"
+            ? "The cycle review is open."
+            : `${heldCount} of ${sessions.length} check-ins held.`
+          : format === "single-session" && role === "founder"
+            ? "Follow-up and review are open."
+            : role === "founder"
+              ? "Your review is open."
+              : info.followup
+                ? `${partnerName} shared a simulated follow-up, and your review is open.`
+                : "Your review is open.";
+      message = `Prototype: your ${format === "ongoing-advisory" ? "check-in" : "session"} with ${partnerName} was marked as held. ${next}`;
+      partnerUpdate(
+        message,
+        format === "ongoing-advisory"
+          ? "Check-in marked as held."
+          : "Session marked as held.",
+        { kind, tab: "overview" },
+      );
       return;
     } else if (command === "schedule") {
       need(
@@ -723,18 +1226,8 @@ export function createMentorshipRooms({
         text(values, "timeZone") || input.timeZone,
         room.cycle.checkInMinutes,
       );
-      if (role === "founder") info.founderTimeZone = session.timeZone;
-      room.cycle.proposedTime = {
-        date: session.date,
-        time: session.time,
-        timeZone: session.timeZone,
-        proposedBy: role,
-      };
       kind = "check-in-time";
-      message =
-        role === "founder"
-          ? "Founder proposed a regular advisory check-in time. Confirm it in the room."
-          : "Your mentor suggested another advisory check-in time. Confirm it in the room.";
+      message = proposeCheckIn(room, session, role);
       toast = `Check-in time sent to ${counterpartName}. You'll see it here once they confirm.`;
       tab = "schedule";
     } else if (command === "confirm-check-in-time") {
@@ -750,89 +1243,18 @@ export function createMentorshipRooms({
           ? "mentor"
           : "founder",
       );
-      const { date, time, timeZone } = cycle.proposedTime;
-      const period = Math.floor(
-        (Date.parse(cycle.dueAt) - Date.parse(cycle.startsAt)) /
-          dayMs /
-          cycle.checkIns,
-      );
-      const proposed = Array.from({ length: cycle.checkIns }, (_, index) => {
-        const localDay = new Date(
-          Date.parse(date + "T00:00:00Z") + index * period * dayMs,
-        )
-          .toISOString()
-          .slice(0, 10);
-        return makeSession(
-          { date: localDay, time },
-          timeZone,
-          cycle.checkInMinutes,
-        );
-      });
-      need(
-        proposed.every(
-          (session) =>
-            scheduleInstant(session).getTime() < Date.parse(cycle.dueAt),
-        ),
-        "The proposed check-ins do not fit before the cycle ends. Propose an earlier start.",
-      );
-      checkSchedule(mentor, founder, proposed, { reservationRoomId: room.id });
-      sessionMilestone(room).schedules = proposed;
-      cycle.confirmedAt = stamp();
-      message = checkInsConfirmedText(proposed, now());
+      message = confirmCheckIns(room, mentor, founder);
       tab = "schedule";
     } else if (command === "deliver-answer") {
       requireRole("mentor");
-      need(
-        !mentorFormat(format).sync &&
-          !info.deliveredAt &&
-          !info.answerExpiredAt,
-        "An answer or review is no longer needed.",
-      );
-      const answer = text(values, "answer");
-      need(answer, "Write your answer or review.");
-      const item = room.milestones[deliveredMilestone(room)];
-      item.attachment = answer;
-      (item.evidenceItems ||= []).push({
-        label: answer,
-        at: stamp(),
-        byAccountId: account.id,
-      });
-      info.answer = answer;
-      info.deliveredAt = stamp();
-      setMentorMilestone(room, deliveredMilestone(room));
-      startReview(room);
+      message = deliver(room, text(values, "answer"), account.id);
       kind = "answer-delivered";
-      message =
-        format === "quick-ask"
-          ? "The mentor answered the Quick Ask."
-          : "The mentor delivered the document review.";
     } else if (command === "rate-answer") {
       requireRole("founder");
-      need(
-        !mentorFormat(format).sync &&
-          info.deliveredAt &&
-          !info.answerRating &&
-          ["helpful", "not-helpful"].includes(values.rating),
-        "Choose Helpful or Not helpful after delivery.",
-      );
-      info.answerRating = values.rating;
-      info.answerRatedAt = stamp();
-      setMentorMilestone(room, "helpful");
-      message = "Answer feedback saved.";
+      message = rateAnswer(room, values.rating);
     } else if (command === "log-revision") {
       requireRole("founder");
-      need(
-        format === "doc-review" &&
-          info.deliveredAt &&
-          now() <=
-            Date.parse(info.deliveredAt) + config().revisionWindowDays * dayMs,
-        "The revision window has closed.",
-      );
-      const summary = text(values, "summary");
-      need(summary, "Describe what you revised.");
-      info.revisions = { summary, at: stamp() };
-      setMentorMilestone(room, "revisions");
-      message = "Document revisions logged.";
+      message = logRevisions(room, text(values, "summary"));
     } else if (command === "prep-checklist") {
       requireRole("founder");
       need(mentorFormat(format).sync, "Prep is used for scheduled sessions.");
@@ -865,12 +1287,8 @@ export function createMentorshipRooms({
         at: stamp(),
         byAccountId: account.id,
       };
-      if (input.id === "uploaded") {
-        const item = room.milestones.uploaded;
-        (item.evidenceItems ||= []).push(evidence);
-        item.attachment = label;
-        setMentorMilestone(room, "uploaded");
-      } else {
+      if (input.id === "uploaded") shareDocument(room, evidence);
+      else {
         (info.prepFiles ||= []).push(evidence);
         (info.prep ||= {}).sharedAt = stamp();
       }
@@ -991,70 +1409,12 @@ export function createMentorshipRooms({
           "This proposal is no longer awaiting your reply.",
           409,
         );
-        if (command === "accept-upgrade") {
-          const usage = capacity(mentor.state);
-          const reason = [
-            "paused",
-            "guidelines",
-            "suspended",
-            "approval-required",
-            "no-show-limit",
-          ].includes(usage.reason)
-            ? usage.reason
-            : usage.fitReasons[upgrade.format];
-          if (reason)
-            fail(
-              ownUnavailableText(reason) ||
-                "The mentor has no capacity for this upgrade.",
-              409,
-              undefined,
-              { reason },
-            );
-          if (!usage.offeredFormats.includes(upgrade.format))
-            fail("The mentor does not offer this format.", 409);
-          if (info.followup)
-            info.followup.actionItemIds = followupTasks(
-              room,
-              info.followup,
-            ).map(({ id }) => id);
-          info.history.push({
-            format,
-            price: room.terms.draft.price || 0,
-            milestones: room.milestones,
-            role,
-            review: room.review,
-            reviewOpenedAt: info.reviewOpenedAt,
-            deliveredAt: info.deliveredAt,
-            acceptedAt: info.acceptedAt,
-            followup: info.followup,
-          });
-          preserveSessions(room);
-          room.template = mentorTemplate(upgrade.format);
-          room.terms.draft.format = upgrade.format;
-          room.milestones = milestoneSet(upgrade.format);
-          room.status = "in-progress";
-          room.review = { me: false, partner: false };
-          for (const key of [
-            "deliveredAt",
-            "followup",
-            "reviewOpenedAt",
-            "reviewClosesAt",
-            "slotReleased",
-            "answer",
-            "answerRating",
-            "revisions",
-          ])
-            delete info[key];
-          info.acceptedAt = stamp();
-          if (upgrade.format === "ongoing-advisory")
-            ensureCycle(room, now(), config());
-          delete room.completedAt;
-          kind = "upgrade-accepted";
-          message = "Mentorship upgrade accepted.";
-        } else {
-          kind = "upgrade-declined";
-          message = "Mentorship upgrade declined.";
-        }
+        ({ kind, message } = replyToUpgrade(
+          room,
+          command === "accept-upgrade",
+          mentor,
+          role,
+        ));
         delete info.upgrade;
       }
     } else if (["end-mentorship", "close-room"].includes(command)) {
@@ -1183,19 +1543,7 @@ export function createMentorshipRooms({
         ),
         "Rate every category from 1 to 5.",
       );
-      cycle.reviews[account.id] = {
-        scores,
-        rating:
-          Object.values(scores).reduce((sum, rating) => sum + rating, 0) /
-          keys.length,
-        note: text(values, "note"),
-        at: stamp(),
-      };
-      setMentorMilestone(room, "progress");
-      if (room.mentorship.endedAt && Object.keys(cycle.reviews).length === 2) {
-        room.status = "reviewed";
-        room.completedAt = stamp();
-      }
+      saveCycleReview(room, account.id, scores, text(values, "note"));
       message = "Private cycle review saved.";
     } else if (command === "cycle-decision") {
       const cycle = room.cycle;
@@ -1205,48 +1553,7 @@ export function createMentorshipRooms({
           ["continue", "finish"].includes(values.decision),
         "Complete your cycle review and choose Continue or Finish.",
       );
-      cycle.decisions[account.id] = values.decision;
-      if (values.decision === "finish") {
-        info.endedAt ||= stamp();
-        info.slotReleased = true;
-        room.status = "launched";
-        info.cycleReviewClosesAt = new Date(
-          now() + config().reviewWindowDays * dayMs,
-        ).toISOString();
-        if (Object.keys(cycle.reviews).length === 2) {
-          room.status = "reviewed";
-          room.completedAt = stamp();
-          cycle.endedAt ||= stamp();
-        }
-        message = "The advisory cycle ended.";
-      } else if (
-        Object.values(cycle.decisions).filter(
-          (decision) => decision === "continue",
-        ).length === 2
-      ) {
-        need(!info.endedAt, "This advisory has ended.", 409);
-        need(
-          mentorMinutesFit(
-            mentor.state,
-            cyclePlan(now(), config()),
-            config(),
-            officeAllocation?.(mentor.state, now(), config()).months ||
-              mentorCommitments(mentor.state, now(), config()),
-          ),
-          "The next cycle exceeds the mentor's monthly hours.",
-          409,
-        );
-        (room.cycleHistory ||= []).push({
-          ...cycle,
-          milestones: room.milestones,
-        });
-        preserveSessions(room);
-        room.milestones = milestoneSet(format);
-        const number = cycle.number + 1;
-        delete room.cycle;
-        ensureCycle(room, now(), config()).number = number;
-        message = `Advisory cycle ${number} started.`;
-      } else message = "Cycle decision saved.";
+      message = decideCycle(room, account.id, values.decision, mentor);
     } else fail("This mentorship action is unavailable.");
     room.updatedAt = stamp();
     state.toast = toast || message;

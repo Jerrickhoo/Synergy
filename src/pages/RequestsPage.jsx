@@ -548,6 +548,20 @@ export default function RequestsPage() {
           (id) => !state.introductionMetaByRole.mentor[id]?.kind,
         ) && <Introductions />}
       </div>
+      {/* Prototype only: sample founders keep a preview inbox from running dry. */}
+      {!records.length && state.prototypeMentor && (
+        <PrototypeShortcut note="Bring in a new request from a fictional sample founder.">
+          <button
+            className="btn small"
+            disabled={state.busy}
+            onClick={(event) =>
+              onAction({ action: "simulate-sample-request" }, event)
+            }
+          >
+            {state.busy ? "Adding…" : "Get another sample request"}
+          </button>
+        </PrototypeShortcut>
+      )}
       <button
         className="btn section-gap"
         onClick={() => onAction({ page: "discover" })}

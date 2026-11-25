@@ -40,15 +40,6 @@ export default function Topbar() {
         </div>
       )}
       <div ref={actionsRef} className="top-actions">
-        <button
-          className="icon-btn tablet-signout"
-          aria-label="Sign out"
-          disabled={state.busy}
-          title="Sign out"
-          onClick={(event) => onAction({ action: "request-sign-out" }, event)}
-        >
-          <Icon name="logout" />
-        </button>
         <div className="notification-anchor">
           <button
             className="icon-btn"

@@ -583,14 +583,21 @@ export function mentorshipNextAction(room) {
       tab: "overview",
     };
   }
-  if (
+  const noSession =
     format.sync &&
     !mentorSessions(room).some(
       (session) =>
         !session.cancelledAt &&
         (!session.outcome || session.outcome === "held"),
-    )
-  )
+    );
+  // Only the founder books another Office Hours slot after a cancellation.
+  if (noSession && format.id === "office-hours" && room.role === "mentor")
+    return {
+      mine: false,
+      text: "Waiting for the founder to book another slot",
+      tab: "schedule",
+    };
+  if (noSession)
     return {
       // Either side can book the session (the server allows both).
       mine: true,

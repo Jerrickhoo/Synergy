@@ -385,7 +385,7 @@
 
 @media print {
   body:has(.mentor-certificate)
-    :is(.sidebar, .topbar, .print-action, .skip-link) {
+    :is(.sidebar, .sidebar-backdrop, .topbar, .print-action, .skip-link) {
     display: none;
   }
 

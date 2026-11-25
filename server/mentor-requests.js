@@ -602,19 +602,29 @@ export function createMentorRequests({
     const founder = accounts()[sample.accountId];
     if (!founder?.demoSample || founder.deletedAt) return false;
     if (pending(mentor, "mentor", founder, mentor)) return false;
+    // One thing at a time with each sample founder.
+    if (
+      Object.values(mentor.state.rooms).some(
+        (room) =>
+          room.partnerAccountId === founder.id &&
+          !terminalStatuses.includes(room.status),
+      )
+    )
+      return false;
     const draft = {
       problem: sample.problem,
       tried: sample.tried,
       question: sample.question,
     };
-    const quality = requestQuality({ ...draft, links: [] });
+    const links = [...(sample.links || [])];
+    const quality = requestQuality({ ...draft, links });
     const request = {
       ...draft,
       desiredOutcome: sample.desiredOutcome,
       id: randomUUID(),
       kind: "mentor-request",
-      format: "single-session",
-      links: [],
+      format: sample.format || "single-session",
+      links,
       price: 0,
       quality: quality.score,
       qualityReasons: quality.reasons,

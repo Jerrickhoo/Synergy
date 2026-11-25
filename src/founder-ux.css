@@ -373,9 +373,18 @@ ol.stage-line {
   .sidebar .nav-btn,
   .sidebar .workspace-label,
   .sidebar .user-mini-role,
-  .sidebar .link-btn {
+  .sidebar .link-btn,
+  .sidebar-toggle,
+  .user-mini-trigger,
+  .user-mini-signout,
+  .account-menu,
+  .account-menu-item {
     background: Canvas;
     color: CanvasText;
+  }
+  .sidebar.is-rail .nav-btn .nav-count,
+  .account-menu {
+    border: 1px solid CanvasText;
   }
   .now-bar.mine,
   .milestone.current {
@@ -756,9 +765,9 @@ ol.stage-line {
   max-width: 100%;
 }
 
-/* The sidebar already names the signed-in person on wide screens. */
+/* The open sidebar already names the signed-in person on wide screens. */
 @media (min-width: 1251px) {
-  .simple-topbar .account-copy {
+  :root:not([data-sidebar="collapsed"]) .simple-topbar .account-copy {
     display: none;
   }
 }
@@ -879,7 +888,7 @@ ol.stage-line {
 }
 .session-skeleton {
   display: grid;
-  grid-template-columns: 252px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   min-height: 100dvh;
 }
 .session-skeleton-sidebar {
@@ -1293,6 +1302,18 @@ ol.stage-line {
 }
 .simple-home .home-overview:not(.paired) .workspace-metrics {
   margin: 0;
+}
+/* Founder Home: one even step between sections, whatever shows. The greeting
+   keeps its tighter step to the next-step card it introduces. */
+.simple-home.founder-home > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.simple-home.founder-home > * + * {
+  margin-top: var(--space-6);
+}
+.simple-home.founder-home > .home-welcome + * {
+  margin-top: var(--space-5);
 }
 /* A card after the overview row keeps the page's section spacing. */
 .home-overview + .card {

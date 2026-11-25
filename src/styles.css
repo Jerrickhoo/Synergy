@@ -309,11 +309,16 @@ a {
 .skip-link:focus {
   top: 12px;
 }
-/* Application shell */
+/* Application shell. --sidebar-width follows the open sidebar or the icon
+   rail (see "Collapsible sidebar" at the end). */
+:root {
+  --sidebar-width: 252px;
+}
 .app {
   display: grid;
-  grid-template-columns: 252px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   min-height: 100vh;
+  transition: grid-template-columns var(--duration-base) var(--ease-out);
 }
 main,
 #content {
@@ -339,8 +344,16 @@ main,
   gap: 10px;
   flex-shrink: 0;
 }
-.sidebar > .brand {
-  padding: 0 11px 36px;
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-bottom: 36px;
+}
+.sidebar-head .brand {
+  padding: 0 11px;
+  min-width: 0;
 }
 .brand-symbol {
   display: block;
@@ -512,7 +525,7 @@ main,
 }
 .demo-popover {
   position: fixed;
-  left: 266px;
+  left: calc(var(--sidebar-width) + 14px);
   bottom: 24px;
   width: 300px;
   background: var(--paper);
@@ -719,9 +732,6 @@ main,
 .mobile-brand,
 .mobile-menu-toggle,
 .mobile-search-toggle {
-  display: none;
-}
-.tablet-signout {
   display: none;
 }
 .page {
@@ -2680,8 +2690,8 @@ main,
 
 /* Responsive layout: broad dashboard, compact rail, then collapsible drawer. */
 @media (min-width: 1550px) {
-  .app {
-    grid-template-columns: 264px minmax(0, 1fr);
+  :root {
+    --sidebar-width: 264px;
   }
   .topbar {
     padding: 18px 32px;
@@ -2690,62 +2700,8 @@ main,
     padding-left: 32px;
     padding-right: 32px;
   }
-  .demo-popover {
-    left: 278px;
-  }
 }
 @media (max-width: 1250px) and (min-width: 761px) {
-  .tablet-signout {
-    display: inline-flex;
-  }
-  .app {
-    grid-template-columns: 90px minmax(0, 1fr);
-  }
-  .sidebar {
-    padding: 28px 12px 18px;
-    overflow: visible;
-  }
-  .sidebar > .brand {
-    padding: 0 16px 35px;
-    justify-content: center;
-  }
-  .sidebar .brand > div,
-  .workspace-label,
-  .sidebar .nav-count,
-  .sidebar-tip,
-  .user-mini-copy {
-    display: none;
-  }
-  .nav-btn {
-    justify-content: center;
-    flex-direction: column;
-    gap: 5px;
-    padding: 10px 4px;
-    font-size: 12px;
-  }
-  .sidebar .nav-icon svg {
-    width: 23px;
-    height: 23px;
-  }
-  .demo-trigger {
-    justify-content: center;
-    font-size: 0;
-    padding: 10px;
-  }
-  .demo-trigger svg {
-    width: 21px;
-    height: 21px;
-  }
-  .demo-trigger svg:last-child {
-    display: none;
-  }
-  .user-mini {
-    justify-content: center;
-    padding: 17px 0 0;
-  }
-  .demo-popover {
-    left: 104px;
-  }
   .dashboard-main-grid {
     grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
   }
@@ -4094,11 +4050,6 @@ main,
   font-size: 12px;
   flex-shrink: 0;
 }
-@media (min-width: 761px) and (max-width: 1250px) {
-  .secondary-nav .nav-btn {
-    font-size: 11px;
-  }
-}
 @media (max-width: 900px) {
   .home-focus-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -4359,4 +4310,254 @@ main,
   width: 20px;
   height: 20px;
   background: transparent;
+}
+
+/* Collapsible sidebar. Desktop keeps the choice per browser
+   (data-sidebar on the root, set before the first paint); tablets always
+   start with the icon rail and open the full sidebar over the page.
+   Every row is an icon cell as wide as the rail, then what the open sidebar
+   reveals. Opening and closing only changes the width, so the toggle, the
+   icons, Updates, Settings and the account footer never move. */
+:root {
+  --rail-width: 90px;
+  --rail-gutter: 8px;
+  --rail-cell: calc(var(--rail-width) - 2 * var(--rail-gutter));
+}
+.sidebar {
+  padding: 24px var(--rail-gutter) 18px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+@media (min-width: 761px) {
+  :root[data-sidebar="collapsed"] {
+    --sidebar-width: var(--rail-width);
+  }
+  .sidebar {
+    width: 100%;
+    transition: width var(--duration-base) var(--ease-out);
+  }
+}
+@media (min-width: 761px) and (max-width: 1250px) {
+  :root {
+    --sidebar-width: var(--rail-width);
+  }
+  .sidebar.is-overlay {
+    width: 252px;
+    z-index: 7;
+    box-shadow: var(--overlay-shadow);
+  }
+}
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  background: #09282e70;
+}
+.sidebar-head,
+.sidebar .nav-btn,
+.sidebar .user-mini {
+  display: grid;
+  grid-template-columns: var(--rail-cell) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0;
+}
+.sidebar-head {
+  min-height: 44px;
+  padding: 0;
+  margin-bottom: var(--space-6);
+}
+.sidebar-head .brand {
+  padding: 0 0 0 var(--space-1);
+}
+.sidebar-toggle {
+  display: inline-grid;
+  place-items: center;
+  justify-self: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: #c4d3c9;
+}
+.sidebar-toggle:hover {
+  background: #ffffff14;
+  color: #ffffff;
+}
+.sidebar-toggle svg {
+  width: 22px;
+  height: 22px;
+}
+.sidebar .nav-btn {
+  position: relative;
+  min-height: 44px;
+  padding: 0;
+  font-size: 14px;
+}
+.sidebar .nav-icon {
+  justify-self: center;
+}
+.sidebar .nav-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.sidebar .nav-label {
+  overflow: hidden;
+}
+/* Counts sit on the icon in both widths, in the accent colour. */
+.sidebar .nav-btn .nav-count {
+  position: absolute;
+  top: 4px;
+  left: calc(var(--rail-cell) / 2 + 4px);
+  min-width: 18px;
+  min-height: 18px;
+  margin: 0;
+  padding: 0 4px;
+  border-radius: var(--radius-xs);
+  background: var(--accent);
+  color: var(--on-accent-warm);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+/* One fixed-height footer row: avatar, name and role, Sign out. */
+.sidebar .user-mini {
+  margin-top: 14px;
+  padding: 14px 0 0;
+}
+.sidebar .user-mini-copy {
+  min-width: 0;
+  overflow: hidden;
+  padding-left: var(--space-1);
+}
+.sidebar .user-mini-name,
+.sidebar .user-mini-role {
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+}
+.user-mini-signout {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: #c4d3c9;
+}
+.user-mini-signout:hover {
+  background: #ffffff14;
+  color: #ffffff;
+}
+.user-mini-signout svg {
+  width: 18px;
+  height: 18px;
+}
+/* What the open sidebar reveals stays on one line and fades with the
+   width; on the rail it is hidden from keyboards and screen readers once
+   the sidebar has closed. */
+.sidebar .nav-label,
+.sidebar-head .brand,
+.sidebar .user-mini-copy,
+.user-mini-signout {
+  white-space: nowrap;
+  transition:
+    opacity var(--duration-base) var(--ease-out),
+    visibility 0s;
+}
+.sidebar.is-rail .nav-label,
+.sidebar.is-rail .sidebar-head .brand,
+.sidebar.is-rail .user-mini-copy,
+.sidebar.is-rail .user-mini-signout {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    visibility 0s linear var(--duration-base);
+}
+
+/* The account menu, opened from the avatar. */
+.account-menu-anchor {
+  justify-self: center;
+}
+.user-mini-trigger {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+.user-mini-trigger:hover,
+.user-mini-trigger[aria-expanded="true"] {
+  box-shadow: 0 0 0 2px #ffffff26;
+}
+/* Placed beside the sidebar from Sidebar.jsx, so the sidebar's scrolling
+   never clips it. */
+.account-menu {
+  position: fixed;
+  z-index: 30;
+  display: grid;
+  gap: 2px;
+  min-width: 200px;
+  padding: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--overlay-shadow);
+  animation: account-menu-in var(--duration-fast) var(--ease-out);
+}
+.account-menu-head {
+  display: grid;
+  padding: var(--space-2) var(--space-3);
+}
+.account-menu-head strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+.account-menu-head span {
+  color: var(--muted);
+  font-size: var(--font-caption);
+}
+.account-menu-item {
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 560;
+  text-align: left;
+}
+.account-menu-item:hover,
+.account-menu-item:focus-visible {
+  background: var(--surface-hover);
+}
+.account-menu :focus-visible {
+  outline-color: var(--control-focus);
+}
+@keyframes account-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app,
+  .sidebar,
+  .sidebar .nav-label,
+  .sidebar-head .brand,
+  .sidebar .user-mini-copy,
+  .user-mini-signout {
+    transition: none;
+  }
+  .account-menu {
+    animation: none;
+  }
 }

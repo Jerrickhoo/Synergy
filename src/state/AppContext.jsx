@@ -67,6 +67,7 @@ const dataKeys = [
   "mentorListing",
   "mentorVerification",
   "mentorOfficeOpenings",
+  "prototypeMentor",
   "officeSlotCheck",
   "mentorConfig",
   "mentorApplication",
@@ -109,6 +110,18 @@ const remoteActions = new Set([
   "confirm-goal",
   "simulate-goal-confirmation",
   "simulate-session-held",
+  "simulate-delivery",
+  "simulate-check-in-confirmation",
+  "simulate-cycle-review",
+  "simulate-upgrade-acceptance",
+  "simulate-upgrade-decline",
+  "simulate-founder-rating",
+  "simulate-doc-upload",
+  "simulate-revisions",
+  "simulate-check-in-proposal",
+  "simulate-office-booking",
+  "simulate-office-rebooking",
+  "simulate-sample-request",
   "confirm-check-in-time",
   "report-attendance",
   "reschedule-session",
@@ -232,6 +245,7 @@ const reducer = (state, payload) =>
           if (
             [
               "book-office-hours",
+              "simulate-office-booking",
               "simulate-payment",
               "send-request",
               "accept-request",
@@ -250,11 +264,15 @@ const reducer = (state, payload) =>
             draft.roomTab = payload.state.roomTab || "terms";
             draft.rating = 0;
           }
+          // A finished Deal Room opens its review. An Ongoing Advisory that
+          // finishes stays in the room, where its cycle reviews live.
           if (
             payload.state.rooms[payload.command.activeRoomId]?.status ===
               "launched" &&
             previousRooms[payload.command.activeRoomId]?.status !==
               "launched" &&
+            payload.state.rooms[payload.command.activeRoomId]?.type !==
+              "mentorship" &&
             ["confirm-milestone", "cycle-decision"].includes(
               payload.command.action,
             )

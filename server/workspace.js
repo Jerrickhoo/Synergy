@@ -69,6 +69,7 @@ import { createMentorPayments, paymentActions } from "./mentor-payments.js";
 import {
   initMentorship,
   isMentorRoom,
+  mentorSessions,
   migrateMentorship,
   roomFormat,
 } from "../src/data/mentor-room.js";
@@ -114,13 +115,17 @@ import {
   ownUnavailableText,
   unavailableText,
 } from "../src/data/mentor-rules.js";
-import { normalizeOfferedFormats } from "../src/data/mentor-formats.js";
+import {
+  mentorFormatIds,
+  normalizeOfferedFormats,
+} from "../src/data/mentor-formats.js";
 import {
   demoProfiles,
   legacyDemoProfiles,
   demoDirectoryVersion,
   previewMentorName,
-  sampleMentorRequest,
+  sampleMentorRequests,
+  sampleOfficeBooking,
   seedDemoImpact,
 } from "./demo-directory.js";
 import { seedShowcase } from "./showcase.js";
@@ -1359,6 +1364,10 @@ export function createWorkspace(file, options = {}) {
       state.role === "mentor"
         ? officeAvailability(state, now(), mentorSettings())
         : [];
+    // Display hint only: this mentor can try founder steps with fictional
+    // sample founders. Each simulated action re-checks on the server.
+    state.prototypeMentor =
+      state.role === "mentor" && fictionalFounders(account).length > 0;
     state.directory = createInitialState().directory;
     for (const other of Object.values(db.accounts)) {
       if (!directoryVisible(other, account)) continue;
@@ -1687,6 +1696,13 @@ export function createWorkspace(file, options = {}) {
       // Initials, not a sample mentor's illustration (see previewMentorName).
       image: "",
       noConflicts: true,
+      // Every format, with room to accept all four sample requests at once.
+      formats: mentorFormatIds.map((id) => ({ id, price: 0 })),
+      capacity: {
+        ...state.profiles.mentor.capacity,
+        maxMentees: 5,
+        monthlyHours: 10,
+      },
       // The guided preview starts ready to mentor, but nobody accepted the
       // guidelines for it: it gets the grace period, and Home asks the
       // preview mentor to read and accept them.
@@ -1778,9 +1794,10 @@ export function createWorkspace(file, options = {}) {
     seedPreview(state, role, { sample: given?.sample !== false });
     state.accountEmail = given ? email : account.email;
     db.accounts[account.id] = account;
-    // A mentor signing in for the first time has one request to try.
+    // A mentor signing in for the first time has one request per format.
     if (given && role === "mentor")
-      mentorRequests.seedSampleRequest(account, sampleMentorRequest);
+      for (const sample of sampleMentorRequests)
+        mentorRequests.seedSampleRequest(account, sample);
     save();
     return openSession(account);
   }
@@ -2045,6 +2062,154 @@ export function createWorkspace(file, options = {}) {
         ),
       );
     state.rooms[room.id] = room;
+  }
+  // Prototype only: a fictional sample founder free to start something new
+  // with this mentor, with no request or open room between them.
+  // Only preview mentors in demo mode get the mentor-side shortcuts.
+  function fictionalFounders(account) {
+    if (!options.demoMode || !account.demo) return [];
+    return Object.values(db.accounts).filter(
+      (other) =>
+        other.id !== account.id &&
+        other.state?.role === "founder" &&
+        simulatedAcceptor(account, other),
+    );
+  }
+  function freeFictionalFounder(account, state) {
+    const founders = fictionalFounders(account);
+    const free = founders.find((other) => {
+      const id = identity(other, "founder");
+      return (
+        !state.incomingByRole.mentor.has(id) &&
+        !state.waitingByRole.mentor.has(id) &&
+        pairConflict(account, other)?.level !== "block" &&
+        !Object.values(state.rooms).some(
+          (room) =>
+            room.partnerAccountId === other.id &&
+            !terminalStatuses.includes(room.status),
+        )
+      );
+    });
+    return { fictional: founders.length > 0, founder: free };
+  }
+  // Prototype only: a fresh sample request for a preview mentor whose
+  // Requests inbox ran empty, from a sample founder who is free.
+  function simulateSampleRequest(account, input) {
+    if (input.role !== "mentor")
+      fail("Only mentors receive mentorship requests.", 403);
+    const fictional = new Set(fictionalFounders(account).map(({ id }) => id));
+    const samples = sampleMentorRequests.filter((sample) =>
+      fictional.has(sample.accountId),
+    );
+    if (!samples.length)
+      fail(
+        "Sample requests are available only to prototype preview mentors.",
+        403,
+      );
+    if (
+      !samples.some((sample) =>
+        mentorRequests.seedSampleRequest(account, sample),
+      )
+    )
+      fail(
+        "Every sample founder already has a request or open room with you. Finish one first.",
+        409,
+      );
+    account.state.toast = "A new sample request arrived.";
+    account.state.toastType = "success";
+    save();
+    return response(account, "mentor");
+  }
+  // Prototype only: a fictional sample founder books one of the preview
+  // mentor's open Office Hours slots, through the real booking rules.
+  function simulateOfficeBooking(account, state, input) {
+    if (state.role !== "mentor") fail("Only mentors open Office Hours.", 403);
+    const { fictional, founder } = freeFictionalFounder(account, state);
+    if (!fictional)
+      fail(
+        "A booking can be simulated only for prototype preview mentors.",
+        403,
+      );
+    if (!founder)
+      fail(
+        "Every sample founder already has a request or open room with you. Finish one first.",
+        409,
+      );
+    const slot = officeAvailability(state, now(), mentorSettings()).find(
+      (item) => item.id === input.values?.occurrenceId,
+    );
+    if (!slot)
+      fail("This Office Hours slot is no longer open. Refresh Calendar.", 409);
+    // The booking reaches this working copy of the mentor's workspace.
+    account.state = state;
+    const founderState = prepare(founder, "founder");
+    officeHours.bookAsFictionalFounder(
+      founder,
+      founderState,
+      { action: "book-office-hours", id: identity(account, "mentor") },
+      { ...sampleOfficeBooking, slotId: slot.slotId, date: slot.date },
+      person(account, "mentor", founderState),
+    );
+    founderState.directory = createInitialState().directory;
+    founder.state = founderState;
+    const room = Object.values(state.rooms).find(
+      (entry) =>
+        entry.partnerAccountId === founder.id &&
+        isMentorRoom(entry) &&
+        mentorSessions(entry).some(
+          (session) => session.officeOccurrenceId === slot.id,
+        ),
+    );
+    // Both copies say the booking was simulated.
+    for (const copy of [room, founder.state.rooms[room.id]])
+      if (copy?.mentorship.booking) copy.mentorship.booking.simulated = true;
+    state.page = "room-detail";
+    state.activeRoomId = room.id;
+    state.roomTab = "schedule";
+    state.toast = `Prototype: ${displayName(founder, "founder")} booked your Office Hours slot.`;
+  }
+  // Prototype only: after the mentor cancels a booked Office Hours session,
+  // the fictional founder books the mentor's next open slot, through the
+  // real rebooking rules.
+  function simulateOfficeRebooking(account, state, input) {
+    if (state.role !== "mentor") fail("Only mentors can simulate this.", 403);
+    const room = state.rooms[input.activeRoomId];
+    if (!isMentorRoom(room) || room.role !== "mentor")
+      fail("This mentorship room is unavailable for your role.", 404);
+    const founder = fictionalFounders(account).find(
+      ({ id }) => id === room.partnerAccountId,
+    );
+    if (!founder)
+      fail(
+        "A new booking can be simulated only with a fictional prototype founder.",
+        403,
+      );
+    const [slot] = officeAvailability(state, now(), mentorSettings()).sort(
+      (a, b) => a.instant - b.instant,
+    );
+    if (!slot)
+      fail("Open an Office Hours slot in Calendar first.", 409, undefined, {
+        reason: "no-open-slot",
+      });
+    // The booking reaches this working copy of the mentor's workspace.
+    account.state = state;
+    const founderState = prepare(founder, "founder");
+    officeHours.bookAsFictionalFounder(
+      founder,
+      founderState,
+      { action: "rebook-office-slot", activeRoomId: room.id },
+      { slotId: slot.slotId, date: slot.date },
+      person(account, "mentor", founderState),
+    );
+    founderState.directory = createInitialState().directory;
+    founder.state = founderState;
+    // Both copies say the new booking was simulated.
+    for (const copy of [state.rooms[room.id], founder.state.rooms[room.id]])
+      for (const session of copy ? mentorSessions(copy) : [])
+        if (session.officeOccurrenceId === slot.id)
+          session.simulatedBooking = true;
+    state.roomTab = "schedule";
+    state.toast = `Prototype: ${displayName(founder, "founder")} booked another Office Hours slot.`;
   }
   // Prototype only: fictional sample collaborators answer a preview account's
   // actions so the whole Deal Room can be explored without a second person.
@@ -2351,6 +2516,8 @@ export function createWorkspace(file, options = {}) {
     requireVerifiedEmail(account);
     if (input.action === "first-run-choice")
       return chooseFirstRun(account, input);
+    if (input.action === "simulate-sample-request")
+      return simulateSampleRequest(account, input);
     if (paymentActions.has(input.action)) {
       if (!roles.includes(input.role) || input.form)
         fail("Choose a role and one action.");
@@ -2401,6 +2568,10 @@ export function createWorkspace(file, options = {}) {
         /* Checkout opened. */
       } else if (safetyAction) safety.act(account, state, input);
       else if (onboardingAction) onboarding.act(account, state, input);
+      else if (input.action === "simulate-office-booking")
+        simulateOfficeBooking(account, state, input);
+      else if (input.action === "simulate-office-rebooking")
+        simulateOfficeRebooking(account, state, input);
       else if (officeAction) officeHours.act(account, state, input);
       else mentorshipRooms.act(account, state, input, uploadedFile);
       state.directory = createInitialState().directory;

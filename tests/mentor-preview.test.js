@@ -27,7 +27,7 @@ function workspaceFor(t, options = { demoMode: true }) {
 const futureDate = () =>
   new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 
-test("a new mentor preview has its own name and one sample request", (t) => {
+test("a new mentor preview has its own name and one sample request per format", (t) => {
   const workspace = workspaceFor(t);
   const mentor = workspace.openDemo("mentor", {
     email: "mentor@example.com",
@@ -37,23 +37,42 @@ test("a new mentor preview has its own name and one sample request", (t) => {
   assert.notEqual(previewMentorName, "David Park");
   assert.equal(mentor.state.profiles.mentor.image, "");
   const requests = mentor.state.mentorRequests;
-  assert.equal(requests.length, 1);
-  assert.equal(
-    requests[0].partnerId,
-    `${sampleMentorRequest.accountId}:founder`,
+  // Quick Ask, Doc Review, Single Session and Ongoing Advisory, each from a
+  // different sample startup.
+  assert.deepEqual(requests.map(({ format }) => format).sort(), [
+    "doc-review",
+    "ongoing-advisory",
+    "quick-ask",
+    "single-session",
+  ]);
+  assert.equal(new Set(requests.map(({ partnerId }) => partnerId)).size, 4);
+  const single = requests.find(
+    ({ partnerId }) => partnerId === `${sampleMentorRequest.accountId}:founder`,
   );
-  assert.equal(requests[0].problem, sampleMentorRequest.problem);
+  assert.equal(single.format, "single-session");
+  assert.equal(single.problem, sampleMentorRequest.problem);
+  // The preview offers every format, so each request can be accepted.
+  assert.deepEqual(
+    mentor.state.profiles.mentor.formats.map(({ id }) => id),
+    [
+      "quick-ask",
+      "doc-review",
+      "single-session",
+      "office-hours",
+      "ongoing-advisory",
+    ],
+  );
   assert.ok(
     mentor.state.notifications.some((item) =>
       /sent a mentorship request/.test(item.text),
     ),
   );
-  // Signing in again does not add a second request.
+  // Signing in again does not add more requests.
   const again = workspace.openDemo("mentor", {
     email: "mentor@example.com",
     password: "pw",
   });
-  assert.equal(again.state.mentorRequests.length, 1);
+  assert.equal(again.state.mentorRequests.length, 4);
 });
 
 test("a mentor preview takes the sample request to Reviewed", (t) => {
@@ -140,7 +159,9 @@ test("answering the sample request clears it from Needs you", (t) => {
   ]) {
     const mentor = workspace.openDemo("mentor", { email, password: "pw" });
     const request = (state) =>
-      state.notifications.find((item) => item.kind === "request");
+      state.notifications.find(
+        (item) => item.kind === "request" && /^AccessLearn /.test(item.text),
+      );
     assert.equal(request(mentor.state).read, false);
     const state = workspace.act(mentor.token, {
       role: "mentor",

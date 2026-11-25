@@ -2,13 +2,15 @@ import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import PrototypeShortcut from "./PrototypeShortcut.jsx";
 
-export default function SimulateAcceptance({ person }) {
+// `sent` names what the founder sent: an introduction to a startup or a
+// mentorship request to a mentor. Either way, acceptance opens the room.
+export default function SimulateAcceptance({ person, sent = "introduction" }) {
   const { state, onAction } = useApp();
   const [failed, setFailed] = useState(false);
   if (!person.canSimulateAcceptance) return null;
   return (
     <PrototypeShortcut
-      note={`${person.name} is fictional. Simulate them accepting your introduction.`}
+      note={`${person.name} is fictional. Simulate them accepting your ${sent}.`}
     >
       <button
         className="btn small"
@@ -26,7 +28,7 @@ export default function SimulateAcceptance({ person }) {
       </button>
       {failed && (
         <p className="field-error" role="alert">
-          Could not simulate acceptance. Refresh the introduction and try again.
+          Could not simulate acceptance. Refresh the {sent} and try again.
         </p>
       )}
     </PrototypeShortcut>

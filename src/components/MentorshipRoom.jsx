@@ -107,28 +107,34 @@ function RoomAction({ action, children, values, disabled }) {
   );
 }
 
-// Prototype only: a booked Single Session with a fictional partner can take
-// place now, so either side can try follow-up and reviews in one sitting.
+// Prototype only: the next booked session or check-in with a fictional
+// partner can take place now, so either side can try follow-up and reviews
+// in one sitting.
 function SimulateSessionHeld({ room, closed, partner }) {
+  const format = roomFormat(room);
+  const sessions = mentorSessions(room);
   if (
     closed ||
     !partner?.prototypePartner ||
-    roomFormat(room) !== "single-session" ||
-    !mentorSessions(room).some(
-      (session) => !session.cancelledAt && !session.outcome,
-    )
+    !mentorFormat(format).sync ||
+    !sessions.some((session) => !session.cancelledAt && !session.outcome)
   )
     return null;
+  const advisory = format === "ongoing-advisory";
+  const fictional = `${partner.name} is a fictional ${room.role === "founder" ? "mentor" : "founder"}.`;
+  const note = advisory
+    ? `${fictional} Simulate each check-in taking place. After all ${sessions.length}, the cycle review opens.`
+    : format === "single-session" && room.role === "mentor"
+      ? `${fictional} Simulate the session taking place; they share a follow-up so you can try reviews.`
+      : format === "single-session"
+        ? `${fictional} Simulate the session taking place to try follow-up and reviews.`
+        : `${fictional} Simulate the session taking place to try reviews.`;
   return (
-    <PrototypeShortcut
-      note={
-        room.role === "founder"
-          ? `${partner.name} is a fictional mentor. Simulate the session taking place to try follow-up and reviews.`
-          : `${partner.name} is a fictional founder. Simulate the session taking place; they share a follow-up so you can try reviews.`
-      }
-    >
+    <PrototypeShortcut note={note}>
       <RoomAction action="simulate-session-held">
-        Simulate the session taking place
+        {advisory
+          ? "Simulate the next check-in taking place"
+          : "Simulate the session taking place"}
       </RoomAction>
     </PrototypeShortcut>
   );
@@ -484,12 +490,24 @@ function FollowupForm({ room }) {
   );
 }
 
-function AdvisoryCycle({ room }) {
+function AdvisoryCycle({ room, partner }) {
   const { state } = useApp();
   const cycle = room.cycle;
   if (!cycle) return null;
   const mine = cycle.reviews?.[state.accountId];
   const theirs = cycle.reviews?.[room.partnerAccountId];
+  // Prototype only: after this person's own review, a fictional partner can
+  // review the cycle too, and agree when this person chose Continue.
+  const reviewDue = mine && !theirs && !cycle.reviewWindowClosed;
+  const continueDue =
+    cycle.decisions?.[state.accountId] === "continue" &&
+    !cycle.decisions?.[room.partnerAccountId];
+  const other = room.role === "founder" ? "mentor" : "founder";
+  const simulateCycle =
+    partner?.prototypePartner &&
+    room.status !== "reviewed" &&
+    cycle.phase === "review" &&
+    (reviewDue || continueDue);
   return (
     <section className="card panel mentor-requests-list">
       <h2>Mentorship cycle {cycle.number}</h2>
@@ -531,7 +549,23 @@ function AdvisoryCycle({ room }) {
       {theirs && (
         <p>
           Partner's rating {theirs.rating}/5 · {theirs.note}
+          {theirs.simulated && " (simulated)"}
         </p>
+      )}
+      {simulateCycle && (
+        <PrototypeShortcut
+          note={
+            reviewDue
+              ? `${partner.name} is a fictional ${other}. Simulate their private cycle review${continueDue ? " and their agreement to continue" : ""}.`
+              : `${partner.name} is a fictional ${other}. Simulate them agreeing to continue.`
+          }
+        >
+          <RoomAction action="simulate-cycle-review">
+            {reviewDue
+              ? `Simulate ${other}'s cycle review`
+              : `Simulate ${other} agreeing to continue`}
+          </RoomAction>
+        </PrototypeShortcut>
       )}
       {(mine || cycle.reviewWindowClosed) && !room.mentorship.endedAt && (
         <div className="mentor-request-controls">
@@ -563,7 +597,7 @@ function AdvisoryCycle({ room }) {
   );
 }
 
-function Upgrade({ room }) {
+function Upgrade({ room, partner }) {
   const format = mentorFormat(roomFormat(room));
   const proposal = room.mentorship.upgrade;
   if (
@@ -586,6 +620,21 @@ function Upgrade({ room }) {
               <RoomAction action="accept-upgrade">Accept upgrade</RoomAction>
               <RoomAction action="decline-upgrade">Decline upgrade</RoomAction>
             </div>
+          ) : // Prototype only: a fictional partner never answers, so their
+          // answer can be simulated.
+          partner?.prototypePartner ? (
+            <PrototypeShortcut
+              note={`${partner.name} is a fictional ${room.role === "founder" ? "mentor" : "founder"}. Simulate their answer to your upgrade.`}
+            >
+              <div className="mentor-request-controls">
+                <RoomAction action="simulate-upgrade-acceptance">
+                  Simulate acceptance
+                </RoomAction>
+                <RoomAction action="simulate-upgrade-decline">
+                  Simulate decline
+                </RoomAction>
+              </div>
+            </PrototypeShortcut>
           ) : (
             <p>Waiting for your partner to reply.</p>
           )}
@@ -613,6 +662,7 @@ function Upgrade({ room }) {
 }
 
 function Schedule({ room, closed, partner }) {
+  const { state, onAction } = useApp();
   const sessions = mentorSessions(room);
   const format = roomFormat(room);
   const goal = room.milestones[goalMilestone(room)]?.me;
@@ -656,6 +706,44 @@ function Schedule({ room, closed, partner }) {
             : "No sessions scheduled yet."}
         </p>
       )}
+      {room.cycle?.confirmedSimulated && (
+        <p className="field-help">
+          Check-in time confirmed in a prototype simulation.
+        </p>
+      )}
+      {/* Prototype only: a fictional founder never books another slot after
+          the mentor cancels, so the booking can be simulated. */}
+      {!closed &&
+        room.role === "mentor" &&
+        partner?.prototypePartner &&
+        format === "office-hours" &&
+        room.mentorship.slotReleased &&
+        !room.milestones.held?.me &&
+        (() => {
+          const [next] = [...(state.mentorOfficeOpenings || [])].sort(
+            (a, b) => a.instant - b.instant,
+          );
+          return next ? (
+            <PrototypeShortcut
+              note={`${partner.name} is a fictional founder. Simulate them booking your next open slot, ${scheduleLabel(next)}.`}
+            >
+              <RoomAction action="simulate-office-rebooking">
+                Simulate founder booking another slot
+              </RoomAction>
+            </PrototypeShortcut>
+          ) : (
+            <PrototypeShortcut
+              note={`${partner.name} is a fictional founder. Open a slot in Calendar, then simulate them booking it.`}
+            >
+              <button
+                className="btn small"
+                onClick={() => onAction({ page: "calendar" })}
+              >
+                Open Calendar
+              </button>
+            </PrototypeShortcut>
+          );
+        })()}
       {!closed &&
         room.role === "founder" &&
         format === "office-hours" &&
@@ -825,7 +913,17 @@ function Schedule({ room, closed, partner }) {
             partner?.name ||
             (room.role === "founder" ? "your mentor" : "the founder");
           if (!proposal && room.role === "mentor")
-            return <p>Waiting for the founder to propose a check-in time.</p>;
+            return partner?.prototypePartner ? (
+              <PrototypeShortcut
+                note={`${partner.name} is a fictional founder. Simulate them proposing the first check-in time, then confirm it.`}
+              >
+                <RoomAction action="simulate-check-in-proposal">
+                  Simulate founder proposing a check-in time
+                </RoomAction>
+              </PrototypeShortcut>
+            ) : (
+              <p>Waiting for the founder to propose a check-in time.</p>
+            );
           if (!proposal)
             return (
               <RoomForm
@@ -863,6 +961,15 @@ function Schedule({ room, closed, partner }) {
                 You proposed {scheduleLabel(proposal)} for the first check-in.
                 Waiting for {other} to confirm.
               </p>
+              {room.role === "founder" && partner?.prototypePartner && (
+                <PrototypeShortcut
+                  note={`${partner.name} is a fictional mentor. Simulate them confirming this time; it books all ${room.cycle.checkIns} check-ins.`}
+                >
+                  <RoomAction action="simulate-check-in-confirmation">
+                    Simulate mentor confirming the check-in time
+                  </RoomAction>
+                </PrototypeShortcut>
+              )}
               {suggest}
             </>
           ) : (
@@ -897,6 +1004,12 @@ export default function MentorshipRoom({ room }) {
     format.id !== "ongoing-advisory" &&
     Boolean(room.milestones.held?.me);
   const next = mentorshipNextAction(room);
+  // Prototype only: a fictional partner never answers chat or action items.
+  const fictionalNote = partner?.prototypePartner ? (
+    <PrototypeShortcut
+      note={`${partner.name} is fictional and won't reply here.`}
+    />
+  ) : null;
   // The next-step button opens the step's tab, then brings its section into
   // view and focuses its first control.
   const goToStep = async (step) => {
@@ -1256,14 +1369,33 @@ export default function MentorshipRoom({ room }) {
                   {format.id === "quick-ask" ? "Answer" : "Document review"}
                 </h2>
                 {info.answer ? (
-                  <p className="preserve-lines">{info.answer}</p>
-                ) : (
-                  <p>
-                    {info.answerExpiredAt
-                      ? "The answer window ended."
-                      : "Waiting for the mentor's response."}
-                  </p>
-                )}
+                  <>
+                    <p className="preserve-lines">{info.answer}</p>
+                    {info.answerSimulated && (
+                      <p className="field-help">
+                        Sample response from a fictional mentor, added in a
+                        prototype simulation.
+                      </p>
+                    )}
+                  </>
+                ) : info.answerExpiredAt ? (
+                  <p>The answer window ended.</p>
+                ) : room.role === "founder" ? (
+                  <p>Waiting for the mentor's response.</p>
+                ) : null}
+                {!closed &&
+                  room.role === "mentor" &&
+                  partner?.prototypePartner &&
+                  format.id === "doc-review" &&
+                  !room.milestones.uploaded?.me && (
+                    <PrototypeShortcut
+                      note={`${partner.name} is a fictional founder. Simulate them sharing the document to review.`}
+                    >
+                      <RoomAction action="simulate-doc-upload">
+                        Simulate founder sharing the document
+                      </RoomAction>
+                    </PrototypeShortcut>
+                  )}
                 {!closed && room.role === "mentor" && !info.deliveredAt && (
                   <RoomForm
                     command={{ action: "deliver-answer" }}
@@ -1277,6 +1409,32 @@ export default function MentorshipRoom({ room }) {
                     }
                   />
                 )}
+                {!closed &&
+                  room.role === "founder" &&
+                  partner?.prototypePartner &&
+                  !info.deliveredAt &&
+                  !info.answerExpiredAt && (
+                    <PrototypeShortcut
+                      note={
+                        format.id === "doc-review" &&
+                        !room.milestones.uploaded?.me
+                          ? `${partner.name} is a fictional mentor. Share your document in Review materials first, then simulate their review.`
+                          : `${partner.name} is a fictional mentor. Simulate them ${format.id === "quick-ask" ? "answering your question" : "reviewing your document"} to continue.`
+                      }
+                    >
+                      <RoomAction
+                        action="simulate-delivery"
+                        disabled={
+                          format.id === "doc-review" &&
+                          !room.milestones.uploaded?.me
+                        }
+                      >
+                        {format.id === "quick-ask"
+                          ? "Simulate mentor answering"
+                          : "Simulate mentor delivering the review"}
+                      </RoomAction>
+                    </PrototypeShortcut>
+                  )}
                 {room.role === "founder" &&
                   info.deliveredAt &&
                   !info.answerRating && (
@@ -1312,11 +1470,34 @@ export default function MentorshipRoom({ room }) {
                     />
                   )}
                 {info.revisions && <p>{info.revisions.summary}</p>}
+                {room.role === "mentor" &&
+                  partner?.prototypePartner &&
+                  room.status !== "cancelled" &&
+                  info.deliveredAt &&
+                  (!info.answerRating ||
+                    (format.id === "doc-review" && !info.revisions)) && (
+                    <PrototypeShortcut
+                      note={`${partner.name} is a fictional founder. Simulate their reply to your ${format.id === "quick-ask" ? "answer" : "review"}.`}
+                    >
+                      <div className="mentor-request-controls">
+                        {!info.answerRating && (
+                          <RoomAction action="simulate-founder-rating">
+                            Simulate founder marking it helpful
+                          </RoomAction>
+                        )}
+                        {format.id === "doc-review" && !info.revisions && (
+                          <RoomAction action="simulate-revisions">
+                            Simulate founder logging revisions
+                          </RoomAction>
+                        )}
+                      </div>
+                    </PrototypeShortcut>
+                  )}
               </section>
             )}
             <FollowupForm room={room} />
-            <AdvisoryCycle room={room} />
-            <Upgrade room={room} />
+            <AdvisoryCycle room={room} partner={partner} />
+            <Upgrade room={room} partner={partner} />
             {!closed && (
               <details className="card panel">
                 <summary>End mentorship</summary>
@@ -1342,7 +1523,13 @@ export default function MentorshipRoom({ room }) {
         {tab === "notes" && (
           <SessionNotes room={room} closed={closed} partner={partner} />
         )}
-        {tab === "tasks" && <TaskBoard room={room} partner={partner} />}
+        {tab === "tasks" && (
+          <>
+            {fictionalNote}
+            <TaskBoard room={room} partner={partner} />
+          </>
+        )}
+        {tab === "chat" && fictionalNote}
         {tab === "chat" && (
           <ChatPanel
             room={room}

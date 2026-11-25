@@ -5,3 +5,12 @@ try {
 } catch {
   document.documentElement.dataset.theme = "light";
 }
+// The sidebar choice too, so a collapsed sidebar never shows open on load.
+try {
+  document.documentElement.dataset.sidebar =
+    localStorage.getItem("synergy-sidebar") === "collapsed"
+      ? "collapsed"
+      : "expanded";
+} catch {
+  document.documentElement.dataset.sidebar = "expanded";
+}

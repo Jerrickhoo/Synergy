@@ -29,6 +29,9 @@ export const calendarActions = new Set([
   "book-office-hours",
   "rebook-office-slot",
   "calendar-link",
+  // Prototype only: handled in workspace.js.
+  "simulate-office-booking",
+  "simulate-office-rebooking",
 ]);
 
 const durationOptions = [15, 30, 45, 60];
@@ -330,7 +333,18 @@ export function createOfficeHours({
       }));
   }
 
-  function book(account, state, input, values, validateOnly = false) {
+  // `prototype.person` is set only when a fictional sample founder books a
+  // preview mentor: sample founders never see preview accounts in their
+  // directory, so the caller supplies the mentor and has already checked
+  // that the founder is fictional. Every other booking rule still applies.
+  function book(
+    account,
+    state,
+    input,
+    values,
+    validateOnly = false,
+    prototype = null,
+  ) {
     if (state.role !== "founder")
       fail("Only founders can book office hours.", 403);
     verify(account, state, { action: "send-request" });
@@ -346,12 +360,14 @@ export function createOfficeHours({
       : null;
     if (
       !mentor ||
-      !eligible(mentor, account) ||
+      !(prototype || eligible(mentor, account)) ||
       conflict(mentor, account)?.level === "block"
     )
       fail("This mentor is unavailable for booking.", 409);
     const profile = mentor.state.profiles.mentor;
-    const person = state.directory.mentors.find((item) => item.id === target);
+    const person =
+      prototype?.person ||
+      state.directory.mentors.find((item) => item.id === target);
     const slot = (profile.officeHours || []).find(
       (item) => item.id === values.slotId,
     );
@@ -709,6 +725,10 @@ export function createOfficeHours({
 
   return {
     act,
+    // Prototype only: see `prototype` on book.
+    bookAsFictionalFounder(founder, founderState, input, values, person) {
+      return book(founder, founderState, input, values, false, { person });
+    },
     validateBooking(account, state, input) {
       return book(account, state, input, input.values || {}, true);
     },

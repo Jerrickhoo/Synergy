@@ -14,8 +14,10 @@ import {
   HomeTasks,
 } from "../components/HomePlanner.jsx";
 
-// Founder Home: next step, then the calendar beside the task list (70:30),
-// the room count beside the collaborations, and labelled recent activity.
+// Founder Home, most important first: the next step, introductions waiting
+// on a reply, then either the strongest matches (nothing under way yet) or
+// the collaborations followed by the calendar beside the task list (70:30).
+// Secondary tiles and recent activity close the page.
 export default function HomePage() {
   const { state } = useApp();
   if (state.role === "mentor") return <MentorHome />;
@@ -23,29 +25,30 @@ export default function HomePage() {
   const slots = collaboratorSlots(rooms);
   const nameOf = (room) => partnerName(state, room);
   return (
-    <div className="page simple-home page-enter">
+    <div className="page simple-home founder-home page-enter">
       <HomeWelcome />
-      {!rooms.length && <HomeTopMatches />}
       <Introductions compact />
-      {rooms.length > 0 && (
-        <div className="home-planner section-gap">
-          <HomeCalendar rooms={rooms} nameOf={nameOf} slots={slots} />
-          <HomeTasks rooms={rooms} nameOf={nameOf} slots={slots} />
-        </div>
-      )}
-      <div
-        className={`home-overview section-gap${rooms.length ? " paired" : ""}`}
-      >
-        <HomeMetrics />
-        {rooms.length > 0 && (
+      {rooms.length ? (
+        <>
           <HomeCollaborations
             rooms={rooms}
             nameOf={nameOf}
             slots={slots}
             title="Your collaborations"
           />
-        )}
-      </div>
+          <div className="home-planner">
+            <HomeCalendar rooms={rooms} nameOf={nameOf} slots={slots} />
+            <HomeTasks rooms={rooms} nameOf={nameOf} slots={slots} />
+          </div>
+        </>
+      ) : (
+        <HomeTopMatches />
+      )}
+      {/* The collaborations list and the Introductions card already say what
+          the rooms and introductions tiles would. */}
+      <HomeMetrics
+        omit={rooms.length ? ["rooms", "introductions"] : ["introductions"]}
+      />
       <HomeActivity />
     </div>
   );

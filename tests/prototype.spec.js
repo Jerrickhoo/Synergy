@@ -431,10 +431,11 @@ for (const role of ["founder", "mentor"])
       await expect(
         page.getByRole("heading", { name: "Active mentees" }),
       ).toBeVisible();
+    // Founder Home lists the open room by name rather than counting it.
     else
       await expect(
-        page.getByRole("button", { name: /^Active rooms/ }),
-      ).toContainText("1");
+        page.getByRole("button", { name: /^Open room/ }),
+      ).toHaveCount(1);
     await page.goto("/#/updates");
     await expect(
       page.getByText(
@@ -982,8 +983,9 @@ test("a mentor preview takes the sample request to Reviewed", async ({
   await page.getByLabel("Email address").fill("mentor-preview@example.com");
   await page.getByLabel("Password", { exact: true }).fill("preview");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  // One sample request per format; AccessLearn's is the Single Session.
   await expect(
-    page.getByRole("heading", { level: 1, name: "1 request waiting" }),
+    page.getByRole("heading", { level: 1, name: "4 requests waiting" }),
   ).toBeVisible();
   await expect(page.locator(".sidebar")).toContainText("Alex Navarro");
   await expect(
@@ -991,7 +993,7 @@ test("a mentor preview takes the sample request to Reviewed", async ({
       .getByRole("navigation", { name: "Main navigation" })
       .getByRole("button", { name: "Startups", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Accept", exact: true }).click();
+  await acceptSampleRequest(page, "AccessLearn");
   await expect(
     page.getByRole("heading", { level: 1, name: "Mentorship room" }),
   ).toBeVisible();
@@ -1028,4 +1030,332 @@ test("a mentor preview takes the sample request to Reviewed", async ({
   await expect(
     page.locator(".mentor-stage-line li.done").filter({ hasText: "Reviewed" }),
   ).toHaveCount(1);
+});
+
+// One founder walkthrough per mentorship format: with a fictional mentor,
+// every step the mentor would take has a Prototype only shortcut, so each
+// room reaches Reviewed in one sitting.
+async function founderWithSampleMentor(page, request, format) {
+  const user = decode(
+    await (
+      await request.post("/api/demo", { data: { role: "founder" } })
+    ).text(),
+  );
+  const mentor = user.state.directory.mentors.find((person) =>
+    person.availableFormats?.includes(format),
+  );
+  await page.goto("/");
+  await page.evaluate(
+    (token) => sessionStorage.setItem("synergy-session", token),
+    user.token,
+  );
+  const profile = `/?format=${format}#/matches/${encodeURIComponent(mentor.id)}`;
+  await page.goto(profile);
+  return { mentor, profile };
+}
+
+async function requestAndSimulateAcceptance(page, request, format) {
+  const { mentor, profile } = await founderWithSampleMentor(
+    page,
+    request,
+    format,
+  );
+  await page
+    .getByLabel("What's the problem?")
+    .fill(mentorRequestValues.problem);
+  await page
+    .getByLabel("What have you already tried?")
+    .fill(mentorRequestValues.tried);
+  await page
+    .getByLabel("What specific question do you want answered?")
+    .fill(mentorRequestValues.question);
+  await selectValue(page.getByLabel("Which format do you prefer?"), format);
+  await page.getByRole("button", { name: "Send mentorship request" }).click();
+  await expect(page).toHaveURL(/#\/waiting/);
+  // Back on the mentor's profile, the founder can simulate acceptance there.
+  await page.goto(profile);
+  await expect(
+    page.getByRole("heading", { name: "Mentorship request sent" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      `Prototype only: ${mentor.name} is fictional. Simulate them accepting your mentorship request.`,
+    ),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: `Simulate acceptance from ${mentor.name}` })
+    .click();
+  await expect(page).toHaveURL(/#\/rooms\//);
+  return mentor;
+}
+
+// The last stage is done; Advisory also has a "Progress Reviewed" stage.
+async function expectReviewed(page) {
+  const last = page.locator(".mentor-stage-line li").last();
+  await expect(last).toHaveClass(/done/);
+  await expect(last).toContainText("Reviewed");
+}
+
+async function writeReviewAndExpectReviewed(page) {
+  await page
+    .locator(".room-next-step")
+    .getByRole("button", { name: "Write review" })
+    .click();
+  for (const label of ["Usefulness", "Clarity", "Responsiveness"])
+    await selectValue(
+      page.getByRole("combobox", { name: label, exact: true }),
+      "5",
+    );
+  await page.getByRole("button", { name: "Submit private review" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Mentorship feedback" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Back to mentorship room" }).click();
+  await expectReviewed(page);
+}
+
+test("format walkthrough: Quick Ask with a sample mentor reaches Reviewed", async ({
+  page,
+  request,
+}) => {
+  await requestAndSimulateAcceptance(page, request, "quick-ask");
+  await page.getByRole("button", { name: "Simulate mentor answering" }).click();
+  await expect(
+    page.getByText(
+      "Sample response from a fictional mentor, added in a prototype simulation.",
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Helpful", exact: true }).click();
+  await writeReviewAndExpectReviewed(page);
+});
+
+test("format walkthrough: Doc/Pitch Review with a sample mentor reaches Reviewed", async ({
+  page,
+  request,
+}) => {
+  await requestAndSimulateAcceptance(page, request, "doc-review");
+  const deliver = page.getByRole("button", {
+    name: "Simulate mentor delivering the review",
+  });
+  // The review waits for the founder's document.
+  await expect(deliver).toBeDisabled();
+  await page.getByLabel("Document link").fill("https://example.com/pitch-deck");
+  await page.getByRole("button", { name: "Share document link" }).click();
+  await deliver.click();
+  await expect(
+    page.locator(".mentor-stage-line [aria-current=step]"),
+  ).toHaveText("Delivered");
+  await page
+    .getByLabel("What did you revise?")
+    .fill("Moved traction up front.");
+  await page.getByRole("button", { name: "Log revisions" }).click();
+  await writeReviewAndExpectReviewed(page);
+});
+
+test("format walkthrough: Single Session with a sample mentor reaches Reviewed", async ({
+  page,
+  request,
+}) => {
+  await requestAndSimulateAcceptance(page, request, "single-session");
+  await page
+    .getByRole("button", { name: "Simulate mentor confirming the goal" })
+    .click();
+  await page.getByRole("tab", { name: "Schedule", exact: true }).click();
+  const date = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10);
+  await page.locator("#single-session-date").fill(date);
+  await page.locator("#single-session-time").fill("10:00");
+  await page.getByRole("button", { name: "Schedule session" }).click();
+  await page
+    .getByRole("button", { name: "Simulate the session taking place" })
+    .click();
+  await page.getByRole("tab", { name: "Overview", exact: true }).click();
+  await page.getByRole("button", { name: "Submit follow-up" }).click();
+  await writeReviewAndExpectReviewed(page);
+});
+
+test("format walkthrough: Office Hours with a sample mentor reaches Reviewed", async ({
+  page,
+  request,
+}) => {
+  // Office Hours is booked from an open slot; there is no request to accept.
+  await founderWithSampleMentor(page, request, "office-hours");
+  await page.locator("#office-book-problem").fill(mentorRequestValues.problem);
+  await page
+    .locator("#office-book-question")
+    .fill(mentorRequestValues.question);
+  await page.getByRole("button", { name: "Book Office Hours" }).click();
+  await expect(page).toHaveURL(/#\/rooms\//);
+  await page
+    .getByRole("button", { name: "Simulate the session taking place" })
+    .first()
+    .click();
+  await expect(
+    page.locator(".mentor-stage-line [aria-current=step]"),
+  ).toHaveText("Session Held");
+  await writeReviewAndExpectReviewed(page);
+});
+
+test("format walkthrough: Ongoing Advisory with a sample mentor reaches Reviewed", async ({
+  page,
+  request,
+}) => {
+  const mentor = await requestAndSimulateAcceptance(
+    page,
+    request,
+    "ongoing-advisory",
+  );
+  await page
+    .getByRole("button", { name: "Simulate mentor confirming the goal" })
+    .click();
+  await page.getByRole("tab", { name: "Schedule", exact: true }).click();
+  const date = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+  await page.locator("#check-in-date").fill(date);
+  await page.locator("#check-in-time").fill("10:00");
+  await page
+    .getByRole("button", { name: "Propose regular check-in time" })
+    .click();
+  await page
+    .getByRole("button", {
+      name: "Simulate mentor confirming the check-in time",
+    })
+    .click();
+  await expect(page.locator(".mentor-session")).toHaveCount(4);
+  const checkIn = page
+    .getByRole("button", { name: "Simulate the next check-in taking place" })
+    .first();
+  for (let held = 1; held <= 4; held += 1) {
+    await checkIn.click();
+    await expect(page.getByText("Held in a prototype simulation")).toHaveCount(
+      held,
+    );
+  }
+  await page.getByRole("tab", { name: "Overview", exact: true }).click();
+  for (const label of ["Usefulness", "Clarity", "Responsiveness"])
+    await selectValue(
+      page.getByRole("combobox", { name: label, exact: true }),
+      "5",
+    );
+  await page
+    .getByRole("button", { name: "Submit private cycle review" })
+    .click();
+  await page.getByRole("button", { name: "Finish", exact: true }).click();
+  await expect(
+    page.getByText(
+      `Prototype only: ${mentor.name} is a fictional mentor. Simulate their private cycle review.`,
+    ),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Simulate mentor's cycle review" })
+    .click();
+  await expect(page.getByText(/\(simulated\)$/)).toBeVisible();
+  await expectReviewed(page);
+});
+
+// A preview mentor accepts one of the four sample requests from Requests.
+async function acceptSampleRequest(page, startup) {
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("button", { name: /^Requests/ })
+    .click();
+  await page
+    .locator("article")
+    .filter({ hasText: startup })
+    .getByRole("button", { name: "Accept", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Mentorship room" }),
+  ).toBeVisible();
+}
+
+test("a mentor preview upgrades a session and runs an Office Hours booking with shortcuts", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await selectValue(
+    page.getByRole("combobox", { name: "I'm signing in as" }),
+    "mentor",
+  );
+  await page
+    .getByLabel("Email address")
+    .fill(`mentor-upgrade-${Date.now()}@example.com`);
+  await page.getByLabel("Password", { exact: true }).fill("preview");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await acceptSampleRequest(page, "AccessLearn");
+  await page.getByRole("button", { name: "Confirm goal", exact: true }).click();
+  await page.getByRole("tab", { name: "Schedule", exact: true }).click();
+  const date = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10);
+  await page.locator("#single-session-date").fill(date);
+  await page.locator("#single-session-time").fill("10:00");
+  await page.getByRole("button", { name: "Schedule session" }).click();
+  await page
+    .getByRole("button", { name: "Simulate the session taking place" })
+    .click();
+  await page.getByRole("tab", { name: "Overview", exact: true }).click();
+
+  // Upgrade: the fictional founder answers the mentor's proposal.
+  await page.getByRole("button", { name: "Propose upgrade" }).click();
+  await expect(
+    page.getByText("Waiting for your partner to reply."),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "Prototype only: AccessLearn is a fictional founder. Simulate their answer to your upgrade.",
+    ),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Simulate acceptance", exact: true })
+    .click();
+  await expect(page.locator(".mentor-stage-line")).toContainText(
+    "Goals Defined",
+  );
+
+  // Office Hours: open a slot, a sample founder books it, the session is held.
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("button", { name: "Calendar", exact: true })
+    .click();
+  const slotDate = new Date(Date.now() + 4 * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  await page.locator("#office-date").fill(slotDate);
+  await page.locator("#office-time").fill("15:00");
+  await page.getByRole("button", { name: "Open slot", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Simulate a founder booking this slot" })
+    .click();
+  await expect(page).toHaveURL(new RegExp("#/rooms/"));
+  // The mentor cancels; only the founder can book another slot, so the next
+  // step waits for them and the fictional founder's booking is simulated.
+  await page.getByRole("tab", { name: "Schedule", exact: true }).click();
+  await page.getByText("Reschedule or cancel", { exact: true }).click();
+  await page.getByLabel("Cancellation reason").fill("Something came up.");
+  await page
+    .getByRole("button", { name: "Cancel session", exact: true })
+    .click();
+  await expect(page.locator(".room-next-step strong")).toHaveText(
+    "Waiting for the founder to book another slot",
+  );
+  await page
+    .getByRole("button", { name: "Simulate founder booking another slot" })
+    .click();
+  await expect(
+    page.locator(".mentor-session").filter({ hasText: "Scheduled" }),
+  ).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Simulate the session taking place" })
+    .first()
+    .click();
+  await page
+    .locator(".room-next-step")
+    .getByRole("button", { name: "Write review" })
+    .click();
+  await selectValue(
+    page.getByRole("combobox", { name: "Preparedness", exact: true }),
+    "4",
+  );
+  await page.getByRole("button", { name: "Submit private review" }).click();
+  await page.getByRole("button", { name: "Back to mentorship room" }).click();
+  const last = page.locator(".mentor-stage-line li").last();
+  await expect(last).toHaveClass(/done/);
+  await expect(last).toContainText("Reviewed");
 });

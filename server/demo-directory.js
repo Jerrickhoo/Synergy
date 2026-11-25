@@ -118,6 +118,56 @@ export const sampleMentorRequest = Object.freeze({
   desiredOutcome: "One onboarding change to test before our pilot",
 });
 
+// One sample request per format, each from a different sample startup, so a
+// mentor preview can try every kind of mentorship (prototype only).
+export const sampleMentorRequests = Object.freeze([
+  Object.freeze({
+    accountId: "demo-sample-campuskit",
+    format: "quick-ask",
+    problem:
+      "Student clubs like our budgeting tool, but we can't decide how to charge them before our first paid term.",
+    tried:
+      "We asked eight club treasurers what they pay for other tools; most use free spreadsheets.",
+    question:
+      "Should we charge clubs per member or a flat fee per term for our first paid version?",
+    desiredOutcome: "A pricing model to test with three clubs",
+  }),
+  Object.freeze({
+    accountId: "demo-sample-ledgerleaf",
+    format: "doc-review",
+    problem:
+      "Our seed deck explains the bookkeeping product well, but investors keep missing why shops trust us with their data.",
+    tried:
+      "We added a security slide and moved customer quotes earlier, and the questions didn't change.",
+    question:
+      "Which slides should we cut or reorder so the security story lands in the first five minutes?",
+    desiredOutcome: "A clearer deck before our next three investor meetings",
+    links: ["https://example.com/ledgerleaf-seed-deck"],
+  }),
+  Object.freeze({ ...sampleMentorRequest, format: "single-session" }),
+  Object.freeze({
+    accountId: "demo-sample-clinicbridge",
+    format: "ongoing-advisory",
+    problem:
+      "We're planning a clinic pilot for our patient intake tool and need evidence that will convince hospital buyers.",
+    tried:
+      "We interviewed twelve clinic managers and drafted a study plan, but we're unsure what to measure.",
+    question:
+      "Can you help us design and run a two-month validation pilot, checking in as results come in?",
+    desiredOutcome: "A pilot plan and first results we can show buyers",
+  }),
+]);
+
+// What a fictional sample founder writes when they book a preview mentor's
+// Office Hours slot (prototype only).
+export const sampleOfficeBooking = Object.freeze({
+  problem:
+    "People sign up for our study planner but most stop before they add their first class, and we can't tell which step loses them.",
+  question:
+    "Which part of our setup should we change first, and how do we know it worked?",
+  desiredOutcome: "One change to test in the next two weeks",
+});
+
 // Prototype only: what a fictional partner reports after a simulated session,
 // so a tester can see what the mentoring led to. The sample request gets its
 // own story; other fictional partners report against the room's goal.
@@ -139,6 +189,14 @@ export function simulatedOutcome(founderAccountId, goal) {
   const own = sampleOutcomes[founderAccountId];
   const focus = shortGoal(goal);
   return {
+    answer: focus
+      ? `For "${focus}", start with the one step where most people drop off and test a single change there for two weeks. Measure it against last month before trying anything else.`
+      : "Start with the one step where most people drop off and test a single change there for two weeks. Measure it against last month before trying anything else.",
+    document: "https://example.com/sample-pitch-deck",
+    revisions:
+      "We moved the security slide second, cut the market-size slide to one figure and ended with a single ask.",
+    docReview:
+      "The problem slide is strong and specific. Move your traction numbers before the product demo, cut the market-size slide to one figure you can defend, and end with the single ask you want from the reader.",
     followup:
       own?.followup ||
       (focus

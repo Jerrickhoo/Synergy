@@ -10,6 +10,7 @@ import {
 import VerificationGate from "./VerificationGate.jsx";
 import { verificationRequired } from "../data/collaboration.js";
 import SelectField from "./SelectField.jsx";
+import SimulateAcceptance from "./SimulateAcceptance.jsx";
 
 export function MentorAlternatives({ alternatives, referralId }) {
   const { onAction } = useApp();
@@ -99,6 +100,7 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
         >
           View request
         </button>
+        <SimulateAcceptance person={person} sent="mentorship request" />
       </>
     );
   if (!formats.length)

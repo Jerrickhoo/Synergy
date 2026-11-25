@@ -13,6 +13,7 @@ import {
   timeZoneLabel,
 } from "../data/dates.js";
 import SelectField from "./SelectField.jsx";
+import PrototypeShortcut from "./PrototypeShortcut.jsx";
 
 const slotLabel = (slot) =>
   `${scheduleLabel(slot)} · ${slot.durationMinutes} min`;
@@ -205,6 +206,7 @@ export function OfficeHoursManager() {
   };
   const today = localDateKey(new Date());
   const openings = state.mentorOfficeOpenings || [];
+  const nextOpening = [...openings].sort((a, b) => a.instant - b.instant)[0];
   return (
     <section
       className="card panel section-gap"
@@ -378,6 +380,27 @@ export function OfficeHoursManager() {
           }
         />
       ))}
+      {state.prototypeMentor && nextOpening && (
+        <PrototypeShortcut
+          note={`No real founder books in this preview. Simulate a sample founder booking your next open slot, ${scheduleLabel(nextOpening)}.`}
+        >
+          <button
+            className="btn small"
+            disabled={state.busy}
+            onClick={(event) =>
+              onAction(
+                {
+                  action: "simulate-office-booking",
+                  values: { occurrenceId: nextOpening.id },
+                },
+                event,
+              )
+            }
+          >
+            {state.busy ? "Booking…" : "Simulate a founder booking this slot"}
+          </button>
+        </PrototypeShortcut>
+      )}
     </section>
   );
 }

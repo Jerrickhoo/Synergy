@@ -111,4 +111,4 @@ One row per friction point, error or confusing moment. Severity is **Blocker** (
 
 ## Hosted site
 
-The hosted site (synergy-prototype.netlify.app) runs with real accounts, so the sample startups, mentors and _Simulate_ buttons are not there. You need to verify your email, Matches only lists other real users, and sending introductions or mentorship requests needs a moderator to verify your affiliation (Profile → Verification). If `SYNERGY_ADMIN_EMAILS` is empty, nobody can request that, so both stay locked. On your own, you can only get through Act 2 there. To run the full script on the live site, you also need a second (mentor) account and a moderator listed in `SYNERGY_ADMIN_EMAILS`.
+The hosted site (synergy-prototype.netlify.app) runs with real accounts and real email. Use [FOUNDER-RUNDOWN-HOSTED.md](FOUNDER-RUNDOWN-HOSTED.md) there: it adds sign-up email and verification, and uses the showcase profiles and **Simulate approval** so one person can finish the run.

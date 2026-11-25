@@ -2,7 +2,9 @@ import { useApp } from "../state/AppContext.jsx";
 import { activeRooms, roleRooms } from "../data/selectors.js";
 import Icon from "./Icon.jsx";
 
-export default function HomeMetrics() {
+// `omit` leaves out tiles ("rooms", "introductions", "saved") whose story the
+// page already tells elsewhere.
+export default function HomeMetrics({ omit = [] }) {
   const { state, model, onAction } = useApp();
   const mentor = state.role === "mentor";
   const rooms = activeRooms(state);
@@ -19,6 +21,7 @@ export default function HomeMetrics() {
     // Once nothing is active, finished work still shows on Home.
     !rooms.length && completed
       ? {
+          id: "rooms",
           label: `Completed ${kind.toLowerCase()}`,
           icon: "check",
           value: completed,
@@ -26,6 +29,7 @@ export default function HomeMetrics() {
           destination: { page: "rooms" },
         }
       : {
+          id: "rooms",
           label: "Active rooms",
           icon: "rooms",
           value: rooms.length,
@@ -35,6 +39,7 @@ export default function HomeMetrics() {
           destination: { page: "rooms" },
         },
     {
+      id: "introductions",
       label: "Introductions to answer",
       icon: "people",
       value: incoming,
@@ -48,6 +53,7 @@ export default function HomeMetrics() {
       destination: { page: "waiting" },
     },
     {
+      id: "saved",
       label: "Saved matches",
       icon: "bookmark",
       value: saved,
@@ -60,8 +66,9 @@ export default function HomeMetrics() {
   // A tile that would only say 0 is left out; the introductions tile stays
   // while sent introductions are waiting (readiness plan P8).
   const shown = metrics.filter(
-    ({ label, value }) =>
-      value > 0 || (label === "Introductions to answer" && outgoing > 0),
+    ({ id, value }) =>
+      !omit.includes(id) &&
+      (value > 0 || (id === "introductions" && outgoing > 0)),
   );
   if (!shown.length) return null;
   return (
