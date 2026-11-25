@@ -10,6 +10,9 @@ const config = configuration({
   SYNERGY_DATA_FILE: process.env.SYNERGY_DATA_FILE,
   SYNERGY_REQUIRE_VERIFICATION: process.env.SYNERGY_REQUIRE_VERIFICATION,
   SYNERGY_SIMULATE_VERIFICATION: process.env.SYNERGY_SIMULATE_VERIFICATION,
+  // Off in playwright.config.js: the built-in test logins would appear in
+  // every directory a test checks.
+  SYNERGY_DEV_ACCOUNTS: process.env.SYNERGY_DEV_ACCOUNTS,
   SYNERGY_ADMIN_EMAILS: "moderator@example.com,settings-moderator@example.com",
 });
 const api = createApi({
