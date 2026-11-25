@@ -110,7 +110,7 @@ function CalendarContent() {
       />
       {state.role === "mentor" && <OfficeHoursManager />}
       <CalendarFeed />
-      <div className="calendar-controls">
+      <div className="calendar-controls section-gap">
         <div
           className="calendar-view-switch"
           role="group"
