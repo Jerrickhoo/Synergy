@@ -149,22 +149,13 @@ export default function NotificationsPage() {
           </>
         }
         actions={
-          <>
-            <button
-              className="btn"
-              disabled={state.busy || !unread}
-              onClick={() => onAction({ action: "read-notifications" })}
-            >
-              Mark all as read
-            </button>
-            <button
-              className="link-btn updates-settings"
-              onClick={() => onAction({ page: "settings" })}
-            >
-              <Icon name="settings" />
-              Notification preferences
-            </button>
-          </>
+          <button
+            className="link-btn updates-settings"
+            onClick={() => onAction({ page: "settings" })}
+          >
+            <Icon name="settings" />
+            Notification preferences
+          </button>
         }
       />
       {actions.length > 0 && (
@@ -197,17 +188,26 @@ export default function NotificationsPage() {
             Unread ({unread})
           </button>
         </div>
-        {state.incomingByRole[state.role].size > 0 && (
+        <div className="updates-toolbar-actions">
+          {state.incomingByRole[state.role].size > 0 && (
+            <button
+              className="link-btn updates-intros"
+              onClick={() => onAction({ page: "waiting" })}
+            >
+              Respond to requests{" "}
+              <span className="update-count">
+                {state.incomingByRole[state.role].size}
+              </span>
+            </button>
+          )}
           <button
-            className="link-btn updates-intros"
-            onClick={() => onAction({ page: "waiting" })}
+            className="btn"
+            disabled={state.busy || !unread}
+            onClick={() => onAction({ action: "read-notifications" })}
           >
-            Respond to requests{" "}
-            <span className="update-count">
-              {state.incomingByRole[state.role].size}
-            </span>
+            Mark all as read
           </button>
-        )}
+        </div>
       </div>
       <div
         key={filter}

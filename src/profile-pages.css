@@ -1107,11 +1107,20 @@ button.profile-checklist-item > svg {
   gap: var(--space-3);
   margin: var(--space-6) 0 var(--space-4);
 }
+.updates-toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-4);
+  margin-left: auto;
+}
+.updates-toolbar-actions .btn {
+  white-space: nowrap;
+}
 .updates-intros {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  margin-left: auto;
   font-size: var(--text-sm);
 }
 .update-filters {
@@ -1827,7 +1836,7 @@ button.profile-checklist-item > svg {
   .updates-page .page-head-actions {
     justify-content: flex-start;
   }
-  .updates-intros {
+  .updates-toolbar-actions {
     margin-left: 0;
   }
 }
