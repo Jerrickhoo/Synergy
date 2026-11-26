@@ -1,5 +1,5 @@
 import InviteCollaborator from "../components/InviteCollaborator.jsx";
-import { useState, useEffect } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import {
   activeFilterCount,
@@ -11,8 +11,11 @@ import {
   validMinimumFit,
 } from "../data/filters.js";
 import MatchCard from "../components/MatchCard.jsx";
+import { collaborationTypes } from "../data/collaboration-types.js";
 import Icon from "../components/Icon.jsx";
 import PageHeader from "../components/PageHeader.jsx";
+import NextStepCard from "../components/NextStepCard.jsx";
+import { verificationStep } from "../data/home.js";
 import Overlay from "../components/Overlay.jsx";
 import ScoreGuide from "../components/ScoreGuide.jsx";
 import SelectField from "../components/SelectField.jsx";
@@ -81,6 +84,7 @@ export default function DiscoverPage() {
   const missing = profileKeys(state.role).filter(
     (key) => !String(state.profiles[state.role][key] || "").trim(),
   );
+  const verify = verificationStep(state);
   const profilePrompt = missing.length > 0 && (
     <section className="discovery-start" aria-label="Complete your profile">
       <span className="discovery-start-icon">
@@ -119,15 +123,41 @@ export default function DiscoverPage() {
     state.matchTab === "saved"
       ? available.filter((person) => savedMatches().has(person.id))
       : available;
-  const list = filterPeople(candidates, state.matchFilters).sort((a, b) =>
-    sort === "experience"
-      ? (b.trust?.completed || 0) - (a.trust?.completed || 0) ||
+  // Highest trust rating: average review first (unrated last), then the
+  // number of reviewers and completed collaborations, then fit.
+  const rating = (person) => person.trust?.averageRating ?? -1;
+  const order = (a, b) =>
+    sort === "trust"
+      ? rating(b) - rating(a) ||
+        (b.trust?.distinctReviewers || 0) - (a.trust?.distinctReviewers || 0) ||
+        (b.trust?.completed || 0) - (a.trust?.completed || 0) ||
         b.score - a.score
-      : b.score - a.score || a.name.localeCompare(b.name),
-  );
-  const pageCount = Math.max(1, Math.ceil(list.length / 12));
+      : b.score - a.score || a.name.localeCompare(b.name);
+  const list = filterPeople(candidates, state.matchFilters).sort(order);
+  // Continuity: Suggested carries on, after a break, into everyone else in
+  // the directory, so the list never just stops.
+  const suggestedIds = new Set(suggestedMatches().map((person) => person.id));
+  const others =
+    state.matchTab === "suggested" && list.length
+      ? filterPeople(
+          [
+            ...new Map(
+              browsePeople()
+                .filter((person) => !suggestedIds.has(person.id))
+                .map((person) => [person.id, person]),
+            ).values(),
+          ],
+          state.matchFilters,
+        ).sort(order)
+      : [];
+  const combined = [
+    ...list.map((person) => ({ person, other: false })),
+    ...others.map((person) => ({ person, other: true })),
+  ];
+  const pageCount = Math.max(1, Math.ceil(combined.length / 12));
   const currentPage = Math.min(page, pageCount);
-  const visibleList = list.slice((currentPage - 1) * 12, currentPage * 12);
+  const visibleList = combined.slice((currentPage - 1) * 12, currentPage * 12);
+  const firstOther = visibleList.findIndex((item) => item.other);
   // Paging is at the bottom of the list, so bring the new page's first cards
   // into view instead of leaving the reader at its end.
   const goToPage = (next) => {
@@ -207,6 +237,9 @@ export default function DiscoverPage() {
         }
       />
       {profilePrompt}
+      {/* Once for the page, not on every card: viewing, saving and
+          connecting ask an unverified account to verify first. */}
+      {verify?.verification && <NextStepCard next={verify} />}
       <div className="discovery-controls">
         <div className="tabs" role="tablist" aria-label="Match lists">
           {[
@@ -330,72 +363,29 @@ export default function DiscoverPage() {
               <p className="overlay-intro">
                 Narrow your search to the people you want to work with.
               </p>
+              {/* One column, most decisive first: industry and type, then
+                  collaboration type and fit, then a founder's price and
+                  availability filters. */}
               <div className="overlay-filters">
-                {state.role === "founder" && (
-                  <>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(draftFilters.freeOnly)}
-                        onChange={(e) =>
-                          updateDraft("freeOnly", e.target.checked)
-                        }
-                      />
-                      Free only
-                    </label>
-                    <div className="field">
-                      <label htmlFor="max-price-filter">
-                        Maximum price in PHP
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        inputMode="decimal"
-                        id="max-price-filter"
-                        aria-invalid={!priceValid}
-                        aria-describedby="max-price-filter-help max-price-filter-error"
-                        value={draftFilters.maxPrice || ""}
-                        onInput={(event) =>
-                          setPriceInputInvalid(
-                            event.currentTarget.validity.badInput,
-                          )
-                        }
-                        onChange={(event) => {
-                          setPriceInputInvalid(event.target.validity.badInput);
-                          updateDraft("maxPrice", event.target.value);
-                        }}
-                      />
-                      <p id="max-price-filter-help" className="field-help">
-                        Leave empty for any price.
-                      </p>
-                      <p
-                        id="max-price-filter-error"
-                        className="field-error"
-                        role={!priceValid ? "alert" : undefined}
-                      >
-                        {!priceValid
-                          ? "Enter a price of 0 or more, or leave it empty."
-                          : ""}
-                      </p>
-                    </div>
-                  </>
-                )}
-                {state.role === "founder" && (
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(draftFilters.availableNow)}
-                      onChange={(event) =>
-                        updateDraft("availableNow", event.target.checked)
-                      }
-                    />
-                    Available now
-                    <span className="field-help">
-                      Only mentors who can take a request today
-                    </span>
-                  </label>
-                )}
+                <div className="field">
+                  <label htmlFor="industry-filter">Industry</label>
+                  <SelectField
+                    className="filter-select"
+                    id="industry-filter"
+                    aria-label="Filter by industry"
+                    value={draftFilters.industry}
+                    onChange={(event) =>
+                      updateDraft("industry", event.target.value)
+                    }
+                  >
+                    <option value="all">All industries</option>
+                    {industries.map((industry) => (
+                      <option key={industry} value={industry}>
+                        {industry}
+                      </option>
+                    ))}
+                  </SelectField>
+                </div>
                 <div className="field">
                   <label htmlFor="type-filter">Type</label>
                   <SelectField
@@ -413,20 +403,20 @@ export default function DiscoverPage() {
                   </SelectField>
                 </div>
                 <div className="field">
-                  <label htmlFor="industry-filter">Industry</label>
+                  <label htmlFor="engagement-filter">Collaboration type</label>
                   <SelectField
                     className="filter-select"
-                    id="industry-filter"
-                    aria-label="Filter by industry"
-                    value={draftFilters.industry}
+                    id="engagement-filter"
+                    aria-label="Filter by collaboration type"
+                    value={draftFilters.engagement}
                     onChange={(event) =>
-                      updateDraft("industry", event.target.value)
+                      updateDraft("engagement", event.target.value)
                     }
                   >
-                    <option value="all">All industries</option>
-                    {industries.map((industry) => (
-                      <option key={industry} value={industry}>
-                        {industry}
+                    <option value="all">All collaboration types</option>
+                    {collaborationTypes.map((type) => (
+                      <option key={type.id} value={type.label}>
+                        {type.label}
                       </option>
                     ))}
                   </SelectField>
@@ -463,26 +453,74 @@ export default function DiscoverPage() {
                     {!fitValid ? "Enter a whole percentage from 0 to 100." : ""}
                   </p>
                 </div>
-                <div className="field">
-                  <label htmlFor="engagement-filter">Engagement</label>
-                  <SelectField
-                    className="filter-select"
-                    id="engagement-filter"
-                    aria-label="Filter by engagement type"
-                    value={draftFilters.engagement}
-                    onChange={(event) =>
-                      updateDraft("engagement", event.target.value)
-                    }
-                  >
-                    <option value="all">All engagement types</option>
-                    <option value="Beta Testing Exchange">
-                      Beta Testing Exchange
-                    </option>
-                    <option value="Co-Marketing Swap">Co-Marketing Swap</option>
-                    <option value="Skill Swap">Skill Swap</option>
-                    <option value="Mentorship">Mentorship</option>
-                  </SelectField>
-                </div>
+                {state.role === "founder" && (
+                  <>
+                    <div className="field">
+                      <label htmlFor="max-price-filter">
+                        Maximum price in PHP
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        inputMode="decimal"
+                        id="max-price-filter"
+                        aria-invalid={!priceValid}
+                        aria-describedby="max-price-filter-help max-price-filter-error"
+                        value={draftFilters.maxPrice || ""}
+                        onInput={(event) =>
+                          setPriceInputInvalid(
+                            event.currentTarget.validity.badInput,
+                          )
+                        }
+                        onChange={(event) => {
+                          setPriceInputInvalid(event.target.validity.badInput);
+                          updateDraft("maxPrice", event.target.value);
+                        }}
+                      />
+                      <p id="max-price-filter-help" className="field-help">
+                        Leave empty for any price.
+                      </p>
+                      <p
+                        id="max-price-filter-error"
+                        className="field-error"
+                        role={!priceValid ? "alert" : undefined}
+                      >
+                        {!priceValid
+                          ? "Enter a price of 0 or more, or leave it empty."
+                          : ""}
+                      </p>
+                    </div>
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(draftFilters.freeOnly)}
+                        onChange={(e) =>
+                          updateDraft("freeOnly", e.target.checked)
+                        }
+                      />
+                      Free only
+                    </label>
+                  </>
+                )}
+                {state.role === "founder" && (
+                  <div className="filter-check">
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        aria-describedby="available-now-help"
+                        checked={Boolean(draftFilters.availableNow)}
+                        onChange={(event) =>
+                          updateDraft("availableNow", event.target.checked)
+                        }
+                      />
+                      Available now
+                    </label>
+                    <p id="available-now-help" className="field-help">
+                      Only mentors who can take a request today
+                    </p>
+                  </div>
+                )}
               </div>
             </Overlay>
           )}
@@ -521,7 +559,7 @@ export default function DiscoverPage() {
                 onChange={(event) => setSort(event.target.value)}
                 options={[
                   { value: "fit", label: "Highest fit" },
-                  { value: "experience", label: "Completed collaborations" },
+                  { value: "trust", label: "Highest trust rating" },
                 ]}
               />
             </div>
@@ -532,8 +570,22 @@ export default function DiscoverPage() {
             key={`${state.matchTab}:${currentPage}`}
           >
             {list.length ? (
-              visibleList.map((person) => (
-                <MatchCard key={person.id} person={person} large={true} />
+              visibleList.map(({ person }, index) => (
+                <Fragment key={person.id}>
+                  {index === firstOther && (
+                    <div className="match-list-break">
+                      <h2 className="match-list-break-title">
+                        Other matches{" "}
+                        <span className="tag">{others.length}</span>
+                      </h2>
+                      <p>
+                        Everyone else in the directory, outside your
+                        suggestions.
+                      </p>
+                    </div>
+                  )}
+                  <MatchCard person={person} large={true} />
+                </Fragment>
               ))
             ) : (
               <section className="empty-state">

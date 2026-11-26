@@ -18,6 +18,8 @@ import { decode } from "./serialization.js";
 import { validateCredentials } from "./validation.js";
 import { useMatchFilterMemory } from "./useMatchFilterMemory.js";
 import { paymentActionNames } from "../data/pricing.js";
+import { verificationNeededFor } from "../data/collaboration.js";
+import { withCurrentTypeNames } from "../data/collaboration-types.js";
 import {
   errorMessage,
   errorTitle,
@@ -28,6 +30,7 @@ import {
   formValidation,
   publishToast,
 } from "./feedback.js";
+import { markTourPending } from "../data/tour.js";
 
 enableMapSet();
 const AppContext = createContext(null);
@@ -143,6 +146,7 @@ const remoteActions = new Set([
   "save",
   "interest",
   "cancel-interest",
+  "edit-interest",
   "accept-interest",
   "simulate-acceptance",
   "decline-interest",
@@ -158,6 +162,7 @@ const remoteActions = new Set([
   "decline-reopen",
   "read-notifications",
   "simulate-verification",
+  "affiliation-seen",
   "withdraw-dispute",
   "escalate-dispute",
   "send-back",
@@ -181,6 +186,7 @@ const reducer = (state, payload) =>
         profileEditing: false,
         connectionError: "",
       });
+      Object.assign(draft, withCurrentTypeNames(draft));
       applyRoute(draft, parseRoute(window.location.hash));
       if (payload.message) publishToast(draft, payload.message);
     } else if (payload.action === "remote") {
@@ -192,6 +198,7 @@ const reducer = (state, payload) =>
           key === "rooms"
             ? structuredClone(payload.state[key])
             : payload.state[key];
+      Object.assign(draft, withCurrentTypeNames(draft));
       for (const room of Object.values(draft.rooms))
         for (const [id, item] of Object.entries(room.milestones)) {
           item.evidenceOpen =
@@ -357,6 +364,10 @@ export function AppProvider({ children }) {
   const [connectionAttempt, setConnectionAttempt] = useState(0);
   const [restoreTick, setRestoreTick] = useState(0);
   const [signOutOpen, setSignOutOpen] = useState(false);
+  // Which gated action asked an unverified account to verify first, if any.
+  const [verificationPrompt, setVerificationPrompt] = useState(null);
+  // The quick tour of how deals (or mentorships) move through Synergy.
+  const [tourOpen, setTourOpen] = useState(false);
   const [mentorshipWarning, setMentorshipWarning] = useState(null);
   const [signOutError, setSignOutError] = useState("");
   const requestedPath = useRef(
@@ -389,7 +400,10 @@ export function AppProvider({ children }) {
   const model = useMemo(() => createModel(state), [state]);
   useMatchFilterMemory(state, dispatch);
   useEffect(() => {
-    if (!state.authenticated) setSignOutOpen(false);
+    if (state.authenticated) return;
+    setSignOutOpen(false);
+    setVerificationPrompt(null);
+    setTourOpen(false);
   }, [state.authenticated]);
   const dismissToast = useCallback(
     () => dispatch({ action: "clear-toast" }),
@@ -669,6 +683,9 @@ export function AppProvider({ children }) {
           command.form === "signup-form" ? "signup" : "login",
           command.values,
         );
+        // A new account's first Home opens the quick tour.
+        if (command.form === "signup-form")
+          markTourPending(result.state?.accountId);
         acceptSession(result);
       } else {
         const result = await request(
@@ -716,6 +733,31 @@ export function AppProvider({ children }) {
   }
   async function onAction(payload, event) {
     event?.preventDefault();
+    // Opening and saving matches, and requests, wait for verification: ask first
+    // and offer the way to Verification, rather than a disabled button.
+    if (payload.action === "verification-prompt") {
+      dispatch({ action: "close-overlays" });
+      setVerificationPrompt(payload.reason || "connect");
+      return;
+    }
+    if (payload.action === "close-verification-prompt") {
+      setVerificationPrompt(null);
+      return;
+    }
+    if (payload.action === "open-tour") {
+      dispatch({ action: "close-overlays" });
+      setTourOpen(true);
+      return;
+    }
+    if (payload.action === "close-tour") {
+      setTourOpen(false);
+      return;
+    }
+    if (verificationNeededFor(state, payload)) {
+      dispatch({ action: "close-overlays" });
+      setVerificationPrompt(payload.action);
+      return;
+    }
     if (payload.action === "request-sign-out") {
       if (pending.current || !state.authenticated) return;
       signOutReturn.current = event?.currentTarget || document.activeElement;
@@ -1105,6 +1147,8 @@ export function AppProvider({ children }) {
         state,
         signOutOpen,
         signOutError,
+        verificationPrompt,
+        tourOpen,
         mentorshipWarning,
         dismissMentorshipWarning: () => setMentorshipWarning(null),
         confirmMentorshipWarning: async () => {

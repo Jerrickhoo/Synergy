@@ -69,7 +69,7 @@ test("founders who offer testers or research see a startup to trade with", (t) =
     // A startup exchange (beta testing, or co-marketing when both sides
     // mention marketing), never mentorship.
     assert.ok(
-      ["Beta Testing Exchange", "Co-Marketing Swap"].includes(
+      ["Evaluation and Feedback", "Audience Swap"].includes(
         brightlane.engagement,
       ),
       brightlane.engagement,

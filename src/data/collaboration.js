@@ -57,12 +57,37 @@ export function moderationDueAt(timestamp) {
   }
   return date.toISOString();
 }
+// Who carries the Verified check: another person when a moderator approved
+// their evidence (or their mentor application), and this account once its
+// own verification is approved.
+export const personVerified = (person) =>
+  person?.affiliation?.status === "verified";
+export const accountVerified = (state) => state?.verification === "verified";
 export const verificationRequired = (state) =>
   Boolean(
     state.integrations?.requireVerification &&
     !state.integrations?.guest &&
     state.verification !== "verified",
   );
+// What an unverified account is asked to verify for, with a prompt that
+// leads to Verification instead of a disabled button: opening a match's
+// profile, saving a match (not removing one), requests, mentorship requests
+// and Office Hours.
+export const verificationGatedActions = [
+  "match-detail",
+  "save",
+  "interest",
+  "accept-interest",
+  "send-request",
+  "book-office-hours",
+];
+export function verificationNeededFor(state, payload = {}) {
+  if (!verificationRequired(state)) return false;
+  if (!verificationGatedActions.includes(payload.action)) return false;
+  if (payload.action === "save")
+    return !state.savedByRole?.[state.role]?.has(payload.id);
+  return true;
+}
 export const profileOptions = [
   "startupName",
   "pastExperience",

@@ -67,7 +67,7 @@ export function notificationDestination(item, state, people) {
   if (item.requestId && !item.roomId)
     return {
       label: "Open request",
-      context: item.page === "requests" ? "Requests" : "Introductions",
+      context: "Requests",
       command: {
         action: "mentor-request-link",
         page: item.page,

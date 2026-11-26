@@ -12,6 +12,7 @@ import {
 import Icon from "../components/Icon.jsx";
 import Avatar from "../components/Avatar.jsx";
 import { matchReason } from "../data/profile-presentation.js";
+import { personVerified } from "../data/collaboration.js";
 
 function digestPeriod(daily, now) {
   if (daily) return "Last 24 hours";
@@ -67,6 +68,7 @@ function Digest({ items, prefs, now }) {
                 image={person.image}
                 name={person.name}
                 identity={person.accountId || person.id}
+                verified={personVerified(person)}
                 color={person.color}
               />
               <div className="digest-match-copy">
@@ -119,8 +121,8 @@ export default function NotificationsPage() {
     setFilter(value);
   };
   const now = useUpdateClock();
-  // Updates shows what others did and what needs you. Your own actions stay
-  // in Home's recent activity.
+  // Updates shows what others did and what needs you. Your own actions are
+  // in the Activity page's log.
   const others = (state.notifications || []).filter((item) => !item.self);
   const items = others.filter((item) => !item.muted);
   const unread = items.filter((item) => !item.read).length;
@@ -200,7 +202,7 @@ export default function NotificationsPage() {
             className="link-btn updates-intros"
             onClick={() => onAction({ page: "waiting" })}
           >
-            Respond to introductions{" "}
+            Respond to requests{" "}
             <span className="update-count">
               {state.incomingByRole[state.role].size}
             </span>
@@ -233,7 +235,7 @@ export default function NotificationsPage() {
                 <p>
                   {filter === "unread"
                     ? "Every update has been read. Switch to All to revisit your activity."
-                    : "Introductions, collaboration activity and reminders will appear here."}
+                    : "Requests, collaboration activity and reminders will appear here."}
                 </p>
               </section>
             )}

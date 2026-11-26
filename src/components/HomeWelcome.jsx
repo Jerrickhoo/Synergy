@@ -3,7 +3,7 @@ import { useApp } from "../state/AppContext.jsx";
 import { homeNextStep, primaryNeed } from "../data/home.js";
 import { activeRooms, profileKeys } from "../data/selectors.js";
 import Confirmation from "./Confirmation.jsx";
-import Icon from "./Icon.jsx";
+import NextStepCard from "./NextStepCard.jsx";
 import {
   sampleFounderName,
   sampleFounderProfile,
@@ -20,7 +20,7 @@ function statusLine(state, model) {
   if (incoming)
     return {
       count: incoming,
-      text: `${one(incoming, "introduction", "introductions")} waiting for your reply.`,
+      text: `${one(incoming, "request", "requests")} waiting for your reply.`,
       urgent: true,
     };
   if (rooms)
@@ -88,7 +88,13 @@ export default function HomeWelcome() {
     <>
       <header className="home-welcome">
         <h1 tabIndex="-1">
-          {firstName ? `${greeting}, ${firstName}` : "Welcome to Synergy"}
+          {firstName ? (
+            <>
+              {greeting}, <span className="home-name">{firstName}</span>
+            </>
+          ) : (
+            "Welcome to Synergy"
+          )}
         </h1>
         <p className={`intro home-status${status.urgent ? " urgent" : ""}`}>
           <span>
@@ -124,21 +130,7 @@ export default function HomeWelcome() {
           </p>
         )}
       </header>
-      {!matchesLead && (
-        <section className="home-next" aria-label="Your next step">
-          <div className="home-next-copy">
-            <h2>{next.title}</h2>
-            {next.detail && <p>{next.detail}</p>}
-          </div>
-          <button
-            className="btn primary home-next-go"
-            onClick={() => onAction(next.command)}
-          >
-            {next.label}
-            <Icon name="arrow" />
-          </button>
-        </section>
-      )}
+      {!matchesLead && <NextStepCard next={next} />}
       <Confirmation />
     </>
   );

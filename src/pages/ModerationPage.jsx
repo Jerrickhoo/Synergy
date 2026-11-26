@@ -82,7 +82,7 @@ function Decision({ kind, id, decisions, report = false }) {
   );
 }
 export default function ModerationPage() {
-  const { state, downloadFile } = useApp();
+  const { state, downloadFile, onAction } = useApp();
   if (!state.isAdmin || !state.moderation)
     return (
       <div className="page">
@@ -180,7 +180,15 @@ export default function ModerationPage() {
         <h2>Affiliation requests</h2>
         {affiliations.length ? (
           affiliations.map((item) => (
-            <details className="moderation-entry" key={item.accountId}>
+            <details
+              className="moderation-entry"
+              key={item.accountId}
+              // Opening a request tells the founder a moderator has seen it.
+              onToggle={(event) => {
+                if (event.currentTarget.open && !item.seenAt)
+                  onAction({ action: "affiliation-seen", id: item.accountId });
+              }}
+            >
               <summary>
                 {item.name} · {item.organization}
                 {item.dueAt && ` · Due ${formatDate(item.dueAt)}`}

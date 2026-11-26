@@ -11,6 +11,8 @@ import VerificationGate from "./VerificationGate.jsx";
 import { verificationRequired } from "../data/collaboration.js";
 import SelectField from "./SelectField.jsx";
 import SimulateAcceptance from "./SimulateAcceptance.jsx";
+import { mentoringTypes } from "../data/collaboration-types.js";
+import { qualityLabel } from "../data/request-assistant.js";
 
 export function MentorAlternatives({ alternatives, referralId }) {
   const { onAction } = useApp();
@@ -56,6 +58,7 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
       tried: referral?.tried || "",
       question: referral?.question || "",
       desiredOutcome: referral?.desiredOutcome || "",
+      category: referral?.category || "",
       format: formats.includes(referral?.format)
         ? referral.format
         : formats[0] || "",
@@ -65,6 +68,15 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
   );
   const { linksText, ...draft } = saved.values;
   if (!formats.includes(draft.format)) draft.format = formats[0] || "";
+  // Only the kinds of mentoring this mentor covers can be asked for.
+  const types = mentoringTypes(person.offer, person.sector);
+  if (!types.includes(draft.category)) draft.category = types[0];
+  // "product and marketing"
+  const typeList = (
+    types.length > 1
+      ? `${types.slice(0, -1).join(", ")} and ${types.at(-1)}`
+      : types[0]
+  ).toLowerCase();
   const setDraft = (update) => {
     const next = typeof update === "function" ? update(saved.values) : update;
     saved.update({ ...saved.values, ...next });
@@ -135,6 +147,11 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
         data-form="send-request"
         onSubmit={async (event) => {
           event.preventDefault();
+          // Unverified: say so and offer Verification before checking fields.
+          if (locked) {
+            onAction({ action: "verification-prompt", reason: "send-request" });
+            return;
+          }
           // Spaces alone pass the browser's checks; name the fields instead.
           const short = Object.fromEntries(
             Object.keys(requestFields)
@@ -161,6 +178,29 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
           if (sent) saved.clear();
         }}
       >
+        <div className="field">
+          <label htmlFor="mentor-request-category">
+            What kind of mentoring do you need?
+          </label>
+          <SelectField
+            id="mentor-request-category"
+            name="category"
+            value={draft.category}
+            onChange={(event) => change("category", event.target.value)}
+            required
+          >
+            {types.map((type) => (
+              <option key={type} value={type}>
+                {type === "General" ? "General mentoring" : `${type} mentoring`}
+              </option>
+            ))}
+          </SelectField>
+          <p className="field-help">
+            {types[0] === "General"
+              ? `${person.name} hasn't listed focus areas, so this is general mentoring.`
+              : `${person.name} mentors in ${typeList}.`}
+          </p>
+        </div>
         {Object.entries(requestFields).map(([key, label]) => (
           <div className="field" key={key}>
             <label htmlFor={`mentor-request-${key}`}>{label}</label>
@@ -260,7 +300,15 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
           }
           aria-label="Request assistant"
         >
-          <h3>Request quality {assistant.score}/100</h3>
+          <div className="quality-head">
+            <h3>Quality of Request</h3>
+            <span className="quality-badge">
+              {qualityLabel(assistant.score)}
+              <span className="visually-hidden">
+                , {assistant.score} out of 100
+              </span>
+            </span>
+          </div>
           {assistant.reasons.length > 0 && (
             <ul>
               {assistant.reasons.map((reason) => (
@@ -297,7 +345,7 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
           )}
         </section>
         {locked && <VerificationGate />}
-        <button className="btn primary full" disabled={state.busy || locked}>
+        <button className="btn primary full" disabled={state.busy}>
           {state.busy ? "Sending…" : "Send mentorship request"}
         </button>
         <details className="field-help">

@@ -10,6 +10,7 @@ import ChatPanel from "./ChatPanel.jsx";
 import BlockCollaborator from "./BlockCollaborator.jsx";
 import ReportCollaborator from "./ReportCollaborator.jsx";
 import Icon from "./Icon.jsx";
+import Overlay from "./Overlay.jsx";
 import PrototypeShortcut from "./PrototypeShortcut.jsx";
 import RatingScale from "./RatingScale.jsx";
 import { mentorFormat } from "../data/mentor-formats.js";
@@ -49,6 +50,51 @@ const outcomes = {
 // Room forms share their error scope with their fields, which show any error
 // for themselves inline.
 const RoomFormScope = createContext("");
+
+// Ending a mentorship is one red button; the reason is asked in a dialog
+// before anything ends.
+function EndMentorship() {
+  const { state } = useApp();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="end-mentorship">
+      <button
+        type="button"
+        className="btn end-mentorship-btn"
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+      >
+        End mentorship
+      </button>
+      {open && (
+        <Overlay
+          id="end-mentorship"
+          title="End this mentorship?"
+          onClose={() => setOpen(false)}
+          busy={state.busy}
+          initialFocusSelector="#end-mentorship [name=reason]"
+        >
+          <p>
+            This closes the mentorship for both of you. Your partner sees the
+            reason you give.
+          </p>
+          <RoomForm
+            command={{ action: "end-mentorship" }}
+            label="End mentorship"
+            fields={
+              <RoomField
+                name="reason"
+                label="Reason for ending"
+                required
+                maxLength={300}
+              />
+            }
+          />
+        </Overlay>
+      )}
+    </div>
+  );
+}
 
 function RoomForm({
   command,
@@ -1498,23 +1544,7 @@ export default function MentorshipRoom({ room }) {
             <FollowupForm room={room} />
             <AdvisoryCycle room={room} partner={partner} />
             <Upgrade room={room} partner={partner} />
-            {!closed && (
-              <details className="card panel">
-                <summary>End mentorship</summary>
-                <RoomForm
-                  command={{ action: "end-mentorship" }}
-                  label="End mentorship"
-                  fields={
-                    <RoomField
-                      name="reason"
-                      label="Reason for ending"
-                      required
-                      maxLength={300}
-                    />
-                  }
-                />
-              </details>
-            )}
+            {!closed && <EndMentorship />}
           </>
         )}
         {tab === "schedule" && (

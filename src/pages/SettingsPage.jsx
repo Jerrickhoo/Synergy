@@ -128,7 +128,7 @@ export default function SettingsPage() {
       await load();
       notify(
         path === "account/visibility"
-          ? "Discovery resumed. Withdrawn introductions stay withdrawn."
+          ? "Discovery resumed. Withdrawn requests stay withdrawn."
           : "Account settings updated.",
       );
     } catch (error) {
@@ -402,8 +402,8 @@ export default function SettingsPage() {
             <h2>Blocked collaborators</h2>
             <p>
               Blocking hides both accounts from each other in Matches, withdraws
-              introductions, closes unfinished rooms and stops further chat.
-              Shared history remains available.
+              requests, closes unfinished rooms and stops further chat. Shared
+              history remains available.
             </p>
             {settings.blocked.length ? (
               settings.blocked.map((person) => (
@@ -468,9 +468,9 @@ export default function SettingsPage() {
                     : "Discovery is paused. Both profiles are hidden from Matches."}
                 </p>
                 <p>
-                  Hide both profiles and withdraw pending introductions.
-                  Existing rooms remain available. Resuming does not restore
-                  withdrawn introductions.
+                  Hide both profiles and withdraw pending requests. Existing
+                  rooms remain available. Resuming does not restore withdrawn
+                  requests.
                 </p>
               </div>
               <button
@@ -614,9 +614,8 @@ export default function SettingsPage() {
             {dialog === "pause" ? (
               <p>
                 Both profiles will disappear from Matches and all pending
-                introductions will be withdrawn. Your existing rooms stay
-                available. Resuming discovery later will not restore withdrawn
-                introductions.
+                requests will be withdrawn. Your existing rooms stay available.
+                Resuming discovery later will not restore withdrawn requests.
               </p>
             ) : dialog === "delete" ? (
               <p>

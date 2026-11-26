@@ -254,6 +254,60 @@ test("simulated verification approves only a pending request, and only when the 
   );
 });
 
+test("a moderator opening a verification request marks it seen, and an unreviewed one expires at its due date", (t) => {
+  const { w, a, b, admin, act, clock } = fixture(t, {
+    requireVerification: true,
+  });
+  act(a, {
+    form: "affiliation-request",
+    values: { organization: "University referral", evidence: "Roster link" },
+  });
+  const sent = w.get(a.token).state.affiliation;
+  assert.equal(sent.status, "pending");
+  assert.equal(sent.seenAt, undefined);
+  assert.ok(Date.parse(sent.dueAt) > Date.parse(sent.requestedAt));
+  // Only moderators can mark a request seen.
+  assert.throws(
+    () => act(b, { action: "affiliation-seen", id: a.state.accountId }),
+    /Moderator access required/,
+  );
+  act(admin, { action: "affiliation-seen", id: a.state.accountId });
+  const seen = w.get(a.token).state.affiliation.seenAt;
+  assert.ok(seen);
+  // The first opening counts; opening it again keeps that time.
+  clock.value += 60000;
+  act(admin, { action: "affiliation-seen", id: a.state.accountId });
+  assert.equal(w.get(a.token).state.affiliation.seenAt, seen);
+
+  // Past the due date with no decision, the request expires and says so.
+  act(b, {
+    form: "affiliation-request",
+    values: { organization: "Founder community", evidence: "Organizer email" },
+  });
+  clock.value = Date.parse(w.get(b.token).state.affiliation.dueAt) + 1000;
+  const expired = w.get(b.token).state;
+  assert.equal(expired.affiliation.status, "expired");
+  assert.equal(expired.verification, "expired");
+  assert.ok(
+    expired.notifications.some((item) =>
+      /verification request expired/.test(item.text),
+    ),
+  );
+  // It leaves the moderation queue, and a new request can be sent.
+  assert.ok(
+    !w
+      .get(admin.token)
+      .state.moderation.affiliations.some(
+        (item) => item.accountId === b.state.accountId,
+      ),
+  );
+  act(b, {
+    form: "affiliation-request",
+    values: { organization: "Founder community", evidence: "Organizer email" },
+  });
+  assert.equal(w.get(b.token).state.affiliation.status, "pending");
+});
+
 test("all five factors are symmetric for 400 seeded random founder and mentor pairs", () => {
   let seed = 419;
   const random = () =>

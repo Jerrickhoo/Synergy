@@ -247,7 +247,9 @@ test("audit surfaces support axe and keyboard task cards, milestone menus, dialo
     id: `${a.state.accountId}:founder`,
   });
   await page.goto("/#/waiting");
-  await expect(page.getByText(/Needs your reply \(/)).toBeVisible();
+  await expect(
+    page.getByRole("tab", { name: /^Incoming/, selected: true }),
+  ).toBeVisible();
   await audit(page);
   const decline = page.getByRole("button", { name: /^Decline / }).first();
   await decline.focus();
@@ -344,5 +346,8 @@ test("Deal Room keeps the next action visible on phones and reflows at 320px, 20
   await expect(
     menu.getByRole("button", { name: "Calendar", exact: true }),
   ).toHaveCount(0);
-  await expect(menu.getByRole("button")).toHaveCount(6);
+  await expect(
+    menu.getByRole("button", { name: "Activity", exact: true }),
+  ).toHaveCount(1);
+  await expect(menu.getByRole("button")).toHaveCount(7);
 });

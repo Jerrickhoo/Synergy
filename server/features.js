@@ -485,7 +485,7 @@ export function createFeatures({
       if (age >= 7 * 86400000)
         add(
           `intro-remind:${id}:${meta.sentAt}`,
-          `${meta.name}'s introduction expires in ${Math.max(1, Math.ceil((14 * 86400000 - age) / 86400000))} days.`,
+          `${meta.name}'s request expires in ${Math.max(1, Math.ceil((14 * 86400000 - age) / 86400000))} days.`,
           null,
           "reminder",
           id,
@@ -832,6 +832,7 @@ export function createFeatures({
     "close-room",
     "read-notifications",
     "simulate-verification",
+    "affiliation-seen",
     "withdraw-dispute",
     "escalate-dispute",
     "send-back",
@@ -888,6 +889,7 @@ export function createFeatures({
         status: "returned",
         reason: "mentor-paused",
         direction: "received",
+        sentAt: meta?.sentAt,
       });
       if (!other) continue;
       other.state.waitingByRole[otherRole]?.delete(mentorId);
@@ -900,6 +902,7 @@ export function createFeatures({
         status: "returned",
         reason: "mentor-paused",
         direction: "sent",
+        sentAt: meta?.sentAt,
         alternatives,
       });
       const names = alternatives.map((item) => item.name);
@@ -1256,10 +1259,11 @@ export function createFeatures({
                 w > 100,
             ) ||
             Math.abs(weights.reduce((a, b) => a + b, 0) - 100) > 0.001 ||
-            (kind === "founder" && weights[1] !== 0)
+            (kind === "founder" && weights[1] !== 0) ||
+            (kind === "mentor" && weights[4] !== 0)
           )
             fail(
-              "Weights must be between 0 and 100 and total 100 for each role; founder expertise remains zero.",
+              "Weights must be between 0 and 100 and total 100 for each role; founder expertise and mentorship working style remain zero.",
             );
           config[kind] = weights.map((w) => w / 100);
         }
@@ -1731,8 +1735,23 @@ export function createFeatures({
         { state },
         state.role,
         `You are verified through ${account.affiliation.organization}. The badge now shows on your profile and cards.`,
+        undefined,
+        { kind: "affiliation" },
       );
       state.toast = "Verification approved (simulated).";
+    } else if (input.action === "affiliation-seen") {
+      // A moderator opened this verification request. The founder's
+      // Verification card shows it as seen; the first opening counts.
+      if (!isAdmin(account)) fail("Moderator access required.", 403);
+      const target = accountById(String(input.id || ""));
+      if (
+        target?.affiliation?.status === "pending" &&
+        !target.affiliation.seenAt
+      )
+        target.affiliation = {
+          ...target.affiliation,
+          seenAt: new Date(now()).toISOString(),
+        };
     } else if (input.action === "read-notifications") {
       const ids = state.notifications
         .filter((item) => !input.id || item.id === input.id)
@@ -1943,6 +1962,8 @@ export function createFeatures({
           decision === "verified"
             ? `You are verified through ${target.affiliation.organization}. The badge now shows on your profile and cards.`
             : `Your verification request was not approved: ${note}`,
+          undefined,
+          { kind: "affiliation" },
         );
       } else if (kind === "account") {
         const target = accountById(id);
@@ -1970,7 +1991,7 @@ export function createFeatures({
       state.toast = "Moderator decision saved.";
     }
     if (roomAction) {
-      room.updatedAt = new Date().toISOString();
+      room.updatedAt = new Date(now()).toISOString();
       const who = displayName(account, state.role);
       const partnerText = {
         "reopen-terms": `${who} asked to change the agreed terms. The current terms stay in place until you respond.`,

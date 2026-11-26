@@ -8,6 +8,7 @@ import {
 } from "../data/mentor-room.js";
 import { mentorFormat } from "../data/mentor-formats.js";
 import { roomNextAction } from "../data/selectors.js";
+import { personVerified } from "../data/collaboration.js";
 
 export function MenteeRow({ room, partner, primary = false }) {
   const { onAction } = useApp();
@@ -19,6 +20,7 @@ export function MenteeRow({ room, partner, primary = false }) {
           image={partner?.image}
           name={partner?.name}
           identity={partner?.accountId || room.partnerId}
+          verified={personVerified(partner)}
         />
         <div>
           <h3>{partner?.name || "Startup"}</h3>

@@ -2,10 +2,21 @@ import ReportCollaborator from "../components/ReportCollaborator.jsx";
 import { priceLabel } from "../data/pricing.js";
 import BlockCollaborator from "../components/BlockCollaborator.jsx";
 import { FounderTrackRecord } from "../components/MentorImpact.jsx";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
-import Introductions from "../components/Introductions.jsx";
+import Introductions, {
+  IntroductionRow,
+  fullDate,
+} from "../components/Introductions.jsx";
+import Icon from "../components/Icon.jsx";
+import Avatar from "../components/Avatar.jsx";
+import Overlay from "../components/Overlay.jsx";
+import {
+  introductionRecords,
+  introductionStatusLabel,
+  statusMeaning,
+} from "../data/activity.js";
 import { MentorAlternatives } from "../components/MentorRequestForm.jsx";
 import { mentorFormat } from "../data/mentor-formats.js";
 import {
@@ -53,48 +64,45 @@ const pendingTime = (expiry) => {
 };
 
 // What the founder sent, so a pending request can be reread while waiting.
-function SentRequestDetails({ request }) {
+function RequestAnswers({ request }) {
   return (
-    <details className="sent-request-details">
-      <summary>View request</summary>
-      <dl className="mentor-request-answers">
-        {Object.entries(requestFields)
-          .filter(([key]) => request[key])
-          .map(([key, label]) => (
-            <div key={key}>
-              <dt>{label}</dt>
-              <dd className="preserve-lines">{request[key]}</dd>
-            </div>
-          ))}
-        {request.desiredOutcome && (
-          <div>
-            <dt>Desired outcome</dt>
-            <dd className="preserve-lines">{request.desiredOutcome}</dd>
+    <dl className="mentor-request-answers">
+      {Object.entries(requestFields)
+        .filter(([key]) => request[key])
+        .map(([key, label]) => (
+          <div key={key}>
+            <dt>{label}</dt>
+            <dd className="preserve-lines">{request[key]}</dd>
           </div>
-        )}
+        ))}
+      {request.desiredOutcome && (
         <div>
-          <dt>Format</dt>
+          <dt>Desired outcome</dt>
+          <dd className="preserve-lines">{request.desiredOutcome}</dd>
+        </div>
+      )}
+      <div>
+        <dt>Format</dt>
+        <dd>
+          {formatLabel(request)}
+          {request.price ? ` · ${priceLabel(request.price)}` : ""}
+        </dd>
+      </div>
+      {request.links?.length > 0 && (
+        <div>
+          <dt>Links</dt>
           <dd>
-            {formatLabel(request)}
-            {request.price ? ` · ${priceLabel(request.price)}` : ""}
+            <ul className="sent-request-links">
+              {request.links.map((link) => (
+                <li key={link}>
+                  <LinkedText text={link} />
+                </li>
+              ))}
+            </ul>
           </dd>
         </div>
-        {request.links?.length > 0 && (
-          <div>
-            <dt>Links</dt>
-            <dd>
-              <ul className="sent-request-links">
-                {request.links.map((link) => (
-                  <li key={link}>
-                    <LinkedText text={link} />
-                  </li>
-                ))}
-              </ul>
-            </dd>
-          </div>
-        )}
-      </dl>
-    </details>
+      )}
+    </dl>
   );
 }
 
@@ -167,6 +175,7 @@ export function RequestCard({ request }) {
         </p>
       )}
       <p className="muted request-meta">
+        {request.category ? `${request.category} mentoring · ` : ""}
         {formatLabel(request)} · {format?.effort}
         {request.price ? ` · ${priceLabel(request.price)}` : ""} ·{" "}
         {pendingTime(request.expiresAt)}
@@ -387,9 +396,167 @@ export function RequestCard({ request }) {
   );
 }
 
-export function SentMentorRequests() {
+// One mentorship request you sent, laid out like a sent startup request:
+// who, where it stands and when, with the full request in a dialog.
+function SentMentorRequestCard({ request }) {
   const { state, onAction, model } = useApp();
-  const records = state.mentorRequests || [];
+  const [open, setOpen] = useState(false);
+  const mentor = model
+    .rolePeople()
+    .find((person) => person.id === request.partnerId);
+  const pending = request.status === "pending";
+  const withdraw = (event) =>
+    onAction(
+      {
+        action: "withdraw-request",
+        id: request.partnerId,
+        requestId: request.id,
+      },
+      event,
+    );
+  return (
+    <article
+      className="card panel mentor-request-card"
+      id={`request-${request.id}`}
+      tabIndex={-1}
+    >
+      <div className="mentor-request-row">
+        <Avatar
+          image={mentor?.image}
+          name={request.name}
+          identity={mentor?.accountId || request.partnerId}
+          color={mentor?.color}
+        />
+        <div className="mentor-request-copy">
+          <h4 className="mentor-request-name">{request.name}</h4>
+          <p className="mentor-request-status">
+            <span className="request-status">
+              {requestStatusLabel(request.status)}
+            </span>
+            {" · "}
+            {formatLabel(request)}
+            {pending ? ` · ${pendingTime(request.expiresAt)}` : ""}
+          </p>
+          {request.sentAt && (
+            <p className="introduction-timing">
+              Sent{" "}
+              <time dateTime={request.sentAt}>{fullDate(request.sentAt)}</time>
+            </p>
+          )}
+          {pending && (
+            <p className="mentor-request-reply">{replyLine(request, mentor)}</p>
+          )}
+        </div>
+        <div className="introduction-actions">
+          {request.kind !== "legacy-note" && (
+            <button
+              className={`btn small${pending ? " primary" : ""}`}
+              aria-haspopup="dialog"
+              onClick={() => setOpen(true)}
+            >
+              View request
+              <span className="visually-hidden">: {request.name}</span>
+            </button>
+          )}
+          {pending && (
+            <button
+              className="btn small"
+              disabled={state.busy}
+              onClick={withdraw}
+            >
+              Withdraw
+            </button>
+          )}
+          {request.status === "accepted" && state.rooms[request.roomId] && (
+            <button
+              className="btn small primary"
+              onClick={() =>
+                onAction({ action: "open-room", id: request.roomId })
+              }
+            >
+              Open room
+            </button>
+          )}
+        </div>
+      </div>
+      {request.reason && (
+        <p>{requestReasons[request.reason] || request.reason}</p>
+      )}
+      {request.status === "expired" && (
+        <p>The mentor's response window ended.</p>
+      )}
+      {request.message && <blockquote>{request.message}</blockquote>}
+      {cooldownActive(request.cooldownUntil) && (
+        <p>{cooldownText(request.cooldownUntil)}.</p>
+      )}
+      <MentorAlternatives
+        alternatives={request.alternatives}
+        referralId={request.status === "referred" ? request.id : null}
+      />
+      {open && (
+        <Overlay
+          id="sent-mentorship-request"
+          title={`Your request to ${request.name}`}
+          onClose={() => setOpen(false)}
+          busy={state.busy}
+          footer={
+            <>
+              <button className="btn" onClick={() => setOpen(false)}>
+                Close
+              </button>
+              <button
+                className="btn"
+                onClick={() =>
+                  onAction({ action: "match-detail", id: request.partnerId })
+                }
+              >
+                View profile
+              </button>
+            </>
+          }
+        >
+          <dl className="sent-request-facts">
+            <div>
+              <dt>Status</dt>
+              <dd>{requestStatusLabel(request.status)}</dd>
+            </div>
+            {request.sentAt && (
+              <div>
+                <dt>Sent</dt>
+                <dd>{fullDate(request.sentAt)}</dd>
+              </div>
+            )}
+          </dl>
+          <RequestAnswers request={request} />
+          {pending && mentor?.canSimulateAcceptance && (
+            <PrototypeShortcut
+              note={`${request.name} is fictional. Simulate them accepting to open your mentorship room.`}
+            >
+              <button
+                className="btn"
+                disabled={state.busy}
+                onClick={(event) =>
+                  onAction(
+                    { action: "simulate-acceptance", id: request.partnerId },
+                    event,
+                  )
+                }
+              >
+                Simulate acceptance
+              </button>
+            </PrototypeShortcut>
+          )}
+        </Overlay>
+      )}
+    </article>
+  );
+}
+
+// The founder's mentorship requests. `records` narrows the list (the
+// Requests page passes the ones its tab and filters show).
+export function SentMentorRequests({ records: shown }) {
+  const { state, onAction, model } = useApp();
+  const records = shown || state.mentorRequests || [];
   useRequestFocus(state.activeMentorRequest);
   if (!records.length) return null;
   const pending = records.filter(
@@ -403,118 +570,280 @@ export function SentMentorRequests() {
     referred && `${referred} with mentor suggestions`,
   ].filter(Boolean);
   return (
+    // Sits under Outgoing requests on the Requests page.
     <section
       className="mentor-requests-list"
-      aria-label="Sent mentorship requests"
+      aria-labelledby="sent-mentorship-requests"
     >
-      <h2>Mentorship requests</h2>
-      {details.length > 0 && <p>{details.join(" · ")}</p>}
+      <h3 id="sent-mentorship-requests" className="requests-subhead">
+        Mentorship requests
+        {details.length > 0 && (
+          <span className="requests-subhead-detail">{details.join(" · ")}</span>
+        )}
+      </h3>
       {records.map((request) => (
-        <article
-          className="card panel mentor-request-card"
-          key={request.id}
-          id={`request-${request.id}`}
-          tabIndex={-1}
-        >
-          <h3>{request.name}</h3>
-          <p className="muted">
-            {formatLabel(request)} ·{" "}
-            <span className="request-status">
-              {requestStatusLabel(request.status)}
-            </span>
-            {request.status === "pending"
-              ? ` · ${pendingTime(request.expiresAt)}`
-              : ""}
-          </p>
-          {request.status === "pending" && (
-            <>
-              <p>
-                {replyLine(
-                  request,
-                  model
-                    .rolePeople()
-                    .find((person) => person.id === request.partnerId),
-                )}
-              </p>
-              <SentRequestDetails request={request} />
-            </>
-          )}
-          {request.reason && (
-            <p>{requestReasons[request.reason] || request.reason}</p>
-          )}
-          {request.status === "expired" && (
-            <p>The mentor's response window ended.</p>
-          )}
-          {request.message && <blockquote>{request.message}</blockquote>}
-          {cooldownActive(request.cooldownUntil) && (
-            <p>{cooldownText(request.cooldownUntil)}.</p>
-          )}
-          {request.status === "pending" && (
-            // Same controls as a sent introduction (readiness plan P9).
-            <div className="mentor-request-controls">
-              <button
-                className="btn small"
-                onClick={() =>
-                  onAction({ action: "match-detail", id: request.partnerId })
-                }
-              >
-                View profile
-                <span className="visually-hidden">: {request.name}</span>
-              </button>
-              <button
-                className="btn small"
-                disabled={state.busy}
-                onClick={(event) =>
-                  onAction(
-                    {
-                      action: "withdraw-request",
-                      id: request.partnerId,
-                      requestId: request.id,
-                    },
-                    event,
-                  )
-                }
-              >
-                Withdraw
-              </button>
-            </div>
-          )}
-          {request.status === "pending" &&
-            model.rolePeople().find((person) => person.id === request.partnerId)
-              ?.canSimulateAcceptance && (
-              <PrototypeShortcut
-                note={`${request.name} is fictional. Simulate them accepting to open your mentorship room.`}
-              >
-                <button
-                  className="btn"
-                  disabled={state.busy}
-                  onClick={(event) =>
-                    onAction(
-                      { action: "simulate-acceptance", id: request.partnerId },
-                      event,
-                    )
-                  }
-                >
-                  Simulate acceptance
-                </button>
-              </PrototypeShortcut>
-            )}
-          {request.status === "accepted" && state.rooms[request.roomId] && (
-            <button
-              className="btn"
-              onClick={() =>
-                onAction({ action: "open-room", id: request.roomId })
-              }
-            >
-              Open room
-            </button>
-          )}
-          <MentorAlternatives
-            alternatives={request.alternatives}
-            referralId={request.status === "referred" ? request.id : null}
-          />
-        </article>
+        <SentMentorRequestCard key={request.id} request={request} />
       ))}
+    </section>
+  );
+}
+
+const requestTabs = [
+  ["incoming", "Incoming"],
+  ["outgoing", "Outgoing"],
+  ["history", "History"],
+];
+const dateWindows = [
+  ["any", "All time"],
+  ["7", "Last 7 days"],
+  ["30", "Last 30 days"],
+  ["90", "Last 90 days"],
+];
+const typeChoices = [
+  ["all", "Everyone"],
+  ["startup", "Startup founders"],
+  ["mentor", "Mentors"],
+];
+const dayMs = 86400000;
+// The collaborator's side, from their profile id ("…:mentor").
+const collaboratorType = (row) =>
+  String(row.personId || "").endsWith(":mentor") ? "mentor" : "startup";
+// A founder's referred mentorship request still has a step to take (ask a
+// suggested mentor), so it stays under Outgoing.
+const requestTab = (row) =>
+  row.status === "needs-reply"
+    ? "incoming"
+    : row.status === "waiting" ||
+        (row.status === "referred" && row.direction === "sent")
+      ? "outgoing"
+      : "history";
+
+// One past request: who, which way, when it was sent and closed, and how
+// it ended.
+function HistoryRow({ row }) {
+  return (
+    <li
+      className="requests-history-row"
+      id={row.requestId ? `request-${row.requestId}` : undefined}
+      tabIndex={row.requestId ? -1 : undefined}
+    >
+      <div className="requests-history-who">
+        <strong>{row.name}</strong>
+        <span>
+          {collaboratorType(row) === "mentor" ? "Mentor" : "Startup founder"} ·{" "}
+          {row.direction === "sent" ? "You sent it" : "Sent to you"}
+          {row.kind === "Mentorship request" ? " · Mentorship request" : ""}
+        </span>
+      </div>
+      <div className="requests-history-dates">
+        <span>
+          Requested{" "}
+          {row.requestedAt ? (
+            <time dateTime={row.requestedAt}>{fullDate(row.requestedAt)}</time>
+          ) : (
+            "· date not recorded"
+          )}
+        </span>
+        {row.closedAt && (
+          <span>
+            Closed <time dateTime={row.closedAt}>{fullDate(row.closedAt)}</time>
+          </span>
+        )}
+      </div>
+      <span
+        className={`activity-status status-${row.status}`}
+        title={statusMeaning(row.status)}
+      >
+        {introductionStatusLabel(row.status)}
+      </span>
+      {row.reason && <p className="requests-history-reason">“{row.reason}”</p>}
+    </li>
+  );
+}
+
+// A founder's Requests: Incoming, Outgoing and History tabs over one list,
+// narrowed by name, date sent and whether the other side is a startup
+// founder or a mentor.
+export function RequestsBoard() {
+  const { state, model, onTabKeyDown } = useApp();
+  const records = introductionRecords(state);
+  const people = model.rolePeople();
+  const personOf = (id) => people.find((person) => person.id === id);
+  const [query, setQuery] = useState("");
+  const [when, setWhen] = useState("any");
+  const [who, setWho] = useState("all");
+  // Open on the tab holding a linked request, else where replies are due.
+  const linkedTab = () => {
+    const linked = records.find(
+      (row) => row.requestId && row.requestId === state.activeMentorRequest,
+    );
+    if (linked) return requestTab(linked);
+    if (records.some((row) => requestTab(row) === "incoming"))
+      return "incoming";
+    if (records.some((row) => requestTab(row) === "outgoing"))
+      return "outgoing";
+    return "incoming";
+  };
+  const [tab, setTab] = useState(linkedTab);
+  // A link to a request (from Updates) opens its tab and focuses it once
+  // it is on screen; the records changing never moves the tab.
+  const focusPending = useRef(null);
+  useEffect(() => {
+    if (!state.activeMentorRequest) return;
+    focusPending.current = state.activeMentorRequest;
+    setTab(linkedTab());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.activeMentorRequest]);
+  useEffect(() => {
+    const element =
+      focusPending.current &&
+      document.getElementById(`request-${focusPending.current}`);
+    if (!element) return;
+    element.focus();
+    focusPending.current = null;
+  });
+  const search = query.trim().toLowerCase();
+  const filtering = Boolean(search) || when !== "any" || who !== "all";
+  const shown = records.filter((row) => {
+    if (search && !row.name.toLowerCase().includes(search)) return false;
+    if (who !== "all" && collaboratorType(row) !== who) return false;
+    if (when !== "any") {
+      const at = Date.parse(row.requestedAt || row.closedAt || "");
+      if (!at || Date.now() - at > Number(when) * dayMs) return false;
+    }
+    return true;
+  });
+  const groups = Object.fromEntries(
+    requestTabs.map(([id]) => [
+      id,
+      shown.filter((row) => requestTab(row) === id),
+    ]),
+  );
+  const rows = groups[tab];
+  const exchangeRows = rows.filter(
+    (row) => row.kind !== "Mentorship request" && personOf(row.personId),
+  );
+  const mentorshipRecords = (state.mentorRequests || []).filter((request) =>
+    rows.some((row) => row.requestId === request.id),
+  );
+  const clear = () => {
+    setQuery("");
+    setWhen("any");
+    setWho("all");
+  };
+  const empty = {
+    incoming: "No one is waiting on your reply right now.",
+    outgoing:
+      "Nothing sent right now. Find someone in Matches and send them a request.",
+    history: "Accepted, declined, withdrawn and expired requests appear here.",
+  }[tab];
+  return (
+    <section className="requests-board" aria-label="Your requests">
+      <div className="tabs" role="tablist" aria-label="Requests">
+        {requestTabs.map(([id, label]) => (
+          <button
+            key={id}
+            className={`tab${tab === id ? " active" : ""}`}
+            role="tab"
+            id={`requests-tab-${id}`}
+            aria-controls="requests-panel"
+            aria-selected={tab === id}
+            tabIndex={tab === id ? 0 : -1}
+            onKeyDown={onTabKeyDown}
+            onClick={() => setTab(id)}
+          >
+            {label}
+            <span className="requests-count">{groups[id].length}</span>
+          </button>
+        ))}
+      </div>
+      <div className="requests-filters">
+        <div className="filter-search field">
+          <label className="visually-hidden" htmlFor="requests-search">
+            Search requests
+          </label>
+          <Icon name="search" />
+          <input
+            className="search-input"
+            id="requests-search"
+            type="search"
+            value={query}
+            placeholder="Search by name"
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+        <SelectField
+          id="requests-date"
+          aria-label="Date sent"
+          className="requests-select"
+          value={when}
+          onChange={(event) => setWhen(event.target.value)}
+        >
+          {dateWindows.map(([id, label]) => (
+            <option key={id} value={id}>
+              {label}
+            </option>
+          ))}
+        </SelectField>
+        <SelectField
+          id="requests-type"
+          aria-label="Collaborator type"
+          className="requests-select"
+          value={who}
+          onChange={(event) => setWho(event.target.value)}
+        >
+          {typeChoices.map(([id, label]) => (
+            <option key={id} value={id}>
+              {label}
+            </option>
+          ))}
+        </SelectField>
+        {filtering && (
+          <button type="button" className="link-btn" onClick={clear}>
+            Clear filters
+          </button>
+        )}
+      </div>
+      <div
+        id="requests-panel"
+        role="tabpanel"
+        aria-labelledby={`requests-tab-${tab}`}
+        className="requests-panel"
+      >
+        {!rows.length ? (
+          <div className="card panel requests-empty">
+            <p>{filtering ? "No requests match these filters." : empty}</p>
+            {filtering && (
+              <button type="button" className="btn small" onClick={clear}>
+                Clear filters
+              </button>
+            )}
+          </div>
+        ) : tab === "history" ? (
+          <ul className="card panel requests-history">
+            {rows.map((row) => (
+              <HistoryRow key={row.id} row={row} />
+            ))}
+          </ul>
+        ) : (
+          <>
+            {exchangeRows.length > 0 && (
+              <div className="card panel introductions">
+                {exchangeRows.map((row) => (
+                  <IntroductionRow
+                    key={row.id}
+                    person={personOf(row.personId)}
+                    incoming={tab === "incoming"}
+                  />
+                ))}
+              </div>
+            )}
+            {mentorshipRecords.length > 0 && (
+              <SentMentorRequests records={mentorshipRecords} />
+            )}
+          </>
+        )}
+      </div>
     </section>
   );
 }
@@ -529,7 +858,7 @@ export default function RequestsPage() {
   const { state, onAction } = useApp();
   const records = state.mentorRequests || [];
   useRequestFocus(state.activeMentorRequest);
-  if (state.role !== "mentor") return <SentMentorRequests />;
+  // Founders reach their Requests through WaitingPage.
   const hasIntroductions = [
     ...state.incomingByRole.mentor,
     ...state.waitingByRole.mentor,
@@ -550,7 +879,7 @@ export default function RequestsPage() {
           {records.map((request) => (
             <RequestCard key={request.id} request={request} />
           ))}
-          {hasIntroductions && <Introductions />}
+          {hasIntroductions && <Introductions hideEmpty />}
         </div>
       )}
       {/* Prototype only: sample founders keep a preview inbox from running dry. */}

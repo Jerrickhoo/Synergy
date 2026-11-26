@@ -47,7 +47,7 @@
   },
   "marketing": {
     "id": "marketing",
-    "name": "Co-Marketing Swap",
+    "name": "Audience Swap",
     "version": 2,
     "fields": [
       {
@@ -110,7 +110,7 @@
   },
   "beta": {
     "id": "beta",
-    "name": "Beta Testing Exchange",
+    "name": "Evaluation and Feedback",
     "version": 2,
     "fields": [
       {
@@ -120,16 +120,16 @@
         "placeholder": "For example: 50"
       },
       {
-        "id": "testWindow",
-        "label": "Testing window",
-        "type": "text",
-        "placeholder": "For example: 10–24 November"
-      },
-      {
         "id": "feedbackMethod",
         "label": "How feedback is collected",
-        "type": "text",
-        "placeholder": "For example: a shared form"
+        "type": "select",
+        "options": [
+          ["A shared form", "A shared form"],
+          ["A video call", "A video call"],
+          ["Comments in a shared doc", "Comments in a shared doc"],
+          ["A written report", "A written report"],
+          ["Messages in the room chat", "Messages in the room chat"]
+        ]
       }
     ],
     "milestones": [
@@ -175,7 +175,7 @@
   },
   "swap": {
     "id": "swap",
-    "name": "Skill Swap",
+    "name": "Technical Development",
     "version": 1,
     "fields": [
       {
@@ -187,14 +187,14 @@
       {
         "id": "shareFormat",
         "label": "How you will share",
-        "type": "text",
-        "placeholder": "For example: calls, a shared doc or async comments"
-      },
-      {
-        "id": "targetDate",
-        "label": "Target date",
-        "type": "text",
-        "placeholder": "For example: by 6 December"
+        "type": "select",
+        "options": [
+          ["Calls", "Calls"],
+          ["A shared document", "A shared document"],
+          ["Async comments", "Async comments"],
+          ["Working sessions in person", "Working sessions in person"],
+          ["A mix of these", "A mix of these"]
+        ]
       }
     ],
     "milestones": [
@@ -236,6 +236,65 @@
       "timeline": "For example: Two weeks",
       "commitment": "For example: Two calls of 45 minutes each",
       "compensation": "For example: Pricing advice in return for product feedback"
+    }
+  },
+  "funding": {
+    "id": "funding",
+    "name": "Funding",
+    "version": 1,
+    "fields": [
+      {
+        "id": "target",
+        "label": "What you're raising or applying for",
+        "type": "text",
+        "placeholder": "For example: a pre-seed round or a university grant"
+      },
+      {
+        "id": "shareFormat",
+        "label": "How you will share",
+        "type": "select",
+        "options": [
+          ["Investor introductions", "Investor introductions"],
+          ["A shared grant list", "A shared grant list"],
+          ["Pitch deck reviews", "Pitch deck reviews"],
+          ["Financial model reviews", "Financial model reviews"],
+          ["A mix of these", "A mix of these"]
+        ]
+      }
+    ],
+    "milestones": [
+      {
+        "id": "scope",
+        "title": "Plan agreed",
+        "description": "Agree what each side shares: investor contacts, grant leads, pitch feedback or pricing advice.",
+        "evidence": false,
+        "completedByTerms": true
+      },
+      {
+        "id": "materials",
+        "title": "Materials reviewed",
+        "description": "Each side reviews the other's deck, application or financial model and leaves written feedback.",
+        "evidence": true
+      },
+      {
+        "id": "leads",
+        "title": "Leads shared",
+        "description": "Share the investor, grant or partner leads you agreed.",
+        "evidence": true
+      },
+      {
+        "id": "wrap-up",
+        "title": "Wrap-up",
+        "description": "Note what came of it and whether to keep helping each other.",
+        "evidence": false
+      }
+    ],
+    "termPlaceholders": {
+      "goal": "For example: Get our pre-seed deck in front of three angel investors",
+      "scope": "For example: You review our deck and share two investor contacts; we review your grant application.",
+      "timeline": "For example: Three weeks",
+      "commitment": "For example: One review call and written notes each",
+      "compensation": "For example: Investor introductions in return for grant feedback"
     }
   }
 }

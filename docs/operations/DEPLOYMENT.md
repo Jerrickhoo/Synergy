@@ -28,6 +28,19 @@ Accounts and uploads live together under `/var/data`. Keep one server instance a
 
 Keep the Render service on a paid instance: a free instance sleeps when idle, and its cold start exceeds Netlify's proxy timeout. Every visitor reaches Render through Netlify's proxy, so the 30-per-minute sign-in limit is shared across visitors.
 
+To work on the frontend against the hosted accounts, set `SYNERGY_API_TARGET=https://synergy-prototype-api.onrender.com` in a local `.env` and restart `npm run dev`. The dev server then proxies `/api` to Render instead of running the local API, so anything done on localhost changes the hosted data.
+
+## Google Calendar and Tasks sync
+
+**Sync to Google** in Home's Your tasks copies the task list to a "Synergy" list in Google Tasks, and every dated item on the Home calendar (sessions, meetings, milestone and task due dates) to the person's Google Calendar. It runs in the browser with Google Identity Services: each person signs in to Google in a pop-up, and the access token stays in that tab; Synergy's server never sees it. A repeat sync updates the same tasks and events instead of adding copies, ticks off tasks that are done and removes upcoming events that no longer exist.
+
+1. In Google Cloud Console, create a project, enable the **Google Calendar API** and the **Google Tasks API**, and set up the OAuth consent screen (External, with the `calendar.events` and `tasks` scopes).
+2. While the app is in Testing, add each tester's Google account (including evaluators) under Test users. Unlisted accounts are refused until the app is verified by Google.
+3. Create an OAuth client ID of type **Web application** with these Authorized JavaScript origins: `https://synergy-prototype.netlify.app` and `http://localhost:5173`. No client secret is used.
+4. Set `GOOGLE_CLIENT_ID` to that client ID on Render (and in a local `.env` when running the local API). Without it, the button explains that Google sync is not set up.
+
+The Content-Security-Policy in `netlify.toml` and `server/start.js` allows Google's sign-in script (`accounts.google.com/gsi`) and API host (`www.googleapis.com`) for this.
+
 ## Storage and operations
 
 The default data file is `.data/synergy.sqlite`; explicit JSON paths are also supported. An empty default SQLite database imports a neighboring `synergy.json` without deleting the original. Preserve the database and uploads before changing data paths. Do not copy an active SQLite file alone: committed data may remain in WAL journals. Use the backup command for a consistent live snapshot.

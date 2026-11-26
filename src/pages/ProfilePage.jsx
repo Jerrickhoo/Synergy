@@ -28,6 +28,7 @@ import ProfilePhoto from "../components/ProfilePhoto.jsx";
 import { normalizeProfile } from "../data/profile-content.js";
 import { validateProfile } from "../state/validation.js";
 import { withoutSampleImage } from "../data/profile-assistant.js";
+import { accountVerified } from "../data/collaboration.js";
 
 // After a successful save, return to the top of the profile so the result is
 // visible. Reduced-motion users jump instead of scrolling.
@@ -451,17 +452,29 @@ function ProfileContent() {
               image={profile.image}
               name={identityTitle}
               identity={state.accountId}
+              verified={accountVerified(state)}
             />
             <div className="own-identity-copy">
               {/* Startup name leads; the founder, with their own photo, sits
                   under it in a smaller grey line. */}
               <h2>{identityTitle}</h2>
+              {accountVerified(state) && (
+                <p className="own-identity-verified">
+                  <span className="badge-verified">
+                    <Icon name="check" /> Verified
+                    {state.affiliation?.organization || state.mentorVerification
+                      ? `: ${state.mentorVerification?.label || state.affiliation.organization}`
+                      : ""}
+                  </span>
+                </p>
+              )}
               <p className="own-identity-subtitle">
                 {startupName && (
                   <Avatar
                     image={profile.personImage}
                     name={model.roleName()}
                     identity={state.accountId}
+                    verified={accountVerified(state)}
                     color="own-identity-person"
                   />
                 )}
@@ -670,6 +683,28 @@ function ProfileContent() {
                       min="1"
                       value={profile.teamSize}
                     />
+                    {/* Working Style Fit compares this with each startup's.
+                        It takes the second row, as wide as Industry and
+                        Stage above it. */}
+                    <div className="field profile-working-style">
+                      <label htmlFor="profile-working-style">
+                        How do you like to work together?
+                      </label>
+                      <SelectField
+                        id="profile-working-style"
+                        name="engagementPreference"
+                        defaultValue={profile.engagementPreference || ""}
+                      >
+                        <option value="">Not chosen yet</option>
+                        <option value="one-off">A one-off exchange</option>
+                        <option value="ongoing">An ongoing partnership</option>
+                        <option value="either">Either works</option>
+                      </SelectField>
+                      <p className="field-help">
+                        Startups who want the same kind of collaboration rank
+                        higher for each other.
+                      </p>
+                    </div>
                   </div>
                 </EditSection>
                 {/* Needs and offers are picked from the standard tags, side
@@ -687,6 +722,9 @@ function ProfileContent() {
                       value={profile.needTags}
                       vocabulary={state.vocabulary || []}
                       onChange={updateField}
+                      taken={profile.offerTags}
+                      takenBy={offersTitle}
+                      grouped
                     />
                   </EditSection>
                   <EditSection
@@ -701,6 +739,9 @@ function ProfileContent() {
                       value={profile.offerTags}
                       vocabulary={state.vocabulary || []}
                       onChange={updateField}
+                      taken={profile.needTags}
+                      takenBy={needsTitle}
+                      grouped
                     />
                   </EditSection>
                 </div>
@@ -815,6 +856,8 @@ function ProfileContent() {
                     value={profile.offerTags}
                     vocabulary={state.vocabulary || []}
                     onChange={updateField}
+                    taken={profile.needTags}
+                    takenBy="what you need"
                   />
                   <TagPicker
                     name="needTags"
@@ -823,6 +866,8 @@ function ProfileContent() {
                     value={profile.needTags}
                     vocabulary={state.vocabulary || []}
                     onChange={updateField}
+                    taken={profile.offerTags}
+                    takenBy="what you offer"
                   />
                 </EditSection>
               </>
@@ -1016,22 +1061,8 @@ function ProfileContent() {
                 )}
               </section>
             </div>
+            {/* Last on the page: Settings and Updates are in the sidebar. */}
             <Verification />
-            <section className="card panel profile-section">
-              <h2>Account and community</h2>
-              <button
-                className="account-navigation-row interactive-surface"
-                onClick={() => onAction({ page: "settings" })}
-              >
-                Account settings and privacy <Icon name="arrow" />
-              </button>
-              <button
-                className="account-navigation-row interactive-surface"
-                onClick={() => onAction({ page: "notifications" })}
-              >
-                Updates <Icon name="arrow" />
-              </button>
-            </section>
           </div>
         </>
       )}

@@ -1,5 +1,5 @@
 import { mentorRequestValues } from "./mentor-request-fixtures.js";
-import { selectValue, confirmSignOut } from "./ui-helpers.js";
+import { selectValue, confirmSignOut, openRequest } from "./ui-helpers.js";
 import { defaultMatching } from "../src/data/matching.js";
 import { test, expect } from "@playwright/test";
 import { decode } from "../src/state/serialization.js";
@@ -107,9 +107,11 @@ test("voluntary sign-out preserves drafts on cancel and confirms once across des
   expect(await page.evaluate(() => document.body.style.overflow)).toBe("");
   expect(logouts).toBe(0);
   await page.setViewportSize({ width: 1024, height: 768 });
-  // On a tablet, sign out is in the sidebar's account menu.
-  await page.getByRole("button", { name: /^Account menu for / }).click();
-  await page.getByRole("menuitem", { name: "Sign out" }).click();
+  // On a tablet, Sign out stays at the foot of the rail as an icon.
+  await page
+    .locator(".user-mini")
+    .getByRole("button", { name: "Sign out", exact: true })
+    .click();
   await page.route("**/api/logout", (route) => route.abort());
   await prompt
     .getByRole("button", { name: "Sign out", exact: true })
@@ -222,7 +224,7 @@ test("Settings role switching restores custom-select drafts and verification kee
     "A fictional organization with a long name for wrapping and retained form values";
   // Verification is always visible on Your profile.
   await page
-    .getByLabel("Program, organization or person", {
+    .getByLabel("Who can vouch for you?", {
       exact: true,
     })
     .fill(organization);
@@ -230,7 +232,7 @@ test("Settings role switching restores custom-select drafts and verification kee
     .getByLabel("How can a moderator check it?", { exact: true })
     .fill("Public roster available for moderator review");
   await expect(
-    page.getByLabel("Program, organization or person", {
+    page.getByLabel("Who can vouch for you?", {
       exact: true,
     }),
   ).toHaveValue(organization);
@@ -514,7 +516,7 @@ test("moderators edit reusable templates and versioned matching weights", async 
   const initial = (await state(request, admin)).state;
   await open(page, admin, "moderation");
   await page
-    .getByText("Beta Testing Exchange · Version 2", { exact: true })
+    .getByText("Evaluation and Feedback · Version 2", { exact: true })
     .click();
   const form = page
     .locator('form[data-form="engagement-template"]')
@@ -538,7 +540,7 @@ test("moderators edit reusable templates and versioned matching weights", async 
     })
     .click();
   await page.locator("#weight-founder-0").fill("60");
-  await page.locator("#weight-founder-2").fill("10");
+  await page.locator("#weight-founder-2").fill("15");
   await page
     .getByRole("button", { name: "Save matching weights", exact: true })
     .click();
@@ -595,6 +597,13 @@ test("mentor experience can be edited and appears on the public mentor profile",
     a,
     `matches/${encodeURIComponent(`${b.state.accountId}:mentor`)}`,
   );
+  // Experience is on the match page's Trust tab.
+  await observerPage
+    .getByRole("tab", {
+      name: "Experience and collaboration history",
+      exact: true,
+    })
+    .click();
   await expect(
     observerPage.getByRole("heading", { name: "Past experience", exact: true }),
   ).toBeVisible();
@@ -687,9 +696,8 @@ test("partners request revised terms, set due dates, close a room and reconnect 
       `button[data-action="match-detail"][data-id="${a.state.accountId}:founder"]`,
     )
     .click();
-  await page
-    .getByRole("button", { name: "Send introduction", exact: true })
-    .click();
+  await openRequest(page);
+  await page.getByRole("button", { name: "Send request", exact: true }).click();
   const next = await act(request, a, {
     action: "accept-interest",
     id: `${b.state.accountId}:founder`,
@@ -886,6 +894,13 @@ test("prospective partners see public trust only after both blind reviews are su
     observer,
     `matches/${encodeURIComponent(`${b.state.accountId}:founder`)}`,
   );
+  // Trust history is on the match page's Trust tab.
+  await page
+    .getByRole("tab", {
+      name: "Experience and collaboration history",
+      exact: true,
+    })
+    .click();
   const trust = page.getByRole("region", { name: /Trust history/ });
   await expect(trust).toContainText("No ratings yet");
   await expect(
@@ -900,7 +915,7 @@ test("prospective partners see public trust only after both blind reviews are su
   await trust
     .getByText("Completed collaboration history (1)", { exact: true })
     .click();
-  await expect(trust).toContainText("Beta Testing Exchange");
+  await expect(trust).toContainText("Evaluation and Feedback");
   await capture(page, "fixed-public-trust-desktop");
 });
 
@@ -994,9 +1009,7 @@ test("account settings support visibility, session revocation and deletion", asy
     name: "Pause discovery?",
     exact: true,
   });
-  await expect(pause).toContainText(
-    "all pending introductions will be withdrawn",
-  );
+  await expect(pause).toContainText("all pending requests will be withdrawn");
   await pause.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(
     page.getByText("Your completed profiles are visible in Matches.", {
@@ -1082,10 +1095,9 @@ test("mobile discovery keeps the first action visible and lets partners agree on
   const view = page.getByRole("button", { name: /^View match/ });
   await expect(view).toBeInViewport();
   await view.click();
+  await openRequest(page);
   await selectValue(page.getByLabel("Collaboration type"), "marketing");
-  await page
-    .getByRole("button", { name: "Send introduction", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Send request", exact: true }).click();
   const accepted = await act(request, b, {
     action: "accept-interest",
     id: `${a.state.accountId}:founder`,

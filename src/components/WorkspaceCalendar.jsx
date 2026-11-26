@@ -73,6 +73,10 @@ export default function WorkspaceCalendar({
   eventClass = () => "",
   eventName = () => "",
   eventLabel,
+  // A date range picker ({ start, end }): both ends read as chosen and the
+  // days between are shaded. `onDayHover` previews an end before it is set.
+  range = null,
+  onDayHover,
 }) {
   const root = useRef(null);
   const pendingFocus = useRef(null);
@@ -176,26 +180,42 @@ export default function WorkspaceCalendar({
               const items = byDate.get(day.key) || [];
               const unavailable =
                 disabled || Boolean(minDate && day.key < minDate);
+              const rangeStart =
+                Boolean(range?.start) && day.key === range.start;
+              const rangeEnd = Boolean(range?.end) && day.key === range.end;
+              const inRange = Boolean(
+                range?.start &&
+                range?.end &&
+                day.key > range.start &&
+                day.key < range.end,
+              );
+              const chosen = range
+                ? rangeStart || rangeEnd
+                : day.key === selected;
               return (
                 <div
                   key={day.key}
                   role="gridcell"
-                  aria-selected={day.inMonth && day.key === selected}
-                  className={`calendar-cell ${day.inMonth ? "" : "calendar-outside"}`}
+                  aria-selected={day.inMonth && (chosen || inRange)}
+                  className={`calendar-cell ${day.inMonth ? "" : "calendar-outside"}${inRange ? " in-range" : ""}${rangeStart ? " range-start" : ""}${rangeEnd ? " range-end" : ""}`}
                 >
                   {day.inMonth ? (
                     <>
                       <button
                         type="button"
                         data-date={day.key}
-                        className={`calendar-day ${day.key === selected ? "selected" : ""} ${day.key === today ? "is-today" : ""}`}
+                        className={`calendar-day ${chosen ? "selected" : ""} ${day.key === today ? "is-today" : ""}`}
                         tabIndex={day.key === focusKey ? 0 : -1}
-                        aria-pressed={day.key === selected}
+                        aria-pressed={chosen}
                         aria-current={day.key === today ? "date" : undefined}
                         aria-controls={controls}
                         aria-label={`${day.date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}${items.length ? `, ${items.length} ${items.length === 1 ? "event" : "events"}` : ""}`}
                         disabled={unavailable}
-                        onFocus={() => setFocused(day.key)}
+                        onFocus={() => {
+                          setFocused(day.key);
+                          onDayHover?.(day.key);
+                        }}
+                        onMouseEnter={() => onDayHover?.(day.key)}
                         onKeyDown={(event) => navigate(event, day.key)}
                         onClick={() => onSelect(day.key)}
                       >

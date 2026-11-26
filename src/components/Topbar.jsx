@@ -2,9 +2,9 @@ import { useApp } from "../state/AppContext.jsx";
 import { useRef } from "react";
 import Icon from "./Icon.jsx";
 import Brand from "./Brand.jsx";
-import { pageLabel } from "../data/filters.js";
 import NotificationPreview from "./NotificationPreview.jsx";
 import Avatar from "./Avatar.jsx";
+import { accountVerified } from "../data/collaboration.js";
 
 export default function Topbar() {
   const { state, model, onAction } = useApp();
@@ -28,18 +28,26 @@ export default function Topbar() {
       <div className="mobile-brand">
         <Brand compact />
       </div>
-      {["room-detail", "match-detail", "review", "trust"].includes(
-        state.page,
-      ) && (
-        <div className="workspace-heading">
-          <span>Workspace</span>
-          <span aria-hidden="true">/</span>
-          <strong>
-            {pageLabel(state.page, state.role, model.activeRoom()?.type)}
-          </strong>
-        </div>
-      )}
+      {/* The brand promise fills the header on every page; detail pages
+          have their own way back (Back to matches, All rooms). */}
+      <p className="topbar-tagline">
+        <Icon name="puzzle" />
+        Find your missing piece
+      </p>
       <div ref={actionsRef} className="top-actions">
+        <button
+          className="icon-btn topbar-tour"
+          aria-label="Quick tour"
+          title={
+            state.role === "mentor"
+              ? "Quick tour: how mentoring works"
+              : "Quick tour: how a deal works"
+          }
+          aria-haspopup="dialog"
+          onClick={() => onAction({ action: "open-tour" })}
+        >
+          <Icon name="help" />
+        </button>
         <div className="notification-anchor">
           <button
             className="icon-btn"
@@ -75,7 +83,7 @@ export default function Topbar() {
         </div>
         <button
           className="account-button"
-          aria-label={`Open profile for ${model.roleName()} ${model.roleLabel()}`}
+          aria-label={`Open profile for ${model.roleName()} ${model.roleLabel()}${accountVerified(state) ? ", verified" : ""}`}
           aria-current={state.page === "profile" ? "page" : undefined}
           title="Your profile"
           onClick={() => onAction({ page: "profile" })}
@@ -88,6 +96,7 @@ export default function Topbar() {
             }
             name={model.roleName()}
             identity={state.accountId}
+            verified={accountVerified(state)}
           />
           <span className="account-copy">
             <strong>{model.roleName()}</strong>

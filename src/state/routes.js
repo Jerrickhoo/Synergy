@@ -8,6 +8,7 @@ const paths = {
   impact: "impact",
   "impact-certificate": "impact/certificate",
   rooms: "rooms",
+  activity: "activity",
   calendar: "calendar",
   profile: "profile",
   signup: "signup",

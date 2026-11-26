@@ -174,7 +174,10 @@ export default function EngagementSettings() {
                 </legend>
                 {factorNames.slice(0, weightCount[kind]).map((name, i) => (
                   <div className="field" key={name}>
-                    <label htmlFor={`weight-${kind}-${i}`}>{name} (%)</label>
+                    <label htmlFor={`weight-${kind}-${i}`}>
+                      {name}
+                      {kind === "mentor" && i === 4 ? " (not used)" : ""} (%)
+                    </label>
                     <input
                       id={`weight-${kind}-${i}`}
                       name={`${kind}-${i}`}
@@ -183,7 +186,10 @@ export default function EngagementSettings() {
                       max="100"
                       step="0.1"
                       required
-                      readOnly={kind === "founder" && i === 1}
+                      readOnly={
+                        (kind === "founder" && i === 1) ||
+                        (kind === "mentor" && i === 4)
+                      }
                       defaultValue={Number((config[kind][i] * 100).toFixed(1))}
                     />
                   </div>

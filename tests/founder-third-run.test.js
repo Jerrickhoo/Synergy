@@ -206,7 +206,7 @@ test("1a: Hana Sato's card and match details name the same help for Shiftly", (t
   const { state } = shiftlyWorkspace(t);
   const people = createModel(state).rolePeople();
   const hana = people.find((person) => person.name === "Hana Sato");
-  assert.equal(hana.score, 51);
+  assert.equal(hana.score, 59);
   assert.equal(matchReason(hana), "Offers what you need: Customer retention");
   assert.match(
     fitSummary(hana, factors),

@@ -1,24 +1,22 @@
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
-import RequestsPage, { SentMentorRequests } from "./RequestsPage.jsx";
-import Introductions from "../components/Introductions.jsx";
+import RequestsPage, { RequestsBoard } from "./RequestsPage.jsx";
 
+// Requests: Incoming, Outgoing and History tabs, with search and filters.
+// Mentors get their own Requests page.
 export default function WaitingPage() {
   const { state, onAction } = useApp();
-  const mentor = state.role === "mentor";
-  if (mentor) return <RequestsPage />;
+  if (state.role === "mentor") return <RequestsPage />;
   return (
-    <div className="page page-enter">
+    <div className="page page-enter requests-page">
       <PageHeader
-        title="Introductions"
-        intro="Respond to invitations and follow the introductions you have sent."
+        title="Requests"
+        intro="Reply to the requests people send you, and follow the ones you sent."
       />
-      {/* Requests, introductions and the way back to Matches, evenly spaced. */}
       <div className="page-stack">
-        <SentMentorRequests />
-        <Introductions />
+        <RequestsBoard />
         <button
-          className="btn page-stack-action"
+          className="btn primary requests-explore"
           onClick={() => onAction({ page: "discover" })}
         >
           Explore matches

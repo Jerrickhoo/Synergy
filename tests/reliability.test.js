@@ -280,7 +280,7 @@ test("visibility, blocking and agreed engagement types persist and enforce conta
   assert.equal(w.get(a.token).state.rooms[activeRoomId].type, "marketing");
   assert.equal(
     w.get(b.token).state.rooms[activeRoomId].engagementType,
-    "Co-Marketing Swap",
+    "Audience Swap",
   );
   w.accounts.visibility(a.token, false);
   assert.equal(

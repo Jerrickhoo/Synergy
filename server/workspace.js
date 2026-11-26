@@ -81,6 +81,13 @@ import { createMentorRequests, requestActions } from "./mentor-requests.js";
 import { createFeatures, defaultPreferences } from "./features.js";
 import defaultTemplates from "../src/data/engagement-templates.json" with { type: "json" };
 import {
+  legacyTypeLabels,
+  startupTypeIds,
+  startupTypes,
+  suggestedType,
+  typeLabel,
+} from "../src/data/collaboration-types.js";
+import {
   trustSummary,
   canonicalTags,
   reviewDeadline,
@@ -102,6 +109,7 @@ const meetingText = (meeting, lead) =>
 import {
   defaultMatching,
   migrateMatchingConfig,
+  retiredFactors,
 } from "../src/data/matching.js";
 import { normalizeProfile } from "../src/data/profile-content.js";
 import {
@@ -206,6 +214,11 @@ const sharedOverlap = (a, b) => (overlap(a, b) + overlap(b, a)) / 2;
 // (0–1) from their live capacity; left out, both count as full. Pass `null`
 // when the scored profile is a founder seen by a mentor: those two factors
 // describe mentors only, so they are left out and the other weights rescaled.
+const workingStyleWords = {
+  "one-off": "a one-off exchange",
+  ongoing: "an ongoing partnership",
+  either: "either",
+};
 export function scoreProfile(
   mine,
   theirs,
@@ -312,7 +325,7 @@ export function scoreProfile(
     : marketing && sizes.every((n) => n > 0) && sizeFit < 0.1
       ? `Uneven swap: ${Math.max(...sizes).toLocaleString("en")} vs ${Math.min(...sizes).toLocaleString("en")} audience`
       : marketing && !sizes.every((n) => n > 0)
-        ? "Audience size missing for a co-marketing swap"
+        ? "Audience size missing for an audience swap"
         : "";
   const stage = mentor
     ? sharedOverlap(founder.stage, mentorProfile.startups)
@@ -321,7 +334,8 @@ export function scoreProfile(
       : stageKnown
         ? (stageFit + sizeFit) / 2
         : sizeFit / 2;
-  const explicitGoals = Boolean(mine.goals?.trim() && theirs.goals?.trim());
+  // Working style (founder pairs): both want a one-off exchange, both an
+  // ongoing partnership, or one of them is happy either way.
   const preference =
     mine.engagementPreference && theirs.engagementPreference
       ? mine.engagementPreference === "either" ||
@@ -330,12 +344,8 @@ export function scoreProfile(
         ? 1
         : 0
       : null;
-  const goalWords = explicitGoals
-    ? (overlap(mine.goals, theirs.goals) + overlap(theirs.goals, mine.goals)) /
-      2
-    : 0;
-  const goal = preference === null ? goalWords : (goalWords + preference) / 2;
-  const factors = [need, expertise, industry, stage, goal];
+  const workingStyle = preference ?? 0;
+  const factors = [need, expertise, industry, stage, workingStyle];
   const fitApplies = mentor && mentorFit !== null;
   if (fitApplies) factors.push(mentorFit.availability, mentorFit.format);
   const missing = [
@@ -352,11 +362,17 @@ export function scoreProfile(
     mentor
       ? !founder.stage || !mentorProfile.startups
       : !stageKnown && sizeFit === null,
-    !explicitGoals && preference === null,
+    preference === null,
     false,
     false,
   ];
-  const weights = config[mentor ? "mentor" : "founder"];
+  // Working style counts for founder pairs only, and only once both have
+  // said how they like to work: an unanswered preference costs nothing.
+  const weights = config[mentor ? "mentor" : "founder"].map((weight, i) =>
+    retiredFactors(mentor).includes(i) || (i === 4 && preference === null)
+      ? 0
+      : weight,
+  );
   const usedWeight = weights
     .slice(0, factors.length)
     .reduce((sum, weight) => sum + weight, 0);
@@ -425,7 +441,13 @@ export function scoreProfile(
           : audienceGap
             ? `${audienceGap}. A swap more than 10 times uneven is limited to 40% overall.`
             : `Stage and ${marketing ? "audience" : "team"} size; size ratio ${Math.round(sizeFit * 100)}%.`,
-      `${explicitGoals ? "Stated goal overlap" : "Stated goals missing; no goal overlap assumed"}${preference === null ? "; engagement preference not provided by both" : "; engagement preferences included"}.`,
+      preference === null
+        ? "One or both of you haven't said whether you prefer a one-off exchange or an ongoing partnership, so this doesn't count."
+        : mine.engagementPreference === theirs.engagementPreference
+          ? `You both prefer ${workingStyleWords[mine.engagementPreference]}.`
+          : preference
+            ? "One of you is happy either way, so your working styles fit."
+            : `You prefer ${workingStyleWords[mine.engagementPreference]}; they prefer ${workingStyleWords[theirs.engagementPreference]}.`,
       ...(fitApplies
         ? [
             mentorFit.availability === 1
@@ -614,6 +636,14 @@ export function createWorkspace(file, options = {}) {
         digest: "off",
       };
       migrated = true;
+    }
+    // Rooms opened before the collaboration types were standardised read
+    // with the new names.
+    for (const room of Object.values(account.state?.rooms || {})) {
+      if (legacyTypeLabels[room.engagementType]) {
+        room.engagementType = legacyTypeLabels[room.engagementType];
+        migrated = true;
+      }
     }
     if (
       account.affiliation?.status === "pending" &&
@@ -881,6 +911,28 @@ export function createWorkspace(file, options = {}) {
       );
       changed = true;
     }
+    // A verification request nobody reviewed by its due date expires, so
+    // the founder knows to send it again instead of waiting indefinitely.
+    const affiliation = account.affiliation;
+    if (
+      affiliation?.status === "pending" &&
+      affiliation.dueAt &&
+      time > Date.parse(affiliation.dueAt)
+    ) {
+      account.affiliation = {
+        ...affiliation,
+        status: "expired",
+        expiredAt: new Date(time).toISOString(),
+      };
+      event(
+        account,
+        state.role,
+        "Your verification request expired before a moderator reviewed it. Send it again from Verification on your profile.",
+        undefined,
+        { kind: "affiliation" },
+      );
+      changed = true;
+    }
     for (const role of roles) {
       const meta = state.introductionMetaByRole?.[role] || {};
       for (const [id, item] of Object.entries(meta)) {
@@ -901,11 +953,12 @@ export function createWorkspace(file, options = {}) {
           name: item.name,
           status: "expired",
           direction: "sent",
+          sentAt: item.sentAt,
         });
         event(
           account,
           role,
-          `Your introduction to ${item.name} expired after 14 days without a reply.`,
+          `Your request to ${item.name} expired after 14 days without a reply.`,
           undefined,
           { matchId: id },
         );
@@ -917,6 +970,7 @@ export function createWorkspace(file, options = {}) {
             name: displayName(account, role),
             status: "expired",
             direction: "received",
+            sentAt: item.sentAt,
           });
         }
         changed = true;
@@ -1057,15 +1111,10 @@ export function createWorkspace(file, options = {}) {
       ? [account, other]
       : [other, account];
     if (pairConflict(mentorAccount, founderAccount)?.level === "block")
-      fail(
-        "A conflict of interest prevents this introduction.",
-        409,
-        undefined,
-        {
-          reason: "conflict",
-          alternatives: mentorIsThem ? similarMentors(account, person.id) : [],
-        },
-      );
+      fail("A conflict of interest prevents this request.", 409, undefined, {
+        reason: "conflict",
+        alternatives: mentorIsThem ? similarMentors(account, person.id) : [],
+      });
     if (mentorAccount.mentorSuspension)
       fail("This mentor is suspended.", 409, undefined, {
         reason: "suspended",
@@ -1127,21 +1176,14 @@ export function createWorkspace(file, options = {}) {
         : null;
     const fitUsage =
       usage || (viewerMentor ? publicMentorUsage(viewerMentor).usage : null);
-    const marketing = [
-      [mine.offer, profile.need],
-      [profile.offer, mine.need],
-    ].some(
-      ([offer, need]) =>
-        /marketing|audience|promotion|growth/i.test(offer) &&
-        /marketing|audience|promotion|growth/i.test(need),
-    );
-    // A beta-testing exchange fits when either startup wants its product
-    // tested, since any founder can test the other's product. Any other
-    // startup trade (advice, feedback, introductions) defaults to a Skill Swap.
-    const testing = [
-      `${mine.need || ""} ${mine.needTags || ""}`,
-      String(profile.need || ""),
-    ].some((need) => /beta|tester|testing/i.test(need));
+    // The suggested collaboration type for a pair of startups: the one
+    // whose tags or words link what one offers with what the other needs.
+    const suggested = suggestedType({
+      myOffer: `${mine.offer || ""} ${mine.offerTags || ""}`,
+      myNeed: `${mine.need || ""} ${mine.needTags || ""}`,
+      theirOffer: `${profile.offer || ""} ${profile.offerTags || ""}`,
+      theirNeed: `${profile.need || ""} ${profile.needTags || ""}`,
+    });
     // Fictional sample partners are shared by every preview account, so their
     // rooms also hold other testers' sessions and ratings. Only their seeded
     // sample history counts, so one tester's review never shapes the next
@@ -1220,16 +1262,13 @@ export function createWorkspace(file, options = {}) {
       engagement:
         role === "mentor" || viewer.role === "mentor"
           ? "Mentorship"
-          : marketing
-            ? "Co-Marketing Swap"
-            : testing
-              ? "Beta Testing Exchange"
-              : "Skill Swap",
-      // Every startup pair can run any exchange; mentors offer mentorship.
+          : typeLabel(suggested),
+      // Every startup pair can run any startup type; mentors offer
+      // mentorship.
       engagementTypes:
         role === "mentor" || viewer.role === "mentor"
           ? ["Mentorship"]
-          : ["Beta Testing Exchange", "Co-Marketing Swap", "Skill Swap"],
+          : startupTypes.map((type) => type.label),
       emailVerified: Boolean(account.emailVerifiedAt),
       affiliation:
         account.affiliation?.status === "verified"
@@ -1304,6 +1343,7 @@ export function createWorkspace(file, options = {}) {
     state.role = roles.includes(role) ? role : state.role;
     state.authenticated = true;
     state.accountId = account.id;
+    state.accountCreatedAt = account.createdAt || "";
     state.calendarToken = account.calendarToken || null;
     state.mentorApplication = onboarding.get(account, state.role);
     state.mentorshipSurvey =
@@ -1324,6 +1364,7 @@ export function createWorkspace(file, options = {}) {
       requireVerification: Boolean(options.requireVerification),
       simulateVerification: Boolean(options.simulateVerification),
       emailAuth,
+      googleClientId: options.googleClientId || "",
     };
     state.firstRunChoice = Boolean(
       account.firstRunChoice && state.role === "founder",
@@ -1411,13 +1452,7 @@ export function createWorkspace(file, options = {}) {
           ),
         );
         const proposed = state.introductionTypesByRole[state.role]?.[item.id];
-        if (proposed)
-          item.engagement = {
-            beta: "Beta Testing Exchange",
-            marketing: "Co-Marketing Swap",
-            swap: "Skill Swap",
-            mentorship: "Mentorship",
-          }[proposed];
+        if (proposed) item.engagement = typeLabel(proposed);
         state.directory[otherRole === "mentor" ? "mentors" : "founders"].push(
           item,
         );
@@ -1596,6 +1631,8 @@ export function createWorkspace(file, options = {}) {
           scryptSync(values.password, salt, 64).toString("hex"),
         state: createInitialState(),
         notificationPreferences: { ...defaultPreferences },
+        // When the account was made: a new account gets the guided tour.
+        createdAt: new Date(now()).toISOString(),
       };
       transition(account.state, { form: "signup-form", values });
       Object.assign(
@@ -1827,6 +1864,7 @@ export function createWorkspace(file, options = {}) {
     "save",
     "interest",
     "cancel-interest",
+    "edit-interest",
     "accept-interest",
     "simulate-acceptance",
     "decline-interest",
@@ -2331,7 +2369,7 @@ export function createWorkspace(file, options = {}) {
     }
     if (encode(room) === before) return;
     room.progress = roomProgress(room);
-    room.updatedAt = new Date().toISOString();
+    room.updatedAt = new Date(now()).toISOString();
     mirror(
       account,
       state,
@@ -2364,12 +2402,7 @@ export function createWorkspace(file, options = {}) {
         state.introductionTypesByRole[state.role]?.[person.id] ||
         createModel(state).roomTypeForPerson(person),
     });
-    room.engagementType = {
-      beta: "Beta Testing Exchange",
-      marketing: "Co-Marketing Swap",
-      swap: "Skill Swap",
-      mentorship: "Mentorship",
-    }[room.type];
+    room.engagementType = typeLabel(room.type);
     if (room.type === "mentorship") {
       const previous = state.introductionMetaByRole[state.role]?.[person.id];
       initMentorship(
@@ -2466,7 +2499,7 @@ export function createWorkspace(file, options = {}) {
         { state },
         state.role,
         acceptedByPartner
-          ? `${person.name} accepted your introduction. Your room is ready.`
+          ? `${person.name} accepted your request. Your room is ready.`
           : `You connected with ${person.name}.`,
         id,
       );
@@ -2475,8 +2508,8 @@ export function createWorkspace(file, options = {}) {
         other,
         person.role,
         acceptedByPartner
-          ? `You accepted ${displayName(account, state.role)}'s introduction. Your room is ready.`
-          : `${displayName(account, state.role)} accepted your introduction. Your room is ready.`,
+          ? `You accepted ${displayName(account, state.role)}'s request. Your room is ready.`
+          : `${displayName(account, state.role)} accepted your request. Your room is ready.`,
         id,
         { tab: "terms" },
       );
@@ -2607,7 +2640,7 @@ export function createWorkspace(file, options = {}) {
         ["interest", "accept-interest"].includes(input.action)
       )
         fail(
-          "Verify your affiliation before sending or accepting introductions. Open Verification on your profile.",
+          "Verify your affiliation before sending or accepting requests. Open Verification on your profile.",
           403,
         );
       if (account.profileVisible === false)
@@ -2831,7 +2864,7 @@ export function createWorkspace(file, options = {}) {
       );
       if (existing) {
         if (["cancelled", "reviewed", "launched"].includes(existing.status))
-          fail("This introduction has already been resolved.", 409);
+          fail("This request has already been resolved.", 409);
         state.page = "room-detail";
         state.activeRoomId = existing.id;
         state.roomTab = "terms";
@@ -2841,7 +2874,7 @@ export function createWorkspace(file, options = {}) {
           profileCompleteness(state.profiles[state.role], state.role) !== 100
         )
           fail(
-            "This outgoing introduction is no longer eligible for simulated acceptance.",
+            "This outgoing request is no longer eligible for simulated acceptance.",
             409,
           );
         if (state.introductionMetaByRole[state.role]?.[target.id]?.kind)
@@ -2854,11 +2887,17 @@ export function createWorkspace(file, options = {}) {
         "accept-interest",
         "decline-interest",
         "cancel-interest",
+        "edit-interest",
         "save",
       ].includes(input.action)
     ) {
       const structured =
         state.introductionMetaByRole[state.role]?.[input.id]?.kind;
+      if (structured && input.action === "edit-interest")
+        fail(
+          "A mentorship request can't be edited. Withdraw it and send a new one.",
+          409,
+        );
       if (structured && input.action !== "save") {
         const mappedAction = {
           "accept-interest": "accept-request",
@@ -2908,7 +2947,7 @@ export function createWorkspace(file, options = {}) {
         missingProfile.length
       )
         fail(
-          `Add ${missingProfileText(missingProfile)} to your profile before sending or accepting an introduction.`,
+          `Add ${missingProfileText(missingProfile)} to your profile before sending or accepting a request.`,
         );
       const other = db.accounts[person.accountId];
       const proposedType =
@@ -2916,18 +2955,18 @@ export function createWorkspace(file, options = {}) {
       const permittedTypes =
         state.role === "mentor" || person.role === "mentor"
           ? ["mentorship"]
-          : ["beta", "marketing", "swap"];
+          : startupTypeIds;
       if (
         ["interest", "accept-interest"].includes(input.action) &&
         !permittedTypes.includes(proposedType)
       )
-        fail("Choose an engagement type available for these profiles.");
+        fail("Choose a collaboration type available for these profiles.");
       const ownId = identity(account, state.role);
       if (
         input.action === "accept-interest" &&
         !state.incomingByRole[state.role].has(person.id)
       )
-        fail("This introduction is no longer pending.");
+        fail("This request is no longer pending.");
       if (
         ["interest", "accept-interest"].includes(input.action) &&
         permittedTypes.includes("mentorship")
@@ -2941,24 +2980,29 @@ export function createWorkspace(file, options = {}) {
           )
             state.introductionTypesByRole[state.role][person.id] =
               input.engagementType;
+          // When the introduction was sent, for the Activity record.
+          const sentAt =
+            state.introductionMetaByRole?.[state.role]?.[person.id]?.sentAt;
           keepHistory(state, state.role, {
             id: person.id,
             name: person.name,
             status: "accepted",
             direction: "received",
+            sentAt,
           });
           keepHistory(other.state, person.role, {
             id: ownId,
             name: displayName(account, state.role),
             status: "accepted",
             direction: "sent",
+            sentAt,
           });
           delete state.introductionMetaByRole?.[state.role]?.[person.id];
           delete other.state.introductionMetaByRole?.[person.role]?.[ownId];
           connect(account, state, person);
         } else if (!createModel(state).existingRoomFor(state.role, person.id)) {
           if (state.interestByRole[state.role].has(person.id))
-            fail("This introduction is already pending.", 409);
+            fail("This request is already pending.", 409);
           state.introductionTypesByRole ||= { founder: {}, mentor: {} };
           other.state.introductionTypesByRole ||= { founder: {}, mentor: {} };
           state.introductionTypesByRole[state.role][person.id] = proposedType;
@@ -2986,11 +3030,11 @@ export function createWorkspace(file, options = {}) {
           other.state.incomingByRole[person.role].add(ownId);
           state.page = "waiting";
           state.activeWaitingMatch = person.id;
-          state.toast = `Introduction sent to ${person.name}.`;
+          state.toast = `Request sent to ${person.name}.`;
           event(
             { state },
             state.role,
-            `You sent an introduction to ${person.name}.`,
+            `You sent a request to ${person.name}.`,
             undefined,
             { matchId: person.id },
           );
@@ -3002,7 +3046,51 @@ export function createWorkspace(file, options = {}) {
             { matchId: ownId, kind: "confirmation" },
           );
         } else fail("You already have a room with this collaborator.");
+      } else if (input.action === "edit-interest") {
+        // Change a pending request's type or note. The earlier wording stays
+        // in the request's version history, on both sides.
+        const meta = state.introductionMetaByRole?.[state.role]?.[person.id];
+        if (!state.waitingByRole[state.role].has(person.id) || !meta)
+          fail("This request is no longer pending.", 409);
+        const previousType =
+          state.introductionTypesByRole?.[state.role]?.[person.id] ||
+          createModel(state).roomTypeForPerson(person);
+        const type = input.engagementType || previousType;
+        if (!permittedTypes.includes(type))
+          fail("Choose a collaboration type available for these profiles.");
+        const note = String(payload.values?.note || "")
+          .trim()
+          .slice(0, 280);
+        if (type === previousType && note === (meta.note || ""))
+          fail("Change the collaboration type or the note before saving.");
+        const version = {
+          engagementType: previousType,
+          note: meta.note || "",
+          savedAt: meta.editedAt || meta.sentAt,
+        };
+        const update = (target) => {
+          target.versions = [...(target.versions || []), version].slice(-10);
+          target.note = note;
+          target.editedAt = payload.timestamp;
+        };
+        update(meta);
+        state.introductionTypesByRole[state.role][person.id] = type;
+        const otherMeta =
+          other.state.introductionMetaByRole?.[person.role]?.[ownId];
+        if (otherMeta) update(otherMeta);
+        if (other.state.introductionTypesByRole?.[person.role])
+          other.state.introductionTypesByRole[person.role][ownId] = type;
+        event(
+          other,
+          person.role,
+          `${displayName(account, state.role)} updated their request.`,
+          undefined,
+          { matchId: ownId },
+        );
+        state.toast = "Request updated.";
       } else if (input.action === "cancel-interest") {
+        const sentAt =
+          state.introductionMetaByRole?.[state.role]?.[person.id]?.sentAt;
         state.waitingByRole[state.role].delete(person.id);
         state.interestByRole[state.role].delete(person.id);
         other.state.incomingByRole[person.role].delete(ownId);
@@ -3016,22 +3104,26 @@ export function createWorkspace(file, options = {}) {
           name: person.name,
           status: "withdrawn",
           direction: "sent",
+          sentAt,
         });
         keepHistory(other.state, person.role, {
           id: ownId,
           name: displayName(account, state.role),
           status: "withdrawn",
           direction: "received",
+          sentAt,
         });
         event(
           other,
           person.role,
-          `${displayName(account, state.role)} withdrew their introduction.`,
+          `${displayName(account, state.role)} withdrew their request.`,
           undefined,
           { matchId: ownId },
         );
-        state.toast = "Introduction withdrawn.";
+        state.toast = "Request withdrawn.";
       } else if (input.action === "decline-interest") {
+        const sentAt =
+          state.introductionMetaByRole?.[state.role]?.[person.id]?.sentAt;
         state.incomingByRole[state.role].delete(person.id);
         other.state.waitingByRole[person.role].delete(ownId);
         other.state.interestByRole[person.role].delete(ownId);
@@ -3048,19 +3140,21 @@ export function createWorkspace(file, options = {}) {
           name: person.name,
           status: "declined",
           direction: "received",
+          sentAt,
         });
         keepHistory(other.state, person.role, {
           id: ownId,
           name: displayName(account, state.role),
           status: "declined",
           direction: "sent",
+          sentAt,
           reason,
         });
-        state.toast = "Introduction declined.";
+        state.toast = "Request declined.";
         event(
           other,
           person.role,
-          `${displayName(account, state.role)} declined your introduction.${reason ? ` Reason: ${reason}` : ""}`,
+          `${displayName(account, state.role)} declined your request.${reason ? ` Reason: ${reason}` : ""}`,
           undefined,
           { matchId: ownId },
         );
@@ -3309,7 +3403,7 @@ export function createWorkspace(file, options = {}) {
       }
     }
     if (room && !state.formErrors && encode(room) !== previousRoom) {
-      room.updatedAt = new Date().toISOString();
+      room.updatedAt = new Date(now()).toISOString();
       mirror(account, state, room, partnerText, {
         tab:
           input.form === "chat-form"

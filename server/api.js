@@ -148,6 +148,7 @@ export function createApi({
           demoMode: Boolean(config.demoMode),
           // Verification, password reset and sign-in alerts by email.
           emailAuth: config.emailProvider === "brevo" && !config.demoMode,
+          googleClientId: config.googleClientId || "",
         });
       if (req.method === "GET" && url.pathname === "/api/account")
         return send(200, workspace.accounts.settings(token));

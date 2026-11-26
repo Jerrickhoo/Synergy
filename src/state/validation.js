@@ -1,6 +1,6 @@
 import { profileKeys, scheduleInstant } from "../data/selectors.js";
 import { weeklySchedules } from "../data/planning.js";
-import { normalizeProfile } from "../data/profile-content.js";
+import { normalizeProfile, profileEntries } from "../data/profile-content.js";
 
 export const stages = ["idea", "pre-seed", "seed", "growth"];
 export const cleanValues = (values) =>
@@ -65,6 +65,15 @@ export function validateProfile(profile, role) {
     !["one-off", "ongoing", "either"].includes(profile.engagementPreference)
   )
     errors.engagementPreference = "Choose a valid engagement preference.";
+  // Something you need can't also be something you offer.
+  const offered = new Set(
+    profileEntries(profile.offerTags).map((tag) => tag.toLowerCase()),
+  );
+  const both = profileEntries(profile.needTags).filter((tag) =>
+    offered.has(tag.toLowerCase()),
+  );
+  if (both.length && !errors.offer)
+    errors.offer = `${both.join(", ")} can't be both something you need and something you offer. Remove it from one of them.`;
   if (role === "founder") {
     if (!stages.includes(profile.stage)) errors.stage = "Choose a valid stage.";
     if (
@@ -76,14 +85,28 @@ export function validateProfile(profile, role) {
   }
   return errors;
 }
-export const validateTerms = (values) =>
-  requiredFields(values, [
+export function validateTerms(values) {
+  const errors = requiredFields(values, [
     "goal",
     "scope",
     "timeline",
     "commitment",
     "compensation",
   ]);
+  // A timeline picked as dates ("2026-12-01 to 2026-12-14") needs both
+  // ends, in order. Older terms written as text are left as they are.
+  const [start = "", end = ""] = String(values.timeline || "")
+    .split(" to ")
+    .map((part) => part.trim());
+  const day = /^\d{4}-\d{2}-\d{2}$/;
+  if (!errors.timeline && (day.test(start) || day.test(end))) {
+    if (!day.test(start) || !day.test(end))
+      errors.timeline = "Choose both a start and an end date.";
+    else if (end < start)
+      errors.timeline = "The timeline must end on or after its start date.";
+  }
+  return errors;
+}
 export function validateCredentials(values, signup = false) {
   const errors = signup
     ? requiredFields(values, ["firstName", "lastName"])

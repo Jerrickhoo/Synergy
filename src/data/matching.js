@@ -1,16 +1,20 @@
 // Mentor matching adds Availability Fit and Format Fit (roadmap Phase 1), so
 // mentor weights have 7 entries and founder weights keep 5.
+// Index 4 was Goal fit (free-text goals, which rarely overlapped). It is now
+// Working style for founder pairs (one-off or ongoing); mentor pairs use
+// Availability and Format instead, so it stays zero for them.
 export const defaultMatching = {
-  version: 2,
-  founder: [0.5, 0, 0.2, 0.15, 0.15],
-  mentor: [0.315, 0.225, 0.135, 0.09, 0.135, 0.05, 0.05],
+  version: 3,
+  founder: [0.55, 0, 0.2, 0.15, 0.1],
+  mentor: [0.36, 0.26, 0.16, 0.1, 0, 0.06, 0.06],
 };
+export const retiredFactors = (mentor) => (mentor ? [4] : []);
 export const factorNames = [
   "Need fit",
   "Expertise fit",
   "Industry fit",
   "Stage/size fit",
-  "Goal fit",
+  "Working style fit",
   "Availability fit",
   "Format fit",
 ];

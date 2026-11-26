@@ -7,6 +7,8 @@ import Icon from "../components/Icon.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import Introductions from "../components/Introductions.jsx";
 import { milestoneDate, roomNextAction } from "../data/selectors.js";
+import { personVerified } from "../data/collaboration.js";
+import { typeLabel } from "../data/collaboration-types.js";
 export default function RoomsPage() {
   const { state, model, onAction } = useApp();
   const { allPeople, roomStatusLabel } = model;
@@ -27,14 +29,10 @@ export default function RoomsPage() {
   const rooms = Object.values(state.rooms).filter(
     (room) => room.role === state.role,
   );
+  // Active: still being worked on, including a finished one waiting for
+  // reviews. Closed: reviewed or closed early.
   const group = (room) =>
-    room.status === "launched"
-      ? "awaiting"
-      : room.status === "reviewed"
-        ? "archived"
-        : room.status === "cancelled"
-          ? "closed"
-          : "active";
+    ["reviewed", "cancelled"].includes(room.status) ? "closed" : "active";
   const visibleRooms = rooms
     .filter((room) => filter === "all" || group(room) === filter)
     .sort((a, b) => (group(a) !== "active") - (group(b) !== "active"));
@@ -47,7 +45,7 @@ export default function RoomsPage() {
           <p>
             {state.role === "mentor"
               ? "A mentorship opens when you accept a founder's request. You'll agree the goal, hold sessions and track follow-up here."
-              : "A Deal Room opens when someone accepts your introduction, or you accept theirs."}
+              : "A Deal Room opens when someone accepts your request, or you accept theirs."}
           </p>
           <button
             className="btn primary"
@@ -67,17 +65,15 @@ export default function RoomsPage() {
         <p className="muted" role="status">
           {visibleRooms.length} {visibleRooms.length === 1 ? "room" : "rooms"}
         </p>
-        <div className="field">
-          <label htmlFor="room-filter">Show rooms</label>
+        <div className="field rooms-filter">
           <SelectField
             id="room-filter"
+            aria-label={`Show ${noun}`}
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
           >
             <option value="all">All {noun}</option>
             <option value="active">Active</option>
-            <option value="awaiting">Awaiting reviews</option>
-            <option value="archived">Archived</option>
             <option value="closed">Closed</option>
           </SelectField>
         </div>
@@ -85,16 +81,7 @@ export default function RoomsPage() {
       {!visibleRooms.length && (
         <section className="card clean-empty-state">
           <h2>
-            No{" "}
-            {
-              {
-                active: "active",
-                awaiting: `${noun} awaiting reviews`,
-                archived: "archived",
-                closed: "closed",
-              }[filter]
-            }{" "}
-            {filter === "awaiting" ? "" : noun}
+            No {filter === "closed" ? "closed" : "active"} {noun}
           </h2>
           <p>Choose another view to see your other collaborations.</p>
           <button className="btn" onClick={() => setFilter("all")}>
@@ -120,16 +107,28 @@ export default function RoomsPage() {
                     image={partner?.image}
                     name={partner?.name}
                     identity={partner?.accountId || room.partnerId}
+                    verified={personVerified(partner)}
                     color={partner?.color || ""}
                   />
                   <div>
+                    {room.createdAt && (
+                      <p className="room-opened">
+                        Opened{" "}
+                        <time dateTime={room.createdAt}>
+                          {new Date(room.createdAt).toLocaleDateString(
+                            undefined,
+                            { day: "numeric", month: "short", year: "numeric" },
+                          )}
+                        </time>
+                      </p>
+                    )}
                     {room.type === "mentorship" ? (
                       <h2>
                         Mentorship with {partner?.name || "your collaborator"}
                       </h2>
                     ) : (
                       <>
-                        <h2>{room.engagementType}</h2>
+                        <h2>{typeLabel(room.engagementType)}</h2>
                         <p className="panel-subtitle">
                           {"With "}
                           {partner?.name || room.partnerId}

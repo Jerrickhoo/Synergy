@@ -69,7 +69,7 @@ test("a real founder can simulate a showcase startup accepting an introduction",
   }).state;
   const room = state.rooms[state.activeRoomId];
   assert.equal(room.partnerAccountId, "showcase-brightlane");
-  assert.equal(room.engagementType, "Beta Testing Exchange");
+  assert.equal(room.engagementType, "Evaluation and Feedback");
   // The showcase side holds the same room, as if Brightlane had accepted.
   const partner = w.login({
     email: "brightlane@showcase.test",

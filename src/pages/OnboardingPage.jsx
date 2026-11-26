@@ -267,7 +267,7 @@ function ApplicationFields({ application, profile, config, vocabulary }) {
             defaultValue={profile.bio}
             required
             placeholder="In two or three sentences: who you help and what founders leave a session with."
-            help="Founders read this first on your profile, and you need it to send introductions."
+            help="Founders read this first on your profile, and you need it to send requests."
           />
         </>
       );

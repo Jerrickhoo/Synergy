@@ -1,15 +1,173 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDraft } from "../state/useDraft.js";
 import FormErrors from "./FormErrors.jsx";
 import SelectField from "./SelectField.jsx";
+import Icon from "./Icon.jsx";
+import WorkspaceCalendar from "./WorkspaceCalendar.jsx";
 import { useApp } from "../state/AppContext.jsx";
+import { dateFromKey, localDateKey } from "../data/planning.js";
+import {
+  commitmentChoices,
+  dayLabel,
+  timelineDates,
+  timelineText,
+} from "../data/terms.js";
 import defaultTemplates from "../data/engagement-templates.json" with { type: "json" };
+
+// A term as people read it: dates as a range, a choice by its label.
+const shownValue = (item, raw) =>
+  item.kind === "daterange"
+    ? timelineText(raw)
+    : item.kind === "select"
+      ? item.options.find(([option]) => option === raw)?.[1] || raw
+      : raw;
+
+// Like a booking site: one calendar opens from the Starts → Ends field. The
+// first day chosen starts the range and the next one ends it; an earlier
+// day, or any day once both are set, starts a new range.
+function TimelineField({ value, onChange, helpId }) {
+  const { start, end, written } = timelineDates(value);
+  const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState("");
+  const [month, setMonth] = useState(() =>
+    start ? dateFromKey(start) : new Date(),
+  );
+  const wrapper = useRef(null);
+  const trigger = useRef(null);
+  const today = localDateKey(new Date());
+  const pickingEnd = Boolean(start && !end);
+  const close = () => {
+    setOpen(false);
+    setHover("");
+    trigger.current?.focus();
+  };
+  const choose = (key) => {
+    if (pickingEnd && key >= start) {
+      onChange(`${start} to ${key}`);
+      close();
+    } else onChange(`${key} to `);
+  };
+  // A click anywhere else closes the calendar, as a menu would.
+  useEffect(() => {
+    if (!open) return undefined;
+    const away = (event) => {
+      if (!wrapper.current?.contains(event.target)) {
+        setOpen(false);
+        setHover("");
+      }
+    };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [open]);
+  return (
+    <div
+      className="field wide timeline-field"
+      ref={wrapper}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && open) {
+          event.preventDefault();
+          event.stopPropagation();
+          close();
+        }
+      }}
+    >
+      <label id="term-timeline-label" htmlFor="term-timeline">
+        Timeline
+      </label>
+      <button
+        ref={trigger}
+        type="button"
+        id="term-timeline"
+        className="date-range-trigger"
+        aria-labelledby="term-timeline-label term-timeline"
+        aria-describedby={written ? helpId : undefined}
+        aria-expanded={open}
+        aria-controls="term-timeline-picker"
+        onClick={() => {
+          if (!open && start) setMonth(dateFromKey(start));
+          setOpen(!open);
+        }}
+      >
+        <span className="date-range-part">
+          <span className="date-range-caption">Starts</span>
+          <span className={`date-range-value${start ? "" : " is-empty"}`}>
+            {start ? dayLabel(start) : "Add a date"}
+          </span>
+        </span>
+        <span className="date-range-arrow" aria-hidden="true">
+          →
+        </span>
+        <span className="date-range-part">
+          <span className="date-range-caption">Ends</span>
+          <span className={`date-range-value${end ? "" : " is-empty"}`}>
+            {end ? dayLabel(end) : "Add a date"}
+          </span>
+        </span>
+        <Icon name="calendar" />
+      </button>
+      {open && (
+        <div
+          className="date-range-popover"
+          id="term-timeline-picker"
+          role="group"
+          aria-label="Timeline dates"
+          onMouseLeave={() => setHover("")}
+        >
+          <p className="date-range-step" aria-live="polite">
+            {pickingEnd
+              ? `Starts ${dayLabel(start)}. Now choose the end date.`
+              : "Choose the start date."}
+          </p>
+          <WorkspaceCalendar
+            variant="picker"
+            month={month}
+            onMonthChange={setMonth}
+            selected={end || start}
+            onSelect={choose}
+            onDayHover={setHover}
+            minDate={start && start < today ? start : today}
+            range={{
+              start,
+              end: end || (pickingEnd && hover >= start ? hover : ""),
+            }}
+          />
+          <div className="date-range-actions">
+            {(start || end) && (
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => onChange("")}
+              >
+                Clear dates
+              </button>
+            )}
+            <button type="button" className="btn small" onClick={close}>
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+      {/* A failed submit marks the Starts → Ends field. */}
+      <input
+        type="hidden"
+        name="timeline"
+        value={value}
+        data-select-trigger="term-timeline"
+      />
+      {written && (
+        <p className="field-help" id={helpId}>
+          Written before as “{written}”. Choose the dates to replace it.
+        </p>
+      )}
+    </div>
+  );
+}
 
 const baseFields = (mentorship) => [
   ["goal", "Shared goal", "input"],
   ["scope", "Scope and deliverables", "textarea"],
-  ["timeline", "Timeline", "input"],
-  ["commitment", "Commitment", "input"],
+  ["timeline", "Timeline", "daterange"],
+  ["commitment", "Commitment", "commitment"],
   [
     "compensation",
     mentorship ? "Mentoring arrangement" : "Exchange",
@@ -148,6 +306,99 @@ export default function TermsPanel({ room, agreement, partner }) {
   const value = (id) =>
     (readOnly ? agreement.draft[id] : draft.values[id]) || "";
   const update = (id, next) => draft.update({ ...draft.values, [id]: next });
+  // One term's control: dates for the timeline, a choice for the
+  // commitment, and the template's own fields.
+  const renderField = (item) => {
+    if (item.kind === "daterange")
+      return (
+        <TimelineField
+          key={item.id}
+          value={value(item.id)}
+          helpId={`term-${item.id}-help`}
+          onChange={(next) => update(item.id, next)}
+        />
+      );
+    if (item.kind === "commitment") {
+      const current = value(item.id);
+      const choices =
+        commitmentChoices.includes(current) || !current
+          ? commitmentChoices
+          : [...commitmentChoices, current];
+      return (
+        <div className="field" key={item.id}>
+          <label htmlFor={`term-${item.id}`}>{item.label}</label>
+          <SelectField
+            id={`term-${item.id}`}
+            name={item.id}
+            required
+            value={current}
+            onChange={(event) => update(item.id, event.target.value)}
+          >
+            <option value="" disabled>
+              Choose how much time
+            </option>
+            {choices.map((choice) => (
+              <option key={choice} value={choice}>
+                {choice}
+              </option>
+            ))}
+          </SelectField>
+        </div>
+      );
+    }
+
+    const helpId = item.help ? `term-${item.id}-help` : undefined;
+    const common = {
+      id: `term-${item.id}`,
+      name: item.id,
+      required: item.required,
+      "aria-describedby": helpId,
+    };
+    return (
+      <div
+        className={`field${item.kind === "textarea" ? " wide" : ""}`}
+        key={item.id}
+      >
+        <label htmlFor={`term-${item.id}`}>{item.label}</label>
+        {item.kind === "select" ? (
+          <SelectField
+            {...common}
+            value={value(item.id)}
+            onChange={(event) => update(item.id, event.target.value)}
+          >
+            <option value="">Not decided yet</option>
+            {item.options.map(([optionValue, optionLabel]) => (
+              <option key={optionValue} value={optionValue}>
+                {optionLabel}
+              </option>
+            ))}
+          </SelectField>
+        ) : item.kind === "textarea" ? (
+          <textarea
+            {...common}
+            placeholder={item.placeholder}
+            value={value(item.id)}
+            onChange={(event) => update(item.id, event.target.value)}
+          />
+        ) : (
+          <input
+            {...common}
+            type={item.inputType || "text"}
+            min={item.inputType === "number" ? 1 : undefined}
+            placeholder={item.placeholder}
+            value={value(item.id)}
+            onChange={(event) => update(item.id, event.target.value)}
+          />
+        )}
+        {item.help && (
+          <p className="field-help" id={helpId}>
+            {item.help}
+          </p>
+        )}
+      </div>
+    );
+  };
+
   const agreed = agreement.locked && agreement.partnerLocked;
   return (
     <div className={`terms-layout${agreed ? " agreed" : ""}`}>
@@ -187,7 +438,8 @@ export default function TermsPanel({ room, agreement, partner }) {
                 {fields.map((item) =>
                   agreement.draft[item.id] ? (
                     <p key={item.id}>
-                      <strong>{item.label}:</strong> {agreement.draft[item.id]}
+                      <strong>{item.label}:</strong>{" "}
+                      {shownValue(item, agreement.draft[item.id])}
                     </p>
                   ) : null,
                 )}
@@ -210,12 +462,7 @@ export default function TermsPanel({ room, agreement, partner }) {
               {fields
                 .filter((item) => item.required || value(item.id))
                 .map((item) => {
-                  const shown =
-                    item.kind === "select"
-                      ? item.options.find(
-                          ([option]) => option === value(item.id),
-                        )?.[1] || value(item.id)
-                      : value(item.id);
+                  const shown = shownValue(item, value(item.id));
                   return (
                     <div
                       className={`field${item.kind === "textarea" ? " wide" : ""}`}
@@ -234,71 +481,23 @@ export default function TermsPanel({ room, agreement, partner }) {
                 })}
             </dl>
           ) : (
-            <div className="terms-fields">
-              {fields.map((item) => {
-                const helpId = item.help ? `term-${item.id}-help` : undefined;
-                const common = {
-                  id: `term-${item.id}`,
-                  name: item.id,
-                  required: item.required,
-                  "aria-describedby": helpId,
-                };
-                return (
-                  <div
-                    className={`field${item.kind === "textarea" ? " wide" : ""}`}
-                    key={item.id}
-                  >
-                    <label htmlFor={`term-${item.id}`}>
-                      {item.label}
-                      {!item.required && (
-                        <span className="field-optional"> Optional</span>
-                      )}
-                    </label>
-                    {item.kind === "select" ? (
-                      <SelectField
-                        {...common}
-                        value={value(item.id)}
-                        onChange={(event) =>
-                          update(item.id, event.target.value)
-                        }
-                      >
-                        <option value="">Not decided yet</option>
-                        {item.options.map(([optionValue, optionLabel]) => (
-                          <option key={optionValue} value={optionValue}>
-                            {optionLabel}
-                          </option>
-                        ))}
-                      </SelectField>
-                    ) : item.kind === "textarea" ? (
-                      <textarea
-                        {...common}
-                        placeholder={item.placeholder}
-                        value={value(item.id)}
-                        onChange={(event) =>
-                          update(item.id, event.target.value)
-                        }
-                      />
-                    ) : (
-                      <input
-                        {...common}
-                        type={item.inputType || "text"}
-                        min={item.inputType === "number" ? 1 : undefined}
-                        placeholder={item.placeholder}
-                        value={value(item.id)}
-                        onChange={(event) =>
-                          update(item.id, event.target.value)
-                        }
-                      />
-                    )}
-                    {item.help && (
-                      <p className="field-help" id={helpId}>
-                        {item.help}
-                      </p>
-                    )}
+            <>
+              <div className="terms-fields">
+                {fields.filter((item) => item.required).map(renderField)}
+              </div>
+              {/* Optional, type-specific terms fold away until wanted. */}
+              {fields.some((item) => !item.required) && (
+                <details
+                  className="terms-more"
+                  open={fields.some((item) => !item.required && value(item.id))}
+                >
+                  <summary>More details (optional)</summary>
+                  <div className="terms-fields">
+                    {fields.filter((item) => !item.required).map(renderField)}
                   </div>
-                );
-              })}
-            </div>
+                </details>
+              )}
+            </>
           )}
           <div className="terms-actions">
             {room.status === "cancelled" ? (

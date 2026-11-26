@@ -55,6 +55,45 @@ export function requestQuality({
   return { score, reasons };
 }
 
+// The short note sent with a request to a startup (or from a mentor to a
+// startup), rated like a mentorship request: notes that say what each side
+// gives and gets, with one concrete detail, get replies. Out of 100.
+export function noteQuality(note = "", { offers = [], theirOffers = [] } = {}) {
+  const text = String(note).trim();
+  const lower = text.toLowerCase();
+  const mentions = (list) =>
+    list.some((item) => item && lower.includes(String(item).toLowerCase()));
+  const reasons = [];
+  let score = 0;
+  if (text.length >= 60) score += 30;
+  else
+    reasons.push(
+      text
+        ? "Write two or three sentences"
+        : "Add a note: requests with one get more replies",
+    );
+  if (
+    mentions(offers) ||
+    /\b(we can|i can|we could|i could|offer|share|give|help you)\b/.test(lower)
+  )
+    score += 25;
+  else reasons.push("Say what you can offer them");
+  if (
+    mentions(theirOffers) ||
+    /\b(hope|looking for|we need|i need|learn|would love|want to)\b/.test(lower)
+  )
+    score += 25;
+  else reasons.push("Say what you hope to get from them");
+  if (
+    /\d|\b(this week|next week|this month|next month|weeks?|days?|months?)\b/.test(
+      lower,
+    )
+  )
+    score += 20;
+  else reasons.push("Add one concrete detail, like a timeline or a number");
+  return { score, reasons };
+}
+
 export function requestSuggestions(draft, availableFormats) {
   const { question, problem, tried, links } = draft;
   const vague =
@@ -86,3 +125,12 @@ export function requestSuggestions(draft, availableFormats) {
 
 // The optional message a mentor sends with a decline.
 export const declineMessageLimit = 280;
+
+// The rating in words, for the top right of the Quality of Request card.
+export function qualityLabel(score) {
+  if (score >= 90) return "Excellent";
+  if (score >= 75) return "Very good";
+  if (score >= 60) return "Good";
+  if (score >= 40) return "Fair";
+  return "Needs work";
+}

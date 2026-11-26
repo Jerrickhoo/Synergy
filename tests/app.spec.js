@@ -191,11 +191,12 @@ test("fresh workspace has one setup action and no sample records", async ({
   await expect(
     page.locator(".nav-count, .metric-card, .recommendation-row"),
   ).toHaveCount(0);
+  // Home, Matches, Requests, Rooms and Activity.
   await expect(
     page
       .getByRole("navigation", { name: "Main navigation" })
       .getByRole("button"),
-  ).toHaveCount(4);
+  ).toHaveCount(5);
   await expect(
     page
       .getByRole("navigation", { name: "Main navigation" })
@@ -293,9 +294,12 @@ test("blank profile fields, validation, saving and cancel work with user details
   await expect(
     page.getByRole("heading", { name: "Find your next collaborator" }),
   ).toBeVisible();
-  // Recent activity labels the entry Profile and names what changed.
+  // The Activity page's log labels the entry Profile and names what
+  // changed.
+  await navigate(page, "Activity");
+  await page.getByRole("tab", { name: "Activity log", exact: true }).click();
   const entry = page
-    .getByRole("region", { name: "Recent activity" })
+    .getByRole("region", { name: "Activity log", exact: true })
     .getByRole("listitem")
     .first();
   await expect(entry.locator(".activity-label")).toHaveText("Profile");

@@ -14,7 +14,11 @@ import { useApp } from "../state/AppContext.jsx";
 import Avatar from "../components/Avatar.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import Icon from "../components/Icon.jsx";
-import { terminalStatuses } from "../data/collaboration.js";
+import {
+  terminalStatuses,
+  accountVerified,
+  personVerified,
+} from "../data/collaboration.js";
 import {
   milestoneDate,
   roomNextAction,
@@ -249,6 +253,7 @@ function ExchangeRoom() {
         <div className="room-partners">
           <Avatar
             identity={state.accountId}
+            verified={accountVerified(state)}
             image={state.profiles[state.role].image}
             name={roleName()}
             color={state.role === "founder" ? "" : "blue"}
@@ -259,6 +264,7 @@ function ExchangeRoom() {
           </span>
           <Avatar
             identity={partner?.accountId || room.partnerId}
+            verified={personVerified(partner)}
             image={partner?.image}
             name={partner?.name}
             color={partner?.color || ""}
@@ -290,7 +296,7 @@ function ExchangeRoom() {
           <p>{room.closeReason}</p>
           <p className="muted">
             The agreement, evidence and conversation remain available. You can
-            start a new introduction from Matches.
+            start a new request from Matches.
           </p>
         </section>
       )}
@@ -350,17 +356,8 @@ function ExchangeRoom() {
             : "not scheduled"}
         </p>
       )}
-      {(Object.values(room.milestones).some(
-        (item) => item.dueDate || item.schedule || item.schedules?.length,
-      ) ||
-        room.meetings?.some((meeting) => !meeting.cancelledAt)) && (
-        <button
-          className="link-btn"
-          onClick={() => onAction({ page: "calendar" })}
-        >
-          View calendar
-        </button>
-      )}
+      {/* The Milestones tab has this room's calendar, so there is no link
+          out to the full calendar here. */}
       <div
         className="tabs room-tabs"
         ref={tabsRef}
