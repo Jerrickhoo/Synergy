@@ -1,5 +1,10 @@
 import defaultTemplates from "./engagement-templates.json" with { type: "json" };
-import { coveredNeeds, offersNeed, terminalStatuses } from "./collaboration.js";
+import {
+  canonicalTags,
+  coveredNeeds,
+  offersNeed,
+  terminalStatuses,
+} from "./collaboration.js";
 import { cooldownActive, mentorDefaults } from "./mentor-rules.js";
 import { defaultMatchFilters } from "./filters.js";
 import { typeIdForLabel, typeLabel } from "./collaboration-types.js";
@@ -202,21 +207,31 @@ export function createModel(state) {
         room.partnerId === partnerId &&
         !terminalStatuses.includes(room.status),
     );
+  // For a mentor: the startup's needs the mentor offers, in the startup's
+  // own wording, then any scored standard tag those items don't already name.
+  const helpedNeeds = (person) => {
+    const own = state.profiles.mentor || {};
+    const mentor = {
+      offer: [own.offer || "", own.offerTags || ""],
+      expertise: own.expertise,
+      topics: own.topics,
+    };
+    const named = (person.need || []).filter((item) =>
+      offersNeed(mentor, item),
+    );
+    const tags = new Set(canonicalTags(named.join(", ")));
+    return [
+      ...named,
+      ...(person.exchange?.theyGet || []).filter((tag) => !tags.has(tag)),
+    ];
+  };
   // A suggestion needs enough fit and real help with a stated need: for a
   // founder, a need of theirs the profile offers; for a mentor, a startup need
   // the mentor offers.
   const coversNeed = (person) => {
     const own = state.profiles[state.role] || {};
     if (state.role === "founder") return coveredNeeds(person, own).length > 0;
-    const mentor = {
-      offer: [own.offer || "", own.offerTags || ""],
-      expertise: own.expertise,
-      topics: own.topics,
-    };
-    return (
-      (person.exchange?.theyGet || []).length > 0 ||
-      (person.need || []).some((item) => offersNeed(mentor, item))
-    );
+    return helpedNeeds(person).length > 0;
   };
   const suggestedMatches = () =>
     matches()
@@ -246,6 +261,7 @@ export function createModel(state) {
     matches,
     suggestedMatches,
     coversNeed,
+    helpedNeeds,
     browsePeople,
     rolePeople,
     savedMatches,

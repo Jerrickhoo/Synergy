@@ -29,6 +29,9 @@ import { localDateKey } from "../data/planning.js";
 import HomeMetrics from "./HomeMetrics.jsx";
 import { collaboratorSlots } from "../data/home-planner.js";
 import { HomeCalendar, HomeCollaborations, HomeTasks } from "./HomePlanner.jsx";
+import HomeTopMatches from "./HomeTopMatches.jsx";
+import NextStepCard from "./NextStepCard.jsx";
+import { mentorNextStep, mentorStepRank } from "../data/mentor-home.js";
 
 // (Nov 22, round 2) The heading names the state founders actually see: live,
 // paused (with the resume date), waiting on the guidelines or an attendance
@@ -67,7 +70,7 @@ function ResumeRequests() {
   );
 }
 
-function ListingStatus({ usage, settings, busy = false }) {
+function ListingStatus({ usage, settings, profileStep = false }) {
   const { state, onAction } = useApp();
   const listing = state.mentorListing;
   const profile = state.profiles.mentor;
@@ -88,11 +91,11 @@ function ListingStatus({ usage, settings, busy = false }) {
           </li>
           <li>Accepted requests open a mentorship room under Mentees.</li>
         </ol>
-        {/* Browsing is the main action only while there is no request or
-            mentee to act on; otherwise it would compete with that work. */}
+        {/* The next-step card or Startups you can help holds the main
+            action, so browsing here stays secondary. */}
         <div className="mentor-request-controls">
           <button
-            className={busy ? "btn" : "btn primary"}
+            className="btn"
             onClick={() => onAction({ page: "discover" })}
           >
             Browse startups
@@ -157,6 +160,8 @@ function ListingStatus({ usage, settings, busy = false }) {
         </button>
       </div>
     );
+  // The next-step card already lists what is missing and opens the editor.
+  if (profileStep) return null;
   const missing = profileKeys("mentor").filter(
     (key) => !String(profile[key] || "").trim(),
   );
@@ -263,14 +268,14 @@ export default function MentorHome() {
     !state.mentorSuspension &&
     !state.integrations?.guest &&
     state.mentorListing?.listed;
-  // Mentees waiting on the mentor come first, so the next step is never
-  // below the fold after a request is accepted.
+  // Mentees waiting on the mentor come first, most urgent step first, so the
+  // next step is never below the fold after a request is accepted.
   const mentees = rooms
     .map((room) => ({
       room,
       next: roomNextAction(room, partner(room)?.name),
     }))
-    .sort((a, b) => Number(b.next.mine) - Number(a.next.mine));
+    .sort((a, b) => mentorStepRank(a.next) - mentorStepRank(b.next));
   const nameOf = (room) => partner(room)?.name || "Startup";
   const slots = collaboratorSlots(rooms);
   // Attendance, check-in times and follow-ups join the task list.
@@ -301,8 +306,10 @@ export default function MentorHome() {
     })),
   ];
   const yourTurn = mentees.filter(({ next }) => next.mine);
-  const firstTurn = yourTurn[0];
-  const lower = (text) => text.charAt(0).toLowerCase() + text.slice(1);
+  // One priority from the mentor's actual state. With nothing specific to
+  // do, Startups you can help leads instead (as founder Home's matches do).
+  const next = mentorNextStep(state, model);
+  const quiet = !requests.length && !rooms.length;
   return (
     <div className="page simple-home mentor-home page-enter">
       <PageHeader
@@ -318,8 +325,8 @@ export default function MentorHome() {
             ? `${expires} ${expires === 1 ? "expires" : "expire"} today`
             : requests.length
               ? "Reply to founders who match your expertise."
-              : firstTurn
-                ? `Next for ${partner(firstTurn.room)?.name || "your mentee"}: ${lower(firstTurn.next.text)}${yourTurn.length > 1 ? `, and ${yourTurn.length - 1} more` : ""}.`
+              : yourTurn.length
+                ? undefined
                 : "No new mentorship requests."
         }
       />
@@ -405,6 +412,8 @@ export default function MentorHome() {
           </button>
         </div>
       )}
+      {next && !next.generic && <NextStepCard next={next} />}
+      {quiet && <HomeTopMatches lead={Boolean(next?.generic)} />}
       {requests.length > 0 && (
         <section className="mentor-requests-list" aria-label="Top requests">
           {requests.slice(0, 2).map((request) => (
@@ -446,7 +455,7 @@ export default function MentorHome() {
         <ListingStatus
           usage={usage}
           settings={settings}
-          busy={requests.length > 0 || mentees.length > 0}
+          profileStep={Boolean(next?.profile)}
         />
       )}
       {capacity && (

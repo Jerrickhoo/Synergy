@@ -3332,20 +3332,20 @@ ol.stage-line {
    calendar below is in view without scrolling. */
 /* Even room on every side, so See all matches keeps clear of the card's
    corners and sits level with the heading. */
-.founder-home .home-top-matches {
+:is(.founder-home, .mentor-home) .home-top-matches {
   padding: var(--space-5);
 }
-.founder-home .top-matches-head {
+:is(.founder-home, .mentor-home) .top-matches-head {
   align-items: center;
   margin-bottom: var(--space-3);
 }
-.founder-home .top-match-list {
+:is(.founder-home, .mentor-home) .top-match-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-3);
 }
 /* Each tile is one button that opens the match. */
-.founder-home .top-match {
+:is(.founder-home, .mentor-home) .top-match {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas: "avatar copy ring";
@@ -3369,27 +3369,27 @@ ol.stage-line {
     background-color 120ms ease,
     box-shadow 120ms ease;
 }
-.founder-home .top-match:hover {
+:is(.founder-home, .mentor-home) .top-match:hover {
   border-color: var(--green);
   background: var(--surface-soft);
 }
-.founder-home .top-match:focus-visible {
+:is(.founder-home, .mentor-home) .top-match:focus-visible {
   outline: 2px solid var(--green);
   outline-offset: 2px;
 }
-.founder-home .top-match > .avatar {
+:is(.founder-home, .mentor-home) .top-match > .avatar {
   grid-area: avatar;
   width: 40px;
   height: 40px;
 }
-.founder-home .top-match-copy {
+:is(.founder-home, .mentor-home) .top-match-copy {
   grid-area: copy;
   display: grid;
   gap: 2px;
   min-width: 0;
 }
-.founder-home .top-match-copy strong,
-.founder-home .top-match-copy span {
+:is(.founder-home, .mentor-home) .top-match-copy strong,
+:is(.founder-home, .mentor-home) .top-match-copy span {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3398,17 +3398,33 @@ ol.stage-line {
 .founder-home .top-match-reason {
   display: none !important;
 }
-.founder-home .top-match-ring {
+/* A mentor's tile says which need matches their expertise, so the reason
+   shows and may wrap to a second line. */
+.mentor-home .top-match-copy .top-match-reason {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  margin-top: var(--space-1);
+  color: var(--ink);
+  white-space: normal;
+  text-wrap: pretty;
+}
+.top-matches-intro {
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+:is(.founder-home, .mentor-home) .top-match-ring {
   grid-area: ring;
   align-self: center;
   width: 46px;
   height: 46px;
 }
-.founder-home .top-match-copy strong {
+:is(.founder-home, .mentor-home) .top-match-copy strong {
   line-height: 1.25;
 }
 @media (max-width: 1100px) {
-  .founder-home .top-match-list {
+  :is(.founder-home, .mentor-home) .top-match-list {
     grid-template-columns: minmax(0, 1fr);
   }
 }

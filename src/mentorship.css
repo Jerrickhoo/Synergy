@@ -566,3 +566,10 @@
   background: var(--green-soft);
   color: var(--ink);
 }
+
+/* Mentees: a row waiting on the mentor names their step in body ink, so it
+   reads apart from rows waiting on the founder. */
+.mentee-turn {
+  color: var(--ink);
+  font-weight: 600;
+}

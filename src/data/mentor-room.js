@@ -499,6 +499,7 @@ export function mentorshipNextAction(room) {
   )
     return {
       mine: true,
+      kind: "review",
       text: "Write your private review",
       action: "Write review",
       tab: "overview",
@@ -507,6 +508,7 @@ export function mentorshipNextAction(room) {
   if (room.cycle?.phase === "review")
     return {
       mine: true,
+      kind: "cycle",
       text: `Review mentorship cycle ${room.cycle.number}`,
       tab: "overview",
     };
@@ -521,6 +523,7 @@ export function mentorshipNextAction(room) {
   )
     return {
       mine: true,
+      kind: "attendance",
       text: "Report session attendance",
       action: "Go to attendance",
       tab: "schedule",
@@ -533,6 +536,7 @@ export function mentorshipNextAction(room) {
   if (needsGoal)
     return {
       mine: room.role === "mentor",
+      kind: "goal",
       text:
         room.role === "mentor"
           ? "Confirm the goal"
@@ -553,6 +557,7 @@ export function mentorshipNextAction(room) {
       ? (room.cycle.proposedTime.proposedBy || "founder") !== room.role
         ? {
             mine: true,
+            kind: "check-in",
             text: "Confirm the proposed check-in time",
             action: "Go to check-in time",
             tab: "schedule",
@@ -576,6 +581,7 @@ export function mentorshipNextAction(room) {
     const response = format.id === "quick-ask" ? "answer" : "review";
     return {
       mine: room.role === "mentor",
+      kind: `deliver-${response}`,
       text:
         room.role === "mentor"
           ? `Deliver your ${response}`
@@ -601,6 +607,7 @@ export function mentorshipNextAction(room) {
     return {
       // Either side can book the session (the server allows both).
       mine: true,
+      kind: "session",
       text: "Arrange a session",
       action: "Go to schedule",
       tab: "schedule",
