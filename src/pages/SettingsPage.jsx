@@ -155,7 +155,7 @@ export default function SettingsPage() {
       />
       {state.role === "mentor" && <MentoringSettings />}
       <PaymentSettings />
-      <section className="card panel settings-section appearance-settings">
+      <section className="card panel settings-section appearance-settings section-gap">
         <h2>Appearance</h2>
         <p>Choose Light or Dark for this browser. Light is the default.</p>
         <SelectField

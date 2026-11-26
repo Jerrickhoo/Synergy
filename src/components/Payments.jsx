@@ -196,6 +196,8 @@ export function PaymentSettings() {
     link.click();
     URL.revokeObjectURL(link.href);
   }
+  // A founder with no payments yet would see only the heading.
+  if (state.role !== "mentor" && !records.length) return null;
   return (
     <section className="card panel">
       <h2>{state.role === "mentor" ? "Payouts" : "Payments"}</h2>

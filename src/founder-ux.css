@@ -1283,6 +1283,11 @@ ol.stage-line {
   gap: var(--space-5);
   min-width: 0;
 }
+/* With no metrics and no mentees it renders nothing; drop it so its
+   section-gap does not double the space below the page header. */
+.home-overview:empty {
+  display: none;
+}
 .home-overview.paired {
   grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
   align-items: start;
