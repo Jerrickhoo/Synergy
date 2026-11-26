@@ -1,4 +1,4 @@
-import { selectValue } from "./ui-helpers.js";
+import { openRequest, selectValue } from "./ui-helpers.js";
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { decode } from "../src/state/serialization.js";
@@ -141,6 +141,7 @@ for (const initiator of ["founder", "mentor"]) {
         sender,
         `matches/${receiver.state.accountId}:${receiver.role}`,
       );
+      await openRequest(page);
       if (initiator === "founder") {
         await page
           .getByLabel("What's the problem?")
@@ -253,6 +254,7 @@ test("mentor requests can be withdrawn and declined, remain consistent after ref
       `matches/${encodeURIComponent(`${founder.state.accountId}:founder`)}`,
     );
     await open(other, founder, "waiting");
+    await openRequest(page);
     await page
       .getByRole("button", { name: "Send request", exact: true })
       .click();
@@ -273,6 +275,7 @@ test("mentor requests can be withdrawn and declined, remain consistent after ref
     await page.goto(
       `/#/matches/${encodeURIComponent(`${founder.state.accountId}:founder`)}`,
     );
+    await openRequest(page);
     await page
       .getByRole("button", { name: "Send request", exact: true })
       .click();

@@ -93,9 +93,14 @@ export function suggestedType({ myOffer, myNeed, theirOffer, theirNeed }) {
 }
 
 // Mentorship covers several kinds of guidance; a mentor's focus areas come
-// from the tags they offer.
+// from the tags they offer, or the words they use for their expertise.
 export const mentorshipCategories = [
-  { id: "technical", label: "Technical", tags: ["Technical Development"] },
+  {
+    id: "technical",
+    label: "Technical",
+    tags: ["Technical Development"],
+    words: /technical|engineering|developer|software|code|data|security/i,
+  },
   {
     id: "product",
     label: "Product",
@@ -105,28 +110,39 @@ export const mentorshipCategories = [
       "User Research",
       "Beta Testers",
     ],
+    words: /product|design|ux|user research|onboarding|usability|testing/i,
   },
   {
     id: "marketing",
     label: "Marketing",
     tags: ["Co-Marketing", "Distribution"],
+    words: /marketing|growth|distribution|go-to-market|brand|audience|sales/i,
   },
   {
     id: "financial",
     label: "Financial",
     tags: ["Fundraising", "Pricing Strategy"],
+    words: /fund|financ|pricing|revenue|investor|budget|accounting/i,
   },
 ];
-export function mentorshipFocus(offers = []) {
-  const offered = new Set(
-    [].concat(offers).map((item) => String(item).toLowerCase()),
-  );
+export function mentorshipFocus(offers = [], ...more) {
+  const items = [].concat(offers, more).filter(Boolean).map(String);
+  const offered = new Set(items.map((item) => item.toLowerCase()));
+  const text = items.join(" ");
   return mentorshipCategories
-    .filter((category) =>
-      category.tags.some((tag) => offered.has(tag.toLowerCase())),
+    .filter(
+      (category) =>
+        category.tags.some((tag) => offered.has(tag.toLowerCase())) ||
+        category.words.test(text),
     )
     .map((category) => category.label);
 }
+// The kind of mentoring a founder can ask this mentor for: their focus
+// areas, or General when none can be told from their profile.
+export const mentoringTypes = (offers, ...more) => {
+  const focus = mentorshipFocus(offers, ...more);
+  return focus.length ? focus : ["General"];
+};
 
 // The standard tags grouped under the type each serves, for the need and
 // offer pickers; tags outside every type are listed last.
@@ -145,4 +161,38 @@ export function tagGroups(vocabulary = []) {
   return rest.length
     ? [...groups, { id: "other", label: "Other", tags: rest }]
     : groups;
+}
+
+// Data saved before the rename still says "Beta Testing Exchange" and so on.
+// Returns the rooms and directory with the current names, as new objects so
+// nothing the server sent is changed in place.
+export function withCurrentTypeNames({ rooms, directory }) {
+  const rename = (label) => legacyTypeLabels[label] || label;
+  return {
+    rooms: Object.fromEntries(
+      Object.entries(rooms || {}).map(([id, room]) => [
+        id,
+        legacyTypeLabels[room?.engagementType]
+          ? { ...room, engagementType: rename(room.engagementType) }
+          : room,
+      ]),
+    ),
+    directory: Object.fromEntries(
+      Object.entries(directory || {}).map(([key, list]) => [
+        key,
+        Array.isArray(list)
+          ? list.map((person) =>
+              legacyTypeLabels[person?.engagement] ||
+              person?.engagementTypes?.some((label) => legacyTypeLabels[label])
+                ? {
+                    ...person,
+                    engagement: rename(person.engagement),
+                    engagementTypes: person.engagementTypes?.map(rename),
+                  }
+                : person,
+            )
+          : list,
+      ]),
+    ),
+  };
 }

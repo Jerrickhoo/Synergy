@@ -109,6 +109,7 @@ const meetingText = (meeting, lead) =>
 import {
   defaultMatching,
   migrateMatchingConfig,
+  retiredFactors,
 } from "../src/data/matching.js";
 import { normalizeProfile } from "../src/data/profile-content.js";
 import {
@@ -213,6 +214,11 @@ const sharedOverlap = (a, b) => (overlap(a, b) + overlap(b, a)) / 2;
 // (0–1) from their live capacity; left out, both count as full. Pass `null`
 // when the scored profile is a founder seen by a mentor: those two factors
 // describe mentors only, so they are left out and the other weights rescaled.
+const workingStyleWords = {
+  "one-off": "a one-off exchange",
+  ongoing: "an ongoing partnership",
+  either: "either",
+};
 export function scoreProfile(
   mine,
   theirs,
@@ -328,7 +334,8 @@ export function scoreProfile(
       : stageKnown
         ? (stageFit + sizeFit) / 2
         : sizeFit / 2;
-  const explicitGoals = Boolean(mine.goals?.trim() && theirs.goals?.trim());
+  // Working style (founder pairs): both want a one-off exchange, both an
+  // ongoing partnership, or one of them is happy either way.
   const preference =
     mine.engagementPreference && theirs.engagementPreference
       ? mine.engagementPreference === "either" ||
@@ -337,12 +344,8 @@ export function scoreProfile(
         ? 1
         : 0
       : null;
-  const goalWords = explicitGoals
-    ? (overlap(mine.goals, theirs.goals) + overlap(theirs.goals, mine.goals)) /
-      2
-    : 0;
-  const goal = preference === null ? goalWords : (goalWords + preference) / 2;
-  const factors = [need, expertise, industry, stage, goal];
+  const workingStyle = preference ?? 0;
+  const factors = [need, expertise, industry, stage, workingStyle];
   const fitApplies = mentor && mentorFit !== null;
   if (fitApplies) factors.push(mentorFit.availability, mentorFit.format);
   const missing = [
@@ -359,11 +362,17 @@ export function scoreProfile(
     mentor
       ? !founder.stage || !mentorProfile.startups
       : !stageKnown && sizeFit === null,
-    !explicitGoals && preference === null,
+    preference === null,
     false,
     false,
   ];
-  const weights = config[mentor ? "mentor" : "founder"];
+  // Working style counts for founder pairs only, and only once both have
+  // said how they like to work: an unanswered preference costs nothing.
+  const weights = config[mentor ? "mentor" : "founder"].map((weight, i) =>
+    retiredFactors(mentor).includes(i) || (i === 4 && preference === null)
+      ? 0
+      : weight,
+  );
   const usedWeight = weights
     .slice(0, factors.length)
     .reduce((sum, weight) => sum + weight, 0);
@@ -432,7 +441,13 @@ export function scoreProfile(
           : audienceGap
             ? `${audienceGap}. A swap more than 10 times uneven is limited to 40% overall.`
             : `Stage and ${marketing ? "audience" : "team"} size; size ratio ${Math.round(sizeFit * 100)}%.`,
-      `${explicitGoals ? "Stated goal overlap" : "Stated goals missing; no goal overlap assumed"}${preference === null ? "; engagement preference not provided by both" : "; engagement preferences included"}.`,
+      preference === null
+        ? "One or both of you haven't said whether you prefer a one-off exchange or an ongoing partnership, so this doesn't count."
+        : mine.engagementPreference === theirs.engagementPreference
+          ? `You both prefer ${workingStyleWords[mine.engagementPreference]}.`
+          : preference
+            ? "One of you is happy either way, so your working styles fit."
+            : `You prefer ${workingStyleWords[mine.engagementPreference]}; they prefer ${workingStyleWords[theirs.engagementPreference]}.`,
       ...(fitApplies
         ? [
             mentorFit.availability === 1
@@ -1328,6 +1343,7 @@ export function createWorkspace(file, options = {}) {
     state.role = roles.includes(role) ? role : state.role;
     state.authenticated = true;
     state.accountId = account.id;
+    state.accountCreatedAt = account.createdAt || "";
     state.calendarToken = account.calendarToken || null;
     state.mentorApplication = onboarding.get(account, state.role);
     state.mentorshipSurvey =
@@ -1615,6 +1631,8 @@ export function createWorkspace(file, options = {}) {
           scryptSync(values.password, salt, 64).toString("hex"),
         state: createInitialState(),
         notificationPreferences: { ...defaultPreferences },
+        // When the account was made: a new account gets the guided tour.
+        createdAt: new Date(now()).toISOString(),
       };
       transition(account.state, { form: "signup-form", values });
       Object.assign(
@@ -1846,6 +1864,7 @@ export function createWorkspace(file, options = {}) {
     "save",
     "interest",
     "cancel-interest",
+    "edit-interest",
     "accept-interest",
     "simulate-acceptance",
     "decline-interest",
@@ -2350,7 +2369,7 @@ export function createWorkspace(file, options = {}) {
     }
     if (encode(room) === before) return;
     room.progress = roomProgress(room);
-    room.updatedAt = new Date().toISOString();
+    room.updatedAt = new Date(now()).toISOString();
     mirror(
       account,
       state,
@@ -2868,11 +2887,17 @@ export function createWorkspace(file, options = {}) {
         "accept-interest",
         "decline-interest",
         "cancel-interest",
+        "edit-interest",
         "save",
       ].includes(input.action)
     ) {
       const structured =
         state.introductionMetaByRole[state.role]?.[input.id]?.kind;
+      if (structured && input.action === "edit-interest")
+        fail(
+          "A mentorship request can't be edited. Withdraw it and send a new one.",
+          409,
+        );
       if (structured && input.action !== "save") {
         const mappedAction = {
           "accept-interest": "accept-request",
@@ -3021,6 +3046,48 @@ export function createWorkspace(file, options = {}) {
             { matchId: ownId, kind: "confirmation" },
           );
         } else fail("You already have a room with this collaborator.");
+      } else if (input.action === "edit-interest") {
+        // Change a pending request's type or note. The earlier wording stays
+        // in the request's version history, on both sides.
+        const meta = state.introductionMetaByRole?.[state.role]?.[person.id];
+        if (!state.waitingByRole[state.role].has(person.id) || !meta)
+          fail("This request is no longer pending.", 409);
+        const previousType =
+          state.introductionTypesByRole?.[state.role]?.[person.id] ||
+          createModel(state).roomTypeForPerson(person);
+        const type = input.engagementType || previousType;
+        if (!permittedTypes.includes(type))
+          fail("Choose a collaboration type available for these profiles.");
+        const note = String(payload.values?.note || "")
+          .trim()
+          .slice(0, 280);
+        if (type === previousType && note === (meta.note || ""))
+          fail("Change the collaboration type or the note before saving.");
+        const version = {
+          engagementType: previousType,
+          note: meta.note || "",
+          savedAt: meta.editedAt || meta.sentAt,
+        };
+        const update = (target) => {
+          target.versions = [...(target.versions || []), version].slice(-10);
+          target.note = note;
+          target.editedAt = payload.timestamp;
+        };
+        update(meta);
+        state.introductionTypesByRole[state.role][person.id] = type;
+        const otherMeta =
+          other.state.introductionMetaByRole?.[person.role]?.[ownId];
+        if (otherMeta) update(otherMeta);
+        if (other.state.introductionTypesByRole?.[person.role])
+          other.state.introductionTypesByRole[person.role][ownId] = type;
+        event(
+          other,
+          person.role,
+          `${displayName(account, state.role)} updated their request.`,
+          undefined,
+          { matchId: ownId },
+        );
+        state.toast = "Request updated.";
       } else if (input.action === "cancel-interest") {
         const sentAt =
           state.introductionMetaByRole?.[state.role]?.[person.id]?.sentAt;
@@ -3336,7 +3403,7 @@ export function createWorkspace(file, options = {}) {
       }
     }
     if (room && !state.formErrors && encode(room) !== previousRoom) {
-      room.updatedAt = new Date().toISOString();
+      room.updatedAt = new Date(now()).toISOString();
       mirror(account, state, room, partnerText, {
         tab:
           input.form === "chat-form"

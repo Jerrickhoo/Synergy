@@ -10,6 +10,8 @@ import Introductions, {
   fullDate,
 } from "../components/Introductions.jsx";
 import Icon from "../components/Icon.jsx";
+import Avatar from "../components/Avatar.jsx";
+import Overlay from "../components/Overlay.jsx";
 import {
   introductionRecords,
   introductionStatusLabel,
@@ -62,48 +64,45 @@ const pendingTime = (expiry) => {
 };
 
 // What the founder sent, so a pending request can be reread while waiting.
-function SentRequestDetails({ request }) {
+function RequestAnswers({ request }) {
   return (
-    <details className="sent-request-details">
-      <summary>View request</summary>
-      <dl className="mentor-request-answers">
-        {Object.entries(requestFields)
-          .filter(([key]) => request[key])
-          .map(([key, label]) => (
-            <div key={key}>
-              <dt>{label}</dt>
-              <dd className="preserve-lines">{request[key]}</dd>
-            </div>
-          ))}
-        {request.desiredOutcome && (
-          <div>
-            <dt>Desired outcome</dt>
-            <dd className="preserve-lines">{request.desiredOutcome}</dd>
+    <dl className="mentor-request-answers">
+      {Object.entries(requestFields)
+        .filter(([key]) => request[key])
+        .map(([key, label]) => (
+          <div key={key}>
+            <dt>{label}</dt>
+            <dd className="preserve-lines">{request[key]}</dd>
           </div>
-        )}
+        ))}
+      {request.desiredOutcome && (
         <div>
-          <dt>Format</dt>
+          <dt>Desired outcome</dt>
+          <dd className="preserve-lines">{request.desiredOutcome}</dd>
+        </div>
+      )}
+      <div>
+        <dt>Format</dt>
+        <dd>
+          {formatLabel(request)}
+          {request.price ? ` · ${priceLabel(request.price)}` : ""}
+        </dd>
+      </div>
+      {request.links?.length > 0 && (
+        <div>
+          <dt>Links</dt>
           <dd>
-            {formatLabel(request)}
-            {request.price ? ` · ${priceLabel(request.price)}` : ""}
+            <ul className="sent-request-links">
+              {request.links.map((link) => (
+                <li key={link}>
+                  <LinkedText text={link} />
+                </li>
+              ))}
+            </ul>
           </dd>
         </div>
-        {request.links?.length > 0 && (
-          <div>
-            <dt>Links</dt>
-            <dd>
-              <ul className="sent-request-links">
-                {request.links.map((link) => (
-                  <li key={link}>
-                    <LinkedText text={link} />
-                  </li>
-                ))}
-              </ul>
-            </dd>
-          </div>
-        )}
-      </dl>
-    </details>
+      )}
+    </dl>
   );
 }
 
@@ -176,6 +175,7 @@ export function RequestCard({ request }) {
         </p>
       )}
       <p className="muted request-meta">
+        {request.category ? `${request.category} mentoring · ` : ""}
         {formatLabel(request)} · {format?.effort}
         {request.price ? ` · ${priceLabel(request.price)}` : ""} ·{" "}
         {pendingTime(request.expiresAt)}
@@ -396,6 +396,162 @@ export function RequestCard({ request }) {
   );
 }
 
+// One mentorship request you sent, laid out like a sent startup request:
+// who, where it stands and when, with the full request in a dialog.
+function SentMentorRequestCard({ request }) {
+  const { state, onAction, model } = useApp();
+  const [open, setOpen] = useState(false);
+  const mentor = model
+    .rolePeople()
+    .find((person) => person.id === request.partnerId);
+  const pending = request.status === "pending";
+  const withdraw = (event) =>
+    onAction(
+      {
+        action: "withdraw-request",
+        id: request.partnerId,
+        requestId: request.id,
+      },
+      event,
+    );
+  return (
+    <article
+      className="card panel mentor-request-card"
+      id={`request-${request.id}`}
+      tabIndex={-1}
+    >
+      <div className="mentor-request-row">
+        <Avatar
+          image={mentor?.image}
+          name={request.name}
+          identity={mentor?.accountId || request.partnerId}
+          color={mentor?.color}
+        />
+        <div className="mentor-request-copy">
+          <h4 className="mentor-request-name">{request.name}</h4>
+          <p className="mentor-request-status">
+            <span className="request-status">
+              {requestStatusLabel(request.status)}
+            </span>
+            {" · "}
+            {formatLabel(request)}
+            {pending ? ` · ${pendingTime(request.expiresAt)}` : ""}
+          </p>
+          {request.sentAt && (
+            <p className="introduction-timing">
+              Sent{" "}
+              <time dateTime={request.sentAt}>{fullDate(request.sentAt)}</time>
+            </p>
+          )}
+          {pending && (
+            <p className="mentor-request-reply">{replyLine(request, mentor)}</p>
+          )}
+        </div>
+        <div className="introduction-actions">
+          {request.kind !== "legacy-note" && (
+            <button
+              className={`btn small${pending ? " primary" : ""}`}
+              aria-haspopup="dialog"
+              onClick={() => setOpen(true)}
+            >
+              View request
+              <span className="visually-hidden">: {request.name}</span>
+            </button>
+          )}
+          {pending && (
+            <button
+              className="btn small"
+              disabled={state.busy}
+              onClick={withdraw}
+            >
+              Withdraw
+            </button>
+          )}
+          {request.status === "accepted" && state.rooms[request.roomId] && (
+            <button
+              className="btn small primary"
+              onClick={() =>
+                onAction({ action: "open-room", id: request.roomId })
+              }
+            >
+              Open room
+            </button>
+          )}
+        </div>
+      </div>
+      {request.reason && (
+        <p>{requestReasons[request.reason] || request.reason}</p>
+      )}
+      {request.status === "expired" && (
+        <p>The mentor's response window ended.</p>
+      )}
+      {request.message && <blockquote>{request.message}</blockquote>}
+      {cooldownActive(request.cooldownUntil) && (
+        <p>{cooldownText(request.cooldownUntil)}.</p>
+      )}
+      <MentorAlternatives
+        alternatives={request.alternatives}
+        referralId={request.status === "referred" ? request.id : null}
+      />
+      {open && (
+        <Overlay
+          id="sent-mentorship-request"
+          title={`Your request to ${request.name}`}
+          onClose={() => setOpen(false)}
+          busy={state.busy}
+          footer={
+            <>
+              <button className="btn" onClick={() => setOpen(false)}>
+                Close
+              </button>
+              <button
+                className="btn"
+                onClick={() =>
+                  onAction({ action: "match-detail", id: request.partnerId })
+                }
+              >
+                View profile
+              </button>
+            </>
+          }
+        >
+          <dl className="sent-request-facts">
+            <div>
+              <dt>Status</dt>
+              <dd>{requestStatusLabel(request.status)}</dd>
+            </div>
+            {request.sentAt && (
+              <div>
+                <dt>Sent</dt>
+                <dd>{fullDate(request.sentAt)}</dd>
+              </div>
+            )}
+          </dl>
+          <RequestAnswers request={request} />
+          {pending && mentor?.canSimulateAcceptance && (
+            <PrototypeShortcut
+              note={`${request.name} is fictional. Simulate them accepting to open your mentorship room.`}
+            >
+              <button
+                className="btn"
+                disabled={state.busy}
+                onClick={(event) =>
+                  onAction(
+                    { action: "simulate-acceptance", id: request.partnerId },
+                    event,
+                  )
+                }
+              >
+                Simulate acceptance
+              </button>
+            </PrototypeShortcut>
+          )}
+        </Overlay>
+      )}
+    </article>
+  );
+}
+
 // The founder's mentorship requests. `records` narrows the list (the
 // Requests page passes the ones its tab and filters show).
 export function SentMentorRequests({ records: shown }) {
@@ -426,116 +582,7 @@ export function SentMentorRequests({ records: shown }) {
         )}
       </h3>
       {records.map((request) => (
-        <article
-          className="card panel mentor-request-card"
-          key={request.id}
-          id={`request-${request.id}`}
-          tabIndex={-1}
-        >
-          <h4 className="mentor-request-name">{request.name}</h4>
-          {request.sentAt && (
-            <p className="introduction-timing">
-              Sent{" "}
-              <time dateTime={request.sentAt}>{fullDate(request.sentAt)}</time>
-            </p>
-          )}
-          <p className="muted">
-            {formatLabel(request)} ·{" "}
-            <span className="request-status">
-              {requestStatusLabel(request.status)}
-            </span>
-            {request.status === "pending"
-              ? ` · ${pendingTime(request.expiresAt)}`
-              : ""}
-          </p>
-          {request.status === "pending" && (
-            <>
-              <p>
-                {replyLine(
-                  request,
-                  model
-                    .rolePeople()
-                    .find((person) => person.id === request.partnerId),
-                )}
-              </p>
-              <SentRequestDetails request={request} />
-            </>
-          )}
-          {request.reason && (
-            <p>{requestReasons[request.reason] || request.reason}</p>
-          )}
-          {request.status === "expired" && (
-            <p>The mentor's response window ended.</p>
-          )}
-          {request.message && <blockquote>{request.message}</blockquote>}
-          {cooldownActive(request.cooldownUntil) && (
-            <p>{cooldownText(request.cooldownUntil)}.</p>
-          )}
-          {request.status === "pending" && (
-            // Same controls as a sent request (readiness plan P9).
-            <div className="mentor-request-controls">
-              <button
-                className="btn small"
-                onClick={() =>
-                  onAction({ action: "match-detail", id: request.partnerId })
-                }
-              >
-                View profile
-                <span className="visually-hidden">: {request.name}</span>
-              </button>
-              <button
-                className="btn small"
-                disabled={state.busy}
-                onClick={(event) =>
-                  onAction(
-                    {
-                      action: "withdraw-request",
-                      id: request.partnerId,
-                      requestId: request.id,
-                    },
-                    event,
-                  )
-                }
-              >
-                Withdraw
-              </button>
-            </div>
-          )}
-          {request.status === "pending" &&
-            model.rolePeople().find((person) => person.id === request.partnerId)
-              ?.canSimulateAcceptance && (
-              <PrototypeShortcut
-                note={`${request.name} is fictional. Simulate them accepting to open your mentorship room.`}
-              >
-                <button
-                  className="btn"
-                  disabled={state.busy}
-                  onClick={(event) =>
-                    onAction(
-                      { action: "simulate-acceptance", id: request.partnerId },
-                      event,
-                    )
-                  }
-                >
-                  Simulate acceptance
-                </button>
-              </PrototypeShortcut>
-            )}
-          {request.status === "accepted" && state.rooms[request.roomId] && (
-            <button
-              className="btn"
-              onClick={() =>
-                onAction({ action: "open-room", id: request.roomId })
-              }
-            >
-              Open room
-            </button>
-          )}
-          <MentorAlternatives
-            alternatives={request.alternatives}
-            referralId={request.status === "referred" ? request.id : null}
-          />
-        </article>
+        <SentMentorRequestCard key={request.id} request={request} />
       ))}
     </section>
   );

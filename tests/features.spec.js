@@ -1,5 +1,5 @@
 import { mentorRequestValues } from "./mentor-request-fixtures.js";
-import { selectValue, confirmSignOut } from "./ui-helpers.js";
+import { selectValue, confirmSignOut, openRequest } from "./ui-helpers.js";
 import { defaultMatching } from "../src/data/matching.js";
 import { test, expect } from "@playwright/test";
 import { decode } from "../src/state/serialization.js";
@@ -540,7 +540,7 @@ test("moderators edit reusable templates and versioned matching weights", async 
     })
     .click();
   await page.locator("#weight-founder-0").fill("60");
-  await page.locator("#weight-founder-2").fill("10");
+  await page.locator("#weight-founder-2").fill("15");
   await page
     .getByRole("button", { name: "Save matching weights", exact: true })
     .click();
@@ -598,7 +598,12 @@ test("mentor experience can be edited and appears on the public mentor profile",
     `matches/${encodeURIComponent(`${b.state.accountId}:mentor`)}`,
   );
   // Experience is on the match page's Trust tab.
-  await observerPage.getByRole("tab", { name: "Trust", exact: true }).click();
+  await observerPage
+    .getByRole("tab", {
+      name: "Experience and collaboration history",
+      exact: true,
+    })
+    .click();
   await expect(
     observerPage.getByRole("heading", { name: "Past experience", exact: true }),
   ).toBeVisible();
@@ -691,6 +696,7 @@ test("partners request revised terms, set due dates, close a room and reconnect 
       `button[data-action="match-detail"][data-id="${a.state.accountId}:founder"]`,
     )
     .click();
+  await openRequest(page);
   await page.getByRole("button", { name: "Send request", exact: true }).click();
   const next = await act(request, a, {
     action: "accept-interest",
@@ -889,7 +895,12 @@ test("prospective partners see public trust only after both blind reviews are su
     `matches/${encodeURIComponent(`${b.state.accountId}:founder`)}`,
   );
   // Trust history is on the match page's Trust tab.
-  await page.getByRole("tab", { name: "Trust", exact: true }).click();
+  await page
+    .getByRole("tab", {
+      name: "Experience and collaboration history",
+      exact: true,
+    })
+    .click();
   const trust = page.getByRole("region", { name: /Trust history/ });
   await expect(trust).toContainText("No ratings yet");
   await expect(
@@ -1084,6 +1095,7 @@ test("mobile discovery keeps the first action visible and lets partners agree on
   const view = page.getByRole("button", { name: /^View match/ });
   await expect(view).toBeInViewport();
   await view.click();
+  await openRequest(page);
   await selectValue(page.getByLabel("Collaboration type"), "marketing");
   await page.getByRole("button", { name: "Send request", exact: true }).click();
   const accepted = await act(request, b, {

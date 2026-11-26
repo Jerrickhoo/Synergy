@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { mentoringTypes } from "../src/data/collaboration-types.js";
 import { terminalStatuses } from "../src/data/collaboration.js";
 import { followupEngagement } from "../src/data/mentor-room.js";
 import { profileCompleteness } from "../src/data/selectors.js";
@@ -401,6 +402,15 @@ export function createMentorRequests({
           : "";
       if (desiredOutcome.length > 1000)
         errors.desiredOutcome = "Enter up to 1,000 characters.";
+      // The kind of mentoring asked for must be one this mentor offers;
+      // a request without one takes the mentor's first area.
+      const types = mentoringTypes(person.offer, person.sector);
+      const category =
+        typeof values.category === "string" && values.category.trim()
+          ? values.category.trim()
+          : types[0];
+      if (!types.includes(category))
+        errors.category = `${person.name} mentors in ${types.join(", ")}. Choose one of those.`;
       const links = Array.isArray(values.links) ? values.links : [];
       if (
         (values.links != null && !Array.isArray(values.links)) ||
@@ -432,6 +442,7 @@ export function createMentorRequests({
         id: randomUUID(),
         kind: "mentor-request",
         format,
+        category,
         links,
         price: person.formats.find((item) => item.id === format).price,
         quality: quality.score,

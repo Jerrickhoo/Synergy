@@ -203,7 +203,7 @@ test("matching captures fixed versioned scores and counts rooms once with blind 
       values[`${kind}-${index}`] = weight * 100;
     });
   values["founder-0"] = 60;
-  values["founder-2"] = 10;
+  values["founder-2"] = 15;
   assert.throws(
     () => act(a, { form: "matching-config", values }),
     /moderator/i,
@@ -557,7 +557,7 @@ test("public reputation respects blind reviews and repeat collaborations preserv
   assert.ok(w.get(a.token).state.rooms[id]);
 });
 
-test("matching uses size, audience and engagement goals and describes missing or zero signals honestly", () => {
+test("matching uses size, audience and working style and describes missing or zero signals honestly", () => {
   const mine = {
     ...profile,
     goals: "Validate onboarding",
@@ -568,10 +568,21 @@ test("matching uses size, audience and engagement goals and describes missing or
   assert.ok(
     scoreProfile(mine, { ...mine, teamSize: "300" }, false).score < base.score,
   );
-  assert.ok(
-    scoreProfile(mine, { ...mine, engagementPreference: "ongoing" }, false)
-      .score < base.score,
+  // Working style: a one-off startup and an ongoing one fit less well, and a
+  // preference nobody chose counts for nothing rather than as a mismatch.
+  const mismatch = scoreProfile(
+    mine,
+    { ...mine, engagementPreference: "ongoing" },
+    false,
+  ).score;
+  assert.ok(mismatch < base.score);
+  const unanswered = scoreProfile(
+    { ...mine, engagementPreference: "" },
+    { ...mine, engagementPreference: "" },
+    false,
   );
+  assert.ok(unanswered.score > mismatch);
+  assert.match(unanswered.factorDetails[4], /doesn't count/);
   const marketing = {
     ...mine,
     offer: "Audience marketing",

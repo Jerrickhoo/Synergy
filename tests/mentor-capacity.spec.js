@@ -8,6 +8,7 @@ import {
   open,
   user,
 } from "./founder-browser-helpers.js";
+import { openRequest } from "./ui-helpers.js";
 
 const mentorProfile = {
   bio: "Advising early student teams",
@@ -207,6 +208,7 @@ test("founders see why a paused mentor is unavailable and can filter to who is a
   await page
     .getByRole("button", { name: /View match\s*: PausedMentor/ })
     .click();
+  await openRequest(page);
   await expect(
     page.getByText(/is not taking requests right now/).first(),
   ).toBeVisible();

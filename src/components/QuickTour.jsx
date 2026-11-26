@@ -8,6 +8,8 @@ import {
 import { createPortal } from "react-dom";
 import { useApp } from "../state/AppContext.jsx";
 import Icon from "./Icon.jsx";
+import { markTourDone, tourDone, tourPending } from "../data/tour.js";
+export { markTourDone, tourDone } from "../data/tour.js";
 
 // A guided tour on the real screens: everything but the highlighted part is
 // dimmed and can't be clicked, a card beside it says what it is, and on
@@ -119,21 +121,16 @@ const mentorSteps = [
   },
 ];
 
-const tourKey = (accountId) => `synergy-tour:${accountId}`;
-export function tourDone(accountId) {
-  try {
-    return localStorage.getItem(tourKey(accountId)) === "done";
-  } catch {
-    return false;
-  }
-}
-export function markTourDone(accountId) {
-  try {
-    localStorage.setItem(tourKey(accountId), "done");
-  } catch {
-    // Private browsing: the invitation shows again next visit.
-  }
-}
+// A new account's tour opens with this card over the whole page: start
+// the tour, or skip it for now.
+const welcomeStep = (role, name) => ({
+  welcome: true,
+  title: `Welcome to Synergy${name ? `, ${name}` : ""}!`,
+  text:
+    role === "mentor"
+      ? "Here's a one-minute tour of how mentoring works: see which startups need what you offer, reply to requests, and guide each mentorship in its own room."
+      : "Here's a one-minute tour of how it works: find the startups and mentors who fill your gaps, send a request, then agree the terms and finish the work together in a Deal Room.",
+});
 
 const gap = 10;
 const visible = (element) => {
@@ -178,20 +175,54 @@ function cardPlace(hole, card) {
   return { width, left: window.innerWidth - width - 16, top: maxTop };
 }
 
+// A new account starts the tour by itself the first time it reaches Home:
+// one signed up in this browser, or (from the server) made in the last
+// week. It opens on a welcome card that can be skipped; after that the
+// tour is one click away in the header. Browser automation (tests) is left
+// alone.
+const newAccount = (state) =>
+  tourPending(state.accountId) ||
+  Date.now() - Date.parse(state.accountCreatedAt || "") < 7 * 86400000;
+
 export default function QuickTour() {
-  const { state, tourOpen } = useApp();
+  const { state, tourOpen, onAction } = useApp();
+  const started = useRef(false);
+  const [welcome, setWelcome] = useState(false);
+  useEffect(() => {
+    if (started.current || tourOpen || !state.authenticated) return;
+    if (state.page !== "home" || state.firstRunChoice) return;
+    if (!newAccount(state)) return;
+    if (tourDone(state.accountId) || navigator.webdriver) return;
+    started.current = true;
+    setWelcome(true);
+    onAction({ action: "open-tour" });
+  }, [state, tourOpen, onAction]);
+  // The welcome card is only for the tour that opened by itself.
+  useEffect(() => {
+    if (!tourOpen) setWelcome(false);
+  }, [tourOpen]);
   if (!state.authenticated || !tourOpen) return null;
-  return <Tour key={state.role} />;
+  return <Tour key={state.role} welcome={welcome} />;
 }
 
-function Tour() {
+function Tour({ welcome = false }) {
   const { state, onAction } = useApp();
-  const steps = state.role === "mentor" ? mentorSteps : founderSteps;
+  const roleSteps = state.role === "mentor" ? mentorSteps : founderSteps;
+  const firstName = String(state.accountName || "")
+    .trim()
+    .split(/\s+/)[0];
+  const offset = welcome ? 1 : 0;
+  const steps = welcome
+    ? [welcomeStep(state.role, firstName), ...roleSteps]
+    : roleSteps;
   const [index, setIndex] = useState(0);
   const [hole, setHole] = useState(null);
   const [phone, setPhone] = useState(false);
   const [searching, setSearching] = useState(true);
   const [place, setPlace] = useState(null);
+  // While moving to the next step, the dimming and the card glide to the new
+  // place instead of jumping, so nothing flashes in between.
+  const [moving, setMoving] = useState(false);
   const card = useRef(null);
   const next = useRef(null);
   const step = steps[index];
@@ -210,29 +241,41 @@ function Tour() {
   useEffect(() => {
     if (step.page && state.page !== step.page) onAction({ page: step.page });
     setSearching(true);
-    setHole(null);
+    setMoving(true);
+    const settle = setTimeout(() => setMoving(false), 450);
+    const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
     let frame = 0;
     const started = performance.now();
     const look = () => {
+      if (!step.target) {
+        setHole(null);
+        setSearching(false);
+        return;
+      }
       const found = findTarget(step);
       if (found) {
         const rect = found.element.getBoundingClientRect();
         if (rect.top < 0 || rect.bottom > window.innerHeight)
           found.element.scrollIntoView({
             block: rect.height > window.innerHeight - 160 ? "start" : "center",
+            behavior: smooth ? "smooth" : "auto",
           });
         setPhone(found.phone);
         setSearching(false);
         return;
       }
       if (performance.now() - started > 3000) {
+        setHole(null);
         setSearching(false);
         return;
       }
       frame = requestAnimationFrame(look);
     };
     frame = requestAnimationFrame(look);
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(settle);
+    };
     // The page is opened once per step, not on every page change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
@@ -244,11 +287,10 @@ function Tour() {
     const measure = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
+        // Until the next page shows its element, the highlight stays where
+        // it was rather than flashing to a fully dimmed screen.
         const found = findTarget(step);
-        if (!found) {
-          setHole(null);
-          return;
-        }
+        if (!found) return;
         const rect = found.element.getBoundingClientRect();
         // A tall target scrolls under the sticky header; the highlight stops
         // at the header so the header stays dimmed.
@@ -336,7 +378,7 @@ function Tour() {
     height: hole.bottom - hole.top,
   };
   return createPortal(
-    <div className="tour" onKeyDown={onKeyDown}>
+    <div className={`tour${moving ? " is-moving" : ""}`} onKeyDown={onKeyDown}>
       {hole ? (
         <>
           {shade("top", {
@@ -388,7 +430,9 @@ function Tour() {
       >
         <p className="tour-count">
           <Icon name="compass" />
-          Step {index + 1} of {steps.length}
+          {step.welcome
+            ? "Quick tour · about a minute"
+            : `Step ${index + 1 - offset} of ${steps.length - offset}`}
         </p>
         <h2 id="tour-title">{step.title}</h2>
         <p id="tour-text" aria-live="polite">
@@ -402,10 +446,10 @@ function Tour() {
         )}
         <div className="tour-actions">
           <button type="button" className="link-btn tour-end" onClick={end}>
-            End tour
+            {step.welcome ? "Skip for now" : "End tour"}
           </button>
           <span className="tour-nav">
-            {index > 0 && (
+            {index > offset && (
               <button
                 type="button"
                 className="btn small"
@@ -420,7 +464,7 @@ function Tour() {
               className="btn primary small"
               onClick={advance}
             >
-              {last ? "Finish" : "Next"}
+              {step.welcome ? "Start the tour" : last ? "Finish" : "Next"}
             </button>
           </span>
         </div>

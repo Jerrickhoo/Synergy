@@ -297,6 +297,7 @@ test("blank profile fields, validation, saving and cancel work with user details
   // The Activity page's log labels the entry Profile and names what
   // changed.
   await navigate(page, "Activity");
+  await page.getByRole("tab", { name: "Activity log", exact: true }).click();
   const entry = page
     .getByRole("region", { name: "Activity log", exact: true })
     .getByRole("listitem")

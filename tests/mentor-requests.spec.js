@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { command, getState, open, user } from "./founder-browser-helpers.js";
 import { mentorRequestValues } from "./mentor-request-fixtures.js";
-import { horizontalOverflow } from "./ui-helpers.js";
+import { horizontalOverflow, openRequest } from "./ui-helpers.js";
 
 const mentorProfile = {
   bio: "Advising early student teams",
@@ -60,6 +60,7 @@ test("a founder shares a structured request and a mentor refers them without for
   const inbox = await context.newPage();
   try {
     await open(page, founder, `matches/${mentor.state.accountId}:mentor`);
+    await openRequest(page);
     await page
       .getByLabel("What's the problem?")
       .fill(mentorRequestValues.problem);
@@ -204,9 +205,8 @@ test("a long decline message is flagged before sending and the founder gets an u
   await user(request, "OtherAvailableMentor", mentorProfile, "mentor");
   const founderPage = await page.context().newPage();
   await open(founderPage, founder, `matches/${mentor.state.accountId}:mentor`);
-  const panel = founderPage.getByRole("complementary", {
-    name: "Collaboration actions",
-  });
+  await openRequest(founderPage);
+  const panel = founderPage.locator("#match-action");
   await expect(
     panel.getByRole("heading", {
       name: /^You can ask again after [A-Z][a-z]{2} \d{1,2}(, \d{4})?$/,

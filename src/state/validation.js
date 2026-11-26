@@ -85,14 +85,28 @@ export function validateProfile(profile, role) {
   }
   return errors;
 }
-export const validateTerms = (values) =>
-  requiredFields(values, [
+export function validateTerms(values) {
+  const errors = requiredFields(values, [
     "goal",
     "scope",
     "timeline",
     "commitment",
     "compensation",
   ]);
+  // A timeline picked as dates ("2026-12-01 to 2026-12-14") needs both
+  // ends, in order. Older terms written as text are left as they are.
+  const [start = "", end = ""] = String(values.timeline || "")
+    .split(" to ")
+    .map((part) => part.trim());
+  const day = /^\d{4}-\d{2}-\d{2}$/;
+  if (!errors.timeline && (day.test(start) || day.test(end))) {
+    if (!day.test(start) || !day.test(end))
+      errors.timeline = "Choose both a start and an end date.";
+    else if (end < start)
+      errors.timeline = "The timeline must end on or after its start date.";
+  }
+  return errors;
+}
 export function validateCredentials(values, signup = false) {
   const errors = signup
     ? requiredFields(values, ["firstName", "lastName"])

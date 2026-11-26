@@ -85,12 +85,94 @@ export function fitFactors(person, factors) {
     };
   });
 }
+// One sentence on why a match scores what it does: the factors that line up
+// well, then the ones that hold it back. "78% because they offer what you
+// need and their expertise fits, but your industries differ."
+const strongWords = {
+  0: "they offer what you need",
+  1: "their expertise fits",
+  2: "you work in the same industry",
+  3: "you're at a similar stage and size",
+  4: "you want the same kind of collaboration",
+  5: "they have room for you now",
+  6: "the formats you'd want are open",
+};
+const weakWords = {
+  0: "few of your needs overlap",
+  1: "their expertise is a looser fit",
+  2: "your industries differ",
+  3: "your stage or size differs",
+  4: "one of you wants a one-off exchange and the other something ongoing",
+  5: "they have little room right now",
+  6: "few of their formats are open",
+};
+const missingWords = {
+  0: "needs or offers are missing",
+  1: "their expertise isn't filled in",
+  2: "an industry is missing",
+  3: "stage or size is missing",
+  4: "a working style isn't chosen",
+};
+// Needs carry the most weight, so a partial fit is still named.
+const someWords = { 0: "they offer some of what you need" };
+// A mentor reading a startup's match: the help flows from them.
+const mentorViewerWords = {
+  strong: {
+    0: "you offer what they need",
+    1: "your expertise fits their needs",
+    5: "you have room for them now",
+    6: "the formats they'd want are open",
+  },
+  some: { 0: "you offer some of what they need" },
+  weak: {
+    0: "few of their needs match what you offer",
+    1: "your expertise is a looser fit for them",
+    5: "you have little room right now",
+    6: "few of your formats are open",
+  },
+  missing: { 1: "your expertise isn't filled in" },
+};
+const sentenceList = (items) =>
+  items.length > 1
+    ? `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`
+    : items[0];
+export function fitSentence(person, rows, { mentorViewer = false } = {}) {
+  const words = (set, index) =>
+    (mentorViewer && mentorViewerWords[set][index]) ||
+    {
+      strong: strongWords,
+      some: someWords,
+      weak: weakWords,
+      missing: missingWords,
+    }[set][index];
+  const strong = rows
+    .filter((row) => row.score !== null && row.score >= 30)
+    .map((row) =>
+      row.score >= 65 ? words("strong", row.index) : words("some", row.index),
+    )
+    .filter(Boolean);
+  const weak = rows
+    .filter((row) => row.score === null || row.score < 30)
+    .map((row) =>
+      row.score === null
+        ? words("missing", row.index)
+        : words("weak", row.index),
+    )
+    .filter(Boolean);
+  const lead =
+    typeof person.score === "number" ? `${person.score}% because` : "Because";
+  if (!strong.length && !weak.length)
+    return `${lead} your profiles partly line up on every factor.`;
+  if (!strong.length) return `${lead} ${sentenceList(weak)}.`;
+  return `${lead} ${sentenceList(strong)}${weak.length ? `, but ${sentenceList(weak)}` : ""}.`;
+}
+
 const factorPhrase = {
   0: "needs and offers",
   1: "relevant expertise",
   2: "industry",
   3: "stage and size",
-  4: "collaboration goals",
+  4: "working style",
   // Mentor-only factors (Phase 1). They describe capacity, not profile fit.
   5: "current availability",
   6: "the formats open now",
@@ -218,4 +300,39 @@ export function trustLine(person) {
     );
   if (trust.cancelled) parts.push(`${trust.cancelled} closed early`);
   return parts.join(" · ");
+}
+
+// Whether an item ("Beta testers") is the same help as any in a list, by
+// wording or by standard tag ("Beta Testers").
+export function sameHelp(item, list = []) {
+  const text = String(item).trim().toLowerCase();
+  const tags = canonicalTags(item);
+  return list.some(
+    (other) =>
+      String(other).trim().toLowerCase() === text ||
+      canonicalTags(other).some((tag) => tags.includes(tag)),
+  );
+}
+
+// Collaboration focus: one sentence on where two profiles meet. `youGet` is
+// what they offer that you need, `theyGet` what you offer that they need.
+export function overlapSentence({ youGet = [], theyGet = [], name, mentor }) {
+  const list = (items) =>
+    items.length > 1
+      ? `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`
+      : items[0];
+  const parts = [];
+  if (youGet.length)
+    parts.push(
+      mentor
+        ? `${name} can help with ${list(youGet)}, which you need`
+        : `${name} offers ${list(youGet)}, which you need`,
+    );
+  if (theyGet.length) parts.push(`you offer ${list(theyGet)}, which they need`);
+  if (!parts.length)
+    return mentor
+      ? `None of your needs match ${name}'s expertise yet.`
+      : "Your needs and offers don't overlap yet, so this match rests on industry, stage and working style.";
+  const sentence = parts.join(", and ");
+  return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}.`;
 }

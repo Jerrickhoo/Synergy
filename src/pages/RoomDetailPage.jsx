@@ -356,17 +356,8 @@ function ExchangeRoom() {
             : "not scheduled"}
         </p>
       )}
-      {(Object.values(room.milestones).some(
-        (item) => item.dueDate || item.schedule || item.schedules?.length,
-      ) ||
-        room.meetings?.some((meeting) => !meeting.cancelledAt)) && (
-        <button
-          className="link-btn"
-          onClick={() => onAction({ page: "calendar" })}
-        >
-          View calendar
-        </button>
-      )}
+      {/* The Milestones tab has this room's calendar, so there is no link
+          out to the full calendar here. */}
       <div
         className="tabs room-tabs"
         ref={tabsRef}

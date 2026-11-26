@@ -69,15 +69,6 @@ function RecordTitle({ id, title, list, label }) {
   );
 }
 
-function jump(id) {
-  const section = document.getElementById(id);
-  if (!section) return;
-  section.scrollIntoView({ block: "start" });
-  const heading = section.querySelector("h2");
-  heading?.setAttribute("tabindex", "-1");
-  heading?.focus({ preventScroll: true });
-}
-
 function Deals({ rows, mentor }) {
   const { onAction } = useApp();
   return (
@@ -380,8 +371,14 @@ function ActivityLog() {
 }
 
 export default function ActivityPage() {
-  const { state } = useApp();
+  const { state, onTabKeyDown } = useApp();
   const mentor = state.role === "mentor";
+  const [section, setSection] = useState("deals");
+  const sections = [
+    ["deals", mentor ? "Mentorships" : "Deals"],
+    ["requests", "Requests"],
+    ["log", "Activity log"],
+  ];
   const deals = dealRecords(state, (room) => partnerName(state, room));
   const introductions = introductionRecords(state);
   const replies = introductions.filter(
@@ -424,25 +421,35 @@ export default function ActivityPage() {
           ))}
         </ul>
       )}
-      <nav className="activity-jump" aria-label="On this page">
-        {[
-          ["activity-deals", mentor ? "Mentorships" : "Deals"],
-          ["activity-introductions", "Requests"],
-          ["activity-log", "Activity log"],
-        ].map(([id, label]) => (
+      {/* Tabs like Matches and Requests: one record at a time. */}
+      <div className="tabs activity-tabs" role="tablist" aria-label="Activity">
+        {sections.map(([id, label]) => (
           <button
             key={id}
-            className="activity-jump-link"
-            onClick={() => jump(id)}
+            className={`tab${section === id ? " active" : ""}`}
+            role="tab"
+            id={`activity-tab-${id}`}
+            aria-controls="activity-panel"
+            aria-selected={section === id}
+            tabIndex={section === id ? 0 : -1}
+            onKeyDown={onTabKeyDown}
+            onClick={() => setSection(id)}
           >
             {label}
           </button>
         ))}
-      </nav>
-      <div className="activity-sections">
-        <Deals rows={deals} mentor={mentor} />
-        <Introductions rows={introductions} mentor={mentor} />
-        <ActivityLog />
+      </div>
+      <div
+        className="activity-sections"
+        id="activity-panel"
+        role="tabpanel"
+        aria-labelledby={`activity-tab-${section}`}
+      >
+        {section === "deals" && <Deals rows={deals} mentor={mentor} />}
+        {section === "requests" && (
+          <Introductions rows={introductions} mentor={mentor} />
+        )}
+        {section === "log" && <ActivityLog />}
       </div>
     </div>
   );

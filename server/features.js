@@ -1259,10 +1259,11 @@ export function createFeatures({
                 w > 100,
             ) ||
             Math.abs(weights.reduce((a, b) => a + b, 0) - 100) > 0.001 ||
-            (kind === "founder" && weights[1] !== 0)
+            (kind === "founder" && weights[1] !== 0) ||
+            (kind === "mentor" && weights[4] !== 0)
           )
             fail(
-              "Weights must be between 0 and 100 and total 100 for each role; founder expertise remains zero.",
+              "Weights must be between 0 and 100 and total 100 for each role; founder expertise and mentorship working style remain zero.",
             );
           config[kind] = weights.map((w) => w / 100);
         }
@@ -1990,7 +1991,7 @@ export function createFeatures({
       state.toast = "Moderator decision saved.";
     }
     if (roomAction) {
-      room.updatedAt = new Date().toISOString();
+      room.updatedAt = new Date(now()).toISOString();
       const who = displayName(account, state.role);
       const partnerText = {
         "reopen-terms": `${who} asked to change the agreed terms. The current terms stay in place until you respond.`,

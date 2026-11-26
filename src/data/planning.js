@@ -174,6 +174,7 @@ export function calendarEvents(state) {
             // Still open, so it reads as the work to do.
             title: milestoneTask(milestone.title),
             kind: "milestone",
+            milestoneId: id,
             room,
             tab: "milestones",
           });

@@ -31,38 +31,39 @@ export default function HomeTopMatches({ limit = 3 }) {
       </div>
       <ul className="top-match-list">
         {people.map((person) => (
-          <li className="top-match" key={person.id}>
-            <Avatar
-              image={person.image}
-              name={person.name}
-              identity={person.accountId || person.id}
-              verified={personVerified(person)}
-              color={person.color}
-            />
-            <div className="top-match-copy">
-              <strong>{person.name}</strong>
-              <span>
-                {[person.kind, person.sector].filter(Boolean).join(" · ")}
-              </span>
-              <span className="top-match-reason">{matchReason(person)}</span>
-            </div>
-            <span
-              className="fit-ring top-match-ring"
-              style={{ "--fit": `${person.score}%` }}
-            >
-              <strong>
-                {person.score}
-                <small>%</small>
-                <span className="visually-hidden"> fit</span>
-              </strong>
-            </span>
+          // The whole tile opens the match.
+          <li key={person.id}>
             <button
-              className="btn small"
+              type="button"
+              className="top-match"
               onClick={(event) =>
                 onAction({ action: "match-detail", id: person.id }, event)
               }
             >
-              View<span className="visually-hidden"> {person.name}</span>
+              <Avatar
+                image={person.image}
+                name={person.name}
+                identity={person.accountId || person.id}
+                verified={personVerified(person)}
+                color={person.color}
+              />
+              <div className="top-match-copy">
+                <strong>{person.name}</strong>
+                <span>
+                  {[person.kind, person.sector].filter(Boolean).join(" · ")}
+                </span>
+                <span className="top-match-reason">{matchReason(person)}</span>
+              </div>
+              <span
+                className="fit-ring top-match-ring"
+                style={{ "--fit": `${person.score}%` }}
+              >
+                <strong>
+                  {person.score}
+                  <small>%</small>
+                  <span className="visually-hidden"> fit</span>
+                </strong>
+              </span>
             </button>
           </li>
         ))}

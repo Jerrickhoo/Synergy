@@ -7,12 +7,15 @@ import SelectField from "./SelectField.jsx";
 import MilestoneRevision from "./MilestoneRevision.jsx";
 import { templateFields } from "./TermsPanel.jsx";
 import {
+  activeRooms,
   launchBlockers,
   milestoneDate,
   scheduleLabel,
 } from "../data/selectors.js";
 import { formatDate } from "../data/dates.js";
+import { collaboratorSlots } from "../data/home-planner.js";
 import FilePicker from "./FilePicker.jsx";
+import { HomeCalendar } from "./HomePlanner.jsx";
 
 function blockedReason(room, agreement, id, item) {
   if (!agreement.locked || !agreement.partnerLocked)
@@ -579,85 +582,113 @@ export default function MilestonesPanel({ room, agreement, partner }) {
           : agreement.draft[field.id],
     ])
     .filter(([, value]) => value);
+  // This collaboration keeps the colour it has on Home's calendar.
+  const open = activeRooms(state);
+  const slots = collaboratorSlots(
+    open.some((item) => item.id === room.id) ? open : [...open, room],
+  );
+  const nameOf = () => partnerName;
+  // Like Home: the calendar beside the list of work, 70:30. A closed room has
+  // nothing left to plan, so its milestones take the full width.
   return (
-    <section className="card panel room-content">
-      <div className="panel-head">
-        <div>
-          <h2>Milestones</h2>
-          <p className="panel-subtitle">
+    <div className="room-milestones-tab room-content">
+      <div
+        className={
+          launched ? "room-planner is-closed" : "home-planner room-planner"
+        }
+      >
+        {!launched && (
+          <HomeCalendar
+            rooms={[room]}
+            nameOf={nameOf}
+            slots={slots}
+            room={room}
+          />
+        )}
+        <section
+          className="card home-tasks room-milestones"
+          aria-labelledby="room-milestones-heading"
+        >
+          <div className="home-tasks-head">
+            <h2 id="room-milestones-heading">Milestones</h2>
+            <span
+              className={`status ${confirmedCount === entries.length ? "green" : "gray"}`}
+            >
+              {confirmedCount} of {entries.length} done
+            </span>
+          </div>
+          <p className="room-milestones-hint">
             A milestone counts when both of you mark it done.
           </p>
-          {agreedValues.length > 0 && (
-            <p className="agreed-values">
-              Agreed:{" "}
-              {agreedValues
-                .map(([label, value]) => `${label} ${value}`)
-                .join(" · ")}
-            </p>
-          )}
-        </div>
-        <span
-          className={`status ${confirmedCount === entries.length ? "green" : "gray"}`}
-        >
-          {confirmedCount} of {entries.length} confirmed by both
-        </span>
+          <ol
+            className="milestone-list"
+            tabIndex={0}
+            aria-labelledby="room-milestones-heading"
+          >
+            {entries.map(([id, item], index) => (
+              <Milestone
+                key={id}
+                room={room}
+                agreement={agreement}
+                partnerName={partnerName}
+                id={id}
+                item={item}
+                index={index}
+                current={!launched && id === currentId}
+              />
+            ))}
+          </ol>
+        </section>
       </div>
-      <p className="muted">
-        {room.terms.draft.format === "ongoing"
-          ? "Each cycle ends with a check-in summary and private reviews. Then choose Continue or Finish together."
-          : "Completion happens automatically when both of you confirm the final milestone. You then have 14 days to review."}
-      </p>
-      <ol className="milestone-list">
-        {entries.map(([id, item], index) => (
-          <Milestone
-            key={id}
-            room={room}
-            agreement={agreement}
-            partnerName={partnerName}
-            id={id}
-            item={item}
-            index={index}
-            current={!launched && id === currentId}
-          />
-        ))}
-      </ol>
-      {
-        <div className="milestone-launch">
-          <div>
-            <h3>
-              {room.status === "cancelled"
-                ? "No more work can be confirmed"
-                : launched
-                  ? room.type === "mentorship"
-                    ? "Mentorship completed"
-                    : "Collaboration launched"
-                  : room.type === "mentorship"
-                    ? "Completing the mentorship"
-                    : "Launching"}
-            </h3>
-            {!launched && blockers.length > 0 && (
-              <>
-                <p className="panel-subtitle">Still needed before launch:</p>
-                <ul className="launch-blockers" id="launch-blockers">
-                  {blockers.map((reason) => (
-                    <li key={reason}>{reason}</li>
-                  ))}
-                </ul>
-              </>
-            )}
-            {launched && room.status !== "cancelled" && (
-              <button
-                className="link-btn"
-                onClick={() => onAction({ page: "review" })}
-              >
-                {room.status === "reviewed"
-                  ? "Read reviews"
-                  : "View your review"}
-              </button>
-            )}
-          </div>
-        </div>
-      }
-    </section>
+      <section
+        className="card milestone-launch"
+        aria-labelledby="launch-heading"
+      >
+        <h3 id="launch-heading">
+          {room.status === "cancelled"
+            ? "No more work can be confirmed"
+            : launched
+              ? room.type === "mentorship"
+                ? "Mentorship completed"
+                : "Collaboration launched"
+              : room.type === "mentorship"
+                ? "Completing the mentorship"
+                : "Launching"}
+        </h3>
+        {!launched && (
+          <p className="muted">
+            {room.terms.draft.format === "ongoing"
+              ? "Each cycle ends with a check-in summary and private reviews. Then choose Continue or Finish together."
+              : "Completion happens automatically when both of you confirm the final milestone. You then have 14 days to review."}
+          </p>
+        )}
+        {!launched && blockers.length > 0 && (
+          <>
+            <p className="panel-subtitle">Still needed before launch:</p>
+            <ul className="launch-blockers" id="launch-blockers">
+              {blockers.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          </>
+        )}
+        {agreedValues.length > 0 && (
+          <p className="agreed-values">
+            Agreed:{" "}
+            {agreedValues
+              .map(([label, value]) => `${label} ${value}`)
+              .join(" · ")}
+          </p>
+        )}
+        {launched && room.status !== "cancelled" && (
+          <button
+            className="link-btn"
+            onClick={() => onAction({ page: "review" })}
+          >
+            {room.status === "reviewed" ? "Read reviews" : "View your review"}
+          </button>
+        )}
+      </section>
+    </div>
   );
 }

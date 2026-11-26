@@ -1,5 +1,9 @@
+import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Avatar from "./Avatar.jsx";
+import Overlay from "./Overlay.jsx";
+import SelectField from "./SelectField.jsx";
+import { startupTypes, typeLabel } from "../data/collaboration-types.js";
 import SimulateAcceptance from "./SimulateAcceptance.jsx";
 import DeclineIntroduction from "./DeclineIntroduction.jsx";
 import {
@@ -51,11 +55,222 @@ function Timing({ meta, incoming }) {
   );
 }
 
+// The type a pending request proposes, by its current name.
+function proposedType(state, person) {
+  const id = state.introductionTypesByRole?.[state.role]?.[person.id];
+  return id ? typeLabel(id) : typeLabel(person.engagement);
+}
+
+// A request you sent and are waiting on: who, which type, when. The full
+// request (with editing and its earlier versions) opens from View request.
+function OutgoingRow({ person }) {
+  const { state, onAction } = useApp();
+  const [open, setOpen] = useState(false);
+  const meta = state.introductionMetaByRole?.[state.role]?.[person.id];
+  return (
+    <article className="introduction-row is-outgoing">
+      <Avatar
+        image={person.image}
+        name={person.name}
+        identity={person.accountId || person.id}
+        verified={personVerified(person)}
+        color={person.color}
+      />
+      <div className="introduction-copy">
+        <h3>{person.name}</h3>
+        <p>Waiting for their reply · {proposedType(state, person)}</p>
+        <Timing meta={meta} />
+        {meta?.editedAt && (
+          <p className="introduction-timing">
+            Edited{" "}
+            <time dateTime={meta.editedAt}>{fullDate(meta.editedAt)}</time>
+          </p>
+        )}
+      </div>
+      <div className="introduction-actions">
+        <button
+          className="btn small primary"
+          aria-haspopup="dialog"
+          onClick={() => setOpen(true)}
+        >
+          View request<span className="visually-hidden">: {person.name}</span>
+        </button>
+        <button
+          className="btn small"
+          disabled={state.busy}
+          onClick={() => onAction({ action: "cancel-interest", id: person.id })}
+        >
+          Withdraw
+          <span className="visually-hidden"> request to {person.name}</span>
+        </button>
+      </div>
+      {open && (
+        <SentRequestDialog
+          person={person}
+          meta={meta}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </article>
+  );
+}
+
+// The request as sent, with Edit. Saving an edit keeps the earlier type and
+// note in the version history below; nothing is lost.
+function SentRequestDialog({ person, meta, onClose }) {
+  const { state, onAction } = useApp();
+  const [editing, setEditing] = useState(false);
+  const typeId =
+    state.introductionTypesByRole?.[state.role]?.[person.id] ||
+    (state.role === "mentor" || person.kind === "Mentor" ? "mentorship" : "");
+  const [type, setType] = useState(typeId);
+  const [note, setNote] = useState(meta?.note || "");
+  const mentorship = typeId === "mentorship";
+  const versions = [...(meta?.versions || [])].reverse();
+  const expires =
+    meta?.sentAt && new Date(Date.parse(meta.sentAt) + 14 * dayMs);
+  return (
+    <Overlay
+      id="sent-request"
+      title={`Your request to ${person.name}`}
+      onClose={onClose}
+      footer={
+        editing ? (
+          <>
+            <button className="btn" onClick={() => setEditing(false)}>
+              Cancel
+            </button>
+            <button
+              className="btn primary"
+              disabled={state.busy}
+              onClick={async () => {
+                const saved = await onAction({
+                  action: "edit-interest",
+                  id: person.id,
+                  engagementType: mentorship ? undefined : type,
+                  values: { note },
+                });
+                if (saved) setEditing(false);
+              }}
+            >
+              {state.busy ? "Saving…" : "Save changes"}
+            </button>
+          </>
+        ) : (
+          <>
+            <button className="btn" onClick={onClose}>
+              Close
+            </button>
+            <button
+              className="btn primary"
+              onClick={() => {
+                setType(typeId);
+                setNote(meta?.note || "");
+                setEditing(true);
+              }}
+            >
+              Edit request
+            </button>
+          </>
+        )
+      }
+    >
+      <div className="sent-request">
+        {editing ? (
+          <div className="sent-request-edit">
+            {!mentorship && (
+              <div className="field">
+                <label htmlFor="sent-request-type">Collaboration type</label>
+                <SelectField
+                  id="sent-request-type"
+                  value={type}
+                  onChange={(event) => setType(event.target.value)}
+                >
+                  {startupTypes.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
+            )}
+            <div className="field">
+              <label htmlFor="sent-request-note">Note</label>
+              <textarea
+                id="sent-request-note"
+                maxLength={280}
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+              />
+              <span className="field-count">{note.length} / 280</span>
+            </div>
+            <p className="field-help">
+              {person.name} sees the new version; the one you sent first stays
+              in this request's history.
+            </p>
+          </div>
+        ) : (
+          <dl className="sent-request-facts">
+            <div>
+              <dt>Status</dt>
+              <dd>Waiting for their reply</dd>
+            </div>
+            <div>
+              <dt>Collaboration type</dt>
+              <dd>{typeLabel(typeId) || "Not chosen"}</dd>
+            </div>
+            <div>
+              <dt>Sent</dt>
+              <dd>
+                {meta?.sentAt ? fullDate(meta.sentAt) : "Date not recorded"}
+              </dd>
+            </div>
+            {expires && (
+              <div>
+                <dt>Expires</dt>
+                <dd>{fullDate(expires.toISOString())}</dd>
+              </div>
+            )}
+            <div className="sent-request-note">
+              <dt>Note</dt>
+              <dd>{meta?.note ? `“${meta.note}”` : "No note"}</dd>
+            </div>
+          </dl>
+        )}
+        {versions.length > 0 && (
+          <section
+            className="sent-request-history"
+            aria-labelledby="sent-request-history"
+          >
+            <h3 id="sent-request-history">Earlier versions</h3>
+            <ol>
+              {versions.map((version, index) => (
+                <li key={`${version.savedAt}-${index}`}>
+                  <span className="sent-request-version">
+                    Version {versions.length - index}
+                    {version.savedAt ? ` · ${fullDate(version.savedAt)}` : ""}
+                  </span>
+                  <span>{typeLabel(version.engagementType)}</span>
+                  <span className="muted">
+                    {version.note ? `“${version.note}”` : "No note"}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+        {!editing && <SimulateAcceptance person={person} />}
+      </div>
+    </Overlay>
+  );
+}
+
 export function IntroductionRow({ person, incoming }) {
   const { state, onAction } = useApp();
   const meta = state.introductionMetaByRole?.[state.role]?.[person.id];
-  const type = person.engagement;
+  const type = proposedType(state, person);
   const youGet = offeredToYou(person);
+  if (!incoming) return <OutgoingRow person={person} />;
   return (
     <article className="introduction-row">
       <Avatar
@@ -104,11 +319,6 @@ export function IntroductionRow({ person, incoming }) {
                 </strong>{" "}
                 {person.need?.join(", ") || "Discuss their needs together."}
               </p>
-              {person.goals && (
-                <p>
-                  <strong>Startup goal:</strong> {person.goals}
-                </p>
-              )}
             </>
           ) : (
             <>
@@ -127,39 +337,21 @@ export function IntroductionRow({ person, incoming }) {
         </div>
       </div>
       <div className="introduction-actions">
-        {!incoming && <SimulateAcceptance person={person} />}
         <button
           className="btn small"
           onClick={() => onAction({ action: "match-detail", id: person.id })}
         >
           View profile<span className="visually-hidden">: {person.name}</span>
         </button>
-        {incoming ? (
-          <>
-            <button
-              className="btn small primary"
-              disabled={state.busy}
-              onClick={() =>
-                onAction({ action: "accept-interest", id: person.id })
-              }
-            >
-              Accept request
-              <span className="visually-hidden"> from {person.name}</span>
-            </button>
-            <DeclineIntroduction person={person} className="link-btn" />
-          </>
-        ) : (
-          <button
-            className="btn small"
-            disabled={state.busy}
-            onClick={() =>
-              onAction({ action: "cancel-interest", id: person.id })
-            }
-          >
-            Withdraw
-            <span className="visually-hidden"> request to {person.name}</span>
-          </button>
-        )}
+        <button
+          className="btn small primary"
+          disabled={state.busy}
+          onClick={() => onAction({ action: "accept-interest", id: person.id })}
+        >
+          Accept request
+          <span className="visually-hidden"> from {person.name}</span>
+        </button>
+        <DeclineIntroduction person={person} className="link-btn" />
       </div>
     </article>
   );

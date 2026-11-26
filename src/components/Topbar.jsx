@@ -2,7 +2,6 @@ import { useApp } from "../state/AppContext.jsx";
 import { useRef } from "react";
 import Icon from "./Icon.jsx";
 import Brand from "./Brand.jsx";
-import { pageLabel } from "../data/filters.js";
 import NotificationPreview from "./NotificationPreview.jsx";
 import Avatar from "./Avatar.jsx";
 import { accountVerified } from "../data/collaboration.js";
@@ -29,23 +28,12 @@ export default function Topbar() {
       <div className="mobile-brand">
         <Brand compact />
       </div>
-      {["room-detail", "match-detail", "review", "trust"].includes(
-        state.page,
-      ) ? (
-        <div className="workspace-heading">
-          <span>Workspace</span>
-          <span aria-hidden="true">/</span>
-          <strong>
-            {pageLabel(state.page, state.role, model.activeRoom()?.type)}
-          </strong>
-        </div>
-      ) : (
-        // The brand promise fills the header wherever no breadcrumb does.
-        <p className="topbar-tagline">
-          <Icon name="puzzle" />
-          Find your missing piece
-        </p>
-      )}
+      {/* The brand promise fills the header on every page; detail pages
+          have their own way back (Back to matches, All rooms). */}
+      <p className="topbar-tagline">
+        <Icon name="puzzle" />
+        Find your missing piece
+      </p>
       <div ref={actionsRef} className="top-actions">
         <button
           className="icon-btn topbar-tour"

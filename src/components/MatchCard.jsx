@@ -136,9 +136,9 @@ export default function MatchCard({ person, large = false }) {
           .join(" · ")}
       </p>
       {/* A mentor's kinds of guidance, from the tags they offer. */}
-      {mentor && mentorshipFocus(person.offer).length > 0 && (
+      {mentor && mentorshipFocus(person.offer, person.sector).length > 0 && (
         <p className="preview-focus">
-          Mentorship · {mentorshipFocus(person.offer).join(", ")}
+          Mentorship · {mentorshipFocus(person.offer, person.sector).join(", ")}
         </p>
       )}
       {person.summary && <p className="preview-summary">{person.summary}</p>}
@@ -192,11 +192,6 @@ export default function MatchCard({ person, large = false }) {
             Audience: {Number(person.audienceSize).toLocaleString()}
           </p>
         )}
-      {mentoring && person.goals && (
-        <p className="preview-goal">
-          <strong>Startup goal:</strong> {person.goals}
-        </p>
-      )}
       {trustLine(person) && (
         <p className="preview-trust">{trustLine(person)}</p>
       )}

@@ -6,6 +6,7 @@ import {
   command,
   founderProfile,
 } from "./founder-browser-helpers.js";
+import { openRequest } from "./ui-helpers.js";
 test.use({ baseURL: "http://127.0.0.1:5185" });
 test("unverified founders can browse, and opening, saving or requesting asks them to verify first", async ({
   page,
@@ -66,6 +67,7 @@ test("unverified founders can browse, and opening, saving or requesting asks the
   await page.goto(
     `/#/matches/${encodeURIComponent(`${b.state.accountId}:founder`)}`,
   );
+  await openRequest(page);
   const send = page.getByRole("button", {
     name: "Send request",
     exact: true,

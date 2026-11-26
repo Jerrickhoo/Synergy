@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import WorkspaceCalendar from "./WorkspaceCalendar.jsx";
 import Overlay from "./Overlay.jsx";
-import MeetingForm from "./MeetingForm.jsx";
+import DayPlanner from "./DayPlanner.jsx";
 import Icon from "./Icon.jsx";
 import { calendarEvents, localDateKey, dateFromKey } from "../data/planning.js";
 import {
@@ -33,18 +33,41 @@ export function CollabSwatch({ slot }) {
 }
 
 // The month calendar: each item is tinted by collaborator and opens its room;
-// choosing a day opens that day's events and a meeting form.
-export function HomeCalendar({ rooms, nameOf, slots }) {
+// choosing a day opens that day's events and a meeting form. Inside a Deal
+// Room (`room`) it shows that collaboration only, and an item opens in place:
+// a deadline scrolls to its milestone, anything else switches tab.
+export function HomeCalendar({ rooms, nameOf, slots, room: only = null }) {
   const { state, onAction } = useApp();
   const [month, setMonth] = useState(() => new Date());
   const [day, setDay] = useState("");
   const today = localDateKey(new Date());
   // Only collaboration events: open Office Hours have no collaborator yet.
-  const events = calendarEvents(state).filter((event) => event.room);
-  const open = (event) =>
-    onAction({ action: "open-room", id: event.room.id, tab: event.tab });
+  const events = calendarEvents(state).filter(
+    (event) => event.room && (!only || event.room.id === only.id),
+  );
+  const open = (event) => {
+    if (!only)
+      return onAction({
+        action: "open-room",
+        id: event.room.id,
+        tab: event.tab,
+      });
+    const milestone =
+      event.kind === "milestone" &&
+      document.getElementById(`milestone-${event.milestoneId}`);
+    if (milestone) {
+      milestone.scrollIntoView({ block: "center", behavior: "smooth" });
+      milestone.classList.remove("is-flashing");
+      // Restart the highlight even when the same milestone is chosen twice.
+      void milestone.offsetWidth;
+      milestone.classList.add("is-flashing");
+      return;
+    }
+    onAction({ action: "room-tab", tab: event.tab });
+  };
   const dayEvents = events.filter((event) => event.date === day);
-  const legend = rooms.filter((room) => slots.has(room.id));
+  const pending = state.waitingByRole?.[state.role]?.size || 0;
+  const legend = only ? [] : rooms.filter((room) => slots.has(room.id));
   return (
     <section
       className="card home-calendar"
@@ -89,9 +112,11 @@ export function HomeCalendar({ rooms, nameOf, slots }) {
         </ul>
       )}
       <p className="home-calendar-hint">
-        {rooms.length
-          ? "Choose a day to see it or schedule a meeting. Choose an item to open its room."
-          : "Meetings and due dates from your Deal Rooms show here once someone accepts a request."}
+        {only
+          ? `Meetings, tasks and milestone deadlines with ${nameOf(only)}. Choose a day to add one, or an item to open it.`
+          : rooms.length
+            ? "Choose a day to see it or add a meeting, task or deadline. Each item takes its collaboration's colour; choose one to open its room."
+            : "Meetings and due dates from your Deal Rooms show here once someone accepts a request."}
       </p>
       {day && (
         <Overlay title={longDay(day)} onClose={() => setDay("")}>
@@ -126,24 +151,59 @@ export function HomeCalendar({ rooms, nameOf, slots }) {
               </section>
             )}
             <section aria-labelledby="home-day-schedule">
-              <h3 id="home-day-schedule">Schedule a meeting</h3>
+              <h3 id="home-day-schedule">Add to this day</h3>
               {day < today ? (
                 <p className="muted">
-                  This day has passed. Choose today or a later date to schedule
-                  a meeting.
+                  This day has passed. Choose today or a later date to add a
+                  meeting, task or deadline.
                 </p>
               ) : rooms.length ? (
-                <MeetingForm
+                <DayPlanner
                   rooms={rooms}
                   nameOf={nameOf}
-                  date={day}
+                  slots={slots}
+                  day={day}
                   onDone={() => setDay("")}
                 />
               ) : (
-                <p className="muted">
-                  You can schedule a meeting once someone accepts your request
-                  and your room opens.
-                </p>
+                // Nothing to attach a meeting or task to yet: say why, and
+                // where to go next.
+                <div className="home-day-locked">
+                  <p>
+                    Meetings, tasks and deadlines belong to a collaboration, so
+                    you can add them here once someone accepts a request and
+                    your Deal Room opens.
+                  </p>
+                  <p className="muted">
+                    {pending
+                      ? `You have ${pending} request${pending === 1 ? "" : "s"} waiting for a reply.`
+                      : "Send a request to someone who fits what you need to get started."}
+                  </p>
+                  <div className="chip-row">
+                    <button
+                      className="btn primary small"
+                      onClick={() => {
+                        setDay("");
+                        onAction({ page: "discover" });
+                      }}
+                    >
+                      {state.role === "mentor"
+                        ? "Browse startups"
+                        : "Find matches"}
+                    </button>
+                    {pending > 0 && (
+                      <button
+                        className="btn small"
+                        onClick={() => {
+                          setDay("");
+                          onAction({ page: "waiting" });
+                        }}
+                      >
+                        View your requests
+                      </button>
+                    )}
+                  </div>
+                </div>
               )}
             </section>
           </div>

@@ -125,3 +125,12 @@ export function requestSuggestions(draft, availableFormats) {
 
 // The optional message a mentor sends with a decline.
 export const declineMessageLimit = 280;
+
+// The rating in words, for the top right of the Quality of Request card.
+export function qualityLabel(score) {
+  if (score >= 90) return "Excellent";
+  if (score >= 75) return "Very good";
+  if (score >= 60) return "Good";
+  if (score >= 40) return "Fair";
+  return "Needs work";
+}

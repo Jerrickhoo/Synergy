@@ -1,3 +1,33 @@
+// A match page's request (or mentorship request) opens in a dialog from
+// the bar on the profile card.
+export async function openRequest(page) {
+  await page.locator(".match-action-open").click();
+  await page.locator("#match-action").waitFor();
+}
+
+// The terms timeline is picked like a booking: open the calendar, choose
+// the start day, then the end day (`days` later), moving to the next month
+// when the end falls there. Returns the stored "YYYY-MM-DD to YYYY-MM-DD".
+export async function pickTimeline(page, days = 13) {
+  const key = (date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const start = new Date();
+  const end = new Date(
+    start.getFullYear(),
+    start.getMonth(),
+    start.getDate() + days,
+  );
+  await page.locator("#term-timeline").click();
+  const picker = page.locator("#term-timeline-picker");
+  await picker.locator(`[data-date="${key(start)}"]`).click();
+  const last = picker.locator(`[data-date="${key(end)}"]`);
+  if (!(await last.count()))
+    await picker.getByRole("button", { name: "Next month" }).click();
+  await last.click();
+  await page.locator("#term-timeline-picker").waitFor({ state: "detached" });
+  return `${key(start)} to ${key(end)}`;
+}
+
 // Interact with the visible custom control; its backing select is only for
 // form semantics. Value IDs are intentionally distinct from display labels.
 export async function selectValue(control, value) {

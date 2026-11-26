@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import {
   collaborationTypes,
   legacyTypeLabels,
+  mentoringTypes,
   mentorshipFocus,
   startupTypes,
   suggestedType,
@@ -14,6 +15,7 @@ import {
   typeLabel,
 } from "../src/data/collaboration-types.js";
 import { validateProfile } from "../src/state/validation.js";
+import { fitSentence } from "../src/data/profile-presentation.js";
 import templates from "../src/data/engagement-templates.json" with { type: "json" };
 
 test("the types are Evaluation and Feedback, Audience Swap, Technical Development, Funding and Mentorship", () => {
@@ -108,5 +110,54 @@ test("a tag can't be both something a startup needs and something it offers", ()
   assert.equal(
     validateProfile({ ...profile, needTags: "Fundraising" }, "founder").offer,
     undefined,
+  );
+});
+
+test("a mentor's mentoring types come from their tags or the words they use, else General", () => {
+  assert.deepEqual(
+    mentoringTypes(["Product strategy", "Onboarding guidance"]),
+    ["Product"],
+  );
+  assert.deepEqual(mentoringTypes(["Fundraising"], "Go-to-market and growth"), [
+    "Marketing",
+    "Financial",
+  ]);
+  assert.deepEqual(mentoringTypes(["Hiring"]), ["General"]);
+});
+
+test("a match's breakdown sums up why in one sentence", () => {
+  const row = (index, score) => ({ index, score });
+  assert.equal(
+    fitSentence({ score: 78 }, [
+      row(0, 100),
+      row(1, 90),
+      row(2, 10),
+      row(3, 70),
+    ]),
+    "78% because they offer what you need, their expertise fits and you're at a similar stage and size, but your industries differ.",
+  );
+  assert.equal(
+    fitSentence({ score: 20 }, [row(0, 10), row(2, null)]),
+    "20% because few of your needs overlap and an industry is missing.",
+  );
+  // Needs carry the most weight, so a partial fit is still named.
+  assert.equal(
+    fitSentence({ score: 59 }, [row(0, 50), row(2, 63), row(5, 100)]),
+    "59% because they offer some of what you need and they have room for you now.",
+  );
+  assert.equal(
+    fitSentence({ score: 50 }, [row(2, 50), row(3, 40)]),
+    "50% because your profiles partly line up on every factor.",
+  );
+  // A mentor reading a startup's match sees it from their side.
+  assert.equal(
+    fitSentence({ score: 70 }, [row(0, 80), row(1, 20)], {
+      mentorViewer: true,
+    }),
+    "70% because you offer what they need, but your expertise is a looser fit for them.",
+  );
+  assert.equal(
+    fitSentence({ score: 45 }, [row(0, 40)], { mentorViewer: true }),
+    "45% because you offer some of what they need.",
   );
 });

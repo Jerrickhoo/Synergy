@@ -19,6 +19,7 @@ import { validateCredentials } from "./validation.js";
 import { useMatchFilterMemory } from "./useMatchFilterMemory.js";
 import { paymentActionNames } from "../data/pricing.js";
 import { verificationNeededFor } from "../data/collaboration.js";
+import { withCurrentTypeNames } from "../data/collaboration-types.js";
 import {
   errorMessage,
   errorTitle,
@@ -29,6 +30,7 @@ import {
   formValidation,
   publishToast,
 } from "./feedback.js";
+import { markTourPending } from "../data/tour.js";
 
 enableMapSet();
 const AppContext = createContext(null);
@@ -144,6 +146,7 @@ const remoteActions = new Set([
   "save",
   "interest",
   "cancel-interest",
+  "edit-interest",
   "accept-interest",
   "simulate-acceptance",
   "decline-interest",
@@ -183,6 +186,7 @@ const reducer = (state, payload) =>
         profileEditing: false,
         connectionError: "",
       });
+      Object.assign(draft, withCurrentTypeNames(draft));
       applyRoute(draft, parseRoute(window.location.hash));
       if (payload.message) publishToast(draft, payload.message);
     } else if (payload.action === "remote") {
@@ -194,6 +198,7 @@ const reducer = (state, payload) =>
           key === "rooms"
             ? structuredClone(payload.state[key])
             : payload.state[key];
+      Object.assign(draft, withCurrentTypeNames(draft));
       for (const room of Object.values(draft.rooms))
         for (const [id, item] of Object.entries(room.milestones)) {
           item.evidenceOpen =
@@ -678,6 +683,9 @@ export function AppProvider({ children }) {
           command.form === "signup-form" ? "signup" : "login",
           command.values,
         );
+        // A new account's first Home opens the quick tour.
+        if (command.form === "signup-form")
+          markTourPending(result.state?.accountId);
         acceptSession(result);
       } else {
         const result = await request(

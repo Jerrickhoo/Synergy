@@ -55,10 +55,10 @@ function TourInvite() {
 }
 
 // Founder Home, most important first: the greeting and the one next step,
-// requests waiting on a reply, then the planner (the calendar beside your
-// tasks, 70:30, shown even before any work starts so its place is clear),
-// then the collaborations or, before any work starts, the strongest
-// matches. The overview tiles close the page; the full record lives in
+// requests waiting on a reply, then the collaborations or, before any work
+// starts, the strongest matches (what the status line counts), then the
+// planner (the calendar beside your tasks, 70:30, shown even before any
+// work starts so its place is clear). The overview tiles close the page; the full record lives in
 // Activity.
 export default function HomePage() {
   const { state } = useApp();
@@ -71,10 +71,8 @@ export default function HomePage() {
       <HomeWelcome />
       <TourInvite />
       <Introductions compact />
-      <div className="home-planner">
-        <HomeCalendar rooms={rooms} nameOf={nameOf} slots={slots} />
-        <HomeTasks rooms={rooms} nameOf={nameOf} slots={slots} />
-      </div>
+      {/* What the greeting's status line counts comes first: the
+          collaborations in progress, or before any, the people who fit. */}
       {rooms.length ? (
         <HomeCollaborations
           rooms={rooms}
@@ -85,6 +83,10 @@ export default function HomePage() {
       ) : (
         <HomeTopMatches />
       )}
+      <div className="home-planner">
+        <HomeCalendar rooms={rooms} nameOf={nameOf} slots={slots} />
+        <HomeTasks rooms={rooms} nameOf={nameOf} slots={slots} />
+      </div>
       {/* The collaborations list and the Introductions card already say what
           the rooms and introductions tiles would. */}
       <HomeMetrics

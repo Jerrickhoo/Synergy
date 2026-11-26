@@ -449,71 +449,15 @@ test("exact fit draft Apply/Reset, clamped cards, saved synchronization and sepa
   await expect(page.locator(".identity-summary")).toHaveText(
     profiles.founder.bio.trim(),
   );
+  // Save is the icon in the profile card's corner, in step with the card.
   await expect(
-    page.getByRole("button", { name: "Saved for later", exact: true }),
+    page.getByRole("button", { name: "Save for later", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
-  await page.getByText("Safety and privacy", { exact: true }).click();
-  await page
-    .getByRole("button", { name: "Report collaborator", exact: true })
-    .click();
-  const report = page.getByRole("dialog", { name: /Report FilterPeer/ });
-  let reports = 0;
-  page.on("request", (r) => {
-    if (
-      r.url().endsWith("/api/action") &&
-      r.postDataJSON()?.form === "report-form"
-    )
-      reports++;
-  });
-  await report.getByRole("button", { name: "Cancel", exact: true }).click();
-  expect(reports).toBe(0);
-  await page
-    .getByRole("button", { name: "Report collaborator", exact: true })
-    .click();
-  await report
-    .getByRole("button", { name: "Submit report", exact: true })
-    .click();
-  expect(reports).toBe(0);
-  await selectValue(
-    report.getByRole("combobox", { name: "Reason", exact: true }),
-    "Spam or scam",
-  );
-  await report
-    .getByLabel("Details (optional)")
-    .fill("Please review this profile.");
-  await page.route("**/api/action", (route) =>
-    route.fulfill({
-      status: 503,
-      contentType: "application/json",
-      body: JSON.stringify({ error: "Unavailable" }),
-    }),
-  );
-  await report
-    .getByRole("button", { name: "Submit report", exact: true })
-    .click();
-  await expect(report.getByRole("alert")).toContainText("not submitted");
-  await expect(report.getByLabel("Details (optional)")).toHaveValue(
-    "Please review this profile.",
-  );
-  await page.unroute("**/api/action");
-  await report
-    .getByRole("button", { name: "Submit report", exact: true })
-    .click();
-  await expect(report.getByRole("status")).toContainText(
-    "saved for moderator review",
-  );
-  await report.getByRole("button", { name: "Done", exact: true }).click();
-  const settings = await request.get("/api/account", {
-    headers: { Authorization: `Bearer ${user.token}` },
-  });
-  expect(decode(await settings.text()).blocked).toHaveLength(0);
-  await page.getByText("Block this collaborator", { exact: true }).click();
+  // A match page is the profile and its tabs; reporting and blocking live in
+  // Deal Rooms, request cards and Settings.
   await expect(
-    page.getByRole("button", {
-      name: "Block and close unfinished rooms",
-      exact: true,
-    }),
-  ).toBeVisible();
+    page.getByText("Safety and privacy", { exact: true }),
+  ).toHaveCount(0);
   await page.goto("/#/");
   await page.getByRole("button", { name: /^Saved matches/ }).click();
   await expect(page.getByRole("tab", { name: /^Saved/ })).toHaveAttribute(
@@ -859,7 +803,6 @@ for (const role of ["founder", "mentor"])
           page.getByRole("button", { name: /Notifications/ }),
         ).toBeFocused();
         await page.goto(`/#/matches/${matchId}`);
-        await page.getByText("Safety and privacy", { exact: true }).click();
         await noOverflow(page);
         await page.screenshot({
           path: `output/playwright/roadmap-${testInfo.project.name}-${role}-${theme}-${width}-match.png`,

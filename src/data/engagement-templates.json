@@ -120,16 +120,16 @@
         "placeholder": "For example: 50"
       },
       {
-        "id": "testWindow",
-        "label": "Testing window",
-        "type": "text",
-        "placeholder": "For example: 10–24 November"
-      },
-      {
         "id": "feedbackMethod",
         "label": "How feedback is collected",
-        "type": "text",
-        "placeholder": "For example: a shared form"
+        "type": "select",
+        "options": [
+          ["A shared form", "A shared form"],
+          ["A video call", "A video call"],
+          ["Comments in a shared doc", "Comments in a shared doc"],
+          ["A written report", "A written report"],
+          ["Messages in the room chat", "Messages in the room chat"]
+        ]
       }
     ],
     "milestones": [
@@ -187,14 +187,14 @@
       {
         "id": "shareFormat",
         "label": "How you will share",
-        "type": "text",
-        "placeholder": "For example: calls, a shared doc or async comments"
-      },
-      {
-        "id": "targetDate",
-        "label": "Target date",
-        "type": "text",
-        "placeholder": "For example: by 6 December"
+        "type": "select",
+        "options": [
+          ["Calls", "Calls"],
+          ["A shared document", "A shared document"],
+          ["Async comments", "Async comments"],
+          ["Working sessions in person", "Working sessions in person"],
+          ["A mix of these", "A mix of these"]
+        ]
       }
     ],
     "milestones": [
@@ -252,14 +252,14 @@
       {
         "id": "shareFormat",
         "label": "How you will share",
-        "type": "text",
-        "placeholder": "For example: investor introductions, a shared grant list or pitch reviews"
-      },
-      {
-        "id": "targetDate",
-        "label": "Target date",
-        "type": "text",
-        "placeholder": "For example: by 6 December"
+        "type": "select",
+        "options": [
+          ["Investor introductions", "Investor introductions"],
+          ["A shared grant list", "A shared grant list"],
+          ["Pitch deck reviews", "Pitch deck reviews"],
+          ["Financial model reviews", "Financial model reviews"],
+          ["A mix of these", "A mix of these"]
+        ]
       }
     ],
     "milestones": [

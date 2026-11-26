@@ -1,5 +1,10 @@
 import { mentorRequestValues } from "./mentor-request-fixtures.js";
-import { selectValue, confirmSignOut } from "./ui-helpers.js";
+import {
+  selectValue,
+  confirmSignOut,
+  pickTimeline,
+  openRequest,
+} from "./ui-helpers.js";
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { decode } from "../src/state/serialization.js";
@@ -350,6 +355,7 @@ for (const role of ["founder", "mentor"])
     await page.goto(
       `/?review=${Date.now()}#/matches/${encodeURIComponent(person.id)}`,
     );
+    await openRequest(page);
     if (role === "founder") {
       await page
         .getByLabel("What's the problem?")
@@ -370,9 +376,13 @@ for (const role of ["founder", "mentor"])
       await page
         .getByRole("button", { name: "Send request", exact: true })
         .click();
-      const introduction = page.locator(".introduction-row").filter({
-        has: page.getByRole("heading", { name: person.name, exact: true }),
-      });
+      // The sent request waits in Requests; its dialog has the shortcut.
+      await page
+        .getByRole("button", {
+          name: new RegExp(`^View request.*${person.name}`),
+        })
+        .click();
+      const introduction = page.locator("#sent-request");
       await expect(introduction).toContainText("Prototype only");
       await introduction
         .getByRole("button", {
@@ -556,13 +566,20 @@ test("a preview founder sets up their own startup and returns to it from a new t
   await expect(hana.locator(".preview-exchange dd")).toHaveText([
     /^Product feedback$/i,
   ]);
-  await expect(page.locator(".match-card .mentorship-badges")).toHaveCount(0);
+  await expect(
+    page.locator(".match-card .mentorship-badges", { hasText: "New Mentor" }),
+  ).toHaveCount(0);
   await hana.getByRole("button", { name: /^View match/ }).click();
   await expect(page.locator(".fit-section")).toContainText(
-    /They offer what you need: Product feedback\./i,
+    /because they offer some of what you need/,
   );
   // Trust history is on the match page's Trust tab.
-  await page.getByRole("tab", { name: "Trust", exact: true }).click();
+  await page
+    .getByRole("tab", {
+      name: "Experience and collaboration history",
+      exact: true,
+    })
+    .click();
   await expect(
     page.getByText("New mentor · no completed sessions yet"),
   ).toBeVisible();
@@ -660,6 +677,7 @@ test("a founder request shows inline errors, keeps its draft and reaches a revie
   await page.goto(
     `/?draft=${Date.now()}#/matches/${encodeURIComponent(mentor.id)}`,
   );
+  await openRequest(page);
   await page.getByRole("button", { name: "Send mentorship request" }).click();
   const problem = page.getByLabel("What's the problem?");
   for (const label of [
@@ -676,6 +694,7 @@ test("a founder request shows inline errors, keeps its draft and reaches a revie
   await problem.fill(mentorRequestValues.problem);
   await expect(problem).toHaveAttribute("aria-invalid", "false");
   await page.reload();
+  await openRequest(page);
   await expect(page.getByLabel("What's the problem?")).toHaveValue(
     mentorRequestValues.problem,
   );
@@ -691,10 +710,12 @@ test("a founder request shows inline errors, keeps its draft and reaches a revie
   await expect(card).toContainText(
     /usually replies within \d+ days?\. You’ll see the reply in Updates\./,
   );
-  await card.getByText("View request", { exact: true }).click();
-  await expect(card.getByText(mentorRequestValues.question)).toBeVisible();
-  await expect(card.getByText("Format", { exact: true })).toBeVisible();
-  await card
+  // The full request opens in a dialog, with the prototype shortcut.
+  await card.getByRole("button", { name: /^View request/ }).click();
+  const sent = page.locator("#sent-mentorship-request");
+  await expect(sent.getByText(mentorRequestValues.question)).toBeVisible();
+  await expect(sent.getByText("Format", { exact: true })).toBeVisible();
+  await sent
     .getByRole("button", { name: "Simulate acceptance", exact: true })
     .click();
   await expect(page).toHaveURL(/#\/rooms\//);
@@ -849,11 +870,17 @@ test("a founder trades advice with a sample startup in a Technical Development w
   await page.goto(`/?swap=${Date.now()}#/matches`);
   await expect(page.getByRole("heading", { name: "Fairtab" })).toBeVisible();
   await page.goto(`/#/matches/${encodeURIComponent(fairtab.id)}`);
+  await openRequest(page);
+  await expect(page.getByLabel("Collaboration type")).toHaveText("Funding");
+  await selectValue(page.getByLabel("Collaboration type"), "swap");
   await expect(page.getByLabel("Collaboration type")).toHaveText(
     "Technical Development",
   );
   await page.getByRole("button", { name: "Send request" }).click();
+  // The sent request waits in Requests; its dialog has the shortcut.
+  await page.getByRole("button", { name: /^View request.*Fairtab/ }).click();
   await page
+    .locator("#sent-request")
     .getByRole("button", {
       name: "Simulate acceptance from Fairtab",
       exact: true,
@@ -866,10 +893,15 @@ test("a founder trades advice with a sample startup in a Technical Development w
   for (const [label, value] of [
     ["Shared goal", "Fairtab improves onboarding; we set our first price."],
     ["Scope and deliverables", "We review onboarding; Fairtab shares pricing."],
-    ["Timeline", "2 weeks"],
-    ["Commitment", "2 calls"],
   ])
     await page.getByLabel(label, { exact: true }).fill(value);
+  // The timeline is chosen on a calendar and the commitment from a list.
+  await pickTimeline(page);
+  await expect(page.locator("#term-timeline")).not.toContainText("Add a date");
+  await selectValue(
+    page.getByLabel("Commitment", { exact: true }),
+    "2–3 hours a week",
+  );
   await page
     .getByLabel("Exchange", { exact: true })
     .fill("Design feedback for a pricing playbook");
@@ -993,7 +1025,7 @@ test("a mentor preview takes the sample request to Reviewed", async ({
   await expect(
     page.getByRole("heading", { level: 1, name: "4 requests waiting" }),
   ).toBeVisible();
-  await expect(page.locator(".sidebar")).toContainText("Alex Navarro");
+  await expect(page.locator(".account-button")).toContainText("Alex Navarro");
   await expect(
     page
       .getByRole("navigation", { name: "Main navigation" })
@@ -1066,6 +1098,7 @@ async function requestAndSimulateAcceptance(page, request, format) {
     request,
     format,
   );
+  await openRequest(page);
   await page
     .getByLabel("What's the problem?")
     .fill(mentorRequestValues.problem);
@@ -1080,6 +1113,7 @@ async function requestAndSimulateAcceptance(page, request, format) {
   await expect(page).toHaveURL(/#\/waiting/);
   // Back on the mentor's profile, the founder can simulate acceptance there.
   await page.goto(profile);
+  await openRequest(page);
   await expect(
     page.getByRole("heading", { name: "Mentorship request sent" }),
   ).toBeVisible();
@@ -1185,6 +1219,7 @@ test("format walkthrough: Office Hours with a sample mentor reaches Reviewed", a
 }) => {
   // Office Hours is booked from an open slot; there is no request to accept.
   await founderWithSampleMentor(page, request, "office-hours");
+  await openRequest(page);
   await page.locator("#office-book-problem").fill(mentorRequestValues.problem);
   await page
     .locator("#office-book-question")

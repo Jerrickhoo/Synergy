@@ -683,6 +683,28 @@ function ProfileContent() {
                       min="1"
                       value={profile.teamSize}
                     />
+                    {/* Working Style Fit compares this with each startup's.
+                        It takes the second row, as wide as Industry and
+                        Stage above it. */}
+                    <div className="field profile-working-style">
+                      <label htmlFor="profile-working-style">
+                        How do you like to work together?
+                      </label>
+                      <SelectField
+                        id="profile-working-style"
+                        name="engagementPreference"
+                        defaultValue={profile.engagementPreference || ""}
+                      >
+                        <option value="">Not chosen yet</option>
+                        <option value="one-off">A one-off exchange</option>
+                        <option value="ongoing">An ongoing partnership</option>
+                        <option value="either">Either works</option>
+                      </SelectField>
+                      <p className="field-help">
+                        Startups who want the same kind of collaboration rank
+                        higher for each other.
+                      </p>
+                    </div>
                   </div>
                 </EditSection>
                 {/* Needs and offers are picked from the standard tags, side
