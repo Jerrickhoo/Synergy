@@ -3,7 +3,6 @@ import { FormatPrices } from "./Payments.jsx";
 import TrustSummary from "./TrustSummary.jsx";
 import { useApp } from "../state/AppContext.jsx";
 import Avatar from "./Avatar.jsx";
-import VerificationGate from "./VerificationGate.jsx";
 import Tags from "./Tags.jsx";
 import Icon from "./Icon.jsx";
 import { useState } from "react";
@@ -20,6 +19,7 @@ import {
   stageLabel,
   trustLine,
 } from "../data/profile-presentation.js";
+import { personVerified } from "../data/collaboration.js";
 
 export default function MatchCard({ person, large = false }) {
   const { state, model, onAction } = useApp();
@@ -68,7 +68,7 @@ export default function MatchCard({ person, large = false }) {
     : incoming
       ? "Wants to connect with you · View match to reply"
       : interested
-        ? "Introduction sent"
+        ? "Request sent"
         : "";
 
   return (
@@ -85,6 +85,7 @@ export default function MatchCard({ person, large = false }) {
           image={person.image}
           name={person.name}
           identity={person.accountId || person.id}
+          verified={personVerified(person)}
           color={person.color}
         />
         <div className="preview-identity">
@@ -221,9 +222,6 @@ export default function MatchCard({ person, large = false }) {
             : connection}
         </p>
       )}
-      {/* One line with the link; the disabled button that repeated the same
-          words is gone, and View match stays the card's action. */}
-      {!existingRoom && <VerificationGate />}
       <div className="preview-footer">
         <button
           className="preview-fit interactive-surface"

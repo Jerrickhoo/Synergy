@@ -13,6 +13,8 @@ import {
 import MatchCard from "../components/MatchCard.jsx";
 import Icon from "../components/Icon.jsx";
 import PageHeader from "../components/PageHeader.jsx";
+import NextStepCard from "../components/NextStepCard.jsx";
+import { verificationStep } from "../data/home.js";
 import Overlay from "../components/Overlay.jsx";
 import ScoreGuide from "../components/ScoreGuide.jsx";
 import SelectField from "../components/SelectField.jsx";
@@ -81,6 +83,7 @@ export default function DiscoverPage() {
   const missing = profileKeys(state.role).filter(
     (key) => !String(state.profiles[state.role][key] || "").trim(),
   );
+  const verify = verificationStep(state);
   const profilePrompt = missing.length > 0 && (
     <section className="discovery-start" aria-label="Complete your profile">
       <span className="discovery-start-icon">
@@ -207,6 +210,9 @@ export default function DiscoverPage() {
         }
       />
       {profilePrompt}
+      {/* Once for the page, not on every card: viewing, saving and
+          connecting ask an unverified account to verify first. */}
+      {verify?.verification && <NextStepCard next={verify} />}
       <div className="discovery-controls">
         <div className="tabs" role="tablist" aria-label="Match lists">
           {[

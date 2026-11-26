@@ -607,7 +607,7 @@ export function OfficeHoursBooking({ person }) {
             · Only {person.name} will see your request details.
           </p>
           {locked && <VerificationGate />}
-          <button className="btn primary" disabled={state.busy || locked}>
+          <button className="btn primary" disabled={state.busy}>
             {state.busy ? "Booking…" : "Book Office Hours"}
           </button>
         </form>

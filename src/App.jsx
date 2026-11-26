@@ -14,7 +14,6 @@ import RoomsPage from "./pages/RoomsPage.jsx";
 import RoomDetailPage from "./pages/RoomDetailPage.jsx";
 import ImpactPage from "./pages/ImpactPage.jsx";
 import MenteesPage from "./pages/MenteesPage.jsx";
-import RequestsPage from "./pages/RequestsPage.jsx";
 import WaitingPage from "./pages/WaitingPage.jsx";
 import MatchDetailPage from "./pages/MatchDetailPage.jsx";
 import ReviewPage from "./pages/ReviewPage.jsx";
@@ -26,9 +25,12 @@ import Toast from "./components/Toast.jsx";
 import NotificationsPage from "./pages/NotificationsPage.jsx";
 import ModerationPage from "./pages/ModerationPage.jsx";
 import CalendarPage from "./pages/CalendarPage.jsx";
+import ActivityPage from "./pages/ActivityPage.jsx";
 import Icon from "./components/Icon.jsx";
 import MentorshipWarning from "./components/MentorshipWarning.jsx";
 import SignOutDialog from "./components/SignOutDialog.jsx";
+import VerificationPrompt from "./components/VerificationPrompt.jsx";
+import QuickTour from "./components/QuickTour.jsx";
 import FirstRunChoice from "./components/FirstRunChoice.jsx";
 import OtherRoleNotice from "./components/OtherRoleNotice.jsx";
 import CheckInboxPage from "./pages/CheckInboxPage.jsx";
@@ -37,6 +39,7 @@ import ResetPasswordPage from "./pages/ResetPasswordPage.jsx";
 import VerifyEmailPage from "./pages/VerifyEmailPage.jsx";
 
 const pages = {
+  activity: ActivityPage,
   calendar: CalendarPage,
   settings: SettingsPage,
   notifications: NotificationsPage,
@@ -46,7 +49,8 @@ const pages = {
   rooms: RoomsPage,
   "room-detail": RoomDetailPage,
   waiting: WaitingPage,
-  requests: RequestsPage,
+  // A founder's requests and a mentor's share one page; WaitingPage picks.
+  requests: WaitingPage,
   mentees: MenteesPage,
   impact: ImpactPage,
   "impact-certificate": ImpactPage,
@@ -271,6 +275,8 @@ export default function App() {
         </>
       )}
       <SignOutDialog />
+      <VerificationPrompt />
+      <QuickTour />
       <MentorshipWarning />
       {(state.authenticated || authPage) && !CardScreen && <Toast />}
       {state.busy && (

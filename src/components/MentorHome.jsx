@@ -28,12 +28,7 @@ import { formatDate } from "../data/dates.js";
 import { localDateKey } from "../data/planning.js";
 import HomeMetrics from "./HomeMetrics.jsx";
 import { collaboratorSlots } from "../data/home-planner.js";
-import {
-  HomeActivity,
-  HomeCalendar,
-  HomeCollaborations,
-  HomeTasks,
-} from "./HomePlanner.jsx";
+import { HomeCalendar, HomeCollaborations, HomeTasks } from "./HomePlanner.jsx";
 
 // (Nov 22, round 2) The heading names the state founders actually see: live,
 // paused (with the resume date), waiting on the guidelines or an attendance
@@ -483,7 +478,6 @@ export default function MentorHome() {
           </button>
         </section>
       )}
-      <HomeActivity />
     </div>
   );
 }

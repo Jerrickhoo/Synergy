@@ -1,7 +1,5 @@
 import { useApp } from "../state/AppContext.jsx";
 import Avatar from "./Avatar.jsx";
-import VerificationGate from "./VerificationGate.jsx";
-import { verificationRequired } from "../data/collaboration.js";
 import SimulateAcceptance from "./SimulateAcceptance.jsx";
 import DeclineIntroduction from "./DeclineIntroduction.jsx";
 import {
@@ -9,6 +7,7 @@ import {
   offeredToYou,
   stageLabel,
 } from "../data/profile-presentation.js";
+import { personVerified } from "../data/collaboration.js";
 
 const dayMs = 86400000;
 const dateText = (iso) =>
@@ -48,6 +47,7 @@ function IntroductionRow({ person, incoming }) {
         image={person.image}
         name={person.name}
         identity={person.accountId || person.id}
+        verified={personVerified(person)}
         color={person.color}
       />
       <div className="introduction-copy">
@@ -123,17 +123,14 @@ function IntroductionRow({ person, incoming }) {
           <>
             <button
               className="btn small primary"
-              disabled={state.busy || verificationRequired(state)}
+              disabled={state.busy}
               onClick={() =>
                 onAction({ action: "accept-interest", id: person.id })
               }
             >
-              {verificationRequired(state)
-                ? "Verify to accept introductions"
-                : "Accept introduction"}
+              Accept request
               <span className="visually-hidden"> from {person.name}</span>
             </button>
-            <VerificationGate />
             <DeclineIntroduction person={person} className="link-btn" />
           </>
         ) : (
@@ -145,10 +142,7 @@ function IntroductionRow({ person, incoming }) {
             }
           >
             Withdraw
-            <span className="visually-hidden">
-              {" "}
-              introduction to {person.name}
-            </span>
+            <span className="visually-hidden"> request to {person.name}</span>
           </button>
         )}
       </div>
@@ -156,7 +150,16 @@ function IntroductionRow({ person, incoming }) {
   );
 }
 
-export default function Introductions({ compact = false }) {
+// Incoming and outgoing requests, as two sections with their own heading
+// and count. `outgoingExtra` adds the founder's mentorship requests under
+// Outgoing; `hideEmpty` leaves out an empty section (the mentor's page
+// lists founders' requests above). `compact` is Home's one-line summary.
+export default function Introductions({
+  compact = false,
+  outgoingExtra = null,
+  outgoingExtraCount = 0,
+  hideEmpty = false,
+}) {
   const { state, model, onAction } = useApp();
   const incoming = state.incomingByRole[state.role];
   const outgoing = model.waitingMatches();
@@ -172,79 +175,104 @@ export default function Introductions({ compact = false }) {
   const sent = people.filter((person) => !incoming.has(person.id));
   const history = (state.introHistoryByRole?.[state.role] || []).slice(0, 10);
   const mentor = state.role === "mentor";
-  const [one, many] = mentor
-    ? ["request", "requests"]
-    : ["introduction", "introductions"];
   if (compact) {
     if (!people.length) return null;
     return (
       <section className="card panel introduction-summary">
-        <h2>{mentor ? "Requests" : "Introductions"}</h2>
+        <h2>Requests</h2>
         <p>
           {received.length
-            ? `${received.length} ${received.length === 1 ? `${one} needs` : `${many} need`} your reply.`
+            ? `${received.length} ${received.length === 1 ? "request needs" : "requests need"} your reply.`
             : `${sent.length} sent and waiting for a reply.`}
         </p>
         <button
           className="btn"
           onClick={() => onAction({ page: mentor ? "requests" : "waiting" })}
         >
-          View {many}
+          View requests
         </button>
       </section>
     );
   }
+  const sentCount = sent.length + outgoingExtraCount;
   return (
-    <section className="card panel introductions">
-      <h2>Your {many}</h2>
-      {!people.length && (
-        <p className="muted">
-          {mentor
-            ? "No pending requests. Browse startups to find one to support."
-            : "No pending introductions for founder exchanges."}
-        </p>
-      )}
-      {received.length > 0 && (
-        <section aria-labelledby="intro-received">
-          <h3 id="intro-received" className="introduction-group">
-            Needs your reply ({received.length})
-          </h3>
-          {received.map((person) => (
-            <IntroductionRow key={person.id} person={person} incoming />
-          ))}
+    <>
+      {(!hideEmpty || received.length > 0) && (
+        <section className="requests-group" aria-labelledby="requests-incoming">
+          <div className="requests-group-head">
+            <h2 id="requests-incoming">
+              Incoming requests
+              <span className="requests-count">{received.length}</span>
+            </h2>
+            <p>
+              {mentor
+                ? "Founders who want to work with you."
+                : "People who want to work with you. Reply within 14 days or the request expires."}
+            </p>
+          </div>
+          {received.length ? (
+            <div className="card panel introductions">
+              {received.map((person) => (
+                <IntroductionRow key={person.id} person={person} incoming />
+              ))}
+            </div>
+          ) : (
+            <p className="card panel requests-empty">
+              No one is waiting on your reply right now.
+            </p>
+          )}
         </section>
       )}
-      {sent.length > 0 && (
-        <section aria-labelledby="intro-sent">
-          <h3 id="intro-sent" className="introduction-group">
-            Sent ({sent.length})
-          </h3>
-          {sent.map((person) => (
-            <IntroductionRow key={person.id} person={person} />
-          ))}
+      {(!hideEmpty || sentCount > 0) && (
+        <section className="requests-group" aria-labelledby="requests-outgoing">
+          <div className="requests-group-head">
+            <h2 id="requests-outgoing">
+              Outgoing requests
+              <span className="requests-count">{sentCount}</span>
+            </h2>
+            <p>Requests you sent, and where each one stands.</p>
+          </div>
+          {sent.length > 0 && (
+            <div className="card panel introductions">
+              {sent.map((person) => (
+                <IntroductionRow key={person.id} person={person} />
+              ))}
+            </div>
+          )}
+          {outgoingExtra}
+          {!sentCount && (
+            <p className="card panel requests-empty">
+              {mentor
+                ? "Nothing sent right now. Browse startups to find one to support."
+                : "Nothing sent right now. Find someone in Matches and send them a request."}
+            </p>
+          )}
         </section>
       )}
       {history.length > 0 && (
-        <section aria-labelledby="intro-closed">
-          <h3 id="intro-closed" className="introduction-group">
-            Closed
-          </h3>
-          <ul className="introduction-history">
-            {history.map((item, index) => (
-              <li key={`${item.id}-${index}`}>
-                <span>
-                  {item.direction === "sent" ? "To" : "From"} {item.name}
-                </span>
-                <span>
-                  {statusText[item.status] || item.status}
-                  {item.reason ? `: “${item.reason}”` : ""}
-                </span>
-                <span className="muted">{dateText(item.at)}</span>
-              </li>
-            ))}
-          </ul>
+        <section className="requests-group" aria-labelledby="requests-closed">
+          <div className="requests-group-head">
+            <h2 id="requests-closed">Closed requests</h2>
+            <p>Accepted, declined, withdrawn or expired.</p>
+          </div>
+          <div className="card panel introductions">
+            <ul className="introduction-history">
+              {history.map((item, index) => (
+                <li key={`${item.id}-${index}`}>
+                  <span>
+                    {item.direction === "sent" ? "To" : "From"} {item.name}
+                  </span>
+                  <span>
+                    {statusText[item.status] || item.status}
+                    {item.reason ? `: “${item.reason}”` : ""}
+                  </span>
+                  <span className="muted">{dateText(item.at)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </section>
       )}
-    </section>
+    </>
   );
 }

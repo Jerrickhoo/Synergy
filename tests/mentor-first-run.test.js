@@ -637,7 +637,7 @@ test("an introduction from an incomplete profile names the missing fields", (t) 
   );
   assert.throws(
     () => s.act(mentor, { action: "interest", id: idOf(founder) }),
-    /^Error: Add the startups you want to help to your profile before sending or accepting an introduction\.$/,
+    /^Error: Add the startups you want to help to your profile before sending or accepting a request\.$/,
   );
 });
 

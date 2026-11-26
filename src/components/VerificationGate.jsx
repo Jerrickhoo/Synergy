@@ -3,9 +3,9 @@ import { verificationRequired } from "../data/collaboration.js";
 import Icon from "./Icon.jsx";
 
 // A tinted notice with the link inline, so an unverified founder sees why
-// they can't introduce themselves yet. `repeatsButton` is for places where a
-// disabled button above already says "Verify to send introductions", so only
-// the link is added instead of the same words twice.
+// saving and requests ask them to verify first. `repeatsButton` is for
+// places where a button above already asks them to verify, so only the link
+// is added instead of the same words twice.
 export default function VerificationGate({ repeatsButton = false }) {
   const { state, onAction } = useApp();
   if (!verificationRequired(state)) return null;
@@ -37,12 +37,15 @@ export default function VerificationGate({ repeatsButton = false }) {
       <div>
         {pending ? (
           <p>
-            A moderator is checking your evidence. You can keep browsing and
-            saving matches in the meantime.
+            A moderator is checking your evidence. You can keep browsing matches
+            in the meantime.
           </p>
         ) : (
           <p>
-            <strong>Verify to send introductions.</strong> {link}
+            <strong>
+              Verify your account now to use Synergy to its full potential.
+            </strong>{" "}
+            {link}
           </p>
         )}
         {pending && <p>{link}</p>}

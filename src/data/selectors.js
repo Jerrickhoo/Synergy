@@ -97,7 +97,7 @@ export function attentionItems(state, now = Date.now()) {
         if (remaining <= 86400000)
           add(
             remaining < 0 ? 1 : 3,
-            `${remaining < 0 ? "Overdue" : "Due soon"}: ${item.title}`,
+            `${remaining < 0 ? "Overdue" : "Due soon"}: ${milestoneTask(item.title)}`,
             room,
           );
       }
@@ -106,7 +106,7 @@ export function attentionItems(state, now = Date.now()) {
   if (state.incomingByRole[state.role].size)
     items.push({
       priority: 2,
-      text: "Respond to your pending introductions",
+      text: "Respond to your pending requests",
       page: "waiting",
     });
   return items.sort(
@@ -239,6 +239,53 @@ const shortDate = (iso) =>
         month: "short",
       })
     : "";
+// Milestone names describe the finished state ("Scope defined"), which reads
+// as already done in a to-do list. Work that is still open uses the
+// instruction instead ("Define the scope"). Names a person typed themselves
+// are shown as written.
+const milestoneTasks = {
+  // Beta Testing Exchange
+  "Scope defined": "Define the scope",
+  "Testers assigned": "Assign the testers",
+  "Testing round": "Run the testing round",
+  "Feedback submitted": "Submit the feedback",
+  "Issues reviewed": "Review the issues",
+  // Co-Marketing Swap
+  "Assets shared": "Share the assets",
+  "Draft approved": "Approve the draft",
+  "Send date locked": "Lock the send date",
+  "Swap executed": "Run the swap",
+  "Results reported": "Report the results",
+  // Skill Swap
+  "Trade agreed": "Agree the trade",
+  "First side shared": "Share the first side",
+  "Second side shared": "Share the second side",
+  "Advice applied": "Apply the advice",
+  "Wrap-up": "Wrap up",
+  // Mentorship formats and earlier mentorship rooms
+  "Question sent": "Send the question",
+  "Answer delivered": "Deliver the answer",
+  "Founder marks helpful": "Mark the answer as helpful",
+  "Doc uploaded": "Upload the document",
+  "Review delivered": "Deliver the review",
+  "Revisions logged": "Log the revisions",
+  "Goal confirmed": "Confirm the goal",
+  "Session held": "Hold the session",
+  "Action items logged": "Log the action items",
+  "Follow-up": "Follow up",
+  "Slot booked": "Book a slot",
+  "Check-ins held": "Hold the check-ins",
+  "Progress reviewed": "Review progress",
+  "Engagement reviewed": "Review the engagement",
+  "Goals defined": "Define the goals",
+  "Sessions scheduled": "Schedule the sessions",
+  "Guidance delivered": "Deliver the guidance",
+  "Follow-up actions logged": "Log the follow-up actions",
+  "Progress reflected on together": "Reflect on progress together",
+};
+export const milestoneTask = (title = "") =>
+  milestoneTasks[String(title).trim()] || title;
+
 // Local display of a milestone's calendar date (stored as YYYY-MM-DD).
 export const milestoneDate = (date) => {
   if (!date) return "";
@@ -397,7 +444,7 @@ export function roomNextAction(room, partner = "your collaborator") {
   if (next)
     return {
       mine: true,
-      text: `Next: ${next[1].title}`,
+      text: `Next: ${milestoneTask(next[1].title)}`,
       detail:
         next[1].evidence && !next[1].attachment
           ? "Attach proof, then mark it done."

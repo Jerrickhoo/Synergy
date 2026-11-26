@@ -368,7 +368,7 @@ for (const role of ["founder", "mentor"])
         .click();
     } else {
       await page
-        .getByRole("button", { name: "Send introduction", exact: true })
+        .getByRole("button", { name: "Send request", exact: true })
         .click();
       const introduction = page.locator(".introduction-row").filter({
         has: page.getByRole("heading", { name: person.name, exact: true }),
@@ -422,7 +422,7 @@ for (const role of ["founder", "mentor"])
       page.getByText(
         role === "mentor"
           ? "No new mentorship requests"
-          : "No pending introductions for founder exchanges.",
+          : "Nothing sent right now.",
         { exact: false },
       ),
     ).toBeVisible();
@@ -441,7 +441,7 @@ for (const role of ["founder", "mentor"])
       page.getByText(
         role === "founder"
           ? `${person.name} accepted your mentorship request.`
-          : `${person.name} accepted your introduction. Your room is ready.`,
+          : `${person.name} accepted your request. Your room is ready.`,
         { exact: true },
       ),
     ).toBeVisible();
@@ -848,7 +848,7 @@ test("a founder trades advice with a sample startup in a Skill Swap without a fa
   await expect(page.getByRole("heading", { name: "Fairtab" })).toBeVisible();
   await page.goto(`/#/matches/${encodeURIComponent(fairtab.id)}`);
   await expect(page.getByLabel("Collaboration type")).toHaveText("Skill Swap");
-  await page.getByRole("button", { name: "Send introduction" }).click();
+  await page.getByRole("button", { name: "Send request" }).click();
   await page
     .getByRole("button", {
       name: "Simulate acceptance from Fairtab",

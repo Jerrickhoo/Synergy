@@ -901,11 +901,12 @@ export function createWorkspace(file, options = {}) {
           name: item.name,
           status: "expired",
           direction: "sent",
+          sentAt: item.sentAt,
         });
         event(
           account,
           role,
-          `Your introduction to ${item.name} expired after 14 days without a reply.`,
+          `Your request to ${item.name} expired after 14 days without a reply.`,
           undefined,
           { matchId: id },
         );
@@ -917,6 +918,7 @@ export function createWorkspace(file, options = {}) {
             name: displayName(account, role),
             status: "expired",
             direction: "received",
+            sentAt: item.sentAt,
           });
         }
         changed = true;
@@ -1057,15 +1059,10 @@ export function createWorkspace(file, options = {}) {
       ? [account, other]
       : [other, account];
     if (pairConflict(mentorAccount, founderAccount)?.level === "block")
-      fail(
-        "A conflict of interest prevents this introduction.",
-        409,
-        undefined,
-        {
-          reason: "conflict",
-          alternatives: mentorIsThem ? similarMentors(account, person.id) : [],
-        },
-      );
+      fail("A conflict of interest prevents this request.", 409, undefined, {
+        reason: "conflict",
+        alternatives: mentorIsThem ? similarMentors(account, person.id) : [],
+      });
     if (mentorAccount.mentorSuspension)
       fail("This mentor is suspended.", 409, undefined, {
         reason: "suspended",
@@ -1324,6 +1321,7 @@ export function createWorkspace(file, options = {}) {
       requireVerification: Boolean(options.requireVerification),
       simulateVerification: Boolean(options.simulateVerification),
       emailAuth,
+      googleClientId: options.googleClientId || "",
     };
     state.firstRunChoice = Boolean(
       account.firstRunChoice && state.role === "founder",
@@ -2466,7 +2464,7 @@ export function createWorkspace(file, options = {}) {
         { state },
         state.role,
         acceptedByPartner
-          ? `${person.name} accepted your introduction. Your room is ready.`
+          ? `${person.name} accepted your request. Your room is ready.`
           : `You connected with ${person.name}.`,
         id,
       );
@@ -2475,8 +2473,8 @@ export function createWorkspace(file, options = {}) {
         other,
         person.role,
         acceptedByPartner
-          ? `You accepted ${displayName(account, state.role)}'s introduction. Your room is ready.`
-          : `${displayName(account, state.role)} accepted your introduction. Your room is ready.`,
+          ? `You accepted ${displayName(account, state.role)}'s request. Your room is ready.`
+          : `${displayName(account, state.role)} accepted your request. Your room is ready.`,
         id,
         { tab: "terms" },
       );
@@ -2607,7 +2605,7 @@ export function createWorkspace(file, options = {}) {
         ["interest", "accept-interest"].includes(input.action)
       )
         fail(
-          "Verify your affiliation before sending or accepting introductions. Open Verification on your profile.",
+          "Verify your affiliation before sending or accepting requests. Open Verification on your profile.",
           403,
         );
       if (account.profileVisible === false)
@@ -2831,7 +2829,7 @@ export function createWorkspace(file, options = {}) {
       );
       if (existing) {
         if (["cancelled", "reviewed", "launched"].includes(existing.status))
-          fail("This introduction has already been resolved.", 409);
+          fail("This request has already been resolved.", 409);
         state.page = "room-detail";
         state.activeRoomId = existing.id;
         state.roomTab = "terms";
@@ -2841,7 +2839,7 @@ export function createWorkspace(file, options = {}) {
           profileCompleteness(state.profiles[state.role], state.role) !== 100
         )
           fail(
-            "This outgoing introduction is no longer eligible for simulated acceptance.",
+            "This outgoing request is no longer eligible for simulated acceptance.",
             409,
           );
         if (state.introductionMetaByRole[state.role]?.[target.id]?.kind)
@@ -2908,7 +2906,7 @@ export function createWorkspace(file, options = {}) {
         missingProfile.length
       )
         fail(
-          `Add ${missingProfileText(missingProfile)} to your profile before sending or accepting an introduction.`,
+          `Add ${missingProfileText(missingProfile)} to your profile before sending or accepting a request.`,
         );
       const other = db.accounts[person.accountId];
       const proposedType =
@@ -2927,7 +2925,7 @@ export function createWorkspace(file, options = {}) {
         input.action === "accept-interest" &&
         !state.incomingByRole[state.role].has(person.id)
       )
-        fail("This introduction is no longer pending.");
+        fail("This request is no longer pending.");
       if (
         ["interest", "accept-interest"].includes(input.action) &&
         permittedTypes.includes("mentorship")
@@ -2941,24 +2939,29 @@ export function createWorkspace(file, options = {}) {
           )
             state.introductionTypesByRole[state.role][person.id] =
               input.engagementType;
+          // When the introduction was sent, for the Activity record.
+          const sentAt =
+            state.introductionMetaByRole?.[state.role]?.[person.id]?.sentAt;
           keepHistory(state, state.role, {
             id: person.id,
             name: person.name,
             status: "accepted",
             direction: "received",
+            sentAt,
           });
           keepHistory(other.state, person.role, {
             id: ownId,
             name: displayName(account, state.role),
             status: "accepted",
             direction: "sent",
+            sentAt,
           });
           delete state.introductionMetaByRole?.[state.role]?.[person.id];
           delete other.state.introductionMetaByRole?.[person.role]?.[ownId];
           connect(account, state, person);
         } else if (!createModel(state).existingRoomFor(state.role, person.id)) {
           if (state.interestByRole[state.role].has(person.id))
-            fail("This introduction is already pending.", 409);
+            fail("This request is already pending.", 409);
           state.introductionTypesByRole ||= { founder: {}, mentor: {} };
           other.state.introductionTypesByRole ||= { founder: {}, mentor: {} };
           state.introductionTypesByRole[state.role][person.id] = proposedType;
@@ -2986,11 +2989,11 @@ export function createWorkspace(file, options = {}) {
           other.state.incomingByRole[person.role].add(ownId);
           state.page = "waiting";
           state.activeWaitingMatch = person.id;
-          state.toast = `Introduction sent to ${person.name}.`;
+          state.toast = `Request sent to ${person.name}.`;
           event(
             { state },
             state.role,
-            `You sent an introduction to ${person.name}.`,
+            `You sent a request to ${person.name}.`,
             undefined,
             { matchId: person.id },
           );
@@ -3003,6 +3006,8 @@ export function createWorkspace(file, options = {}) {
           );
         } else fail("You already have a room with this collaborator.");
       } else if (input.action === "cancel-interest") {
+        const sentAt =
+          state.introductionMetaByRole?.[state.role]?.[person.id]?.sentAt;
         state.waitingByRole[state.role].delete(person.id);
         state.interestByRole[state.role].delete(person.id);
         other.state.incomingByRole[person.role].delete(ownId);
@@ -3016,22 +3021,26 @@ export function createWorkspace(file, options = {}) {
           name: person.name,
           status: "withdrawn",
           direction: "sent",
+          sentAt,
         });
         keepHistory(other.state, person.role, {
           id: ownId,
           name: displayName(account, state.role),
           status: "withdrawn",
           direction: "received",
+          sentAt,
         });
         event(
           other,
           person.role,
-          `${displayName(account, state.role)} withdrew their introduction.`,
+          `${displayName(account, state.role)} withdrew their request.`,
           undefined,
           { matchId: ownId },
         );
-        state.toast = "Introduction withdrawn.";
+        state.toast = "Request withdrawn.";
       } else if (input.action === "decline-interest") {
+        const sentAt =
+          state.introductionMetaByRole?.[state.role]?.[person.id]?.sentAt;
         state.incomingByRole[state.role].delete(person.id);
         other.state.waitingByRole[person.role].delete(ownId);
         other.state.interestByRole[person.role].delete(ownId);
@@ -3048,19 +3057,21 @@ export function createWorkspace(file, options = {}) {
           name: person.name,
           status: "declined",
           direction: "received",
+          sentAt,
         });
         keepHistory(other.state, person.role, {
           id: ownId,
           name: displayName(account, state.role),
           status: "declined",
           direction: "sent",
+          sentAt,
           reason,
         });
-        state.toast = "Introduction declined.";
+        state.toast = "Request declined.";
         event(
           other,
           person.role,
-          `${displayName(account, state.role)} declined your introduction.${reason ? ` Reason: ${reason}` : ""}`,
+          `${displayName(account, state.role)} declined your request.${reason ? ` Reason: ${reason}` : ""}`,
           undefined,
           { matchId: ownId },
         );

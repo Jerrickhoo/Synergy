@@ -85,10 +85,11 @@ export default function MobileMenu() {
           )}
         </nav>
         <button
-          className="btn full"
+          className="btn full drawer-signout"
           disabled={state.busy}
           onClick={(event) => onAction({ action: "request-sign-out" }, event)}
         >
+          <Icon name="logout" />
           Sign out
         </button>
       </section>

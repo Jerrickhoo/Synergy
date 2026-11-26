@@ -312,7 +312,8 @@ a {
 /* Application shell. --sidebar-width follows the open sidebar or the icon
    rail (see "Collapsible sidebar" at the end). */
 :root {
-  --sidebar-width: 252px;
+  --sidebar-open-width: 252px;
+  --sidebar-width: var(--sidebar-open-width);
 }
 .app {
   display: grid;
@@ -2691,7 +2692,7 @@ main,
 /* Responsive layout: broad dashboard, compact rail, then collapsible drawer. */
 @media (min-width: 1550px) {
   :root {
-    --sidebar-width: 264px;
+    --sidebar-open-width: 264px;
   }
   .topbar {
     padding: 18px 32px;
@@ -4315,9 +4316,10 @@ main,
 /* Collapsible sidebar. Desktop keeps the choice per browser
    (data-sidebar on the root, set before the first paint); tablets always
    start with the icon rail and open the full sidebar over the page.
-   Every row is an icon cell as wide as the rail, then what the open sidebar
-   reveals. Opening and closing only changes the width, so the toggle, the
-   icons, Updates, Settings and the account footer never move. */
+   The sidebar's edge is the control: drag it to open or close the sidebar,
+   or click it. Every row is an icon cell as wide as the rail, then what the
+   open sidebar reveals, so the icons, Updates, Settings and Sign out never
+   move. */
 :root {
   --rail-width: 90px;
   --rail-gutter: 8px;
@@ -4342,10 +4344,20 @@ main,
     --sidebar-width: var(--rail-width);
   }
   .sidebar.is-overlay {
-    width: 252px;
+    width: var(--sidebar-open-width);
     z-index: 7;
     box-shadow: var(--overlay-shadow);
   }
+}
+/* While the edge is dragged the width follows the pointer exactly. */
+:root[data-sidebar-dragging] .app,
+:root[data-sidebar-dragging] .sidebar,
+:root[data-sidebar-dragging] .sidebar-resizer {
+  transition: none;
+}
+:root[data-sidebar-dragging] body {
+  cursor: col-resize;
+  user-select: none;
 }
 .sidebar-backdrop {
   position: fixed;
@@ -4355,7 +4367,7 @@ main,
 }
 .sidebar-head,
 .sidebar .nav-btn,
-.sidebar .user-mini {
+.sidebar-signout {
   display: grid;
   grid-template-columns: var(--rail-cell) minmax(0, 1fr) auto;
   align-items: center;
@@ -4366,28 +4378,18 @@ main,
   padding: 0;
   margin-bottom: var(--space-6);
 }
+/* The logo keeps the icon column at either width; the name is revealed
+   beside it. */
 .sidebar-head .brand {
-  padding: 0 0 0 var(--space-1);
-}
-.sidebar-toggle {
-  display: inline-grid;
-  place-items: center;
-  justify-self: center;
-  width: 44px;
-  height: 44px;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: var(--rail-cell) minmax(0, 1fr);
+  align-items: center;
+  gap: 0;
   padding: 0;
-  border: 0;
-  border-radius: var(--radius-xs);
-  background: transparent;
-  color: #c4d3c9;
 }
-.sidebar-toggle:hover {
-  background: #ffffff14;
-  color: #ffffff;
-}
-.sidebar-toggle svg {
-  width: 22px;
-  height: 22px;
+.sidebar-head .brand-symbol {
+  justify-self: center;
 }
 .sidebar .nav-btn {
   position: relative;
@@ -4422,57 +4424,45 @@ main,
   line-height: 18px;
   font-variant-numeric: tabular-nums;
 }
-/* One fixed-height footer row: avatar, name and role, Sign out. */
-.sidebar .user-mini {
+/* The footer keeps only Sign out, in red, so it never reads as a page. The
+   account itself is at the top right. */
+.sidebar .sidebar-signout-row {
+  display: block;
   margin-top: 14px;
   padding: 14px 0 0;
 }
-.sidebar .user-mini-copy {
-  min-width: 0;
-  overflow: hidden;
-  padding-left: var(--space-1);
-}
-.sidebar .user-mini-name,
-.sidebar .user-mini-role {
-  overflow: hidden;
-  overflow-wrap: normal;
-  text-overflow: ellipsis;
-}
-.user-mini-signout {
-  display: inline-grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
+.sidebar-signout {
+  width: 100%;
+  min-height: 44px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-xs);
   background: transparent;
-  color: #c4d3c9;
+  color: #ffb4ab;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  text-align: left;
 }
-.user-mini-signout:hover {
-  background: #ffffff14;
-  color: #ffffff;
+.sidebar-signout:hover:not(:disabled) {
+  background: #ff6b5f2e;
+  color: #ffd6d0;
 }
-.user-mini-signout svg {
-  width: 18px;
-  height: 18px;
+.sidebar .sidebar-signout:focus-visible {
+  outline-color: #ffb4ab;
 }
 /* What the open sidebar reveals stays on one line and fades with the
    width; on the rail it is hidden from keyboards and screen readers once
    the sidebar has closed. */
 .sidebar .nav-label,
-.sidebar-head .brand,
-.sidebar .user-mini-copy,
-.user-mini-signout {
+.sidebar-head .brand-name {
   white-space: nowrap;
   transition:
     opacity var(--duration-base) var(--ease-out),
     visibility 0s;
 }
 .sidebar.is-rail .nav-label,
-.sidebar.is-rail .sidebar-head .brand,
-.sidebar.is-rail .user-mini-copy,
-.sidebar.is-rail .user-mini-signout {
+.sidebar.is-rail .sidebar-head .brand-name {
   opacity: 0;
   visibility: hidden;
   transition:
@@ -4480,84 +4470,103 @@ main,
     visibility 0s linear var(--duration-base);
 }
 
-/* The account menu, opened from the avatar. */
-.account-menu-anchor {
-  justify-self: center;
-}
-.user-mini-trigger {
+/* The handle on the sidebar's edge: a line along the edge on hover, focus
+   and drag, and a grip that is always visible so the edge reads as
+   something to pull. */
+.sidebar-resizer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--sidebar-width) - 7px);
+  z-index: 6;
+  width: 14px;
   display: grid;
   place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
+  cursor: col-resize;
+  touch-action: none;
+  transition: left var(--duration-base) var(--ease-out);
+}
+.sidebar-resizer.is-overlay {
+  left: calc(var(--sidebar-open-width) - 7px);
+  z-index: 8;
+}
+.sidebar-resizer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 3px;
+  transform: translateX(-50%);
   background: transparent;
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
-.user-mini-trigger:hover,
-.user-mini-trigger[aria-expanded="true"] {
-  box-shadow: 0 0 0 2px #ffffff26;
+.sidebar-resizer:hover::before,
+.sidebar-resizer:focus-visible::before,
+.sidebar-resizer.is-dragging::before {
+  background: var(--brand);
 }
-/* Placed beside the sidebar from Sidebar.jsx, so the sidebar's scrolling
-   never clips it. */
-.account-menu {
-  position: fixed;
-  z-index: 30;
-  display: grid;
-  gap: 2px;
-  min-width: 200px;
-  padding: var(--space-1);
+.sidebar-resizer:focus-visible {
+  outline: none;
+}
+.sidebar-resizer-grip {
+  position: relative;
+  width: 10px;
+  height: 44px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-full);
   background: var(--paper);
-  color: var(--ink);
-  box-shadow: var(--overlay-shadow);
-  animation: account-menu-in var(--duration-fast) var(--ease-out);
+  box-shadow: var(--shadow-raised);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
 }
-.account-menu-head {
-  display: grid;
-  padding: var(--space-2) var(--space-3);
+/* Three dots: the usual sign for "drag me". */
+.sidebar-resizer-grip::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--muted);
+  transform: translate(-50%, -50%);
+  box-shadow:
+    0 -6px 0 var(--muted),
+    0 6px 0 var(--muted);
 }
-.account-menu-head strong {
-  font-size: 14px;
-  font-weight: 650;
+.sidebar-resizer:hover .sidebar-resizer-grip,
+.sidebar-resizer:focus-visible .sidebar-resizer-grip,
+.sidebar-resizer.is-dragging .sidebar-resizer-grip {
+  border-color: var(--brand);
+  background: var(--brand);
 }
-.account-menu-head span {
-  color: var(--muted);
-  font-size: var(--font-caption);
+.sidebar-resizer:hover .sidebar-resizer-grip::before,
+.sidebar-resizer:focus-visible .sidebar-resizer-grip::before,
+.sidebar-resizer.is-dragging .sidebar-resizer-grip::before {
+  background: var(--on-accent);
+  box-shadow:
+    0 -6px 0 var(--on-accent),
+    0 6px 0 var(--on-accent);
 }
-.account-menu-item {
-  min-height: 40px;
-  padding: var(--space-2) var(--space-3);
-  border: 0;
-  border-radius: var(--radius-xs);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-weight: 560;
-  text-align: left;
+.sidebar-resizer:focus-visible .sidebar-resizer-grip {
+  outline: 3px solid var(--control-focus);
+  outline-offset: 2px;
 }
-.account-menu-item:hover,
-.account-menu-item:focus-visible {
-  background: var(--surface-hover);
-}
-.account-menu :focus-visible {
-  outline-color: var(--control-focus);
-}
-@keyframes account-menu-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
+@media (max-width: 760px) {
+  .sidebar-resizer {
+    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .app,
   .sidebar,
   .sidebar .nav-label,
-  .sidebar-head .brand,
-  .sidebar .user-mini-copy,
-  .user-mini-signout {
+  .sidebar-head .brand-name,
+  .sidebar-resizer,
+  .sidebar-resizer::before,
+  .sidebar-resizer-grip {
     transition: none;
-  }
-  .account-menu {
-    animation: none;
   }
 }

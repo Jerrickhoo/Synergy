@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import Overlay from "./Overlay.jsx";
 
-// Declining is final for that introduction, so it is confirmed first and can
+// Declining is final for that request, so it is confirmed first and can
 // carry a short, optional reason for the sender.
 export default function DeclineIntroduction({
   person,
@@ -19,12 +19,12 @@ export default function DeclineIntroduction({
         onClick={() => setOpen(true)}
       >
         Decline
-        <span className="visually-hidden"> {person.name}’s introduction</span>
+        <span className="visually-hidden"> {person.name}’s request</span>
       </button>
       {open && (
         <Overlay
           id={`decline-${person.id}`}
-          title={`Decline ${person.name}’s introduction?`}
+          title={`Decline ${person.name}’s request?`}
           onClose={() => setOpen(false)}
           busy={state.busy}
           initialFocusSelector={`#decline-reason-${CSS.escape(person.id)}`}
@@ -47,7 +47,7 @@ export default function DeclineIntroduction({
                     setOpen(false);
                 }}
               >
-                Decline introduction
+                Decline request
               </button>
             </>
           }

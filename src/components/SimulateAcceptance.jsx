@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import PrototypeShortcut from "./PrototypeShortcut.jsx";
 
-// `sent` names what the founder sent: an introduction to a startup or a
+// `sent` names what the founder sent: a request to a startup or a
 // mentorship request to a mentor. Either way, acceptance opens the room.
-export default function SimulateAcceptance({ person, sent = "introduction" }) {
+export default function SimulateAcceptance({ person, sent = "request" }) {
   const { state, onAction } = useApp();
   const [failed, setFailed] = useState(false);
   if (!person.canSimulateAcceptance) return null;

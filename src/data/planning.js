@@ -1,5 +1,5 @@
 import { isMentorRoom, mentorSessions } from "./mentor-room.js";
-import { activeRooms, scheduleInstant } from "./selectors.js";
+import { activeRooms, milestoneTask, scheduleInstant } from "./selectors.js";
 
 export function localDateKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -171,7 +171,8 @@ export function calendarEvents(state) {
           events.push({
             id: `${room.id}:milestone:${id}`,
             date: milestone.dueDate,
-            title: milestone.title,
+            // Still open, so it reads as the work to do.
+            title: milestoneTask(milestone.title),
             kind: "milestone",
             room,
             tab: "milestones",

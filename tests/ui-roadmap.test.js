@@ -131,7 +131,7 @@ test("Home asks for verification only after the profile, and never sends founder
   state.integrations.moderation = false;
   const locked = homeNextStep(state, now);
   assert.equal(locked.command.page, "discover");
-  assert.equal(locked.title, "Introductions are not open yet");
+  assert.equal(locked.title, "Requests are not open yet");
   state.integrations.moderation = true;
   state.incomingByRole.founder.add("incoming-person");
   assert.equal(homeNextStep(state, now).command.page, "waiting");

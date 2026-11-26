@@ -22,6 +22,39 @@ export const partnerName = (state, room) =>
     .find((person) => person.id === room.partnerId)?.name ||
   "your collaborator";
 
+// The verification step, or null once nothing is needed. Matches shows the
+// same card above its list.
+export function verificationStep(state) {
+  if (!verificationRequired(state)) return null;
+  const mentor = state.role === "mentor";
+  // Without a moderator nobody can verify, so point at what still works.
+  if (!state.integrations?.moderation)
+    return {
+      title: "Requests are not open yet",
+      detail:
+        "No moderator is set up to verify accounts in this workspace. You can still browse matches.",
+      label: mentor ? "Explore startups" : "Explore matches",
+      command: { page: "discover" },
+    };
+  return state.verification === "pending"
+    ? {
+        title: "Your verification is being checked",
+        detail:
+          "A moderator is checking your evidence. You can keep browsing matches in the meantime.",
+        label: "View verification",
+        command: { action: "open-verification" },
+        verification: true,
+      }
+    : {
+        title: "Verify your account now to use Synergy to its full potential.",
+        detail:
+          "Verified accounts can view and save matches, send requests and ask mentors for help. A moderator checks an accelerator, university, community or referral note.",
+        label: "Go to Verification",
+        command: { action: "open-verification" },
+        verification: true,
+      };
+}
+
 export function homeNextStep(state, now = new Date()) {
   const mentor = state.role === "mentor";
   const attention = mentor
@@ -95,26 +128,8 @@ export function homeNextStep(state, now = new Date()) {
     };
   // Verification only matters once there is a profile to match with, and
   // never outranks work already under way.
-  if (verificationRequired(state)) {
-    // Without a moderator nobody can verify, so point at what still works.
-    if (!state.integrations?.moderation)
-      return {
-        title: "Introductions are not open yet",
-        detail:
-          "No moderator is set up to verify founders in this workspace. You can still browse and save matches.",
-        label: mentor ? "Explore startups" : "Explore matches",
-        command: { page: "discover" },
-      };
-    return {
-      title: "Verify to send introductions",
-      detail:
-        state.verification === "pending"
-          ? "A moderator is checking your evidence. You can keep browsing and saving matches in the meantime."
-          : "A moderator can check an accelerator, university, community or referral note.",
-      label: "Go to Verification",
-      command: { action: "open-verification" },
-    };
-  }
+  const verify = verificationStep(state);
+  if (verify) return verify;
   return {
     title: mentor ? "Find a startup to support" : "Find your next collaborator",
     detail: mentor

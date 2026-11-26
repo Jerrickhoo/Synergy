@@ -4,6 +4,7 @@ import { useApp } from "../state/AppContext.jsx";
 import ReportCollaborator from "./ReportCollaborator.jsx";
 import Avatar from "../components/Avatar.jsx";
 import { formatDateTime } from "../data/dates.js";
+import { accountVerified, personVerified } from "../data/collaboration.js";
 export default function ChatPanel({ room }) {
   const { onSubmit, onAction, state, model } = useApp();
   const chatError =
@@ -44,6 +45,7 @@ export default function ChatPanel({ room }) {
                   image={partner?.image}
                   name={message.name}
                   identity={partner?.accountId || room.partnerId}
+                  verified={personVerified(partner)}
                   color="coral"
                 />
               ) : (
@@ -72,6 +74,7 @@ export default function ChatPanel({ room }) {
                   image={state.profiles[state.role].image}
                   name={message.name}
                   identity={state.accountId}
+                  verified={accountVerified(state)}
                 />
               ) : (
                 ""

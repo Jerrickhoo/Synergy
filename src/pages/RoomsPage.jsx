@@ -7,6 +7,7 @@ import Icon from "../components/Icon.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import Introductions from "../components/Introductions.jsx";
 import { milestoneDate, roomNextAction } from "../data/selectors.js";
+import { personVerified } from "../data/collaboration.js";
 export default function RoomsPage() {
   const { state, model, onAction } = useApp();
   const { allPeople, roomStatusLabel } = model;
@@ -47,7 +48,7 @@ export default function RoomsPage() {
           <p>
             {state.role === "mentor"
               ? "A mentorship opens when you accept a founder's request. You'll agree the goal, hold sessions and track follow-up here."
-              : "A Deal Room opens when someone accepts your introduction, or you accept theirs."}
+              : "A Deal Room opens when someone accepts your request, or you accept theirs."}
           </p>
           <button
             className="btn primary"
@@ -120,6 +121,7 @@ export default function RoomsPage() {
                     image={partner?.image}
                     name={partner?.name}
                     identity={partner?.accountId || room.partnerId}
+                    verified={personVerified(partner)}
                     color={partner?.color || ""}
                   />
                   <div>

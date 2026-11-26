@@ -657,7 +657,7 @@ export function transition(state, payload) {
   } else if (action === "cancel-interest") {
     waitingMatches().delete(payload.id);
     interestedMatches().delete(payload.id);
-    toast("Introduction withdrawn.");
+    toast("Request withdrawn.");
   } else if (action === "save") {
     const id = payload.id;
     savedMatches().has(id) ? savedMatches().delete(id) : savedMatches().add(id);
@@ -673,7 +673,7 @@ export function transition(state, payload) {
     waitingMatches().add(payload.id);
     state.activeWaitingMatch = payload.id;
     state.page = "waiting";
-    state.confirmation = `Demo introduction to ${person.name} recorded. No message was sent.`;
+    state.confirmation = `Demo request to ${person.name} recorded. No message was sent.`;
     record(`You expressed interest in ${person.name}.`);
   } else if (action === "mutual-interest") {
     const person = allPeople().find((item) => item.id === payload.id);

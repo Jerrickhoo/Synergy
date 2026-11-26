@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchWithDeadline } from "../state/request.js";
 import DefaultAvatar from "./DefaultAvatar.jsx";
+import Icon from "./Icon.jsx";
 
 export default function Avatar({
   image,
@@ -8,6 +9,7 @@ export default function Avatar({
   identity,
   color = "",
   size,
+  verified = false,
 }) {
   const [failedImage, setFailedImage] = useState(null);
   const [download, setDownload] = useState(null);
@@ -47,8 +49,11 @@ export default function Avatar({
       : null
     : image;
   return (
+    // A verified account carries a small check on its photo wherever it
+    // appears. The picture is decorative, so the word "Verified" is given
+    // beside the name where it matters.
     <div
-      className={"avatar " + color}
+      className={"avatar " + color + (verified ? " is-verified" : "")}
       style={size ? { width: size, height: size } : undefined}
       aria-hidden="true"
     >
@@ -62,6 +67,11 @@ export default function Avatar({
         />
       ) : (
         <DefaultAvatar identity={identity} name={name} />
+      )}
+      {verified && (
+        <span className="avatar-check">
+          <Icon name="check" />
+        </span>
       )}
     </div>
   );

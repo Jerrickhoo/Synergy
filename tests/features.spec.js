@@ -107,9 +107,11 @@ test("voluntary sign-out preserves drafts on cancel and confirms once across des
   expect(await page.evaluate(() => document.body.style.overflow)).toBe("");
   expect(logouts).toBe(0);
   await page.setViewportSize({ width: 1024, height: 768 });
-  // On a tablet, sign out is in the sidebar's account menu.
-  await page.getByRole("button", { name: /^Account menu for / }).click();
-  await page.getByRole("menuitem", { name: "Sign out" }).click();
+  // On a tablet, Sign out stays at the foot of the rail as an icon.
+  await page
+    .locator(".user-mini")
+    .getByRole("button", { name: "Sign out", exact: true })
+    .click();
   await page.route("**/api/logout", (route) => route.abort());
   await prompt
     .getByRole("button", { name: "Sign out", exact: true })
@@ -222,7 +224,7 @@ test("Settings role switching restores custom-select drafts and verification kee
     "A fictional organization with a long name for wrapping and retained form values";
   // Verification is always visible on Your profile.
   await page
-    .getByLabel("Program, organization or person", {
+    .getByLabel("Who can vouch for you?", {
       exact: true,
     })
     .fill(organization);
@@ -230,7 +232,7 @@ test("Settings role switching restores custom-select drafts and verification kee
     .getByLabel("How can a moderator check it?", { exact: true })
     .fill("Public roster available for moderator review");
   await expect(
-    page.getByLabel("Program, organization or person", {
+    page.getByLabel("Who can vouch for you?", {
       exact: true,
     }),
   ).toHaveValue(organization);
@@ -687,9 +689,7 @@ test("partners request revised terms, set due dates, close a room and reconnect 
       `button[data-action="match-detail"][data-id="${a.state.accountId}:founder"]`,
     )
     .click();
-  await page
-    .getByRole("button", { name: "Send introduction", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Send request", exact: true }).click();
   const next = await act(request, a, {
     action: "accept-interest",
     id: `${b.state.accountId}:founder`,
@@ -994,9 +994,7 @@ test("account settings support visibility, session revocation and deletion", asy
     name: "Pause discovery?",
     exact: true,
   });
-  await expect(pause).toContainText(
-    "all pending introductions will be withdrawn",
-  );
+  await expect(pause).toContainText("all pending requests will be withdrawn");
   await pause.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(
     page.getByText("Your completed profiles are visible in Matches.", {
@@ -1083,9 +1081,7 @@ test("mobile discovery keeps the first action visible and lets partners agree on
   await expect(view).toBeInViewport();
   await view.click();
   await selectValue(page.getByLabel("Collaboration type"), "marketing");
-  await page
-    .getByRole("button", { name: "Send introduction", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Send request", exact: true }).click();
   const accepted = await act(request, b, {
     action: "accept-interest",
     id: `${a.state.accountId}:founder`,

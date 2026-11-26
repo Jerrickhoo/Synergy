@@ -200,6 +200,17 @@ test("invitations can be withdrawn or declined and rooms require mutual consent"
     () => act(workspace, b, { action: "accept-interest", id: aId }),
     /no longer pending/,
   );
+  // Both sides keep when each closed introduction was sent, for Activity.
+  const sent = workspace.get(a.token).state.introHistoryByRole.founder;
+  const received = workspace.get(b.token).state.introHistoryByRole.founder;
+  assert.deepEqual(
+    sent.map((item) => item.status),
+    ["declined", "withdrawn"],
+  );
+  for (const item of [...sent, ...received]) {
+    assert.ok(Number.isFinite(Date.parse(item.sentAt)), item.status);
+    assert.ok(Date.parse(item.sentAt) <= Date.parse(item.at), item.status);
+  }
 });
 
 test("co-marketing templates agree from either participant's perspective", (t) => {

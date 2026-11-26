@@ -19,8 +19,12 @@ export function collaboratorSlots(rooms) {
   );
 }
 
-const stepText = (text) =>
-  text.replace(/^Your turn: /, "").replace(/^Next: /, "");
+// A step as a to-do: "Your turn: confirm “Scope defined”" becomes
+// "Confirm “Scope defined”", starting with a capital like every task.
+const stepText = (text) => {
+  const step = text.replace(/^Your turn: /, "").replace(/^Next: /, "");
+  return step.charAt(0).toUpperCase() + step.slice(1);
+};
 
 // Things waiting on this person: each room's next step when it is theirs,
 // and open board tasks assigned to them (or to nobody). Soonest due first.
@@ -76,9 +80,11 @@ export function activityLabel(item, state, people) {
     return people.find((person) => person.id === room.partnerId)?.name || "";
   if (item.matchId)
     return people.find((person) => person.id === item.matchId)?.name || "";
+  // Before the profile check: a verification notice mentions "your profile"
+  // ("the badge now shows on your profile") but is about verification.
+  if (item.kind === "affiliation") return "Verification";
   if (item.kind === "profile" || /\byour profile\b/i.test(item.text))
     return "Profile";
-  if (item.kind === "affiliation") return "Verification";
   if (item.requestId || item.kind === "request") return "Requests";
   return "";
 }

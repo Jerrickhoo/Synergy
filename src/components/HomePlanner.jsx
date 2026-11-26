@@ -10,11 +10,8 @@ import {
   roomNextAction,
   scheduleLabel,
 } from "../data/selectors.js";
-import {
-  activityLabel,
-  activityText,
-  homeTasks,
-} from "../data/home-planner.js";
+import { homeTasks } from "../data/home-planner.js";
+import GoogleSync from "./GoogleSync.jsx";
 
 const longDay = (key) =>
   dateFromKey(key).toLocaleDateString(undefined, {
@@ -143,8 +140,8 @@ export function HomeCalendar({ rooms, nameOf, slots }) {
                 />
               ) : (
                 <p className="muted">
-                  You can schedule a meeting once someone accepts your
-                  introduction and your room opens.
+                  You can schedule a meeting once someone accepts your request
+                  and your room opens.
                 </p>
               )}
             </section>
@@ -155,13 +152,18 @@ export function HomeCalendar({ rooms, nameOf, slots }) {
   );
 }
 
-// "Task — Collaborator": what is waiting on you, soonest due first.
+// "Task — Collaborator": what is waiting on you, soonest due first. Dated
+// tasks also show on the calendar; Sync to Google copies the list to Google
+// Tasks and the dates to Google Calendar.
 export function HomeTasks({ rooms, nameOf, slots, extra = [] }) {
   const { state, onAction } = useApp();
   const tasks = homeTasks(state, rooms, nameOf, extra);
   return (
     <section className="card home-tasks" aria-labelledby="home-tasks-heading">
-      <h2 id="home-tasks-heading">Your tasks</h2>
+      <div className="home-tasks-head">
+        <h2 id="home-tasks-heading">Your tasks</h2>
+        <GoogleSync tasks={tasks} nameOf={nameOf} />
+      </div>
       {tasks.length ? (
         <ul
           className="home-task-list"
@@ -189,11 +191,11 @@ export function HomeTasks({ rooms, nameOf, slots, extra = [] }) {
                     {task.title}
                     <span className="home-task-who"> — {task.who}</span>
                   </span>
-                  {task.due && (
-                    <span className="home-task-due">
-                      Due {milestoneDate(task.due)}
-                    </span>
-                  )}
+                  <span className="home-task-due">
+                    {task.due
+                      ? `Due ${milestoneDate(task.due)} · on your calendar`
+                      : "No due date"}
+                  </span>
                 </span>
               </button>
             </li>
@@ -256,41 +258,6 @@ export function HomeCollaborations({ rooms, nameOf, slots, title }) {
           );
         })}
       </ul>
-    </section>
-  );
-}
-
-// Recent activity, each entry labelled by who or what it is about.
-export function HomeActivity({ limit = 5 }) {
-  const { state, model, onAction } = useApp();
-  const people = model.allPeople();
-  const activity = state.activity
-    .filter((item) => item.role === state.role)
-    .slice(0, limit);
-  if (!activity.length) return null;
-  return (
-    <section
-      className="card panel home-activity section-gap"
-      aria-labelledby="home-activity-heading"
-    >
-      <h2 id="home-activity-heading">Recent activity</h2>
-      <ul className="home-activity-list">
-        {activity.map((item) => {
-          const label = activityLabel(item, state, people);
-          return (
-            <li key={item.id}>
-              {label && <span className="activity-label">{label}</span>}
-              <span>{activityText(item.text, label)}</span>
-            </li>
-          );
-        })}
-      </ul>
-      <button
-        className="link-btn"
-        onClick={() => onAction({ page: "notifications" })}
-      >
-        View all updates <Icon name="arrow" />
-      </button>
     </section>
   );
 }

@@ -7,7 +7,7 @@ import {
   founderProfile,
 } from "./founder-browser-helpers.js";
 test.use({ baseURL: "http://127.0.0.1:5185" });
-test("unverified founders can browse and save but introduction controls direct them to verification", async ({
+test("unverified founders can browse, and opening, saving or requesting asks them to verify first", async ({
   page,
   request,
 }) => {
@@ -22,21 +22,59 @@ test("unverified founders can browse and save but introduction controls direct t
   const card = page.locator(
     `.match-card[aria-labelledby="match-name-${b.state.accountId}:founder"]`,
   );
-  // The card says it once, with the link inline, and keeps View match.
-  await expect(card.locator(".verification-gate")).toHaveText(
-    "Verify to send introductions. Go to Verification",
-  );
+  // Matches says it once, above the list, in the same large card as Home;
+  // the cards don't repeat it.
+  const notice = page.locator(".discovery-page > .home-next.is-verification");
   await expect(
-    card.getByRole("button", { name: "Verify to send introductions" }),
-  ).toHaveCount(0);
-  await card.getByRole("button", { name: /^Save / }).click();
-  await card.getByRole("button", { name: /View match/ }).click();
-  await expect(
-    page.getByRole("button", {
-      name: "Verify to send introductions",
+    notice.getByRole("heading", {
+      name: "Verify your account now to use Synergy to its full potential.",
       exact: true,
     }),
-  ).toBeDisabled();
+  ).toBeVisible();
+  await expect(
+    notice.getByRole("button", { name: "Go to Verification" }),
+  ).toBeVisible();
+  await expect(card.locator(".verification-gate")).toHaveCount(0);
+  // Saving asks to verify first and saves nothing.
+  const save = card.getByRole("button", { name: /^Save / });
+  await save.click();
+  const prompt = page.getByRole("dialog", {
+    name: "Verify your account",
+    exact: true,
+  });
+  await expect(prompt).toContainText(
+    "Verify your account now to use Synergy to its full potential.",
+  );
+  await expect(prompt).toContainText(
+    "You need a verified account to save matches.",
+  );
+  await expect(
+    prompt.getByRole("button", { name: "Go to Verification" }),
+  ).toBeFocused();
+  await prompt.getByRole("button", { name: "Not now", exact: true }).click();
+  await expect(prompt).toHaveCount(0);
+  await expect(save).toHaveAttribute("aria-pressed", "false");
+  // Opening a match asks too, and stays on Matches.
+  await card.getByRole("button", { name: /View match/ }).click();
+  await expect(prompt).toContainText(
+    "You need a verified account to view match profiles.",
+  );
+  await prompt.getByRole("button", { name: "Not now", exact: true }).click();
+  await expect(page).toHaveURL(/#\/matches$/);
+  // A shared link still opens the profile; sending a request asks the same
+  // way, instead of a disabled button.
+  await page.goto(
+    `/#/matches/${encodeURIComponent(`${b.state.accountId}:founder`)}`,
+  );
+  const send = page.getByRole("button", {
+    name: "Send request",
+    exact: true,
+  });
+  await expect(send).toBeEnabled();
+  await send.click();
+  await expect(prompt).toContainText(
+    "You need a verified account to send requests.",
+  );
   const forbidden = await request.post("/api/action", {
     headers: { Authorization: `Bearer ${a.token}` },
     data: {
@@ -46,15 +84,24 @@ test("unverified founders can browse and save but introduction controls direct t
     },
   });
   expect(forbidden.status()).toBe(403);
-  await page
-    .getByRole("link", { name: "Go to Verification", exact: true })
-    .click();
+  await prompt.getByRole("button", { name: "Go to Verification" }).click();
+  await expect(prompt).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "Verification", exact: true }),
   ).toBeFocused();
-  await page
-    .getByLabel("Program, organization or person")
-    .fill("University referral");
+  // One short instruction, then the two questions and a brand-coloured
+  // button.
+  await expect(
+    page.getByText(
+      "Tell us who can confirm you’re a founder, and a moderator will check it within three working days.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(page.locator("#verification")).toHaveClass(/is-unverified/);
+  await expect(
+    page.getByRole("button", { name: "Request verification", exact: true }),
+  ).toHaveClass(/primary/);
+  await page.getByLabel("Who can vouch for you?").fill("University referral");
   await page
     .getByLabel("How can a moderator check it?")
     .fill("Coordinator can check our cohort roster");
@@ -63,7 +110,7 @@ test("unverified founders can browse and save but introduction controls direct t
     .click();
   await expect(
     page.getByText(
-      "A moderator is checking your evidence. You can keep browsing and saving matches in the meantime.",
+      "A moderator is checking your evidence. You can keep browsing matches in the meantime.",
       { exact: true },
     ),
   ).toBeVisible();
@@ -76,7 +123,7 @@ test("unverified founders can browse and save but introduction controls direct t
   await page.goto("/#/");
   await expect(
     page.getByText(
-      "A moderator is checking your evidence. You can keep browsing and saving matches in the meantime.",
+      "A moderator is checking your evidence. You can keep browsing matches in the meantime.",
       { exact: true },
     ),
   ).toBeVisible();
@@ -86,6 +133,17 @@ test("unverified founders can browse and save but introduction controls direct t
     .getByRole("button", { name: "Simulate approval", exact: true })
     .click();
   await expect(page.getByText("Verified", { exact: true })).toBeVisible();
+  // Verified accounts carry the check on their photo and their profile.
+  await expect(page.locator("#verification")).toHaveClass(/is-verified/);
+  await expect(
+    page.locator(".account-button .avatar.is-verified .avatar-check"),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /^Open profile for .+, verified$/ }),
+  ).toBeVisible();
+  await expect(page.locator(".own-identity-verified")).toContainText(
+    "Verified: University referral",
+  );
   const allowed = await request.post("/api/action", {
     headers: { Authorization: `Bearer ${a.token}` },
     data: {

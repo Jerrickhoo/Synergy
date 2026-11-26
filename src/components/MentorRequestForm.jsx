@@ -135,6 +135,11 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
         data-form="send-request"
         onSubmit={async (event) => {
           event.preventDefault();
+          // Unverified: say so and offer Verification before checking fields.
+          if (locked) {
+            onAction({ action: "verification-prompt", reason: "send-request" });
+            return;
+          }
           // Spaces alone pass the browser's checks; name the fields instead.
           const short = Object.fromEntries(
             Object.keys(requestFields)
@@ -297,7 +302,7 @@ export default function MentorRequestForm({ person, referral, alternatives }) {
           )}
         </section>
         {locked && <VerificationGate />}
-        <button className="btn primary full" disabled={state.busy || locked}>
+        <button className="btn primary full" disabled={state.busy}>
           {state.busy ? "Sending…" : "Send mentorship request"}
         </button>
         <details className="field-help">

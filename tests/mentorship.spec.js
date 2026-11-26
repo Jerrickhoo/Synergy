@@ -159,7 +159,7 @@ for (const initiator of ["founder", "mentor"]) {
           .getByLabel("Add a short note (optional)")
           .fill("Let's review your current onboarding goals.");
         await page
-          .getByRole("button", { name: "Send introduction", exact: true })
+          .getByRole("button", { name: "Send request", exact: true })
           .click();
       }
       await open(
@@ -169,7 +169,7 @@ for (const initiator of ["founder", "mentor"]) {
       );
       await inbox
         .getByRole("button", {
-          name: initiator === "founder" ? /^Accept$/ : /^Accept introduction/,
+          name: initiator === "founder" ? /^Accept$/ : /^Accept request/,
         })
         .click();
       await expect(
@@ -254,28 +254,32 @@ test("mentor requests can be withdrawn and declined, remain consistent after ref
     );
     await open(other, founder, "waiting");
     await page
-      .getByRole("button", { name: "Send introduction", exact: true })
+      .getByRole("button", { name: "Send request", exact: true })
       .click();
     await checkLayout(page, "long-startup-request", testInfo);
     await expect(
-      other.getByRole("button", { name: /^Accept introduction/ }),
+      other.getByRole("button", { name: /^Accept request/ }),
     ).toBeVisible();
     await page.getByRole("button", { name: /^Withdraw/ }).click();
     await expect(
-      other.getByRole("button", { name: /^Accept introduction/ }),
+      other.getByRole("button", { name: /^Accept request/ }),
     ).toHaveCount(0);
     await other.reload();
-    await expect(other.getByText(/No pending introductions/)).toBeVisible();
+    await expect(
+      other.getByText("No one is waiting on your reply right now.", {
+        exact: true,
+      }),
+    ).toBeVisible();
     await page.goto(
       `/#/matches/${encodeURIComponent(`${founder.state.accountId}:founder`)}`,
     );
     await page
-      .getByRole("button", { name: "Send introduction", exact: true })
+      .getByRole("button", { name: "Send request", exact: true })
       .click();
     await other.getByRole("button", { name: /^Decline/ }).click();
     await other
       .getByRole("dialog")
-      .getByRole("button", { name: "Decline introduction", exact: true })
+      .getByRole("button", { name: "Decline request", exact: true })
       .click();
     await expect(page.getByRole("button", { name: /^Withdraw/ })).toHaveCount(
       0,
@@ -367,7 +371,7 @@ test("mentors navigate by requests, mentees and calendar while founders keep mat
   // Mentors get Startups (the match feed) but not the founder's pages.
   for (const name of ["Home", "Requests", "Startups", "Mentees", "Calendar"])
     await expect(main.getByRole("button", { name, exact: true })).toBeVisible();
-  for (const name of ["Matches", "Introductions", "Rooms"])
+  for (const name of ["Matches", "Rooms"])
     await expect(main.getByRole("button", { name, exact: true })).toHaveCount(
       0,
     );
@@ -404,13 +408,19 @@ test("mentors navigate by requests, mentees and calendar while founders keep mat
     const founderNav = founderPage.getByRole("navigation", {
       name: "Main navigation",
     });
-    for (const name of ["Matches", "Introductions", "Rooms"])
+    for (const name of ["Matches", "Requests", "Rooms"])
       await expect(
         founderNav.getByRole("button", { name, exact: true }),
       ).toBeVisible();
+    // Founders' Requests is their own incoming and outgoing page, and the
+    // mentor-only pages stay out of their navigation.
     await expect(
       founderNav.getByRole("button", { name: "Requests", exact: true }),
-    ).toHaveCount(0);
+    ).toHaveAttribute("data-page", "waiting");
+    for (const name of ["Startups", "Mentees", "Calendar"])
+      await expect(
+        founderNav.getByRole("button", { name, exact: true }),
+      ).toHaveCount(0);
   } finally {
     await founderContext.close();
   }

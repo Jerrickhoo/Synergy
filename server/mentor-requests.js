@@ -346,7 +346,7 @@ export function createMentorRequests({
       const limit = founderLimit(state);
       if (meta && founder.state.waitingByRole.founder.has(mentorId))
         blocked(
-          "You already have a pending request with this mentor. View it in Introductions.",
+          "You already have a pending request with this mentor. View it in Requests.",
           "already-pending",
         );
       if (

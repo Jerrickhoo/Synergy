@@ -403,12 +403,17 @@ export function SentMentorRequests() {
     referred && `${referred} with mentor suggestions`,
   ].filter(Boolean);
   return (
+    // Sits under Outgoing requests on the Requests page.
     <section
       className="mentor-requests-list"
-      aria-label="Sent mentorship requests"
+      aria-labelledby="sent-mentorship-requests"
     >
-      <h2>Mentorship requests</h2>
-      {details.length > 0 && <p>{details.join(" · ")}</p>}
+      <h3 id="sent-mentorship-requests" className="requests-subhead">
+        Mentorship requests
+        {details.length > 0 && (
+          <span className="requests-subhead-detail">{details.join(" · ")}</span>
+        )}
+      </h3>
       {records.map((request) => (
         <article
           className="card panel mentor-request-card"
@@ -416,7 +421,7 @@ export function SentMentorRequests() {
           id={`request-${request.id}`}
           tabIndex={-1}
         >
-          <h3>{request.name}</h3>
+          <h4 className="mentor-request-name">{request.name}</h4>
           <p className="muted">
             {formatLabel(request)} ·{" "}
             <span className="request-status">
@@ -450,7 +455,7 @@ export function SentMentorRequests() {
             <p>{cooldownText(request.cooldownUntil)}.</p>
           )}
           {request.status === "pending" && (
-            // Same controls as a sent introduction (readiness plan P9).
+            // Same controls as a sent request (readiness plan P9).
             <div className="mentor-request-controls">
               <button
                 className="btn small"
@@ -529,7 +534,6 @@ export default function RequestsPage() {
   const { state, onAction } = useApp();
   const records = state.mentorRequests || [];
   useRequestFocus(state.activeMentorRequest);
-  if (state.role !== "mentor") return <SentMentorRequests />;
   return (
     <div className="page page-enter">
       <PageHeader
@@ -546,7 +550,7 @@ export default function RequestsPage() {
         ))}
         {[...state.incomingByRole.mentor, ...state.waitingByRole.mentor].some(
           (id) => !state.introductionMetaByRole.mentor[id]?.kind,
-        ) && <Introductions />}
+        ) && <Introductions hideEmpty />}
       </div>
       {/* Prototype only: sample founders keep a preview inbox from running dry. */}
       {!records.length && state.prototypeMentor && (

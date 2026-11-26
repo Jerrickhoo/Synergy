@@ -7,7 +7,6 @@ import MentorRequestForm, {
 import SelectField from "../components/SelectField.jsx";
 import BlockCollaborator from "../components/BlockCollaborator.jsx";
 import VerificationGate from "../components/VerificationGate.jsx";
-import { verificationRequired } from "../data/collaboration.js";
 import DeclineIntroduction from "../components/DeclineIntroduction.jsx";
 import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
@@ -36,6 +35,7 @@ import {
 } from "../data/profile-presentation.js";
 import { formatDate } from "../data/dates.js";
 import { missingProfileKeys, missingProfileText } from "../data/selectors.js";
+import { personVerified } from "../data/collaboration.js";
 
 const typeNames = {
   beta: "Beta Testing Exchange",
@@ -182,6 +182,7 @@ function MatchDetail() {
               image={person.image}
               name={person.name}
               identity={person.accountId || person.id}
+              verified={personVerified(person)}
               color={person.color}
               size={64}
             />
@@ -312,7 +313,7 @@ function MatchDetail() {
                 {existingRoom
                   ? "Connected"
                   : incoming
-                    ? "Introduction received"
+                    ? "Request received"
                     : interested
                       ? "Waiting for a reply"
                       : "Your next step"}
@@ -325,10 +326,10 @@ function MatchDetail() {
                   : incoming
                     ? `${person.name} wants to work with you`
                     : interested
-                      ? "Introduction sent"
+                      ? "Request sent"
                       : pastRooms.length
                         ? "Start another collaboration"
-                        : "Send an introduction"}
+                        : "Send a request"}
               </h2>
               <p>
                 {existingRoom
@@ -339,12 +340,12 @@ function MatchDetail() {
                     ? incoming
                       ? "Accepting opens a mentorship room where you confirm a goal and schedule a session."
                       : interested
-                        ? `If ${person.name} accepts, a mentorship room opens. Introductions expire after 14 days without a reply. You can withdraw it while you wait.`
+                        ? `If ${person.name} accepts, a mentorship room opens. Requests expire after 14 days without a reply. You can withdraw it while you wait.`
                         : `If ${person.name} accepts, a mentorship room opens where you confirm a goal and schedule a session.`
                     : incoming
                       ? `Accepting opens a Deal Room where you agree terms together. Nothing is committed until you both accept the terms.`
                       : interested
-                        ? `If ${person.name} accepts, a Deal Room opens automatically. Introductions expire after 14 days without a reply. You can withdraw it while you wait.`
+                        ? `If ${person.name} accepts, a Deal Room opens automatically. Requests expire after 14 days without a reply. You can withdraw it while you wait.`
                         : `If ${person.name} accepts, a Deal Room opens where you agree terms before any work starts.`}
               </p>
               {incoming && meta?.note && (
@@ -355,10 +356,7 @@ function MatchDetail() {
                   <p>
                     Add {missingProfileText(missingProfile)} to your profile
                     before you{" "}
-                    {incoming
-                      ? "accept this introduction"
-                      : "introduce yourself"}
-                    .
+                    {incoming ? "accept this request" : "introduce yourself"}.
                   </p>
                   <button
                     className="btn small"
@@ -483,7 +481,6 @@ function MatchDetail() {
                   state.busy ||
                   startBlocked ||
                   profileBlocked ||
-                  (!existingRoom && verificationRequired(state)) ||
                   (interested && !existingRoom && !incoming)
                 }
                 onClick={() =>
@@ -503,16 +500,14 @@ function MatchDetail() {
                   ? existingRoom.type === "mentorship"
                     ? "Open room"
                     : "Open Deal Room"
-                  : verificationRequired(state)
-                    ? "Verify to send introductions"
-                    : incoming
-                      ? "Accept introduction"
-                      : interested
-                        ? "Introduction sent"
-                        : "Send introduction"}
+                  : incoming
+                    ? "Accept request"
+                    : interested
+                      ? "Request sent"
+                      : "Send request"}
                 <Icon name="arrow" />
               </button>
-              {!existingRoom && <VerificationGate repeatsButton />}
+              {!existingRoom && <VerificationGate />}
               {incoming && !existingRoom && (
                 <DeclineIntroduction person={person} />
               )}
@@ -527,7 +522,7 @@ function MatchDetail() {
                     onAction({ action: "cancel-interest", id: person.id })
                   }
                 >
-                  Withdraw introduction
+                  Withdraw request
                 </button>
               )}
               <button
@@ -547,8 +542,8 @@ function MatchDetail() {
                 <summary>Safety and privacy</summary>
                 <p className="field-help">
                   Send a private report for moderator review, or block further
-                  contact. Blocking withdraws introductions and closes
-                  unfinished rooms.
+                  contact. Blocking withdraws requests and closes unfinished
+                  rooms.
                 </p>
                 <ReportCollaborator person={person} />
                 <BlockCollaborator person={person} />

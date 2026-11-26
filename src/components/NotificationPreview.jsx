@@ -111,7 +111,7 @@ export default function NotificationPreview({ headerRef, actionsRef }) {
             className="btn small"
             onClick={() => onAction({ page: "waiting" })}
           >
-            Respond to introductions ({state.incomingByRole[state.role].size})
+            Respond to requests ({state.incomingByRole[state.role].size})
           </button>
         )}
         {activity.length ? (

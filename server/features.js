@@ -485,7 +485,7 @@ export function createFeatures({
       if (age >= 7 * 86400000)
         add(
           `intro-remind:${id}:${meta.sentAt}`,
-          `${meta.name}'s introduction expires in ${Math.max(1, Math.ceil((14 * 86400000 - age) / 86400000))} days.`,
+          `${meta.name}'s request expires in ${Math.max(1, Math.ceil((14 * 86400000 - age) / 86400000))} days.`,
           null,
           "reminder",
           id,
@@ -888,6 +888,7 @@ export function createFeatures({
         status: "returned",
         reason: "mentor-paused",
         direction: "received",
+        sentAt: meta?.sentAt,
       });
       if (!other) continue;
       other.state.waitingByRole[otherRole]?.delete(mentorId);
@@ -900,6 +901,7 @@ export function createFeatures({
         status: "returned",
         reason: "mentor-paused",
         direction: "sent",
+        sentAt: meta?.sentAt,
         alternatives,
       });
       const names = alternatives.map((item) => item.name);
@@ -1731,6 +1733,8 @@ export function createFeatures({
         { state },
         state.role,
         `You are verified through ${account.affiliation.organization}. The badge now shows on your profile and cards.`,
+        undefined,
+        { kind: "affiliation" },
       );
       state.toast = "Verification approved (simulated).";
     } else if (input.action === "read-notifications") {
@@ -1943,6 +1947,8 @@ export function createFeatures({
           decision === "verified"
             ? `You are verified through ${target.affiliation.organization}. The badge now shows on your profile and cards.`
             : `Your verification request was not approved: ${note}`,
+          undefined,
+          { kind: "affiliation" },
         );
       } else if (kind === "account") {
         const target = accountById(id);

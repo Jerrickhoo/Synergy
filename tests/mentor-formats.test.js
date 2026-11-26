@@ -66,10 +66,10 @@ test("upgrades only climb the ladder", () => {
   assert.ok(!canUpgrade("single-session", "quick-ask"));
 });
 
-test("mentors see request and mentee page labels; founders keep theirs", () => {
+test("mentors see mentee page labels; both roles see Requests", () => {
   assert.equal(pageLabel("waiting", "mentor"), "Requests");
   assert.equal(pageLabel("rooms", "mentor"), "Mentees");
   assert.equal(pageLabel("calendar", "mentor"), "Calendar");
-  assert.equal(pageLabel("waiting", "founder"), "Introductions");
+  assert.equal(pageLabel("waiting", "founder"), "Requests");
   assert.equal(pageLabel("rooms"), "Rooms");
 });

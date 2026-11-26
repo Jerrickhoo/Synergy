@@ -40,7 +40,7 @@ export default function HomeMetrics({ omit = [] }) {
         },
     {
       id: "introductions",
-      label: "Introductions to answer",
+      label: "Requests to answer",
       icon: "people",
       value: incoming,
       detail: incoming

@@ -18,6 +18,7 @@ import { decode } from "./serialization.js";
 import { validateCredentials } from "./validation.js";
 import { useMatchFilterMemory } from "./useMatchFilterMemory.js";
 import { paymentActionNames } from "../data/pricing.js";
+import { verificationNeededFor } from "../data/collaboration.js";
 import {
   errorMessage,
   errorTitle,
@@ -357,6 +358,10 @@ export function AppProvider({ children }) {
   const [connectionAttempt, setConnectionAttempt] = useState(0);
   const [restoreTick, setRestoreTick] = useState(0);
   const [signOutOpen, setSignOutOpen] = useState(false);
+  // Which gated action asked an unverified account to verify first, if any.
+  const [verificationPrompt, setVerificationPrompt] = useState(null);
+  // The quick tour of how deals (or mentorships) move through Synergy.
+  const [tourOpen, setTourOpen] = useState(false);
   const [mentorshipWarning, setMentorshipWarning] = useState(null);
   const [signOutError, setSignOutError] = useState("");
   const requestedPath = useRef(
@@ -389,7 +394,10 @@ export function AppProvider({ children }) {
   const model = useMemo(() => createModel(state), [state]);
   useMatchFilterMemory(state, dispatch);
   useEffect(() => {
-    if (!state.authenticated) setSignOutOpen(false);
+    if (state.authenticated) return;
+    setSignOutOpen(false);
+    setVerificationPrompt(null);
+    setTourOpen(false);
   }, [state.authenticated]);
   const dismissToast = useCallback(
     () => dispatch({ action: "clear-toast" }),
@@ -716,6 +724,31 @@ export function AppProvider({ children }) {
   }
   async function onAction(payload, event) {
     event?.preventDefault();
+    // Opening and saving matches, and requests, wait for verification: ask first
+    // and offer the way to Verification, rather than a disabled button.
+    if (payload.action === "verification-prompt") {
+      dispatch({ action: "close-overlays" });
+      setVerificationPrompt(payload.reason || "connect");
+      return;
+    }
+    if (payload.action === "close-verification-prompt") {
+      setVerificationPrompt(null);
+      return;
+    }
+    if (payload.action === "open-tour") {
+      dispatch({ action: "close-overlays" });
+      setTourOpen(true);
+      return;
+    }
+    if (payload.action === "close-tour") {
+      setTourOpen(false);
+      return;
+    }
+    if (verificationNeededFor(state, payload)) {
+      dispatch({ action: "close-overlays" });
+      setVerificationPrompt(payload.action);
+      return;
+    }
     if (payload.action === "request-sign-out") {
       if (pending.current || !state.authenticated) return;
       signOutReturn.current = event?.currentTarget || document.activeElement;
@@ -1105,6 +1138,8 @@ export function AppProvider({ children }) {
         state,
         signOutOpen,
         signOutError,
+        verificationPrompt,
+        tourOpen,
         mentorshipWarning,
         dismissMentorshipWarning: () => setMentorshipWarning(null),
         confirmMentorshipWarning: async () => {

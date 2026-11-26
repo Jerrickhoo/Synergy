@@ -11,15 +11,15 @@ const statusCopy = {
   ],
   pending: [
     "Pending review",
-    "A moderator is checking your evidence. You can keep browsing and saving matches in the meantime.",
+    "A moderator is checking your evidence. You can keep browsing matches in the meantime.",
   ],
   rejected: [
     "Not approved",
-    "Your last request was not approved. You can send new evidence.",
+    "Your last request was not approved. Send new evidence below.",
   ],
   none: [
     "Not verified yet",
-    "Tell us a program, organization or person that can confirm you’re a founder, such as an accelerator, university program, founder community or someone who referred you. A moderator checks it within three working days, then a Verified badge shows on your profile, match cards and Deal Rooms.",
+    "Tell us who can confirm you’re a founder, and a moderator will check it within three working days.",
   ],
 };
 // Mentors are verified when a moderator approves their application.
@@ -31,7 +31,7 @@ const mentorCopy = {
   ],
   none: [
     "Not verified yet",
-    "Verified mentors are easier for founders to trust. A moderator checks your LinkedIn profile, work email or endorsing organization.",
+    "Tell us who can confirm your experience, and a moderator will check it within three working days.",
   ],
 };
 
@@ -50,24 +50,25 @@ export default function Verification() {
   // Without moderators nobody can review a request, so none is offered.
   const reviewable = Boolean(state.integrations?.moderation);
   return (
+    // Until verified, the card takes the warm accent so it stands out from
+    // the profile cards around it.
     <section
-      className="card panel profile-section verification-section section-gap"
+      className={`card panel profile-section verification-section section-gap ${status === "verified" ? "is-verified" : "is-unverified"}`}
       aria-labelledby="verification-heading"
       id="verification"
     >
-      <h2 id="verification-heading">Verification</h2>
-      <p className={`verification-status ${status}`}>
-        {status === "verified" && <Icon name="check" />}
-        <strong>{title}</strong>
-        {organization ? ` · ${organization}` : ""}
-      </p>
-      <p className="muted">{detail}</p>
-      {status !== "verified" && (
-        <p className="muted">
-          You don’t need a company email address. This check is separate from
-          confirming your sign-in email.
+      <div className="verification-head">
+        <h2 id="verification-heading">
+          <Icon name="shield" />
+          Verification
+        </h2>
+        <p className={`verification-status ${status}`}>
+          {status === "verified" && <Icon name="check" />}
+          <strong>{title}</strong>
+          {organization ? ` · ${organization}` : ""}
         </p>
-      )}
+      </div>
+      <p className="verification-detail">{detail}</p>
       {status === "pending" && state.affiliation?.dueAt && (
         <p>Decision due by {formatDate(state.affiliation.dueAt)}.</p>
       )}
@@ -103,37 +104,47 @@ export default function Verification() {
       {reviewable && status !== "verified" && status !== "pending" && (
         <form
           data-form="affiliation-request"
-          className="grid"
+          className="verification-form"
           onSubmit={onSubmit}
         >
           <FormErrors scope="affiliation-request" />
           <div className="field">
-            <label htmlFor="affiliation-org">
-              Program, organization or person
-            </label>
+            <label htmlFor="affiliation-org">Who can vouch for you?</label>
+            <p className="field-hint" id="affiliation-org-hint">
+              {mentor
+                ? "Your employer, an organization that endorses you or the person who referred you."
+                : "An accelerator, university program, founder community or the person who referred you."}
+            </p>
             <input
               id="affiliation-org"
               name="organization"
               required
               maxLength={150}
-              placeholder="For example, your accelerator cohort or the person who referred you"
+              aria-describedby="affiliation-org-hint"
+              placeholder="Program, organization or person"
             />
           </div>
           <div className="field">
             <label htmlFor="affiliation-evidence">
               How can a moderator check it?
             </label>
+            <p className="field-hint" id="affiliation-evidence-hint">
+              A link to a roster or cohort page that lists you, or your
+              referrer’s contact details.
+            </p>
             <textarea
               id="affiliation-evidence"
               name="evidence"
               required
               maxLength={3000}
-              placeholder="A link to a public roster or cohort page that lists you, or your referrer’s contact details."
+              aria-describedby="affiliation-evidence-hint"
             />
           </div>
-          <button className="btn" disabled={state.busy}>
-            Request verification
-          </button>
+          <div className="verification-actions">
+            <button className="btn primary" disabled={state.busy}>
+              Request verification
+            </button>
+          </div>
         </form>
       )}
     </section>

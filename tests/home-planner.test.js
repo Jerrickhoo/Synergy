@@ -266,7 +266,7 @@ test("Home labels activity, lists tasks soonest first and keeps collaborator col
     "Accepted the shared terms.",
   );
   assert.equal(
-    activityText("You sent an introduction to Fairtab.", "Fairtab"),
-    "You sent an introduction to Fairtab.",
+    activityText("You sent a request to Fairtab.", "Fairtab"),
+    "You sent a request to Fairtab.",
   );
 });

@@ -3,6 +3,7 @@ import Avatar from "./Avatar.jsx";
 import Icon from "./Icon.jsx";
 import { matchReason } from "../data/profile-presentation.js";
 import { homeNextStep } from "../data/home.js";
+import { personVerified } from "../data/collaboration.js";
 
 // The strongest suggestions, so Home shows real people rather than empty boxes.
 export default function HomeTopMatches({ limit = 3 }) {
@@ -35,6 +36,7 @@ export default function HomeTopMatches({ limit = 3 }) {
               image={person.image}
               name={person.name}
               identity={person.accountId || person.id}
+              verified={personVerified(person)}
               color={person.color}
             />
             <div className="top-match-copy">

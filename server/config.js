@@ -26,6 +26,9 @@ export function configuration(env = process.env) {
     emailFrom: env.EMAIL_FROM || "",
     brevoWebhookSecret: env.BREVO_WEBHOOK_SECRET || "",
     publicUrl: env.SYNERGY_PUBLIC_URL || "",
+    // OAuth client ID for Google Calendar and Tasks sync. Public by design:
+    // the browser signs in with it; no Google secret is kept here.
+    googleClientId: (env.GOOGLE_CLIENT_ID || "").trim(),
     requireVerification: env.SYNERGY_REQUIRE_VERIFICATION === "true",
     // TEMPORARY demo shortcut: lets a founder approve their own pending
     // verification request. Anyone can self-verify while it is on.
