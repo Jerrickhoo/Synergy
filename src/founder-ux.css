@@ -213,18 +213,28 @@ ol.stage-line {
   font-weight: 400;
   color: var(--muted);
 }
+/* "Step 2 of 4" sits above the stage line at every width; on a phone it
+   also names the step, standing in for the hidden line. */
 .stage-compact {
-  display: none;
-  margin: 12px 0;
+  margin: var(--space-3) 0 0;
+  font-size: var(--font-caption);
   font-weight: 600;
-  color: var(--green-dark);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.stage-compact-label {
+  display: none;
 }
 @media (max-width: 760px) {
   .stage-line {
     display: none;
   }
   .stage-compact {
-    display: block;
+    margin: 12px 0;
+    color: var(--green-dark);
+  }
+  .stage-compact-label {
+    display: inline;
   }
   .room-tabs {
     mask-image: linear-gradient(to right, #000 85%, transparent);
@@ -3827,9 +3837,26 @@ ol.stage-line {
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.rooms-filter {
-  margin: 0;
-  min-width: 180px;
+/* Rooms: search, filter and sort sit together; the count sits just
+   under them, tight to the list it counts. */
+.rooms-filters {
+  margin-top: var(--space-5);
+}
+.rooms-count {
+  margin: var(--space-3) 0 var(--space-4);
+  font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
+}
+/* "Step 2 of 4", tight above the card's progress bar. */
+.room-list-card > .room-step {
+  margin: var(--space-3) 0 var(--space-1);
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.room-opened time {
+  font-variant-numeric: tabular-nums;
 }
 
 /* A Deal Room's Milestones tab: the room's calendar beside its milestones,

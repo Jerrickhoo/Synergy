@@ -2,6 +2,7 @@
 // request and deal, a plain-language meaning for each status, and the full
 // activity log. Everything here is read from the workspace state.
 import { roleRooms } from "./selectors.js";
+import { roomFinished } from "./room-progress.js";
 
 const dayMs = 86400000;
 // How long a request waits for a reply.
@@ -215,12 +216,7 @@ export function dealRecords(state, nameOf) {
   return roleRooms(state)
     .map((room) => {
       const status = room.status === "terms" ? "matched" : room.status;
-      const finished =
-        status === "cancelled"
-          ? room.closedAt || room.updatedAt || ""
-          : ["launched", "reviewed"].includes(status)
-            ? room.completedAt || room.launchedAt || room.updatedAt || ""
-            : "";
+      const finished = roomFinished(room)?.at || "";
       return {
         id: room.id,
         room,

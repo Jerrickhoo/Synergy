@@ -442,8 +442,8 @@ export default function SettingsPage() {
               </div>
             ))}
             <p className="muted">
-              Manage other sessions in Danger zone below. This tab stays signed
-              in.
+              To sign out other sessions, use Pause, sign out or delete below.
+              This tab stays signed in.
             </p>
           </section>
           <details
@@ -452,7 +452,7 @@ export default function SettingsPage() {
             aria-labelledby="danger-zone-heading"
           >
             <summary id="danger-zone-heading">
-              <span>Danger zone</span>
+              <span>Pause, sign out or delete</span>
               <Icon name="chevron" />
             </summary>
             <p>

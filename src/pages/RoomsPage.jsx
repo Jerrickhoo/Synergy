@@ -9,6 +9,22 @@ import Introductions from "../components/Introductions.jsx";
 import { milestoneDate, roomNextAction } from "../data/selectors.js";
 import { personVerified } from "../data/collaboration.js";
 import { typeLabel } from "../data/collaboration-types.js";
+import { roomFinished, roomStep } from "../data/room-progress.js";
+
+const shortDate = (value) =>
+  new Date(value).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+const sorts = [
+  ["active", "Active first"],
+  ["updated", "Recently updated"],
+  ["opened", "Recently opened"],
+  ["finished", "Recently completed"],
+  ["name", "Name A–Z"],
+];
 export default function RoomsPage() {
   const { state, model, onAction } = useApp();
   const { allPeople, roomStatusLabel } = model;
@@ -26,16 +42,50 @@ export default function RoomsPage() {
     />
   );
   const [filter, setFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState("active");
   const rooms = Object.values(state.rooms).filter(
     (room) => room.role === state.role,
   );
+  const partnerOf = (room) =>
+    allPeople().find((person) => person.id === room.partnerId);
   // Active: still being worked on, including a finished one waiting for
   // reviews. Closed: reviewed or closed early.
   const group = (room) =>
     ["reviewed", "cancelled"].includes(room.status) ? "closed" : "active";
+  // Search reads the partner's name, the collaboration type and the goal.
+  const words = query.trim().toLowerCase();
+  const matches = (room) =>
+    !words ||
+    [
+      partnerOf(room)?.name,
+      room.type === "mentorship"
+        ? "mentorship"
+        : typeLabel(room.engagementType),
+      room.terms.draft.goal,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(words);
+  const time = (value) => Date.parse(value || "") || 0;
+  const touched = (room) => time(room.updatedAt || room.createdAt);
+  const newest = (field) => (a, b) => field(b) - field(a);
+  const compare = {
+    active: (a, b) =>
+      (group(a) !== "active") - (group(b) !== "active") ||
+      touched(b) - touched(a),
+    updated: newest(touched),
+    opened: newest((room) => time(room.createdAt)),
+    // Rooms still running have no completion date, so they go last.
+    finished: newest((room) => time(roomFinished(room)?.at)),
+    name: (a, b) =>
+      (partnerOf(a)?.name || "").localeCompare(partnerOf(b)?.name || ""),
+  }[sort];
   const visibleRooms = rooms
     .filter((room) => filter === "all" || group(room) === filter)
-    .sort((a, b) => (group(a) !== "active") - (group(b) !== "active"));
+    .filter(matches)
+    .sort(compare);
   if (!rooms.length)
     return (
       <div className="page page-enter">
@@ -61,39 +111,77 @@ export default function RoomsPage() {
     <div className="page page-enter">
       {header}
       <Introductions compact />
-      <div className="rooms-toolbar">
-        <p className="muted" role="status">
-          {visibleRooms.length} {visibleRooms.length === 1 ? "room" : "rooms"}
-        </p>
-        <div className="field rooms-filter">
-          <SelectField
-            id="room-filter"
-            aria-label={`Show ${noun}`}
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-          >
-            <option value="all">All {noun}</option>
-            <option value="active">Active</option>
-            <option value="closed">Closed</option>
-          </SelectField>
+      <div className="requests-filters rooms-filters">
+        <div className="filter-search field">
+          <label className="visually-hidden" htmlFor="rooms-search">
+            Search {noun}
+          </label>
+          <Icon name="search" />
+          <input
+            className="search-input"
+            id="rooms-search"
+            type="search"
+            value={query}
+            placeholder="Search by name, type or goal"
+            onChange={(event) => setQuery(event.target.value)}
+          />
         </div>
+        <SelectField
+          id="room-filter"
+          aria-label={`Show ${noun}`}
+          className="requests-select"
+          value={filter}
+          onChange={(event) => setFilter(event.target.value)}
+        >
+          <option value="all">All {noun}</option>
+          <option value="active">Active</option>
+          <option value="closed">Closed</option>
+        </SelectField>
+        <SelectField
+          id="room-sort"
+          aria-label={`Sort ${noun}`}
+          className="requests-select"
+          value={sort}
+          onChange={(event) => setSort(event.target.value)}
+        >
+          {sorts.map(([id, label]) => (
+            <option key={id} value={id}>
+              {label}
+            </option>
+          ))}
+        </SelectField>
       </div>
+      <p className="muted rooms-count" role="status">
+        {visibleRooms.length} {visibleRooms.length === 1 ? "room" : "rooms"}
+      </p>
       {!visibleRooms.length && (
         <section className="card clean-empty-state">
           <h2>
-            No {filter === "closed" ? "closed" : "active"} {noun}
+            {words
+              ? `No ${noun} match “${query.trim()}”`
+              : `No ${filter === "closed" ? "closed" : "active"} ${noun}`}
           </h2>
-          <p>Choose another view to see your other collaborations.</p>
-          <button className="btn" onClick={() => setFilter("all")}>
-            Show all rooms
+          <p>
+            {words
+              ? "Try another name, collaboration type or goal."
+              : "Choose another view to see your other collaborations."}
+          </p>
+          <button
+            className="btn"
+            onClick={() => {
+              setQuery("");
+              setFilter("all");
+            }}
+          >
+            Show all {noun}
           </button>
         </section>
       )}
       <div className="grid room-list">
         {visibleRooms.map((room) => {
-          const partner = allPeople().find(
-            (person) => person.id === room.partnerId,
-          );
+          const partner = partnerOf(room);
+          const step = roomStep(room);
+          const finished = roomFinished(room);
           const next = roomNextAction(room, partner?.name);
           const summary = isMentorRoom(room)
             ? mentorshipCardSummary(room)
@@ -111,15 +199,25 @@ export default function RoomsPage() {
                     color={partner?.color || ""}
                   />
                   <div>
-                    {room.createdAt && (
+                    {(room.createdAt || finished) && (
                       <p className="room-opened">
-                        Opened{" "}
-                        <time dateTime={room.createdAt}>
-                          {new Date(room.createdAt).toLocaleDateString(
-                            undefined,
-                            { day: "numeric", month: "short", year: "numeric" },
-                          )}
-                        </time>
+                        {room.createdAt && (
+                          <>
+                            Opened{" "}
+                            <time dateTime={room.createdAt}>
+                              {shortDate(room.createdAt)}
+                            </time>
+                          </>
+                        )}
+                        {room.createdAt && finished && " · "}
+                        {finished && (
+                          <>
+                            {finished.kind}{" "}
+                            <time dateTime={finished.at}>
+                              {shortDate(finished.at)}
+                            </time>
+                          </>
+                        )}
                       </p>
                     )}
                     {room.type === "mentorship" ? (
@@ -157,10 +255,20 @@ export default function RoomsPage() {
                       ? "Your agreement and conversation are available for reference."
                       : "Set a shared goal and agree on your first milestones.")}
                 </p>
+                {step && (
+                  <p className="room-step" aria-hidden="true">
+                    Step {step.number} of {step.total}
+                  </p>
+                )}
                 <div
                   className="progress-track"
                   role="progressbar"
                   aria-label={`Collaboration progress with ${partner?.name || room.partnerId}`}
+                  aria-valuetext={
+                    step
+                      ? `Step ${step.number} of ${step.total}: ${step.label}`
+                      : undefined
+                  }
                   aria-valuenow={progress}
                   aria-valuemin={0}
                   aria-valuemax={100}

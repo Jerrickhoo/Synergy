@@ -303,8 +303,11 @@ function ExchangeRoom() {
       {room.status !== "cancelled" && (
         <>
           <p className="stage-compact" aria-hidden="true">
-            Stage {stage + 1} of 5: {labels[stage]}
-            {termsNote ? ` · ${termsNote}` : ""}
+            Step {stage + 1} of {labels.length}
+            <span className="stage-compact-label">
+              : {labels[stage]}
+              {termsNote ? ` · ${termsNote}` : ""}
+            </span>
           </p>
           <ol
             className="stage-line"

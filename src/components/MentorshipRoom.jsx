@@ -30,6 +30,7 @@ import {
   roomFormat,
 } from "../data/mentor-room.js";
 import { scheduleInstant, scheduleLabel } from "../data/selectors.js";
+import { roomStep } from "../data/room-progress.js";
 import { formatDate, timeZoneLabel } from "../data/dates.js";
 import SelectField from "./SelectField.jsx";
 import FilePicker from "./FilePicker.jsx";
@@ -1124,17 +1125,17 @@ export default function MentorshipRoom({ room }) {
         }
       />
       {/* Same progress line as a Deal Room (readiness plan F5). */}
+      {/* The step count shows at every width; the step's name only on
+          small screens, where it stands in for the stage line. */}
       <p className="stage-compact" aria-hidden="true">
         {(() => {
-          const marks = stageMarks(room);
-          const current = marks.findIndex((mark) => mark.current);
-          const index =
-            current >= 0
-              ? current
-              : marks.every((mark) => mark.done)
-                ? marks.length - 1
-                : 0;
-          return `Stage ${index + 1} of ${marks.length}: ${marks[index].label}`;
+          const step = roomStep(room);
+          return (
+            <>
+              Step {step.number} of {step.total}
+              <span className="stage-compact-label">: {step.label}</span>
+            </>
+          );
         })()}
       </p>
       <ol

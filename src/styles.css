@@ -4012,20 +4012,6 @@ main,
   font-size: 14px;
   margin-bottom: 20px;
 }
-.rooms-toolbar {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 16px;
-  margin: 24px 0 18px;
-}
-.rooms-toolbar .field {
-  width: 200px;
-}
-.rooms-toolbar p {
-  margin-bottom: 10px;
-  font-size: 13px;
-}
 .profile-completion-note {
   background: var(--green-soft);
   border-radius: var(--radius-md);
