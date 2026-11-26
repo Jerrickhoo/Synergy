@@ -2,10 +2,19 @@ import ReportCollaborator from "../components/ReportCollaborator.jsx";
 import { priceLabel } from "../data/pricing.js";
 import BlockCollaborator from "../components/BlockCollaborator.jsx";
 import { FounderTrackRecord } from "../components/MentorImpact.jsx";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
-import Introductions from "../components/Introductions.jsx";
+import Introductions, {
+  IntroductionRow,
+  fullDate,
+} from "../components/Introductions.jsx";
+import Icon from "../components/Icon.jsx";
+import {
+  introductionRecords,
+  introductionStatusLabel,
+  statusMeaning,
+} from "../data/activity.js";
 import { MentorAlternatives } from "../components/MentorRequestForm.jsx";
 import { mentorFormat } from "../data/mentor-formats.js";
 import {
@@ -387,9 +396,11 @@ export function RequestCard({ request }) {
   );
 }
 
-export function SentMentorRequests() {
+// The founder's mentorship requests. `records` narrows the list (the
+// Requests page passes the ones its tab and filters show).
+export function SentMentorRequests({ records: shown }) {
   const { state, onAction, model } = useApp();
-  const records = state.mentorRequests || [];
+  const records = shown || state.mentorRequests || [];
   useRequestFocus(state.activeMentorRequest);
   if (!records.length) return null;
   const pending = records.filter(
@@ -422,6 +433,12 @@ export function SentMentorRequests() {
           tabIndex={-1}
         >
           <h4 className="mentor-request-name">{request.name}</h4>
+          {request.sentAt && (
+            <p className="introduction-timing">
+              Sent{" "}
+              <time dateTime={request.sentAt}>{fullDate(request.sentAt)}</time>
+            </p>
+          )}
           <p className="muted">
             {formatLabel(request)} ·{" "}
             <span className="request-status">
@@ -520,6 +537,266 @@ export function SentMentorRequests() {
           />
         </article>
       ))}
+    </section>
+  );
+}
+
+const requestTabs = [
+  ["incoming", "Incoming"],
+  ["outgoing", "Outgoing"],
+  ["history", "History"],
+];
+const dateWindows = [
+  ["any", "All time"],
+  ["7", "Last 7 days"],
+  ["30", "Last 30 days"],
+  ["90", "Last 90 days"],
+];
+const typeChoices = [
+  ["all", "Everyone"],
+  ["startup", "Startup founders"],
+  ["mentor", "Mentors"],
+];
+const dayMs = 86400000;
+// The collaborator's side, from their profile id ("…:mentor").
+const collaboratorType = (row) =>
+  String(row.personId || "").endsWith(":mentor") ? "mentor" : "startup";
+// A founder's referred mentorship request still has a step to take (ask a
+// suggested mentor), so it stays under Outgoing.
+const requestTab = (row) =>
+  row.status === "needs-reply"
+    ? "incoming"
+    : row.status === "waiting" ||
+        (row.status === "referred" && row.direction === "sent")
+      ? "outgoing"
+      : "history";
+
+// One past request: who, which way, when it was sent and closed, and how
+// it ended.
+function HistoryRow({ row }) {
+  return (
+    <li
+      className="requests-history-row"
+      id={row.requestId ? `request-${row.requestId}` : undefined}
+      tabIndex={row.requestId ? -1 : undefined}
+    >
+      <div className="requests-history-who">
+        <strong>{row.name}</strong>
+        <span>
+          {collaboratorType(row) === "mentor" ? "Mentor" : "Startup founder"} ·{" "}
+          {row.direction === "sent" ? "You sent it" : "Sent to you"}
+          {row.kind === "Mentorship request" ? " · Mentorship request" : ""}
+        </span>
+      </div>
+      <div className="requests-history-dates">
+        <span>
+          Requested{" "}
+          {row.requestedAt ? (
+            <time dateTime={row.requestedAt}>{fullDate(row.requestedAt)}</time>
+          ) : (
+            "· date not recorded"
+          )}
+        </span>
+        {row.closedAt && (
+          <span>
+            Closed <time dateTime={row.closedAt}>{fullDate(row.closedAt)}</time>
+          </span>
+        )}
+      </div>
+      <span
+        className={`activity-status status-${row.status}`}
+        title={statusMeaning(row.status)}
+      >
+        {introductionStatusLabel(row.status)}
+      </span>
+      {row.reason && <p className="requests-history-reason">“{row.reason}”</p>}
+    </li>
+  );
+}
+
+// A founder's Requests: Incoming, Outgoing and History tabs over one list,
+// narrowed by name, date sent and whether the other side is a startup
+// founder or a mentor.
+export function RequestsBoard() {
+  const { state, model, onTabKeyDown } = useApp();
+  const records = introductionRecords(state);
+  const people = model.rolePeople();
+  const personOf = (id) => people.find((person) => person.id === id);
+  const [query, setQuery] = useState("");
+  const [when, setWhen] = useState("any");
+  const [who, setWho] = useState("all");
+  // Open on the tab holding a linked request, else where replies are due.
+  const linkedTab = () => {
+    const linked = records.find(
+      (row) => row.requestId && row.requestId === state.activeMentorRequest,
+    );
+    if (linked) return requestTab(linked);
+    if (records.some((row) => requestTab(row) === "incoming"))
+      return "incoming";
+    if (records.some((row) => requestTab(row) === "outgoing"))
+      return "outgoing";
+    return "incoming";
+  };
+  const [tab, setTab] = useState(linkedTab);
+  // A link to a request (from Updates) opens its tab and focuses it once
+  // it is on screen; the records changing never moves the tab.
+  const focusPending = useRef(null);
+  useEffect(() => {
+    if (!state.activeMentorRequest) return;
+    focusPending.current = state.activeMentorRequest;
+    setTab(linkedTab());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.activeMentorRequest]);
+  useEffect(() => {
+    const element =
+      focusPending.current &&
+      document.getElementById(`request-${focusPending.current}`);
+    if (!element) return;
+    element.focus();
+    focusPending.current = null;
+  });
+  const search = query.trim().toLowerCase();
+  const filtering = Boolean(search) || when !== "any" || who !== "all";
+  const shown = records.filter((row) => {
+    if (search && !row.name.toLowerCase().includes(search)) return false;
+    if (who !== "all" && collaboratorType(row) !== who) return false;
+    if (when !== "any") {
+      const at = Date.parse(row.requestedAt || row.closedAt || "");
+      if (!at || Date.now() - at > Number(when) * dayMs) return false;
+    }
+    return true;
+  });
+  const groups = Object.fromEntries(
+    requestTabs.map(([id]) => [
+      id,
+      shown.filter((row) => requestTab(row) === id),
+    ]),
+  );
+  const rows = groups[tab];
+  const exchangeRows = rows.filter(
+    (row) => row.kind !== "Mentorship request" && personOf(row.personId),
+  );
+  const mentorshipRecords = (state.mentorRequests || []).filter((request) =>
+    rows.some((row) => row.requestId === request.id),
+  );
+  const clear = () => {
+    setQuery("");
+    setWhen("any");
+    setWho("all");
+  };
+  const empty = {
+    incoming: "No one is waiting on your reply right now.",
+    outgoing:
+      "Nothing sent right now. Find someone in Matches and send them a request.",
+    history: "Accepted, declined, withdrawn and expired requests appear here.",
+  }[tab];
+  return (
+    <section className="requests-board" aria-label="Your requests">
+      <div className="tabs" role="tablist" aria-label="Requests">
+        {requestTabs.map(([id, label]) => (
+          <button
+            key={id}
+            className={`tab${tab === id ? " active" : ""}`}
+            role="tab"
+            id={`requests-tab-${id}`}
+            aria-controls="requests-panel"
+            aria-selected={tab === id}
+            tabIndex={tab === id ? 0 : -1}
+            onKeyDown={onTabKeyDown}
+            onClick={() => setTab(id)}
+          >
+            {label}
+            <span className="requests-count">{groups[id].length}</span>
+          </button>
+        ))}
+      </div>
+      <div className="requests-filters">
+        <div className="filter-search field">
+          <label className="visually-hidden" htmlFor="requests-search">
+            Search requests
+          </label>
+          <Icon name="search" />
+          <input
+            className="search-input"
+            id="requests-search"
+            type="search"
+            value={query}
+            placeholder="Search by name"
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+        <SelectField
+          id="requests-date"
+          aria-label="Date sent"
+          className="requests-select"
+          value={when}
+          onChange={(event) => setWhen(event.target.value)}
+        >
+          {dateWindows.map(([id, label]) => (
+            <option key={id} value={id}>
+              {label}
+            </option>
+          ))}
+        </SelectField>
+        <SelectField
+          id="requests-type"
+          aria-label="Collaborator type"
+          className="requests-select"
+          value={who}
+          onChange={(event) => setWho(event.target.value)}
+        >
+          {typeChoices.map(([id, label]) => (
+            <option key={id} value={id}>
+              {label}
+            </option>
+          ))}
+        </SelectField>
+        {filtering && (
+          <button type="button" className="link-btn" onClick={clear}>
+            Clear filters
+          </button>
+        )}
+      </div>
+      <div
+        id="requests-panel"
+        role="tabpanel"
+        aria-labelledby={`requests-tab-${tab}`}
+        className="requests-panel"
+      >
+        {!rows.length ? (
+          <div className="card panel requests-empty">
+            <p>{filtering ? "No requests match these filters." : empty}</p>
+            {filtering && (
+              <button type="button" className="btn small" onClick={clear}>
+                Clear filters
+              </button>
+            )}
+          </div>
+        ) : tab === "history" ? (
+          <ul className="card panel requests-history">
+            {rows.map((row) => (
+              <HistoryRow key={row.id} row={row} />
+            ))}
+          </ul>
+        ) : (
+          <>
+            {exchangeRows.length > 0 && (
+              <div className="card panel introductions">
+                {exchangeRows.map((row) => (
+                  <IntroductionRow
+                    key={row.id}
+                    person={personOf(row.personId)}
+                    incoming={tab === "incoming"}
+                  />
+                ))}
+              </div>
+            )}
+            {mentorshipRecords.length > 0 && (
+              <SentMentorRequests records={mentorshipRecords} />
+            )}
+          </>
+        )}
+      </div>
     </section>
   );
 }

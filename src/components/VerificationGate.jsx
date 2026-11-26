@@ -1,6 +1,7 @@
 import { useApp } from "../state/AppContext.jsx";
 import { verificationRequired } from "../data/collaboration.js";
 import Icon from "./Icon.jsx";
+import { pendingVerificationText } from "../data/home.js";
 
 // A tinted notice with the link inline, so an unverified founder sees why
 // saving and requests ask them to verify first. `repeatsButton` is for
@@ -36,10 +37,7 @@ export default function VerificationGate({ repeatsButton = false }) {
       <Icon name="shield" />
       <div>
         {pending ? (
-          <p>
-            A moderator is checking your evidence. You can keep browsing matches
-            in the meantime.
-          </p>
+          <p>{pendingVerificationText(state)}</p>
         ) : (
           <p>
             <strong>

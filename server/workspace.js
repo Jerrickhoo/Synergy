@@ -81,6 +81,13 @@ import { createMentorRequests, requestActions } from "./mentor-requests.js";
 import { createFeatures, defaultPreferences } from "./features.js";
 import defaultTemplates from "../src/data/engagement-templates.json" with { type: "json" };
 import {
+  legacyTypeLabels,
+  startupTypeIds,
+  startupTypes,
+  suggestedType,
+  typeLabel,
+} from "../src/data/collaboration-types.js";
+import {
   trustSummary,
   canonicalTags,
   reviewDeadline,
@@ -312,7 +319,7 @@ export function scoreProfile(
     : marketing && sizes.every((n) => n > 0) && sizeFit < 0.1
       ? `Uneven swap: ${Math.max(...sizes).toLocaleString("en")} vs ${Math.min(...sizes).toLocaleString("en")} audience`
       : marketing && !sizes.every((n) => n > 0)
-        ? "Audience size missing for a co-marketing swap"
+        ? "Audience size missing for an audience swap"
         : "";
   const stage = mentor
     ? sharedOverlap(founder.stage, mentorProfile.startups)
@@ -615,6 +622,14 @@ export function createWorkspace(file, options = {}) {
       };
       migrated = true;
     }
+    // Rooms opened before the collaboration types were standardised read
+    // with the new names.
+    for (const room of Object.values(account.state?.rooms || {})) {
+      if (legacyTypeLabels[room.engagementType]) {
+        room.engagementType = legacyTypeLabels[room.engagementType];
+        migrated = true;
+      }
+    }
     if (
       account.affiliation?.status === "pending" &&
       !account.affiliation.requestedAt
@@ -881,6 +896,28 @@ export function createWorkspace(file, options = {}) {
       );
       changed = true;
     }
+    // A verification request nobody reviewed by its due date expires, so
+    // the founder knows to send it again instead of waiting indefinitely.
+    const affiliation = account.affiliation;
+    if (
+      affiliation?.status === "pending" &&
+      affiliation.dueAt &&
+      time > Date.parse(affiliation.dueAt)
+    ) {
+      account.affiliation = {
+        ...affiliation,
+        status: "expired",
+        expiredAt: new Date(time).toISOString(),
+      };
+      event(
+        account,
+        state.role,
+        "Your verification request expired before a moderator reviewed it. Send it again from Verification on your profile.",
+        undefined,
+        { kind: "affiliation" },
+      );
+      changed = true;
+    }
     for (const role of roles) {
       const meta = state.introductionMetaByRole?.[role] || {};
       for (const [id, item] of Object.entries(meta)) {
@@ -1124,21 +1161,14 @@ export function createWorkspace(file, options = {}) {
         : null;
     const fitUsage =
       usage || (viewerMentor ? publicMentorUsage(viewerMentor).usage : null);
-    const marketing = [
-      [mine.offer, profile.need],
-      [profile.offer, mine.need],
-    ].some(
-      ([offer, need]) =>
-        /marketing|audience|promotion|growth/i.test(offer) &&
-        /marketing|audience|promotion|growth/i.test(need),
-    );
-    // A beta-testing exchange fits when either startup wants its product
-    // tested, since any founder can test the other's product. Any other
-    // startup trade (advice, feedback, introductions) defaults to a Skill Swap.
-    const testing = [
-      `${mine.need || ""} ${mine.needTags || ""}`,
-      String(profile.need || ""),
-    ].some((need) => /beta|tester|testing/i.test(need));
+    // The suggested collaboration type for a pair of startups: the one
+    // whose tags or words link what one offers with what the other needs.
+    const suggested = suggestedType({
+      myOffer: `${mine.offer || ""} ${mine.offerTags || ""}`,
+      myNeed: `${mine.need || ""} ${mine.needTags || ""}`,
+      theirOffer: `${profile.offer || ""} ${profile.offerTags || ""}`,
+      theirNeed: `${profile.need || ""} ${profile.needTags || ""}`,
+    });
     // Fictional sample partners are shared by every preview account, so their
     // rooms also hold other testers' sessions and ratings. Only their seeded
     // sample history counts, so one tester's review never shapes the next
@@ -1217,16 +1247,13 @@ export function createWorkspace(file, options = {}) {
       engagement:
         role === "mentor" || viewer.role === "mentor"
           ? "Mentorship"
-          : marketing
-            ? "Co-Marketing Swap"
-            : testing
-              ? "Beta Testing Exchange"
-              : "Skill Swap",
-      // Every startup pair can run any exchange; mentors offer mentorship.
+          : typeLabel(suggested),
+      // Every startup pair can run any startup type; mentors offer
+      // mentorship.
       engagementTypes:
         role === "mentor" || viewer.role === "mentor"
           ? ["Mentorship"]
-          : ["Beta Testing Exchange", "Co-Marketing Swap", "Skill Swap"],
+          : startupTypes.map((type) => type.label),
       emailVerified: Boolean(account.emailVerifiedAt),
       affiliation:
         account.affiliation?.status === "verified"
@@ -1409,13 +1436,7 @@ export function createWorkspace(file, options = {}) {
           ),
         );
         const proposed = state.introductionTypesByRole[state.role]?.[item.id];
-        if (proposed)
-          item.engagement = {
-            beta: "Beta Testing Exchange",
-            marketing: "Co-Marketing Swap",
-            swap: "Skill Swap",
-            mentorship: "Mentorship",
-          }[proposed];
+        if (proposed) item.engagement = typeLabel(proposed);
         state.directory[otherRole === "mentor" ? "mentors" : "founders"].push(
           item,
         );
@@ -2362,12 +2383,7 @@ export function createWorkspace(file, options = {}) {
         state.introductionTypesByRole[state.role]?.[person.id] ||
         createModel(state).roomTypeForPerson(person),
     });
-    room.engagementType = {
-      beta: "Beta Testing Exchange",
-      marketing: "Co-Marketing Swap",
-      swap: "Skill Swap",
-      mentorship: "Mentorship",
-    }[room.type];
+    room.engagementType = typeLabel(room.type);
     if (room.type === "mentorship") {
       const previous = state.introductionMetaByRole[state.role]?.[person.id];
       initMentorship(
@@ -2914,12 +2930,12 @@ export function createWorkspace(file, options = {}) {
       const permittedTypes =
         state.role === "mentor" || person.role === "mentor"
           ? ["mentorship"]
-          : ["beta", "marketing", "swap"];
+          : startupTypeIds;
       if (
         ["interest", "accept-interest"].includes(input.action) &&
         !permittedTypes.includes(proposedType)
       )
-        fail("Choose an engagement type available for these profiles.");
+        fail("Choose a collaboration type available for these profiles.");
       const ownId = identity(account, state.role);
       if (
         input.action === "accept-interest" &&

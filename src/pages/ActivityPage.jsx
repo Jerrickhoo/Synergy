@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useApp } from "../state/AppContext.jsx";
 import PageHeader from "../components/PageHeader.jsx";
+import InfoTip from "../components/InfoTip.jsx";
 import { partnerName } from "../data/home.js";
 import { activityLabel, activityText } from "../data/home-planner.js";
 import {
@@ -37,13 +38,34 @@ function DateCell({ iso, empty = "Not recorded" }) {
   );
 }
 
-// The badge carries its meaning as a tooltip; the guide below spells out all
-// of them, so the meaning never depends on hovering.
+// The badge carries its meaning as a tooltip; the ⓘ beside each Status
+// column lists them all, on hover, focus or tap.
 function StatusBadge({ id, label, meaning }) {
   return (
     <span className={`activity-status status-${id}`} title={meaning}>
       {label}
     </span>
+  );
+}
+
+// "Deals ⓘ": the ⓘ lists what each status means. It sits by the heading,
+// not in the table head, so phones (which hide the head) still have it.
+function RecordTitle({ id, title, list, label }) {
+  return (
+    <div className="activity-record-title">
+      <h2 id={id}>{title}</h2>
+      <InfoTip label={label}>
+        <span className="info-tip-title">{label}</span>
+        <span className="info-tip-list">
+          {list.map((item) => (
+            <span className="info-tip-row" key={item.id}>
+              <StatusBadge id={item.id} label={item.label} />
+              <span>{item.meaning}</span>
+            </span>
+          ))}
+        </span>
+      </InfoTip>
+    </div>
   );
 }
 
@@ -65,7 +87,12 @@ function Deals({ rows, mentor }) {
       aria-labelledby="activity-deals-heading"
     >
       <div className="activity-record-head">
-        <h2 id="activity-deals-heading">{mentor ? "Mentorships" : "Deals"}</h2>
+        <RecordTitle
+          id="activity-deals-heading"
+          title={mentor ? "Mentorships" : "Deals"}
+          list={dealStatuses}
+          label={`What each ${mentor ? "mentorship" : "deal"} status means`}
+        />
         <p className="muted">
           {mentor
             ? "Each mentorship room, from the day it opened."
@@ -155,7 +182,12 @@ function Introductions({ rows, mentor }) {
       aria-labelledby="activity-introductions-heading"
     >
       <div className="activity-record-head">
-        <h2 id="activity-introductions-heading">Requests</h2>
+        <RecordTitle
+          id="activity-introductions-heading"
+          title="Requests"
+          list={introductionStatuses}
+          label="What each request status means"
+        />
         <p className="muted">
           When each one was sent, where it stands and when it closed.
         </p>
@@ -272,37 +304,6 @@ function Introductions({ rows, mentor }) {
   );
 }
 
-function StatusGuide() {
-  const group = (title, list) => (
-    <div className="status-guide-group">
-      <h3>{title}</h3>
-      <dl>
-        {list.map((item) => (
-          <div key={item.id}>
-            <dt>
-              <StatusBadge id={item.id} label={item.label} />
-            </dt>
-            <dd>{item.meaning}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  );
-  return (
-    <section
-      className="card panel status-guide"
-      id="activity-statuses"
-      aria-labelledby="activity-statuses-heading"
-    >
-      <h2 id="activity-statuses-heading">What each status means</h2>
-      <div className="status-guide-groups">
-        {group("Requests", introductionStatuses)}
-        {group("Deals and mentorships", dealStatuses)}
-      </div>
-    </section>
-  );
-}
-
 function ActivityLog() {
   const { state, model } = useApp();
   const [limit, setLimit] = useState(logStep);
@@ -412,7 +413,7 @@ export default function ActivityPage() {
     <div className="page activity-page page-enter">
       <PageHeader
         title="Activity"
-        intro={`A dated record of every request and ${mentor ? "mentorship" : "deal"}, what each status means, and everything you did.`}
+        intro={`A dated record of every request and ${mentor ? "mentorship" : "deal"}, and everything you did.`}
       />
       {summary.length > 0 && (
         <ul className="activity-summary" aria-label="At a glance">
@@ -427,7 +428,6 @@ export default function ActivityPage() {
         {[
           ["activity-deals", mentor ? "Mentorships" : "Deals"],
           ["activity-introductions", "Requests"],
-          ["activity-statuses", "Status meanings"],
           ["activity-log", "Activity log"],
         ].map(([id, label]) => (
           <button
@@ -442,7 +442,6 @@ export default function ActivityPage() {
       <div className="activity-sections">
         <Deals rows={deals} mentor={mentor} />
         <Introductions rows={introductions} mentor={mentor} />
-        <StatusGuide />
         <ActivityLog />
       </div>
     </div>

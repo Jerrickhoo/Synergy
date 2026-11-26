@@ -832,6 +832,7 @@ export function createFeatures({
     "close-room",
     "read-notifications",
     "simulate-verification",
+    "affiliation-seen",
     "withdraw-dispute",
     "escalate-dispute",
     "send-back",
@@ -1737,6 +1738,19 @@ export function createFeatures({
         { kind: "affiliation" },
       );
       state.toast = "Verification approved (simulated).";
+    } else if (input.action === "affiliation-seen") {
+      // A moderator opened this verification request. The founder's
+      // Verification card shows it as seen; the first opening counts.
+      if (!isAdmin(account)) fail("Moderator access required.", 403);
+      const target = accountById(String(input.id || ""));
+      if (
+        target?.affiliation?.status === "pending" &&
+        !target.affiliation.seenAt
+      )
+        target.affiliation = {
+          ...target.affiliation,
+          seenAt: new Date(now()).toISOString(),
+        };
     } else if (input.action === "read-notifications") {
       const ids = state.notifications
         .filter((item) => !input.id || item.id === input.id)

@@ -89,8 +89,8 @@ test("unverified founders can browse, and opening, saving or requesting asks the
   await expect(
     page.getByRole("heading", { name: "Verification", exact: true }),
   ).toBeFocused();
-  // One short instruction, then the two questions and a brand-coloured
-  // button.
+  // One short instruction, then the two questions and a button in the
+  // logo's bright teal.
   await expect(
     page.getByText(
       "Tell us who can confirm you’re a founder, and a moderator will check it within three working days.",
@@ -100,7 +100,7 @@ test("unverified founders can browse, and opening, saving or requesting asks the
   await expect(page.locator("#verification")).toHaveClass(/is-unverified/);
   await expect(
     page.getByRole("button", { name: "Request verification", exact: true }),
-  ).toHaveClass(/primary/);
+  ).toHaveClass(/verification-go/);
   await page.getByLabel("Who can vouch for you?").fill("University referral");
   await page
     .getByLabel("How can a moderator check it?")
@@ -108,12 +108,36 @@ test("unverified founders can browse, and opening, saving or requesting asks the
   await page
     .getByRole("button", { name: "Request verification", exact: true })
     .click();
+  // Sign out is never disabled (or repainted) while the request saves.
+  await expect(page.locator(".sidebar-signout")).not.toHaveAttribute(
+    "disabled",
+  );
+  const waiting =
+    "Your request is waiting for a moderator. You can keep browsing matches in the meantime.";
+  await expect(page.getByText(waiting, { exact: true })).toBeVisible();
+  // Where the request stands: sent, then waiting for a moderator to open it.
+  const progress = page.getByRole("list", { name: "Request progress" });
+  await expect(progress.getByRole("listitem")).toHaveText([
+    /Request sent/,
+    /Seen by a moderator\s*Waiting/,
+    /Approved\s*Not yet/,
+  ]);
+  await expect(progress.locator('[aria-current="step"]')).toContainText(
+    "Seen by a moderator",
+  );
   await expect(
-    page.getByText(
-      "A moderator is checking your evidence. You can keep browsing matches in the meantime.",
-      { exact: true },
-    ),
+    page.getByText(/^Verification request will expire in \d+ days?\.$/),
   ).toBeVisible();
+  await expect(page.locator("#verification .verification-org")).toHaveText(
+    "Vouched for by University referral",
+  );
+  // The demo shortcut is a plain disclaimer with its button, not a card.
+  await expect(page.locator("#verification .prototype-acceptance")).toHaveCount(
+    0,
+  );
+  await expect(page.locator(".verification-footer")).toContainText(
+    "Prototype only:",
+  );
   const axe = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
     .analyze();
@@ -121,12 +145,7 @@ test("unverified founders can browse, and opening, saving or requesting asks the
     axe.violations.filter((v) => ["serious", "critical"].includes(v.impact)),
   ).toEqual([]);
   await page.goto("/#/");
-  await expect(
-    page.getByText(
-      "A moderator is checking your evidence. You can keep browsing matches in the meantime.",
-      { exact: true },
-    ),
-  ).toBeVisible();
+  await expect(page.getByText(waiting, { exact: true })).toBeVisible();
   // TEMPORARY demo shortcut (SYNERGY_SIMULATE_VERIFICATION).
   await page.goto("/#/profile");
   await page
@@ -135,6 +154,7 @@ test("unverified founders can browse, and opening, saving or requesting asks the
   await expect(page.getByText("Verified", { exact: true })).toBeVisible();
   // Verified accounts carry the check on their photo and their profile.
   await expect(page.locator("#verification")).toHaveClass(/is-verified/);
+  await expect(progress.locator("li.is-done")).toHaveCount(3);
   await expect(
     page.locator(".account-button .avatar.is-verified .avatar-check"),
   ).toBeVisible();

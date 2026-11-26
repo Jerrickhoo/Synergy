@@ -22,6 +22,12 @@ export const partnerName = (state, room) =>
     .find((person) => person.id === room.partnerId)?.name ||
   "your collaborator";
 
+// While a verification request waits: whether a moderator has opened it.
+export const pendingVerificationText = (state) =>
+  state.affiliation?.seenAt
+    ? "A moderator is checking your evidence. You can keep browsing matches in the meantime."
+    : "Your request is waiting for a moderator. You can keep browsing matches in the meantime.";
+
 // The verification step, or null once nothing is needed. Matches shows the
 // same card above its list.
 export function verificationStep(state) {
@@ -39,8 +45,7 @@ export function verificationStep(state) {
   return state.verification === "pending"
     ? {
         title: "Your verification is being checked",
-        detail:
-          "A moderator is checking your evidence. You can keep browsing matches in the meantime.",
+        detail: pendingVerificationText(state),
         label: "View verification",
         command: { action: "open-verification" },
         verification: true,

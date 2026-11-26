@@ -516,7 +516,7 @@ test("moderators edit reusable templates and versioned matching weights", async 
   const initial = (await state(request, admin)).state;
   await open(page, admin, "moderation");
   await page
-    .getByText("Beta Testing Exchange · Version 2", { exact: true })
+    .getByText("Evaluation and Feedback · Version 2", { exact: true })
     .click();
   const form = page
     .locator('form[data-form="engagement-template"]')
@@ -597,6 +597,8 @@ test("mentor experience can be edited and appears on the public mentor profile",
     a,
     `matches/${encodeURIComponent(`${b.state.accountId}:mentor`)}`,
   );
+  // Experience is on the match page's Trust tab.
+  await observerPage.getByRole("tab", { name: "Trust", exact: true }).click();
   await expect(
     observerPage.getByRole("heading", { name: "Past experience", exact: true }),
   ).toBeVisible();
@@ -886,6 +888,8 @@ test("prospective partners see public trust only after both blind reviews are su
     observer,
     `matches/${encodeURIComponent(`${b.state.accountId}:founder`)}`,
   );
+  // Trust history is on the match page's Trust tab.
+  await page.getByRole("tab", { name: "Trust", exact: true }).click();
   const trust = page.getByRole("region", { name: /Trust history/ });
   await expect(trust).toContainText("No ratings yet");
   await expect(
@@ -900,7 +904,7 @@ test("prospective partners see public trust only after both blind reviews are su
   await trust
     .getByText("Completed collaboration history (1)", { exact: true })
     .click();
-  await expect(trust).toContainText("Beta Testing Exchange");
+  await expect(trust).toContainText("Evaluation and Feedback");
   await capture(page, "fixed-public-trust-desktop");
 });
 

@@ -232,7 +232,8 @@ export default function Sidebar() {
             className="sidebar-signout"
             aria-label="Sign out"
             title="Sign out"
-            disabled={state.busy}
+            // Never disabled: a click during a save is ignored (see
+            // request-sign-out), so the button doesn't flash on every save.
             onClick={(event) => onAction({ action: "request-sign-out" }, event)}
           >
             <span className="nav-icon">

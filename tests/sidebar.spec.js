@@ -200,7 +200,7 @@ test("the collapsed sidebar survives a reload and signing in again, without show
   expect(await page.evaluate(() => window.sidebarFlash)).toBe(false);
 });
 
-test("the footer is a red Sign out, and the name and role show beside the photo at the top right", async ({
+test("the footer is a filled red Sign out, and the name and role show beside the photo at the top right", async ({
   page,
   request,
 }) => {
@@ -216,14 +216,16 @@ test("the footer is a red Sign out, and the name and role show beside the photo 
   await expect(
     page.getByRole("button", { name: /^Account menu for / }),
   ).toHaveCount(0);
-  // Red: the red channel clearly leads.
+  // A warning: filled dark red (the red channel clearly leads) with white
+  // text.
   const [red, green, blue] = (
-    await signOut.evaluate((node) => getComputedStyle(node).color)
+    await signOut.evaluate((node) => getComputedStyle(node).backgroundColor)
   )
     .match(/\d+/g)
     .map(Number);
-  expect(red).toBeGreaterThan(green + 40);
-  expect(red).toBeGreaterThan(blue + 40);
+  expect(red).toBeGreaterThan(green + 80);
+  expect(red).toBeGreaterThan(blue + 80);
+  await expect(signOut).toHaveCSS("color", "rgb(255, 255, 255)");
 
   const account_ = page.getByRole("button", { name: /^Open profile for / });
   await expect(account_.locator(".account-copy")).toBeVisible();

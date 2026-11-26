@@ -30,7 +30,7 @@ function TourInvite() {
       <div className="home-tour-copy">
         <h2 id="home-tour-heading">New here? Take the quick tour</h2>
         <p>
-          Six short steps from finding a match to a finished, reviewed deal.
+          A guided walk through the real screens: we highlight where to click.
         </p>
       </div>
       <div className="home-tour-actions">
@@ -55,10 +55,11 @@ function TourInvite() {
 }
 
 // Founder Home, most important first: the greeting and the one next step,
-// introductions waiting on a reply, then the work itself (collaborations
-// beside the task list, the calendar under them) or, before any work starts,
-// the strongest matches. The overview tiles close the page; the full record
-// lives in Activity.
+// requests waiting on a reply, then the planner (the calendar beside your
+// tasks, 70:30, shown even before any work starts so its place is clear),
+// then the collaborations or, before any work starts, the strongest
+// matches. The overview tiles close the page; the full record lives in
+// Activity.
 export default function HomePage() {
   const { state } = useApp();
   if (state.role === "mentor") return <MentorHome />;
@@ -70,19 +71,17 @@ export default function HomePage() {
       <HomeWelcome />
       <TourInvite />
       <Introductions compact />
+      <div className="home-planner">
+        <HomeCalendar rooms={rooms} nameOf={nameOf} slots={slots} />
+        <HomeTasks rooms={rooms} nameOf={nameOf} slots={slots} />
+      </div>
       {rooms.length ? (
-        <>
-          <div className="home-work">
-            <HomeCollaborations
-              rooms={rooms}
-              nameOf={nameOf}
-              slots={slots}
-              title="Your collaborations"
-            />
-            <HomeTasks rooms={rooms} nameOf={nameOf} slots={slots} />
-          </div>
-          <HomeCalendar rooms={rooms} nameOf={nameOf} slots={slots} />
-        </>
+        <HomeCollaborations
+          rooms={rooms}
+          nameOf={nameOf}
+          slots={slots}
+          title="Your collaborations"
+        />
       ) : (
         <HomeTopMatches />
       )}

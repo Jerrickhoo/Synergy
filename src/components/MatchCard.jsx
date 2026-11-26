@@ -20,6 +20,7 @@ import {
   trustLine,
 } from "../data/profile-presentation.js";
 import { personVerified } from "../data/collaboration.js";
+import { mentorshipFocus, typeLabel } from "../data/collaboration-types.js";
 
 export default function MatchCard({ person, large = false }) {
   const { state, model, onAction } = useApp();
@@ -134,6 +135,12 @@ export default function MatchCard({ person, large = false }) {
           .filter(Boolean)
           .join(" · ")}
       </p>
+      {/* A mentor's kinds of guidance, from the tags they offer. */}
+      {mentor && mentorshipFocus(person.offer).length > 0 && (
+        <p className="preview-focus">
+          Mentorship · {mentorshipFocus(person.offer).join(", ")}
+        </p>
+      )}
       {person.summary && <p className="preview-summary">{person.summary}</p>}
       {/* "Offers what you need: X" would repeat the You get chips below. */}
       {(mentoring || !youGet.length || person.audienceWarning) && (
@@ -180,7 +187,7 @@ export default function MatchCard({ person, large = false }) {
       )}
       {!mentor &&
         person.audienceSize &&
-        person.engagementTypes?.includes("Co-Marketing Swap") && (
+        person.engagementTypes?.includes(typeLabel("marketing")) && (
           <p className="preview-audience">
             Audience: {Number(person.audienceSize).toLocaleString()}
           </p>

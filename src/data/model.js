@@ -2,6 +2,7 @@ import defaultTemplates from "./engagement-templates.json" with { type: "json" }
 import { coveredNeeds, offersNeed, terminalStatuses } from "./collaboration.js";
 import { cooldownActive, mentorDefaults } from "./mentor-rules.js";
 import { defaultMatchFilters } from "./filters.js";
+import { typeIdForLabel, typeLabel } from "./collaboration-types.js";
 export function createModel(state) {
   const people = state.directory;
   const allPeople = () => [
@@ -15,11 +16,7 @@ export function createModel(state) {
   const roomTypeForPerson = (person) =>
     person.kind === "Mentor" || person.engagement === "Mentorship"
       ? "mentorship"
-      : person.engagement === "Co-Marketing Swap"
-        ? "marketing"
-        : person.engagement === "Skill Swap"
-          ? "swap"
-          : "beta";
+      : typeIdForLabel(person.engagement) || "beta";
   const peopleForRole = () =>
     state.role === "founder"
       ? [
@@ -106,7 +103,7 @@ export function createModel(state) {
       partnerId,
       engagementType:
         partner?.engagement ||
-        (type === "mentorship" ? "Mentorship" : "Beta Testing Exchange"),
+        typeLabel(type === "mentorship" ? "mentorship" : "beta"),
       status,
       terms: {
         draft: terms,

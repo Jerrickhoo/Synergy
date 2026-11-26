@@ -36,13 +36,13 @@ import {
 import { formatDate } from "../data/dates.js";
 import { missingProfileKeys, missingProfileText } from "../data/selectors.js";
 import { personVerified } from "../data/collaboration.js";
-
-const typeNames = {
-  beta: "Beta Testing Exchange",
-  marketing: "Co-Marketing Swap",
-  swap: "Skill Swap",
-  mentorship: "Mentorship",
-};
+import { noteQuality } from "../data/request-assistant.js";
+import {
+  mentorshipFocus,
+  startupTypes,
+  typeLabel,
+} from "../data/collaboration-types.js";
+import { profileEntries } from "../data/profile-content.js";
 
 export default function MatchDetailPage() {
   const { state } = useApp();
@@ -53,8 +53,9 @@ export default function MatchDetailPage() {
   );
 }
 function MatchDetail() {
-  const { state, model, onAction } = useApp();
+  const { state, model, onAction, onTabKeyDown } = useApp();
   const [engagementType, setEngagementType] = useState("");
+  const [detailTab, setDetailTab] = useState("breakdown");
   const [note, setNote] = useState("");
   // Long introductions start as a few lines, so the actions stay in view.
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -123,6 +124,18 @@ function MatchDetail() {
       entry.status === "referred" &&
       entry.alternatives.some((item) => item.id === person.id),
   );
+  const detailTabs = [
+    ["breakdown", "Match breakdown"],
+    ["focus", mentor ? "Expertise and support" : "Collaboration focus"],
+    ["trust", "Trust"],
+  ];
+  const noteRating = noteQuality(note, {
+    offers: [
+      ...profileEntries(state.profiles[state.role]?.offerTags),
+      ...profileEntries(state.profiles[state.role]?.offer),
+    ],
+    theirOffers: person.offer || [],
+  });
   const factors = model.scoreFactors(person);
   const rows = fitFactors(person, factors);
   const isScore =
@@ -232,6 +245,11 @@ function MatchDetail() {
             {!mentor && person.audienceSize && (
               <span>
                 Audience {Number(person.audienceSize).toLocaleString()}
+              </span>
+            )}
+            {mentor && mentorshipFocus(person.offer).length > 0 && (
+              <span>
+                Mentorship · {mentorshipFocus(person.offer).join(", ")}
               </span>
             )}
             {mentor && person.availability && (
@@ -426,15 +444,17 @@ function MatchDetail() {
                       <option value="mentorship">Mentorship</option>
                     ) : (
                       <>
-                        <option value="beta">Beta Testing Exchange</option>
-                        <option value="marketing">Co-Marketing Swap</option>
-                        <option value="swap">Skill Swap</option>
+                        {startupTypes.map((type) => (
+                          <option key={type.id} value={type.id}>
+                            {type.label}
+                          </option>
+                        ))}
                       </>
                     )}
                   </SelectField>
                   <p className="field-help">
                     {incoming
-                      ? `${person.name} proposed ${typeNames[proposed]}. Choosing another type tells them when the room opens.`
+                      ? `${person.name} proposed ${typeLabel(proposed)}. Choosing another type tells them when the room opens.`
                       : `First step: ${template?.milestones?.[0]?.title || "agree on terms"}. ${person.name} sees this before accepting.`}
                   </p>
                   {swapWithoutAudience && (
@@ -465,6 +485,25 @@ function MatchDetail() {
                     onChange={(event) => setNote(event.target.value)}
                   />
                   <span className="field-count">{note.length} / 280</span>
+                  {/* The same assistant as a mentorship request: amber
+                      until the note covers the basics. */}
+                  <section
+                    className={
+                      noteRating.score < 60
+                        ? "mentoring-banner note-quality"
+                        : "mentoring-banner note-quality request-quality-good"
+                    }
+                    aria-label="Request assistant"
+                  >
+                    <h3>Request quality {noteRating.score}/100</h3>
+                    {noteRating.reasons.length > 0 && (
+                      <ul>
+                        {noteRating.reasons.map((reason) => (
+                          <li key={reason}>{reason}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
                 </div>
               )}
               {interested && !existingRoom && !incoming && meta?.sentAt && (
@@ -552,156 +591,199 @@ function MatchDetail() {
           )}
         </aside>
         <div className="match-reading-column">
-          <section className="card panel profile-section fit-section">
-            <p className="section-eyebrow">Why this match</p>
-            <h2>{isScore ? `${person.score}% match` : "Why this match"}</h2>
-            <p>{fitSummary(person, factors, covered)}</p>
-            {covered
-              ? (person.need || []).length > 0 && (
-                  <dl className="exchange-pair">
-                    <div>
-                      <dt>
-                        {covered.length
-                          ? "They need help you offer"
-                          : "They need"}
-                      </dt>
-                      <dd>
-                        <Tags
-                          values={covered.length ? covered : person.need}
-                          color="green"
-                        />
-                      </dd>
-                    </div>
-                  </dl>
-                )
-              : (youGet.length > 0 || theyGet.length > 0) && (
-                  <dl className="exchange-pair">
-                    <div>
-                      <dt>You get</dt>
-                      <dd>
-                        {youGet.length ? (
-                          <Tags values={youGet} color="green" />
-                        ) : (
-                          <span className="muted">Nothing matched yet</span>
-                        )}
-                      </dd>
-                    </div>
-                    {!mentor && (
-                      <div>
-                        <dt>They get</dt>
-                        <dd>
-                          {theyGet.length ? (
-                            <Tags values={theyGet} />
-                          ) : (
-                            <span className="muted">
-                              Nothing you offer matches their needs yet
-                            </span>
-                          )}
-                        </dd>
-                      </div>
-                    )}
-                  </dl>
-                )}
-            <p className="muted">
-              The match score is a guide based on both profiles, not a
-              prediction of success.
-            </p>
-            <details className="fit-details">
-              <summary>See the factor breakdown</summary>
-              <div className="score-breakdown">
-                {rows.map((row) => (
-                  <div className="fit-detail-row" key={row.index}>
-                    <div className="fit-detail-heading">
-                      <h3>{row.label}</h3>
-                      <span>
-                        {row.status}
-                        {row.score !== null ? ` · ${row.score}%` : ""}
-                      </span>
-                    </div>
-                    {row.score !== null && (
-                      <div className="score-track" aria-hidden="true">
-                        <i style={{ width: `${row.score}%` }} />
-                      </div>
-                    )}
-                    <p>{row.detail}</p>
-                    {typeof person.factorWeights?.[row.index] === "number" && (
-                      <small>
-                        Weight in the overall score:{" "}
-                        {Math.round(person.factorWeights[row.index] * 100)}%
-                      </small>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </details>
-          </section>
-          <section className="card panel profile-section">
-            <p className="section-eyebrow">
-              {mentor ? "Mentorship" : "Collaboration focus"}
-            </p>
-            <h2>
-              {mentor
-                ? "Expertise and support"
-                : state.role === "mentor"
-                  ? "What this startup needs"
-                  : "What you could trade"}
-            </h2>
-            {mentor && person.expertise && (
-              <p className="expertise-lead">{person.expertise}</p>
-            )}
-            <div className="profile-section-pair">
-              <div>
-                <h3>{mentor ? "Can help with" : "They offer"}</h3>
-                {(mentor ? person.offer : person.offer)?.length ? (
-                  <Tags values={person.offer} color="green" />
-                ) : (
-                  <p className="muted">Not added yet.</p>
-                )}
-              </div>
-              <div>
-                <h3>{mentor ? "What they need from founders" : "They need"}</h3>
-                {person.need?.length ? (
-                  <Tags values={person.need} />
-                ) : (
-                  <p className="muted">Not added yet.</p>
-                )}
-              </div>
+          {/* Breakdown, focus and trust as tabs: one panel at a time, so
+              the page stays short and easy to scan. */}
+          <section className="card panel profile-section match-tabs-card">
+            <div
+              className="tabs match-detail-tabs"
+              role="tablist"
+              aria-label="About this match"
+            >
+              {detailTabs.map(([id, label]) => (
+                <button
+                  key={id}
+                  className={`tab${detailTab === id ? " active" : ""}`}
+                  role="tab"
+                  id={`match-detail-tab-${id}`}
+                  aria-controls="match-detail-panel"
+                  aria-selected={detailTab === id}
+                  tabIndex={detailTab === id ? 0 : -1}
+                  onKeyDown={onTabKeyDown}
+                  onClick={() => setDetailTab(id)}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-            {person.goals && (
-              <div className="profile-section-block">
-                <h3>Collaboration goals</h3>
-                <p className="preserve-lines">{person.goals}</p>
-              </div>
-            )}
-            {mentor && person.startups && (
-              <div className="profile-section-block">
-                <h3>Startups they want to help</h3>
-                <p>{person.startups}</p>
-              </div>
-            )}
-            {/* Mentors list formats instead of an exchange preference. */}
-            {!mentor && (
-              <p className="profile-preference">
-                {preferenceLabel(person.engagementPreference)}
-              </p>
-            )}
-          </section>
-          <section className="card panel profile-section">
-            <p className="section-eyebrow">Trust</p>
-            <h2>Experience and collaboration history</h2>
-            {person.pastExperience && (
-              <div className="profile-section-block">
-                <h3>Past experience</h3>
-                <p className="preserve-lines">{person.pastExperience}</p>
-              </div>
-            )}
-            <TrustSummary person={person} detailed />
-            {person.mentorImpact && (
-              <FormatPrices person={person} showUnavailable />
-            )}
-            {person.mentorImpact && (
-              <MentorImpact trust={person.mentorImpact} hideEmpty />
-            )}
+            <div
+              id="match-detail-panel"
+              role="tabpanel"
+              aria-labelledby={`match-detail-tab-${detailTab}`}
+              className="match-detail-panel"
+            >
+              {detailTab === "breakdown" && (
+                <div className="fit-section">
+                  <h2>
+                    {isScore ? `${person.score}% match` : "Why this match"}
+                  </h2>
+                  <p>{fitSummary(person, factors, covered)}</p>
+                  {covered
+                    ? (person.need || []).length > 0 && (
+                        <dl className="exchange-pair">
+                          <div>
+                            <dt>
+                              {covered.length
+                                ? "They need help you offer"
+                                : "They need"}
+                            </dt>
+                            <dd>
+                              <Tags
+                                values={covered.length ? covered : person.need}
+                                color="green"
+                              />
+                            </dd>
+                          </div>
+                        </dl>
+                      )
+                    : (youGet.length > 0 || theyGet.length > 0) && (
+                        <dl className="exchange-pair">
+                          <div>
+                            <dt>You get</dt>
+                            <dd>
+                              {youGet.length ? (
+                                <Tags values={youGet} color="green" />
+                              ) : (
+                                <span className="muted">
+                                  Nothing matched yet
+                                </span>
+                              )}
+                            </dd>
+                          </div>
+                          {!mentor && (
+                            <div>
+                              <dt>They get</dt>
+                              <dd>
+                                {theyGet.length ? (
+                                  <Tags values={theyGet} />
+                                ) : (
+                                  <span className="muted">
+                                    Nothing you offer matches their needs yet
+                                  </span>
+                                )}
+                              </dd>
+                            </div>
+                          )}
+                        </dl>
+                      )}
+                  <p className="muted">
+                    The match score is a guide based on both profiles, not a
+                    prediction of success.
+                  </p>
+                  <div className="fit-details">
+                    <h3 className="fit-details-title">Factor breakdown</h3>
+                    <div className="score-breakdown">
+                      {rows.map((row) => (
+                        <div className="fit-detail-row" key={row.index}>
+                          <div className="fit-detail-heading">
+                            <h3>{row.label}</h3>
+                            <span>
+                              {row.status}
+                              {row.score !== null ? ` · ${row.score}%` : ""}
+                            </span>
+                          </div>
+                          {row.score !== null && (
+                            <div className="score-track" aria-hidden="true">
+                              <i style={{ width: `${row.score}%` }} />
+                            </div>
+                          )}
+                          <p>{row.detail}</p>
+                          {typeof person.factorWeights?.[row.index] ===
+                            "number" && (
+                            <small>
+                              Weight in the overall score:{" "}
+                              {Math.round(
+                                person.factorWeights[row.index] * 100,
+                              )}
+                              %
+                            </small>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {detailTab === "focus" && (
+                <div>
+                  <h2>
+                    {mentor
+                      ? "Expertise and support"
+                      : state.role === "mentor"
+                        ? "What this startup needs"
+                        : "What you could trade"}
+                  </h2>
+                  {mentor && person.expertise && (
+                    <p className="expertise-lead">{person.expertise}</p>
+                  )}
+                  <div className="profile-section-pair">
+                    <div>
+                      <h3>{mentor ? "Can help with" : "They offer"}</h3>
+                      {(mentor ? person.offer : person.offer)?.length ? (
+                        <Tags values={person.offer} color="green" />
+                      ) : (
+                        <p className="muted">Not added yet.</p>
+                      )}
+                    </div>
+                    <div>
+                      <h3>
+                        {mentor ? "What they need from founders" : "They need"}
+                      </h3>
+                      {person.need?.length ? (
+                        <Tags values={person.need} />
+                      ) : (
+                        <p className="muted">Not added yet.</p>
+                      )}
+                    </div>
+                  </div>
+                  {person.goals && (
+                    <div className="profile-section-block">
+                      <h3>Collaboration goals</h3>
+                      <p className="preserve-lines">{person.goals}</p>
+                    </div>
+                  )}
+                  {mentor && person.startups && (
+                    <div className="profile-section-block">
+                      <h3>Startups they want to help</h3>
+                      <p>{person.startups}</p>
+                    </div>
+                  )}
+                  {/* Mentors list formats instead of an exchange preference. */}
+                  {!mentor && (
+                    <p className="profile-preference">
+                      {preferenceLabel(person.engagementPreference)}
+                    </p>
+                  )}
+                </div>
+              )}
+              {detailTab === "trust" && (
+                <div>
+                  <h2>Experience and collaboration history</h2>
+                  {person.pastExperience && (
+                    <div className="profile-section-block">
+                      <h3>Past experience</h3>
+                      <p className="preserve-lines">{person.pastExperience}</p>
+                    </div>
+                  )}
+                  <TrustSummary person={person} detailed />
+                  {person.mentorImpact && (
+                    <FormatPrices person={person} showUnavailable />
+                  )}
+                  {person.mentorImpact && (
+                    <MentorImpact trust={person.mentorImpact} hideEmpty />
+                  )}
+                </div>
+              )}
+            </div>
           </section>
         </div>
       </div>

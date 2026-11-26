@@ -47,7 +47,7 @@
   },
   "marketing": {
     "id": "marketing",
-    "name": "Co-Marketing Swap",
+    "name": "Audience Swap",
     "version": 2,
     "fields": [
       {
@@ -110,7 +110,7 @@
   },
   "beta": {
     "id": "beta",
-    "name": "Beta Testing Exchange",
+    "name": "Evaluation and Feedback",
     "version": 2,
     "fields": [
       {
@@ -175,7 +175,7 @@
   },
   "swap": {
     "id": "swap",
-    "name": "Skill Swap",
+    "name": "Technical Development",
     "version": 1,
     "fields": [
       {
@@ -236,6 +236,65 @@
       "timeline": "For example: Two weeks",
       "commitment": "For example: Two calls of 45 minutes each",
       "compensation": "For example: Pricing advice in return for product feedback"
+    }
+  },
+  "funding": {
+    "id": "funding",
+    "name": "Funding",
+    "version": 1,
+    "fields": [
+      {
+        "id": "target",
+        "label": "What you're raising or applying for",
+        "type": "text",
+        "placeholder": "For example: a pre-seed round or a university grant"
+      },
+      {
+        "id": "shareFormat",
+        "label": "How you will share",
+        "type": "text",
+        "placeholder": "For example: investor introductions, a shared grant list or pitch reviews"
+      },
+      {
+        "id": "targetDate",
+        "label": "Target date",
+        "type": "text",
+        "placeholder": "For example: by 6 December"
+      }
+    ],
+    "milestones": [
+      {
+        "id": "scope",
+        "title": "Plan agreed",
+        "description": "Agree what each side shares: investor contacts, grant leads, pitch feedback or pricing advice.",
+        "evidence": false,
+        "completedByTerms": true
+      },
+      {
+        "id": "materials",
+        "title": "Materials reviewed",
+        "description": "Each side reviews the other's deck, application or financial model and leaves written feedback.",
+        "evidence": true
+      },
+      {
+        "id": "leads",
+        "title": "Leads shared",
+        "description": "Share the investor, grant or partner leads you agreed.",
+        "evidence": true
+      },
+      {
+        "id": "wrap-up",
+        "title": "Wrap-up",
+        "description": "Note what came of it and whether to keep helping each other.",
+        "evidence": false
+      }
+    ],
+    "termPlaceholders": {
+      "goal": "For example: Get our pre-seed deck in front of three angel investors",
+      "scope": "For example: You review our deck and share two investor contacts; we review your grant application.",
+      "timeline": "For example: Three weeks",
+      "commitment": "For example: One review call and written notes each",
+      "compensation": "For example: Investor introductions in return for grant feedback"
     }
   }
 }

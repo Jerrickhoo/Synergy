@@ -244,24 +244,28 @@ const shortDate = (iso) =>
 // instruction instead ("Define the scope"). Names a person typed themselves
 // are shown as written.
 const milestoneTasks = {
-  // Beta Testing Exchange
+  // Evaluation and Feedback
   "Scope defined": "Define the scope",
   "Testers assigned": "Assign the testers",
   "Testing round": "Run the testing round",
   "Feedback submitted": "Submit the feedback",
   "Issues reviewed": "Review the issues",
-  // Co-Marketing Swap
+  // Audience Swap
   "Assets shared": "Share the assets",
   "Draft approved": "Approve the draft",
   "Send date locked": "Lock the send date",
   "Swap executed": "Run the swap",
   "Results reported": "Report the results",
-  // Skill Swap
+  // Technical Development
   "Trade agreed": "Agree the trade",
   "First side shared": "Share the first side",
   "Second side shared": "Share the second side",
   "Advice applied": "Apply the advice",
   "Wrap-up": "Wrap up",
+  // Funding
+  "Plan agreed": "Agree the plan",
+  "Materials reviewed": "Review the materials",
+  "Leads shared": "Share the leads",
   // Mentorship formats and earlier mentorship rooms
   "Question sent": "Send the question",
   "Answer delivered": "Deliver the answer",

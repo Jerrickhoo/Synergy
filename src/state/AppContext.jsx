@@ -159,6 +159,7 @@ const remoteActions = new Set([
   "decline-reopen",
   "read-notifications",
   "simulate-verification",
+  "affiliation-seen",
   "withdraw-dispute",
   "escalate-dispute",
   "send-back",

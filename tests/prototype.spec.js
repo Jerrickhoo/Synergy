@@ -71,7 +71,7 @@ test("prototype discovery preserves filters, sort, saved profiles and image fall
   await page.keyboard.press("Enter");
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
-  await expect(sort).toHaveText("Completed collaborations");
+  await expect(sort).toHaveText("Highest trust rating");
   await sort.click();
   await page.keyboard.press("h");
   await page.keyboard.press("Enter");
@@ -422,7 +422,7 @@ for (const role of ["founder", "mentor"])
       page.getByText(
         role === "mentor"
           ? "No new mentorship requests"
-          : "Nothing sent right now.",
+          : "No one is waiting on your reply right now.",
         { exact: false },
       ),
     ).toBeVisible();
@@ -561,6 +561,8 @@ test("a preview founder sets up their own startup and returns to it from a new t
   await expect(page.locator(".fit-section")).toContainText(
     /They offer what you need: Product feedback\./i,
   );
+  // Trust history is on the match page's Trust tab.
+  await page.getByRole("tab", { name: "Trust", exact: true }).click();
   await expect(
     page.getByText("New mentor · no completed sessions yet"),
   ).toBeVisible();
@@ -807,7 +809,7 @@ test("a founder request shows inline errors, keeps its draft and reaches a revie
   ).toHaveCount(1);
 });
 
-test("a founder trades advice with a sample startup in a Skill Swap without a false terms conflict", async ({
+test("a founder trades advice with a sample startup in a Technical Development without a false terms conflict", async ({
   page,
   request,
 }) => {
@@ -847,7 +849,9 @@ test("a founder trades advice with a sample startup in a Skill Swap without a fa
   await page.goto(`/?swap=${Date.now()}#/matches`);
   await expect(page.getByRole("heading", { name: "Fairtab" })).toBeVisible();
   await page.goto(`/#/matches/${encodeURIComponent(fairtab.id)}`);
-  await expect(page.getByLabel("Collaboration type")).toHaveText("Skill Swap");
+  await expect(page.getByLabel("Collaboration type")).toHaveText(
+    "Technical Development",
+  );
   await page.getByRole("button", { name: "Send request" }).click();
   await page
     .getByRole("button", {
@@ -856,7 +860,9 @@ test("a founder trades advice with a sample startup in a Skill Swap without a fa
     })
     .click();
   await expect(page).toHaveURL(/#\/rooms\//);
-  await expect(page.getByRole("heading", { name: "Skill Swap" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Technical Development" }),
+  ).toBeVisible();
   for (const [label, value] of [
     ["Shared goal", "Fairtab improves onboarding; we set our first price."],
     ["Scope and deliverables", "We review onboarding; Fairtab shares pricing."],

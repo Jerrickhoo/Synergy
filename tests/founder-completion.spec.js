@@ -248,7 +248,7 @@ test("audit surfaces support axe and keyboard task cards, milestone menus, dialo
   });
   await page.goto("/#/waiting");
   await expect(
-    page.getByRole("heading", { name: /^Incoming requests/ }),
+    page.getByRole("tab", { name: /^Incoming/, selected: true }),
   ).toBeVisible();
   await audit(page);
   const decline = page.getByRole("button", { name: /^Decline / }).first();

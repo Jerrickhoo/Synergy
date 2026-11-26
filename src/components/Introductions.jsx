@@ -15,6 +15,14 @@ const dateText = (iso) =>
     day: "numeric",
     month: "short",
   });
+// "Nov 25, 2026", so a request from last year is never mistaken for this
+// year's.
+export const fullDate = (iso) =>
+  new Date(iso).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 const statusText = {
   accepted: "Accepted · Deal Room opened",
   declined: "Declined",
@@ -22,21 +30,28 @@ const statusText = {
   expired: "Expired after 14 days",
 };
 
+// Every request shows its date; one from before dates were kept says so.
 function Timing({ meta, incoming }) {
-  if (!meta?.sentAt) return null;
+  if (!meta?.sentAt)
+    return (
+      <p className="introduction-timing">
+        {incoming ? "Received" : "Sent"} · date not recorded
+      </p>
+    );
   const left = Math.max(
     0,
     Math.ceil((Date.parse(meta.sentAt) + 14 * dayMs - Date.now()) / dayMs),
   );
   return (
     <p className="introduction-timing">
-      {incoming ? "Received" : "Sent"} {dateText(meta.sentAt)} · expires in{" "}
+      {incoming ? "Received" : "Sent"}{" "}
+      <time dateTime={meta.sentAt}>{fullDate(meta.sentAt)}</time> · expires in{" "}
       {left} day{left === 1 ? "" : "s"}
     </p>
   );
 }
 
-function IntroductionRow({ person, incoming }) {
+export function IntroductionRow({ person, incoming }) {
   const { state, onAction } = useApp();
   const meta = state.introductionMetaByRole?.[state.role]?.[person.id];
   const type = person.engagement;

@@ -89,8 +89,9 @@ export function HomeCalendar({ rooms, nameOf, slots }) {
         </ul>
       )}
       <p className="home-calendar-hint">
-        Choose a day to see it or schedule a meeting. Choose an item to open its
-        room.
+        {rooms.length
+          ? "Choose a day to see it or schedule a meeting. Choose an item to open its room."
+          : "Meetings and due dates from your Deal Rooms show here once someone accepts a request."}
       </p>
       {day && (
         <Overlay title={longDay(day)} onClose={() => setDay("")}>
@@ -202,7 +203,11 @@ export function HomeTasks({ rooms, nameOf, slots, extra = [] }) {
           ))}
         </ul>
       ) : (
-        <p className="muted">Nothing is waiting on you right now.</p>
+        <p className="muted home-tasks-empty">
+          {rooms.length
+            ? "Nothing is waiting on you right now."
+            : "Tasks from your Deal Rooms show here, with their due dates on the calendar."}
+        </p>
       )}
     </section>
   );

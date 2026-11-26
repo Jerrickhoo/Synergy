@@ -1,5 +1,5 @@
 // Founder prototype review, round 2: agreed terms never show a false
-// conflict, startup trades that are not beta testing default to a Skill Swap,
+// conflict, startup trades that are not beta testing default to a Technical Development,
 // and stored moderator templates still offer room types added later.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -60,7 +60,7 @@ test("saved terms with extra empty template fields match the typed draft", () =>
   assert.equal(sameDraftValues({ tags: ["x"] }, { tags: ["y"] }), false);
 });
 
-test("a startup trade without testers defaults to a Skill Swap room", (t) => {
+test("a startup pair is suggested the collaboration type its needs and offers share", (t) => {
   const workspace = createWorkspace(workspaceFile(t), { demoMode: true });
   t.after(() => workspace.close());
   const user = workspace.openDemo("founder");
@@ -68,23 +68,25 @@ test("a startup trade without testers defaults to a Skill Swap room", (t) => {
     workspace.act(user.token, { role: "founder", ...input }).state;
   const state = act({ form: "profile-form", values: tablewise });
   const fairtab = state.directory.founders.find((p) => p.name === "Fairtab");
-  assert.equal(fairtab.engagement, "Skill Swap");
+  // Tablewise needs fundraising and pricing help that Fairtab offers.
+  assert.equal(fairtab.engagement, "Funding");
   assert.deepEqual(fairtab.engagementTypes, [
-    "Beta Testing Exchange",
-    "Co-Marketing Swap",
-    "Skill Swap",
+    "Evaluation and Feedback",
+    "Audience Swap",
+    "Technical Development",
+    "Funding",
   ]);
   // A pair where either startup wants its product tested stays beta:
   // StudyLoop needs beta testing.
   const studyloop = state.directory.founders.find(
     (p) => p.name === "StudyLoop",
   );
-  assert.equal(studyloop.engagement, "Beta Testing Exchange");
+  assert.equal(studyloop.engagement, "Evaluation and Feedback");
   const tester = act({
     form: "profile-form",
     values: { ...tablewise, needTags: "Beta Testers" },
   }).directory.founders.find((p) => p.name === "Fairtab");
-  assert.equal(tester.engagement, "Beta Testing Exchange");
+  assert.equal(tester.engagement, "Evaluation and Feedback");
 
   act({ form: "profile-form", values: tablewise });
   act({ action: "interest", id: fairtab.id, engagementType: "swap" });
@@ -94,7 +96,7 @@ test("a startup trade without testers defaults to a Skill Swap room", (t) => {
   }).activeRoomId;
   const room = workspace.get(user.token).state.rooms[roomId];
   assert.equal(room.type, "swap");
-  assert.equal(room.engagementType, "Skill Swap");
+  assert.equal(room.engagementType, "Technical Development");
   assert.deepEqual(
     Object.keys(room.milestones),
     defaultTemplates.swap.milestones.map((item) => item.id),
@@ -105,7 +107,7 @@ test("stored moderator templates keep room types added later", (t) => {
   const file = workspaceFile(t);
   const storage = createStorage(file);
   const db = storage.load();
-  // A workspace saved before Skill Swap existed, with an edited beta name.
+  // A workspace saved before Technical Development existed, with an edited beta name.
   const { swap, ...older } = structuredClone(defaultTemplates);
   assert.ok(swap);
   older.beta.name = "Edited beta exchange";
@@ -116,5 +118,5 @@ test("stored moderator templates keep room types added later", (t) => {
   t.after(() => workspace.close());
   const { state } = workspace.openDemo("founder");
   assert.equal(state.engagementTemplates.beta.name, "Edited beta exchange");
-  assert.equal(state.engagementTemplates.swap.name, "Skill Swap");
+  assert.equal(state.engagementTemplates.swap.name, "Technical Development");
 });

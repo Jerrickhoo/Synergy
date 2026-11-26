@@ -166,7 +166,7 @@ test("Activity lists every deal with when it opened, its status and when it fini
         id: "live",
         role: "founder",
         type: "beta",
-        engagementType: "Beta Testing Exchange",
+        engagementType: "Evaluation and Feedback",
         status: "in-progress",
         createdAt: "2026-11-10T00:00:00.000Z",
         updatedAt: "2026-11-24T00:00:00.000Z",
@@ -184,7 +184,7 @@ test("Activity lists every deal with when it opened, its status and when it fini
         id: "closed",
         role: "founder",
         type: "swap",
-        engagementType: "Skill Swap",
+        engagementType: "Technical Development",
         status: "cancelled",
         createdAt: "2026-09-01T00:00:00.000Z",
         updatedAt: "2026-09-05T00:00:00.000Z",
@@ -197,9 +197,14 @@ test("Activity lists every deal with when it opened, its status and when it fini
   assert.deepEqual(
     rows.map((row) => [row.name, row.kind, row.status, row.finishedAt]),
     [
-      ["Partner live", "Beta Testing Exchange", "in-progress", ""],
+      ["Partner live", "Evaluation and Feedback", "in-progress", ""],
       ["Partner done", "Mentorship", "launched", "2026-10-19T00:00:00.000Z"],
-      ["Partner closed", "Skill Swap", "cancelled", "2026-09-04T00:00:00.000Z"],
+      [
+        "Partner closed",
+        "Technical Development",
+        "cancelled",
+        "2026-09-04T00:00:00.000Z",
+      ],
     ],
   );
   assert.equal(dealStatusLabel(rows[0]), "In progress");
@@ -326,4 +331,50 @@ test("Google gets timed events for sessions and all-day, free events for due dat
   assert.deepEqual(due.end, { date: "2027-01-01" });
   assert.equal(due.transparency, "transparent");
   assert.equal(due.extendedProperties.private.synergy, "1");
+});
+
+test("a request closed before send dates were kept takes its date from the activity log", () => {
+  const sent = "2026-11-20T09:00:00.000Z";
+  const state = {
+    role: "founder",
+    introductionMetaByRole: { founder: {} },
+    waitingByRole: { founder: new Set() },
+    incomingByRole: { founder: new Set() },
+    mentorRequests: [],
+    introHistoryByRole: {
+      founder: [
+        {
+          id: "campuskit:founder",
+          name: "CampusKit",
+          status: "withdrawn",
+          direction: "sent",
+          at: "2026-11-26T10:00:00.000Z",
+        },
+      ],
+    },
+    activity: [
+      {
+        role: "founder",
+        matchId: "campuskit:founder",
+        text: "You withdrew your request.",
+        timestamp: "2026-11-26T10:00:00.000Z",
+      },
+      {
+        role: "founder",
+        matchId: "campuskit:founder",
+        text: "You sent an introduction to CampusKit.",
+        timestamp: sent,
+      },
+      // A later send to someone else is never borrowed.
+      {
+        role: "founder",
+        matchId: "other:founder",
+        text: "You sent a request to Other.",
+        timestamp: "2026-11-25T09:00:00.000Z",
+      },
+    ],
+  };
+  const [row] = introductionRecords(state);
+  assert.equal(row.status, "withdrawn");
+  assert.equal(row.requestedAt, sent);
 });

@@ -88,6 +88,29 @@ export const dealStatuses = [
 const statusOrder = ["needs-reply", "waiting"];
 const latest = (row) => row.closedAt || row.requestedAt || "";
 
+// A request saved before its send date was kept: the time of the activity
+// entry that recorded it ("You sent a request to …", "… wants to connect
+// with you"), the latest one before it closed.
+function loggedSentAt(state, personId, direction, before) {
+  const limit = before ? Date.parse(before) : Infinity;
+  const recorded = (item) =>
+    direction === "sent"
+      ? item.text.startsWith("You sent a request to ") ||
+        item.text.startsWith("You sent an introduction to ")
+      : item.text.endsWith(" wants to connect with you.");
+  const found = (state.activity || [])
+    .filter(
+      (item) =>
+        item.role === state.role &&
+        item.matchId === personId &&
+        typeof item.text === "string" &&
+        recorded(item) &&
+        Date.parse(item.timestamp) <= limit,
+    )
+    .sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)))[0];
+  return found?.timestamp || "";
+}
+
 // Every request and mentorship request for the current role: waiting
 // ones first, then closed ones, newest first.
 export function introductionRecords(state) {
@@ -106,7 +129,7 @@ export function introductionRecords(state) {
         kind: "Request",
         direction,
         status: direction === "sent" ? "waiting" : "needs-reply",
-        requestedAt: item.sentAt || "",
+        requestedAt: item.sentAt || loggedSentAt(state, id, direction),
         expiresAt: item.sentAt
           ? new Date(
               Date.parse(item.sentAt) + replyWindowDays * dayMs,
@@ -165,7 +188,14 @@ export function introductionRecords(state) {
       kind: "Request",
       direction: item.direction === "received" ? "received" : "sent",
       status: item.status,
-      requestedAt: item.sentAt || "",
+      requestedAt:
+        item.sentAt ||
+        loggedSentAt(
+          state,
+          item.id,
+          item.direction === "received" ? "received" : "sent",
+          item.at,
+        ),
       expiresAt: "",
       closedAt: item.at || "",
       reason: item.reason || "",

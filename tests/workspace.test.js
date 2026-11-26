@@ -238,11 +238,11 @@ test("co-marketing templates agree from either participant's perspective", (t) =
     bId = `${b.state.accountId}:founder`;
   assert.equal(
     workspace.get(a.token).state.directory.founders[0].engagement,
-    "Co-Marketing Swap",
+    "Audience Swap",
   );
   assert.equal(
     workspace.get(b.token).state.directory.founders[0].engagement,
-    "Co-Marketing Swap",
+    "Audience Swap",
   );
   act(workspace, a, { action: "interest", id: bId });
   const accepted = act(workspace, b, { action: "accept-interest", id: aId });

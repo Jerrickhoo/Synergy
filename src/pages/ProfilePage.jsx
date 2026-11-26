@@ -700,6 +700,9 @@ function ProfileContent() {
                       value={profile.needTags}
                       vocabulary={state.vocabulary || []}
                       onChange={updateField}
+                      taken={profile.offerTags}
+                      takenBy={offersTitle}
+                      grouped
                     />
                   </EditSection>
                   <EditSection
@@ -714,6 +717,9 @@ function ProfileContent() {
                       value={profile.offerTags}
                       vocabulary={state.vocabulary || []}
                       onChange={updateField}
+                      taken={profile.needTags}
+                      takenBy={needsTitle}
+                      grouped
                     />
                   </EditSection>
                 </div>
@@ -828,6 +834,8 @@ function ProfileContent() {
                     value={profile.offerTags}
                     vocabulary={state.vocabulary || []}
                     onChange={updateField}
+                    taken={profile.needTags}
+                    takenBy="what you need"
                   />
                   <TagPicker
                     name="needTags"
@@ -836,6 +844,8 @@ function ProfileContent() {
                     value={profile.needTags}
                     vocabulary={state.vocabulary || []}
                     onChange={updateField}
+                    taken={profile.offerTags}
+                    takenBy="what you offer"
                   />
                 </EditSection>
               </>

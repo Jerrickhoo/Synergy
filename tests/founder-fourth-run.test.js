@@ -28,7 +28,7 @@ const person = (name, kind, formats) => ({
   summary: "",
   offer: [],
   need: [],
-  engagement: kind === "Mentor" ? "Mentorship" : "Beta Testing Exchange",
+  engagement: kind === "Mentor" ? "Mentorship" : "Evaluation and Feedback",
   score: 80,
   ...(formats && { formats }),
 });

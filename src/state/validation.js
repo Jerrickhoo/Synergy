@@ -1,6 +1,6 @@
 import { profileKeys, scheduleInstant } from "../data/selectors.js";
 import { weeklySchedules } from "../data/planning.js";
-import { normalizeProfile } from "../data/profile-content.js";
+import { normalizeProfile, profileEntries } from "../data/profile-content.js";
 
 export const stages = ["idea", "pre-seed", "seed", "growth"];
 export const cleanValues = (values) =>
@@ -65,6 +65,15 @@ export function validateProfile(profile, role) {
     !["one-off", "ongoing", "either"].includes(profile.engagementPreference)
   )
     errors.engagementPreference = "Choose a valid engagement preference.";
+  // Something you need can't also be something you offer.
+  const offered = new Set(
+    profileEntries(profile.offerTags).map((tag) => tag.toLowerCase()),
+  );
+  const both = profileEntries(profile.needTags).filter((tag) =>
+    offered.has(tag.toLowerCase()),
+  );
+  if (both.length && !errors.offer)
+    errors.offer = `${both.join(", ")} can't be both something you need and something you offer. Remove it from one of them.`;
   if (role === "founder") {
     if (!stages.includes(profile.stage)) errors.stage = "Choose a valid stage.";
     if (
