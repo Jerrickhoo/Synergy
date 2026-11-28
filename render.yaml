@@ -43,6 +43,10 @@ services:
       # through the Netlify proxy, which overwrites this header with it.
       - key: SYNERGY_CLIENT_IP_HEADER
         value: x-nf-client-connection-ip
+      # The same random value as the Netlify site's SYNERGY_PROXY_SECRET, so the
+      # header above counts only on requests Netlify signed. Render asks.
+      - key: SYNERGY_PROXY_SECRET
+        sync: false
       - key: SYNERGY_ALLOWED_ORIGINS
         value: https://synergy-prototype.netlify.app
       - key: SYNERGY_ADMIN_EMAILS

@@ -239,7 +239,7 @@ export function createApi({
         const email = attemptEmail(input);
         const limits = [
           [
-            `${clientAddress(req, config.clientIpHeader)}:${url.pathname}`,
+            `${clientAddress(req, config.clientIpHeader, config.proxySecret)}:${url.pathname}`,
             authAttemptsPerMinute,
           ],
         ];

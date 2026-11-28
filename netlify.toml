@@ -12,6 +12,9 @@
   to = "https://synergy-prototype-api.onrender.com/api/:splat"
   status = 200
   force = true
+  # Netlify signs each proxied request (x-nf-sign) with this site environment
+  # variable; Render trusts the visitor address only on signed requests.
+  signed = "SYNERGY_PROXY_SECRET"
 
 [[headers]]
   for = "/*"

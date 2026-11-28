@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { createApi } from "../server/api.js";
 import { configuration } from "../server/config.js";
+import { createHmac } from "node:crypto";
 import { clientAddress } from "../server/rate-limit.js";
 
 async function serve(t, env = {}) {
@@ -100,5 +101,45 @@ test("the visitor's address comes only from the configured header or nearest pro
       "cf-connecting-ip",
     ),
     "203.0.113.5",
+  );
+});
+
+test("behind Netlify with a secret, the visitor header counts only when signed", () => {
+  const secret = "test-proxy-secret";
+  const sign = (claims, key = secret, alg = "HS256") => {
+    const part = (value) =>
+      Buffer.from(JSON.stringify(value)).toString("base64url");
+    const body = `${part({ alg, typ: "JWT" })}.${part(claims)}`;
+    const signature = createHmac("sha256", key)
+      .update(body)
+      .digest("base64url");
+    return `${body}.${signature}`;
+  };
+  const valid = { iss: "netlify", exp: Math.floor(Date.now() / 1000) + 60 };
+  const req = (sign) => ({
+    headers: {
+      "x-nf-client-connection-ip": "203.0.113.9",
+      "x-forwarded-for": "10.0.0.1, 198.51.100.20",
+      ...(sign && { "x-nf-sign": sign }),
+    },
+    socket: { remoteAddress: "127.0.0.1" },
+  });
+  const address = (sign) =>
+    clientAddress(req(sign), "x-nf-client-connection-ip", secret);
+  assert.equal(address(sign(valid)), "203.0.113.9");
+  // Unsigned, forged, wrongly signed or expired: the nearest proxy's entry.
+  for (const token of [
+    undefined,
+    "not.a.token",
+    sign(valid, "another-secret"),
+    sign({ ...valid, iss: "someone" }),
+    sign({ ...valid, alg: "none" }, secret, "none"),
+    sign({ iss: "netlify", exp: Math.floor(Date.now() / 1000) - 3600 }),
+  ])
+    assert.equal(address(token), "198.51.100.20");
+  // Without a secret the header is trusted as before.
+  assert.equal(
+    clientAddress(req(), "x-nf-client-connection-ip"),
+    "203.0.113.9",
   );
 });

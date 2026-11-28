@@ -26,7 +26,7 @@ Accounts and uploads live together under `/var/data`. Keep one server instance a
 2. Run `netlify deploy --build --prod --site synergy-prototype`.
 3. Open the Netlify URL and sign in as each role.
 
-Keep the Render service on a paid instance: a free instance sleeps when idle, and its cold start exceeds Netlify's proxy timeout. Every visitor reaches Render through Netlify's proxy, so the 30-per-minute sign-in limit is shared across visitors.
+Keep the Render service on a paid instance: a free instance sleeps when idle, and its cold start exceeds Netlify's proxy timeout. Every visitor reaches Render through Netlify's proxy, which passes the visitor's address in `x-nf-client-connection-ip` (`SYNERGY_CLIENT_IP_HEADER`), so each visitor gets their own sign-in limit. Netlify signs each proxied request with `SYNERGY_PROXY_SECRET` (the `signed` setting in `netlify.toml`). Set the same random value in the Netlify site's environment variables and on the Render service; Render then trusts that header only on signed requests, so calling the Render address directly cannot fake it. Sign-in attempts are also limited per email address.
 
 To work on the frontend against the hosted accounts, set `SYNERGY_API_TARGET=https://synergy-prototype-api.onrender.com` in a local `.env` and restart `npm run dev`. The dev server then proxies `/api` to Render instead of running the local API, so anything done on localhost changes the hosted data.
 

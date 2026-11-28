@@ -62,6 +62,9 @@ export function configuration(env = process.env) {
     // for sign-in rate limits (server/rate-limit.js). cf-connecting-ip on
     // Render, x-nf-client-connection-ip behind a Netlify proxy.
     clientIpHeader: (env.SYNERGY_CLIENT_IP_HEADER || "").trim().toLowerCase(),
+    // The secret Netlify signs proxied requests with (netlify.toml `signed`).
+    // When set, the header above counts only on requests Netlify signed.
+    proxySecret: env.SYNERGY_PROXY_SECRET || "",
   };
   if (
     !Number.isFinite(config.backupIntervalHours) ||
