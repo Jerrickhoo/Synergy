@@ -205,9 +205,9 @@ a {
 }
 .card {
   background: var(--paper);
-  border: 1px solid var(--line);
+  border: 1px solid var(--card-border);
   border-radius: var(--radius-md);
-  box-shadow: none;
+  box-shadow: var(--shadow);
   min-width: 0;
 }
 .panel {
@@ -1615,14 +1615,16 @@ main,
   color: var(--muted);
   text-align: center;
 }
+/* The line to the next stage stops at both circles, so nothing has to mask
+   it and the page's backdrop shows around the circles. */
 .stage:before {
   content: "";
   position: absolute;
   height: 2px;
   background: var(--line);
-  width: 100%;
+  width: calc(100% - 28px);
   top: 11px;
-  right: -50%;
+  right: calc(-50% + 14px);
 }
 .stage:last-child:before {
   display: none;
@@ -1633,13 +1635,14 @@ main,
   width: 24px;
   height: 24px;
   /* A stage still ahead is an outlined ring that passes 3:1 contrast. */
-  background: var(--canvas);
+  background: transparent;
+  background-clip: padding-box;
   border-radius: 50%;
-  border: 5px solid var(--canvas);
+  border: 5px solid transparent;
   box-shadow: inset 0 0 0 2px var(--control-border);
 }
 .stage.done .stage-dot {
-  background: var(--accent-solid);
+  background-color: var(--accent-solid);
   color: var(--on-accent);
   border-width: 3px;
   box-shadow: none;
@@ -1654,7 +1657,7 @@ main,
   font-weight: 600;
 }
 .stage.current .stage-dot {
-  background: var(--accent-solid);
+  background-color: var(--accent-solid);
   box-shadow: none;
 }
 .terms-layout {
@@ -4151,7 +4154,7 @@ main,
 }
 .card {
   background: var(--paper);
-  border: 1px solid var(--line);
+  border: 1px solid var(--card-border);
   border-radius: var(--radius-xs);
 }
 .panel {

@@ -54,6 +54,10 @@ import {
 } from "../src/data/mentor-formats.js";
 import { profileCompleteness } from "../src/data/selectors.js";
 
+// "an 80%", "an 11%", "a 91%": the article follows the spoken number.
+const scoreArticle = (score) =>
+  /^8/.test(String(score)) || [11, 18].includes(Number(score)) ? "an" : "a";
+
 // Mentoring settings forms (roadmap Phase 1). Only the mentor role can use them.
 const mentoringForms = new Set([
   "mentor-capacity",
@@ -198,7 +202,7 @@ export function createFeatures({
       if (person.score >= 70)
         add(
           `match:${person.id}`,
-          `${person.name} is a ${person.score}% profile fit.`,
+          `${person.name} is ${scoreArticle(person.score)} ${person.score}% profile fit.`,
           null,
           "match",
           person.id,

@@ -101,6 +101,16 @@
   margin: 0;
   text-wrap: pretty;
 }
+/* The heading and its intro are one block, so the group gap falls after
+   them, not between. */
+.mentoring-settings-head h2 {
+  margin: 0;
+}
+.mentoring-settings-head p {
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  text-wrap: pretty;
+}
 .mentoring-status {
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
@@ -129,6 +139,11 @@
 .mentoring-group .field,
 .mentoring-group .select-field {
   width: min(100%, 320px);
+}
+/* Buttons sit at their own width at the group's start, not full width. */
+.mentoring-group > .btn,
+.mentoring-group > button {
+  justify-self: start;
 }
 .pause-confirm {
   display: grid;
@@ -166,6 +181,12 @@
   font-weight: 600;
   margin-bottom: var(--space-1);
 }
+/* Formats two to a row, each with its time beside its name. */
+.mentoring-format-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: var(--space-1) var(--space-5);
+}
 .mentoring-format {
   display: flex;
   align-items: flex-start;
@@ -173,6 +194,7 @@
   padding: var(--space-2) 0;
 }
 .mentoring-format input {
+  flex: none;
   width: auto;
   margin-top: var(--space-1);
 }
@@ -203,10 +225,16 @@
   gap: var(--space-1);
   min-width: 0;
 }
+/* Labels share one line (fields align at the top); the button sits level
+   with the boxes. */
 .mentoring-conflict-form {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  align-items: end;
+  align-items: start;
   width: 100%;
+}
+.mentoring-conflict-form > .btn,
+.mentoring-conflict-form > button {
+  align-self: end;
 }
 .mentoring-conflict-form .field,
 .mentoring-conflict-form .select-field {
@@ -471,6 +499,52 @@
 }
 
 /* Calendar: Office Hours slots, their bookings and confirmations. */
+/* Calendar subscription: the link and its Copy button share a row; Reset
+   is a quieter action below, since it breaks the link already in use. */
+.calendar-feed-intro {
+  margin: var(--space-1) 0 var(--space-4);
+  max-width: 65ch;
+  text-wrap: pretty;
+}
+.calendar-feed .field {
+  gap: var(--space-2);
+}
+.calendar-feed .field-help {
+  margin: 0;
+}
+.calendar-feed-row {
+  display: flex;
+  gap: var(--space-2);
+}
+.calendar-feed-row input {
+  flex: 1;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+.calendar-feed-copy {
+  flex: none;
+  min-width: 8.5rem;
+}
+.calendar-feed-copy.is-copied {
+  border-color: var(--accent-solid);
+  color: var(--green-dark);
+}
+.calendar-feed-reset {
+  margin-top: var(--space-2);
+}
+@media (max-width: 600px) {
+  .calendar-feed-row {
+    flex-direction: column;
+  }
+}
+/* Office Hours on Calendar: the open slots, then "Open another slot" (or the
+   form, before there are any). */
+.office-hours-intro {
+  margin: var(--space-1) 0 var(--space-3);
+}
+.office-hours-add {
+  margin-top: var(--space-3);
+}
 .office-slot {
   display: grid;
   gap: var(--space-2);
@@ -533,11 +607,33 @@
 .limited-field .field-error {
   margin: 0;
 }
+/* Prices as rows: format, price, Save. Errors sit under the row. */
 .payment-price-form {
   display: grid;
-  gap: var(--space-2);
-  justify-items: start;
-  margin-top: var(--space-4);
+  grid-template-columns: minmax(8rem, 12rem) minmax(0, 12rem) auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding-block: var(--space-2);
+}
+.payment-price-form + .payment-price-form {
+  border-top: 1px solid var(--line);
+}
+.payment-price-form label {
+  font-weight: 600;
+}
+.payment-price-form .btn {
+  justify-self: start;
+}
+.payment-price-form .field-error {
+  grid-column: 1 / -1;
+}
+@media (max-width: 560px) {
+  .payment-price-form {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .payment-price-form label {
+    grid-column: 1 / -1;
+  }
 }
 .payment-price-form .field-help,
 .payment-price-form .field-error {
@@ -572,4 +668,59 @@
 .mentee-turn {
   color: var(--ink);
   font-weight: 600;
+}
+/* Name, format and whose turn it is read as one tight block, and the card
+   ends where its last row does. */
+.mentee-identity h3,
+.mentee-identity p {
+  margin: 0;
+}
+.mentee-identity .mentee-turn,
+.mentee-identity p + p {
+  margin-top: var(--space-1);
+}
+.mentee-group h2 {
+  margin-bottom: var(--space-1);
+}
+.mentee-group .collaboration-row:last-child {
+  padding-bottom: 0;
+}
+/* Who, then the goal and progress, then the step button. */
+.mentee-group .collaboration-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(0, 1.4fr) auto;
+  align-items: center;
+  gap: var(--space-5);
+}
+.mentee-progress {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.mentee-progress p {
+  margin: 0;
+}
+.mentee-goal {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-wrap: pretty;
+}
+.mentee-step {
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
+}
+.mentee-progress .step-dots {
+  margin-top: var(--space-1);
+}
+@media (max-width: 760px) {
+  .mentee-group .collaboration-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+  .mentee-group .collaboration-row .btn {
+    justify-self: start;
+  }
 }

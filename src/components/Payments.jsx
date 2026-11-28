@@ -199,7 +199,11 @@ export function PaymentSettings() {
   // A founder with no payments yet would see only the heading.
   if (state.role !== "mentor" && !records.length) return null;
   return (
-    <section className="card panel">
+    <section
+      id="settings-payouts"
+      tabIndex={-1}
+      className="card panel settings-section payment-settings"
+    >
       <h2>{state.role === "mentor" ? "Payouts" : "Payments"}</h2>
       {state.role === "mentor" && (
         <>
@@ -229,6 +233,11 @@ export function PaymentSettings() {
               ),
             )}
           </p>
+          {/* One rule for every price, stated once above them. */}
+          <p className="field-help" id="price-help">
+            Prices in PHP: 0 for Free, or {priceRangeText(limits)}.
+            {ready ? "" : " Complete payout setup to charge."}
+          </p>
           {state.profiles.mentor.formats.map((format) => (
             <form
               key={format.id}
@@ -249,7 +258,8 @@ export function PaymentSettings() {
               }}
             >
               <label htmlFor={`price-${format.id}`}>
-                {mentorFormat(format.id)?.label} price in PHP
+                {mentorFormat(format.id)?.label}
+                <span className="visually-hidden"> price in PHP</span>
               </label>
               <input
                 id={`price-${format.id}`}
@@ -259,16 +269,15 @@ export function PaymentSettings() {
                 max={limits.maxPrice / 100}
                 step="0.01"
                 defaultValue={format.price / 100}
-                aria-describedby={`price-help-${format.id}${pricing === format.id && priceError ? ` price-error-${format.id}` : ""}`}
+                aria-describedby={`price-help${pricing === format.id && priceError ? ` price-error-${format.id}` : ""}`}
                 aria-invalid={
                   pricing === format.id && priceError ? true : undefined
                 }
                 required
               />
-              <p className="field-help" id={`price-help-${format.id}`}>
-                0 for Free, or {priceRangeText(limits)}.
-                {ready ? "" : " Complete payout setup to charge."}
-              </p>
+              <button className="btn" disabled={state.busy}>
+                Save price
+              </button>
               {pricing === format.id && priceError && (
                 <p
                   className="field-error"
@@ -278,9 +287,6 @@ export function PaymentSettings() {
                   {priceError}
                 </p>
               )}
-              <button className="btn" disabled={state.busy}>
-                Save price
-              </button>
             </form>
           ))}
         </>

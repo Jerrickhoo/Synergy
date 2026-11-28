@@ -23,7 +23,8 @@ export function dealStageLabels(room) {
   ];
 }
 
-// { number, total, label } with `number` counted from 1. A closed Deal
+// { number, total, label, complete } with `number` counted from 1, and
+// `complete` once the last step is finished too. A closed Deal
 // Room has no step (it stopped rather than reached one), so it gets null; a
 // closed mentorship keeps the last step it reached.
 export function roomStep(room) {
@@ -41,12 +42,18 @@ export function roomStep(room) {
       number: index + 1,
       total: marks.length,
       label: marks[index].label,
+      complete: marks.every((mark) => mark.done),
     };
   }
   if (room.status === "cancelled") return null;
   const labels = dealStageLabels(room);
   const index = dealStages[room.status] || 0;
-  return { number: index + 1, total: labels.length, label: labels[index] };
+  return {
+    number: index + 1,
+    total: labels.length,
+    label: labels[index],
+    complete: room.status === "reviewed",
+  };
 }
 
 // When a room was completed or closed: { kind: "Completed" | "Closed", at },

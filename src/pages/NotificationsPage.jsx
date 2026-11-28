@@ -11,7 +11,6 @@ import {
 } from "../data/notifications.js";
 import Icon from "../components/Icon.jsx";
 import Avatar from "../components/Avatar.jsx";
-import { matchReason } from "../data/profile-presentation.js";
 import { personVerified } from "../data/collaboration.js";
 
 function digestPeriod(daily, now) {
@@ -84,9 +83,6 @@ function Digest({ items, prefs, now }) {
                 <span>
                   {[person.kind, person.sector].filter(Boolean).join(" · ")}
                 </span>
-                <span className="digest-match-reason">
-                  {matchReason(person)}
-                </span>
               </div>
               <span
                 className="fit-ring digest-ring"
@@ -102,10 +98,6 @@ function Digest({ items, prefs, now }) {
           ))}
         </ol>
       )}
-      <p className="digest-note">
-        The digest lists strong matches, match alerts and collaboration
-        activity. Matches shows every suggestion.
-      </p>
     </section>
   );
 }

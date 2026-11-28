@@ -14,6 +14,7 @@ import { useApp } from "../state/AppContext.jsx";
 import Avatar from "../components/Avatar.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import Icon from "../components/Icon.jsx";
+import StepDots from "../components/StepDots.jsx";
 import {
   terminalStatuses,
   accountVerified,
@@ -309,6 +310,15 @@ function ExchangeRoom() {
               {termsNote ? ` · ${termsNote}` : ""}
             </span>
           </p>
+          {/* Phones only, where the labelled line below is hidden. */}
+          <StepDots
+            number={stage + 1}
+            total={labels.length}
+            label={labels[stage]}
+            complete={room.status === "reviewed"}
+            name={mentoring ? "Mentorship progress" : "Deal Room progress"}
+            className="stage-compact-dots"
+          />
           <ol
             className="stage-line"
             aria-label={

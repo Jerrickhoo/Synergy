@@ -9,6 +9,8 @@ import {
 import { mentorFormat } from "../data/mentor-formats.js";
 import { roomNextAction } from "../data/selectors.js";
 import { personVerified } from "../data/collaboration.js";
+import { roomStep } from "../data/room-progress.js";
+import StepDots from "../components/StepDots.jsx";
 import {
   mentorStepLabel,
   mentorStepRank,
@@ -23,6 +25,8 @@ const lower = (text) => text.charAt(0).toLowerCase() + text.slice(1);
 export function MenteeRow({ room, partner, next, primary = false }) {
   const { onAction } = useApp();
   const mine = mentorStepRank(next) < 8;
+  const step = roomStep(room);
+  const goal = room.terms?.draft?.goal;
   return (
     <article className="collaboration-row">
       <div className="mentee-identity">
@@ -41,6 +45,22 @@ export function MenteeRow({ room, partner, next, primary = false }) {
               : waitingText(next, partner?.name)}
           </p>
         </div>
+      </div>
+      {/* What the founder wants out of it, and how far along it is. The
+          stage itself is the group's heading, so the step isn't named. */}
+      <div className="mentee-progress">
+        {goal && <p className="mentee-goal">{goal}</p>}
+        {step && (
+          <>
+            <p className="mentee-step" aria-hidden="true">
+              Step {step.number} of {step.total}
+            </p>
+            <StepDots
+              {...step}
+              name={`Mentorship progress with ${partner?.name || "this startup"}`}
+            />
+          </>
+        )}
       </div>
       <button
         className={`btn small${primary ? " primary" : ""}`}
@@ -126,7 +146,7 @@ export default function MenteesPage() {
           <p>Accept a mentorship request to see your mentees here.</p>
         ))}
       {[...groups].map(([label, items]) => (
-        <section className="card panel section-gap" key={label}>
+        <section className="card panel section-gap mentee-group" key={label}>
           <h2>{label}</h2>
           {items.map(({ room, partner, next }) => (
             <MenteeRow

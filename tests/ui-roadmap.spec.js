@@ -580,11 +580,13 @@ test("Updates actions keep read state, chronology and header counts synchronized
   const order = await page
     .locator(".updates-page .update-title")
     .allTextContents();
-  const heading = await row.locator(".update-meta").boundingBox();
-  const indicator = await row.locator(".update-read-state").boundingBox();
+  // The unread dot leads the time at the row's end.
+  const dot = await row.locator(".update-meta .update-dot").boundingBox();
+  const time = await row.locator(".update-meta time").boundingBox();
+  expect(dot.x + dot.width).toBeLessThanOrEqual(time.x);
   expect(
-    Math.abs(heading.x + heading.width - indicator.x - indicator.width),
-  ).toBeLessThanOrEqual(1);
+    Math.abs(dot.y + dot.height / 2 - (time.y + time.height / 2)),
+  ).toBeLessThanOrEqual(2);
   await page.route("**/api/action", (route) =>
     route.fulfill({
       status: 503,

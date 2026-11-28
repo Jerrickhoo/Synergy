@@ -1112,6 +1112,16 @@ test("keyboard navigation and accessibility checks cover login, discovery, setti
   request,
 }) => {
   const check = async () => {
+    // Scan settled pages: mid fade-in, a button's colour is part transparent
+    // and its contrast reads low.
+    await page.evaluate(() =>
+      Promise.all(
+        // A cancelled animation (its element left the page) rejects; skip it.
+        document
+          .getAnimations()
+          .map((animation) => animation.finished.catch(() => {})),
+      ),
+    );
     const result = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
       .analyze();

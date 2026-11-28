@@ -358,12 +358,16 @@
   margin-bottom: 24px;
   flex-wrap: wrap;
 }
+/* A white track like the cards, so it holds up on the page backdrop; the
+   chosen view is tinted and outlined. */
 .calendar-view-switch {
   display: flex;
   gap: 4px;
   padding: 4px;
-  background: var(--surface-soft);
+  background: var(--paper);
+  border: 1px solid var(--card-border);
   border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
 }
 .calendar-view-switch .btn {
   border-radius: calc(var(--radius-md) - 4px);
@@ -374,7 +378,8 @@
   font-size: 13px;
 }
 .calendar-view-switch .btn[aria-pressed="true"] {
-  background: var(--paper);
+  background: var(--surface-hover);
+  box-shadow: inset 0 0 0 1px var(--surface-hover-border);
   color: var(--green-dark);
 }
 .calendar-collaboration-filter {
@@ -691,7 +696,7 @@
   height: 14px;
 }
 .agenda-empty {
-  padding: 8px 0 18px;
+  padding: var(--space-2) 0 0;
 }
 .agenda-empty > svg,
 .calendar-month-empty > svg {
@@ -710,14 +715,16 @@
   line-height: 1.65;
   margin: 0;
 }
+/* The same space either side of the line that separates the day from
+   "Plan a session". */
 .agenda-plan {
   border-top: 1px solid var(--line);
-  padding-top: 20px;
-  margin-top: 24px;
+  padding-top: var(--space-5);
+  margin-top: var(--space-5);
 }
 .agenda-plan h3 {
   font-size: 14px;
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-1);
 }
 .agenda-plan p {
   font-size: 13px;
@@ -733,11 +740,14 @@
   padding: 12px 0;
   min-height: 44px;
   border: 0;
-  border-top: 1px solid var(--line);
   background: transparent;
   color: var(--green-dark);
   width: 100%;
   text-align: left;
+}
+/* Lines only between mentorships, not above the first. */
+.schedule-room-link + .schedule-room-link {
+  border-top: 1px solid var(--line);
 }
 .schedule-room-link > span {
   flex: 1;

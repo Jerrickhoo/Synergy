@@ -31,6 +31,12 @@ import {
   publishToast,
 } from "./feedback.js";
 import { markTourPending } from "../data/tour.js";
+import {
+  awaitingVerification,
+  continuedMessage,
+  openAccountChannel,
+  verifiedMessage,
+} from "./verification.js";
 
 enableMapSet();
 const AppContext = createContext(null);
@@ -390,6 +396,8 @@ export function AppProvider({ children }) {
   const revision = useRef(-1);
   const refreshKey = useRef("");
   const pending = useRef(false);
+  // Checks the workspace now; set while signed in (see the refresh effect).
+  const refreshNow = useRef(null);
   const [state, dispatch] = useReducer(reducer, undefined, () => {
     const initial = createInitialState();
     initial.restoring = Boolean(token.current);
@@ -540,18 +548,54 @@ export function AppProvider({ children }) {
       stopped = true;
     };
   }, [restoreTick]);
+  // While this tab shows "Check your inbox", the verification link opened in
+  // another tab of this browser opens the workspace here at once, and this
+  // tab tells that one, which sends the person back here.
+  const waiting = awaitingVerification(state);
+  const heardVerified = useRef(null);
+  useEffect(() => {
+    if (!waiting) return;
+    const channel = openAccountChannel();
+    if (!channel) return;
+    let retry = null;
+    channel.onmessage = ({ data }) => {
+      if (data?.type !== verifiedMessage) return;
+      heardVerified.current = data.id;
+      // Until the workspace opens (this effect ends), in case a check was
+      // already under way and missed the change.
+      refreshNow.current?.();
+      clearInterval(retry);
+      retry = setInterval(() => refreshNow.current?.(), 800);
+    };
+    return () => {
+      clearInterval(retry);
+      channel.close();
+    };
+  }, [waiting]);
+  const wasWaiting = useRef(false);
+  useEffect(() => {
+    const id = heardVerified.current;
+    if (wasWaiting.current && !waiting && state.emailVerified && id) {
+      heardVerified.current = null;
+      const channel = openAccountChannel();
+      channel?.postMessage({ type: continuedMessage, id });
+      channel?.close();
+    }
+    wasWaiting.current = waiting;
+  }, [waiting, state.emailVerified]);
   useEffect(() => {
     if (!state.authenticated || state.restoring) return;
     let stopped = false;
     let refreshing = false;
     let failures = 0;
     let retryAt = 0;
-    async function refresh() {
+    // force: check now even in a background tab (see the account channel).
+    async function refresh(force = false) {
       if (
         pending.current ||
         refreshing ||
-        document.hidden ||
-        Date.now() < retryAt
+        (document.hidden && !force) ||
+        (Date.now() < retryAt && !force)
       )
         return;
       refreshing = true;
@@ -595,6 +639,7 @@ export function AppProvider({ children }) {
       }
     }
     refresh();
+    refreshNow.current = () => refresh(true);
     const timer = setInterval(refresh, 1500);
     const resume = () => {
       retryAt = 0;
@@ -604,6 +649,7 @@ export function AppProvider({ children }) {
     document.addEventListener("visibilitychange", resume);
     return () => {
       stopped = true;
+      refreshNow.current = null;
       clearInterval(timer);
       window.removeEventListener("focus", resume);
       document.removeEventListener("visibilitychange", resume);

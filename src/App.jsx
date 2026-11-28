@@ -37,6 +37,7 @@ import CheckInboxPage from "./pages/CheckInboxPage.jsx";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage.jsx";
 import ResetPasswordPage from "./pages/ResetPasswordPage.jsx";
 import VerifyEmailPage from "./pages/VerifyEmailPage.jsx";
+import { awaitingVerification as isAwaitingVerification } from "./state/verification.js";
 
 const pages = {
   activity: ActivityPage,
@@ -97,13 +98,8 @@ export default function App() {
     notify,
   } = useApp();
   const mainRef = useRef(null);
-  // With sign-in email on, a new account waits on "Check your inbox" until
-  // its email is verified. Preview accounts never verify.
-  const awaitingVerification =
-    state.authenticated &&
-    state.integrations?.emailAuth &&
-    !state.integrations.guest &&
-    !state.emailVerified;
+  // A new account waits on "Check your inbox" until its email is verified.
+  const awaitingVerification = isAwaitingVerification(state);
   // A card on the sign-in artwork with its own toast: signup when signed out,
   // the password and verification pages either way (signed in they lead back
   // to Home), and "Check your inbox" while the email is unverified.

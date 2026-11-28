@@ -65,14 +65,15 @@ export default function MentoringSettings() {
 
   return (
     <section
+      id="settings-mentoring"
+      tabIndex={-1}
       className="card panel settings-section mentoring-settings"
       aria-labelledby="mentoring-settings"
     >
-      <h2 id="mentoring-settings">Mentoring</h2>
-      <p>
-        Set how much you can take on. Founders only see you as available while
-        you have room.
-      </p>
+      <div className="mentoring-settings-head">
+        <h2 id="mentoring-settings">Mentoring</h2>
+        <p>Founders see you as available only while you have room.</p>
+      </div>
       {blocked && (
         <p className="mentoring-status" role="status">
           {ownUnavailableText(usage.reason)}
@@ -105,8 +106,8 @@ export default function MentoringSettings() {
             onSubmit={pause}
           >
             <p>
-              Stop new requests. Your current mentees are not affected, and
-              pending requests go back to founders with other mentors to ask.
+              Stop new requests. Current mentees aren't affected; pending
+              requests go back to founders.
             </p>
             <input type="hidden" name="paused" value="on" />
             <div className="field">
@@ -209,23 +210,29 @@ export default function MentoringSettings() {
         <fieldset className="mentoring-formats">
           <legend>Formats you offer</legend>
           <p className="field-help">
-            Keep at least one selected. Set prices in Payouts after completing
-            payout setup.
+            Keep at least one. Prices are in Payouts.
           </p>
-          {mentorFormats.map((format) => (
-            <label className="mentoring-format" key={format.id}>
-              <input
-                type="checkbox"
-                name={`format-${format.id}`}
-                defaultChecked={offered.has(format.id)}
-              />
-              <span>
-                <strong>{format.label}</strong>
-                <span className="mentoring-format-effort">{format.effort}</span>
-                <span className="field-help">{format.summary}</span>
-              </span>
-            </label>
-          ))}
+          <div className="mentoring-format-grid">
+            {mentorFormats.map((format) => (
+              <label className="mentoring-format" key={format.id}>
+                <input
+                  type="checkbox"
+                  name={`format-${format.id}`}
+                  defaultChecked={offered.has(format.id)}
+                />
+                <span>
+                  <strong>
+                    {format.label}
+                    <span className="mentoring-format-effort">
+                      {" "}
+                      · {format.effort}
+                    </span>
+                  </strong>
+                  <span className="field-help">{format.summary}</span>
+                </span>
+              </label>
+            ))}
+          </div>
         </fieldset>
 
         <SelectField
@@ -244,9 +251,8 @@ export default function MentoringSettings() {
       <div className="mentoring-group">
         <h3>Conflicts of interest</h3>
         <p>
-          List companies you advise, work for, invest in or founded. Founders
-          from those companies won't see you, and you'll be warned about
-          requests from the same industry. Nobody else sees this list.
+          Companies you advise, work for, invest in or founded. Their founders
+          won't see you. Only you see this list.
         </p>
         {mentor.conflicts?.length ? (
           <ul className="mentoring-conflicts">

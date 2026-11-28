@@ -28,6 +28,25 @@ export default function NotificationRow({ item, now, compact = false }) {
   const date = new Date(Date.parse(item.timestamp));
   const validDate = Number.isFinite(date.getTime());
   const actionable = destination.command || !item.read;
+  // "With Dev Startup" says nothing new under "Dev Startup is a 91% fit."
+  const context =
+    destination.context?.startsWith("With ") &&
+    item.text.includes(destination.context.slice(5))
+      ? null
+      : destination.context;
+  // One muted line under the title: what kind of update, and its context.
+  const details = [
+    kind,
+    context,
+    item.dueAt &&
+      `Due ${new Date(item.dueAt).toLocaleDateString(undefined, {
+        timeZone: "UTC",
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      })}`,
+    item.sessionAt && `Session ${scheduleLabel(item.sessionAt)}`,
+  ].filter(Boolean);
   const open = async (command) => {
     if (state.notificationOpen) onAction({ action: "toggle-notifications" });
     await onAction(command);
@@ -41,39 +60,8 @@ export default function NotificationRow({ item, now, compact = false }) {
         <Icon name={icon} />
       </span>
       <div className="update-content">
-        <div className="update-meta">
-          <span className="update-kind">{kind}</span>
-          <time
-            dateTime={validDate ? date.toISOString() : undefined}
-            title={validDate ? date.toLocaleString() : undefined}
-          >
-            {relativeTime(item.timestamp, now)}
-          </time>
-          <span className="update-read-state">
-            {!item.read && <i aria-hidden="true" />}
-            <span className="visually-hidden">
-              {item.read ? "Read" : "Unread"}
-            </span>
-          </span>
-        </div>
         <p className="update-title">{item.text}</p>
-        {(destination.context || item.dueAt || item.sessionAt) && (
-          <p className="update-context">
-            {[
-              destination.context,
-              item.dueAt &&
-                `Due ${new Date(item.dueAt).toLocaleDateString(undefined, {
-                  timeZone: "UTC",
-                  weekday: "short",
-                  day: "numeric",
-                  month: "short",
-                })}`,
-              item.sessionAt && `Session ${scheduleLabel(item.sessionAt)}`,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-        )}
+        <p className="update-context">{details.join(" · ")}</p>
         {alternatives?.length > 0 && (
           <div className="mentoring-alternatives">
             <p>Suggested mentors</p>
@@ -91,6 +79,21 @@ export default function NotificationRow({ item, now, compact = false }) {
             </ul>
           </div>
         )}
+      </div>
+      {/* When it happened and what to do about it, at the row's end. */}
+      <div className="update-side">
+        <span className="update-meta">
+          {!item.read && <i className="update-dot" aria-hidden="true" />}
+          <span className="visually-hidden">
+            {item.read ? "Read" : "Unread"},{" "}
+          </span>
+          <time
+            dateTime={validDate ? date.toISOString() : undefined}
+            title={validDate ? date.toLocaleString() : undefined}
+          >
+            {relativeTime(item.timestamp, now)}
+          </time>
+        </span>
         {actionable && (
           <div className="update-actions">
             {destination.command && (

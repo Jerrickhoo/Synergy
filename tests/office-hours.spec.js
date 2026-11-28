@@ -188,3 +188,58 @@ test("opening a format-closing slot asks to confirm without an error", async ({
   ).toHaveLength(1);
   expect(failures).toEqual([]);
 });
+
+test("once a slot is open, the Office Hours form folds behind Open another slot", async ({
+  page,
+  request,
+}) => {
+  const mentor = await user(
+    request,
+    "FoldingMentor",
+    {
+      bio: "Advising student teams",
+      offer: "Product strategy",
+      need: "Focused questions",
+      expertise: "Product strategy",
+      startups: "Education startups",
+    },
+    "mentor",
+  );
+  await command(request, mentor, {
+    form: "mentor-capacity",
+    values: {
+      maxMentees: 3,
+      monthlyHours: 4,
+      maxOpenAsync: 3,
+      responseDays: 3,
+      "format-office-hours": "on",
+      timeZone: "Asia/Manila",
+    },
+  });
+  const date = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+  await open(page, mentor, "calendar");
+  const section = page.locator("#office-hours");
+  // Office Hours is optional, so it follows the calendar.
+  await expect(section).toContainText("Optional.");
+  const calendarBox = await page.locator(".calendar-layout").boundingBox();
+  const sectionBox = await section.boundingBox();
+  expect(sectionBox.y).toBeGreaterThan(calendarBox.y);
+  // No slot yet: the form shows, and opening a slot is a secondary action.
+  const openSlot = section.getByRole("button", { name: "Open slot" });
+  await expect(openSlot).not.toHaveClass(/primary/);
+  await expect(section.getByRole("button", { name: "Cancel" })).toHaveCount(0);
+  await section.getByLabel("First date").fill(date);
+  await section.getByLabel(/^Start time/).fill("10:00");
+  await openSlot.click();
+  // The new slot is listed and the form folds away.
+  const another = section.getByRole("button", { name: "Open another slot" });
+  await expect(another).toBeFocused();
+  await expect(section.getByLabel("First date")).toHaveCount(0);
+  await expect(section.locator(".office-slot")).toHaveCount(1);
+  // It opens again on request, and Cancel folds it back.
+  await another.click();
+  await expect(section.getByLabel("First date")).toBeVisible();
+  await section.getByRole("button", { name: "Cancel" }).click();
+  await expect(section.getByLabel("First date")).toHaveCount(0);
+  await expect(another).toBeFocused();
+});

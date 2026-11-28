@@ -9,6 +9,7 @@ import { createPortal } from "react-dom";
 import { useApp } from "../state/AppContext.jsx";
 import Icon from "./Icon.jsx";
 import { markTourDone, tourDone, tourPending } from "../data/tour.js";
+import { awaitingVerification } from "../state/verification.js";
 export { markTourDone, tourDone } from "../data/tour.js";
 
 // A guided tour on the real screens: everything but the highlighted part is
@@ -132,7 +133,11 @@ const welcomeStep = (role, name) => ({
       : "Here's a one-minute tour of how it works: find the startups and mentors who fill your gaps, send a request, then agree the terms and finish the work together in a Deal Room.",
 });
 
+// Room between the highlighted element and the ring. Sidebar items sit a
+// couple of pixels apart, so there the ring hugs the item rather than
+// spilling over its neighbours and past the sidebar's edges.
 const gap = 10;
+const tightGap = 4;
 const visible = (element) => {
   if (!element) return false;
   const rect = element.getBoundingClientRect();
@@ -191,6 +196,9 @@ export default function QuickTour() {
   useEffect(() => {
     if (started.current || tourOpen || !state.authenticated) return;
     if (state.page !== "home" || state.firstRunChoice) return;
+    // A new account sees the tour once its email is verified, on the Home
+    // that "Check your inbox" opens into.
+    if (awaitingVerification(state)) return;
     if (!newAccount(state)) return;
     if (tourDone(state.accountId) || navigator.webdriver) return;
     started.current = true;
@@ -201,7 +209,8 @@ export default function QuickTour() {
   useEffect(() => {
     if (!tourOpen) setWelcome(false);
   }, [tourOpen]);
-  if (!state.authenticated || !tourOpen) return null;
+  if (!state.authenticated || !tourOpen || awaitingVerification(state))
+    return null;
   return <Tour key={state.role} welcome={welcome} />;
 }
 
@@ -292,6 +301,11 @@ function Tour({ welcome = false }) {
         const found = findTarget(step);
         if (!found) return;
         const rect = found.element.getBoundingClientRect();
+        const pad = found.element.closest(".sidebar") ? tightGap : gap;
+        // Concentric with the element's own corners.
+        const radius =
+          (parseFloat(getComputedStyle(found.element).borderTopLeftRadius) ||
+            0) + pad;
         // A tall target scrolls under the sticky header; the highlight stops
         // at the header so the header stays dimmed.
         const header = found.element.closest(".topbar")
@@ -299,12 +313,13 @@ function Tour({ welcome = false }) {
           : document.querySelector(".topbar")?.getBoundingClientRect().bottom ||
             0;
         setHole({
-          top: Math.max(header, rect.top - gap),
-          left: Math.max(0, rect.left - gap),
-          right: Math.min(window.innerWidth, rect.right + gap),
-          bottom: Math.min(window.innerHeight, rect.bottom + gap),
-          width: rect.width + gap * 2,
-          height: rect.height + gap * 2,
+          top: Math.max(header, rect.top - pad),
+          left: Math.max(0, rect.left - pad),
+          right: Math.min(window.innerWidth, rect.right + pad),
+          bottom: Math.min(window.innerHeight, rect.bottom + pad),
+          width: rect.width + pad * 2,
+          height: rect.height + pad * 2,
+          radius,
         });
       });
     };
@@ -362,8 +377,13 @@ function Tour({ welcome = false }) {
     }
   };
 
-  const shade = (key, style) => (
-    <div key={key} className="tour-shade" style={style} aria-hidden="true" />
+  const shade = (key, style, blocker = true) => (
+    <div
+      key={key}
+      className={`tour-shade${blocker ? " is-blocker" : ""}`}
+      style={style}
+      aria-hidden="true"
+    />
   );
   const view = { width: window.innerWidth, height: window.innerHeight };
   const hint = step.click
@@ -376,6 +396,7 @@ function Tour({ welcome = false }) {
     left: hole.left,
     width: hole.right - hole.left,
     height: hole.bottom - hole.top,
+    borderRadius: hole.radius,
   };
   return createPortal(
     <div className={`tour${moving ? " is-moving" : ""}`} onKeyDown={onKeyDown}>
@@ -412,12 +433,11 @@ function Tour({ welcome = false }) {
           )}
         </>
       ) : (
-        shade("all", {
-          top: 0,
-          left: 0,
-          width: view.width,
-          height: view.height,
-        })
+        shade(
+          "all",
+          { top: 0, left: 0, width: view.width, height: view.height },
+          false,
+        )
       )}
       <section
         ref={card}

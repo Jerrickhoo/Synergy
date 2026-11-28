@@ -108,8 +108,6 @@ function CalendarContent() {
         title="Calendar"
         intro="Sessions and deadlines across your collaborations."
       />
-      {state.role === "mentor" && <OfficeHoursManager />}
-      <CalendarFeed />
       <div className="calendar-controls section-gap">
         <div
           className="calendar-view-switch"
@@ -322,6 +320,9 @@ function CalendarContent() {
           </aside>
         )}
       </div>
+      {/* Optional tools, so they follow the calendar the page is for. */}
+      {state.role === "mentor" && <OfficeHoursManager />}
+      <CalendarFeed />
     </div>
   );
 }

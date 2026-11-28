@@ -13,6 +13,7 @@ import {
   timeZoneLabel,
 } from "../data/dates.js";
 import SelectField from "./SelectField.jsx";
+import Icon from "./Icon.jsx";
 import PrototypeShortcut from "./PrototypeShortcut.jsx";
 
 const slotLabel = (slot) =>
@@ -182,6 +183,11 @@ export function OfficeHoursManager() {
   // (Nov 22, round 2) The server answers with `officeSlotCheck` instead of an
   // error, so no error alert or failed request appears.
   const [pending, setPending] = useState(null);
+  const slots = profile.officeHours || [];
+  // With a slot open, the form waits behind "Open another slot".
+  const [adding, setAdding] = useState(false);
+  const showForm = offers && (slots.length === 0 || adding);
+  const another = useRef(null);
   const warning =
     pending?.sent &&
     state.officeSlotCheck?.reason === "closes-formats" &&
@@ -198,6 +204,9 @@ export function OfficeHoursManager() {
     if (pending?.sent && !state.officeSlotCheck) {
       pending.form?.reset();
       setPending(null);
+      // The new slot joins the list and the form folds away again.
+      setAdding(false);
+      requestAnimationFrame(() => another.current?.focus());
     }
   }, [pending, state.officeSlotCheck]);
   const submit = (event) => {
@@ -216,7 +225,30 @@ export function OfficeHoursManager() {
       <h2 id="office-hours-title" tabIndex={-1}>
         Office Hours
       </h2>
-      {offers ? (
+      <p className="muted office-hours-intro">
+        Optional. Open drop-in times that founders can book with you.
+      </p>
+      {slots.map((slot) => (
+        <OfficeSlot
+          key={slot.id}
+          slot={slot}
+          otherOpenings={
+            !profile.paused &&
+            openings.some((opening) => opening.slotId !== slot.id)
+          }
+        />
+      ))}
+      {offers && !showForm && (
+        <button
+          ref={another}
+          type="button"
+          className="btn office-hours-add"
+          onClick={() => setAdding(true)}
+        >
+          <Icon name="plus" /> Open another slot
+        </button>
+      )}
+      {showForm ? (
         <form className="mentor-request-form" onSubmit={submit}>
           <div className="field">
             <label htmlFor="office-date">First date</label>
@@ -280,12 +312,28 @@ export function OfficeHoursManager() {
               </div>
             </div>
           ) : (
-            <button className="btn primary" disabled={state.busy}>
-              {state.busy ? "Saving…" : "Open slot"}
-            </button>
+            <div className="mentor-request-controls">
+              <button className="btn" disabled={state.busy}>
+                {state.busy && <span className="spinner" aria-hidden="true" />}
+                {state.busy ? "Saving…" : "Open slot"}
+              </button>
+              {slots.length > 0 && (
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={state.busy}
+                  onClick={() => {
+                    setAdding(false);
+                    requestAnimationFrame(() => another.current?.focus());
+                  }}
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
           )}
         </form>
-      ) : (
+      ) : offers ? null : (
         <p>
           Enable Office Hours in{" "}
           <button
@@ -370,16 +418,6 @@ export function OfficeHoursManager() {
           </div>
         </form>
       </details>
-      {(profile.officeHours || []).map((slot) => (
-        <OfficeSlot
-          key={slot.id}
-          slot={slot}
-          otherOpenings={
-            !profile.paused &&
-            openings.some((opening) => opening.slotId !== slot.id)
-          }
-        />
-      ))}
       {state.prototypeMentor && nextOpening && (
         <PrototypeShortcut
           note={`No real founder books in this preview. Simulate a sample founder booking your next open slot, ${scheduleLabel(nextOpening)}.`}
@@ -414,6 +452,23 @@ export function CalendarFeed({ room, session }) {
   const [failed, setFailed] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [startDownload, setStartDownload] = useState(false);
+  // "Copied" shows on the button for a moment; if the browser refuses the
+  // clipboard, the link is selected so it can be copied by hand.
+  const [copied, setCopied] = useState(false);
+  const input = useRef(null);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(input.current.value);
+      setCopied(true);
+    } catch {
+      input.current.select();
+    }
+  };
   const link = useRef(null);
   // The private path arrives with the next state, so the file is fetched from
   // the link once it renders: one click creates the path and downloads.
@@ -473,29 +528,55 @@ export function CalendarFeed({ room, session }) {
       </span>
     );
   return (
-    <section className="card panel section-gap">
-      <h2>Calendar subscription</h2>
-      <p>
-        Add your private calendar link to an app that supports calendar
-        subscriptions.
+    <section
+      className="card panel section-gap calendar-feed"
+      aria-labelledby="calendar-feed-title"
+    >
+      <h2 id="calendar-feed-title">Calendar subscription</h2>
+      <p className="calendar-feed-intro">
+        Subscribe to this private link in Google Calendar, Outlook or Apple
+        Calendar to see your sessions and deadlines there.
       </p>
       {path ? (
         <>
-          <label htmlFor="private-calendar-link">Private calendar link</label>
-          <input
-            id="private-calendar-link"
-            type="url"
-            value={new URL(path, location.origin).href}
-            readOnly
-            onFocus={(event) => event.currentTarget.select()}
-          />
+          <div className="field">
+            <label htmlFor="private-calendar-link">Private calendar link</label>
+            <div className="calendar-feed-row">
+              <input
+                ref={input}
+                id="private-calendar-link"
+                type="url"
+                value={new URL(path, location.origin).href}
+                readOnly
+                aria-describedby="calendar-feed-help"
+                onFocus={(event) => event.currentTarget.select()}
+              />
+              <button
+                type="button"
+                className={`btn calendar-feed-copy${copied ? " is-copied" : ""}`}
+                onClick={copy}
+              >
+                <Icon name={copied ? "check" : "calendar"} />
+                {copied ? "Copied" : "Copy link"}
+              </button>
+            </div>
+            <p className="field-help" id="calendar-feed-help">
+              Anyone with this link can see your calendar. Reset it to stop the
+              old link working.
+            </p>
+          </div>
           <button
-            className="btn"
+            type="button"
+            className="link-btn calendar-feed-reset"
             disabled={state.busy}
             onClick={(event) => refresh(true, event)}
           >
+            {pending && <span className="spinner" aria-hidden="true" />}
             Reset link
           </button>
+          <span className="visually-hidden" role="status">
+            {copied ? "Calendar link copied." : ""}
+          </span>
         </>
       ) : (
         <button
@@ -503,6 +584,7 @@ export function CalendarFeed({ room, session }) {
           disabled={state.busy}
           onClick={(event) => refresh(false, event)}
         >
+          {pending && <span className="spinner" aria-hidden="true" />}
           Create calendar link
         </button>
       )}

@@ -225,6 +225,69 @@ ol.stage-line {
 .stage-compact-label {
   display: none;
 }
+/* Step dots (StepDots): one circle per step, joined by a line. Done steps
+   are filled with a tick, the current one is a ringed dot, and the steps
+   ahead are hollow rings (3:1 against the card), so what's left can be
+   counted at a glance. */
+.step-dots {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.step-dot {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-full);
+  background: var(--paper);
+  box-shadow: inset 0 0 0 2px var(--control-border);
+  color: var(--on-accent);
+}
+.step-dot.done {
+  background: var(--accent-solid);
+  box-shadow: none;
+}
+.step-dot.current {
+  background: var(--accent-solid);
+  box-shadow:
+    inset 0 0 0 2px var(--accent-solid),
+    inset 0 0 0 4px var(--paper);
+}
+.step-dot svg {
+  width: 10px;
+  height: 10px;
+}
+.step-link {
+  flex: 1;
+  min-width: var(--space-2);
+  height: 2px;
+  background: var(--line);
+}
+.step-link.done {
+  background: var(--accent-solid);
+}
+/* On a room page the labelled stage line does this job; on phones, where
+   that line is hidden, the dots sit under the step count instead. */
+.stage-compact-dots {
+  display: none;
+}
+@media (forced-colors: active) {
+  /* Shadows are dropped in high contrast, so the rings become outlines. */
+  .step-dot {
+    outline: 2px solid CanvasText;
+    outline-offset: -2px;
+  }
+  .step-dot.done,
+  .step-dot.current,
+  .step-link.done {
+    background: Highlight;
+  }
+  .step-link {
+    background: CanvasText;
+  }
+}
 @media (max-width: 760px) {
   .stage-line {
     display: none;
@@ -235,6 +298,10 @@ ol.stage-line {
   }
   .stage-compact-label {
     display: inline;
+  }
+  .stage-compact-dots {
+    display: flex;
+    margin-bottom: var(--space-4);
   }
   .room-tabs {
     mask-image: linear-gradient(to right, #000 85%, transparent);
@@ -2861,7 +2928,12 @@ ol.stage-line {
 .tour-shade {
   position: fixed;
   z-index: 1000;
-  background: #031413b3;
+  background: var(--tour-scrim);
+}
+/* Around a highlight the ring's own shadow does the dimming, so the opening
+   has the ring's rounded corners; these four only stop clicks. */
+.tour-shade.is-blocker {
+  background: transparent;
 }
 .tour-ring,
 .tour-shield {
@@ -2869,21 +2941,12 @@ ol.stage-line {
   z-index: 1001;
   border-radius: var(--radius-lg);
 }
+/* One white ring, with nothing around it that could read as a second
+   highlight. Its corners come from the element (see QuickTour). */
 .tour-ring {
   border: 3px solid #ffffff;
-  box-shadow: 0 0 0 4px #1ec1be8c;
+  box-shadow: 0 0 0 200vmax var(--tour-scrim);
   pointer-events: none;
-  animation: tour-pulse 1.6s ease-in-out infinite;
-}
-@keyframes tour-pulse {
-  50% {
-    box-shadow: 0 0 0 9px #1ec1be40;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .tour-ring {
-    animation: none;
-  }
 }
 .tour-card {
   position: fixed;
@@ -2950,7 +3013,9 @@ ol.stage-line {
   color: var(--muted);
 }
 @media (forced-colors: active) {
-  .tour-shade {
+  /* Shadows are dropped here, so the four blockers dim the page again. */
+  .tour-shade,
+  .tour-shade.is-blocker {
     background: Canvas;
     opacity: 0.85;
   }

@@ -64,7 +64,21 @@
   --muted: #4f6056;
   --line: #c8d2cc;
   --paper: #ffffff;
-  --canvas: #f2f4f1;
+  /* A sage tint a step below the white cards, so cards read as raised. */
+  --canvas: #e8eee9;
+  /* Behind workspace pages: a low-poly tile that repeats down the page
+     (scripts/generate-backdrop.js), with light from the top-left over its
+     top. The images sit in src/assets so each new version gets a new
+     filename and no browser keeps an old copy. */
+  --canvas-art: url("./assets/workspace-backdrop.svg");
+  /* Curved, so it reaches nothing at the bottom of its 900px box at any
+     width and leaves no edge. */
+  --canvas-light: radial-gradient(
+    70% 100% at 0 0,
+    rgb(255 255 255 / 0.3),
+    rgb(255 255 255 / 0.12) 40%,
+    transparent
+  );
   --surface-soft: #eaf0eb;
   --green: var(--brand);
   --green-dark: var(--brand-dark);
@@ -86,10 +100,14 @@
   --surface-hover: #e3f1f0;
   --surface-hover-border: #7b9896;
   --surface-hover-shadow: 0 0 0 3px #00726f0a;
-  --shadow: none;
+  /* Resting cards: lifted off the canvas, with a lighter edge than --line. */
+  --shadow: 0 1px 2px #102a2412, 0 6px 16px #102a240d;
+  --card-border: #d3ddd7;
   --shadow-raised: 0 1px 2px #102a2410, 0 4px 12px #102a240c;
   --overlay-shadow: 0 8px 28px #102a2420;
-  --skeleton: #e1e8e3;
+  /* Dims the page around the quick tour's highlight. */
+  --tour-scrim: #031413b3;
+  --skeleton: #d9e2dc;
   --skeleton-shine: #f1f5f2;
 
   --danger-text: #9b332c;
@@ -147,6 +165,12 @@
   --line: #2d3d3b;
   --paper: #162020;
   --canvas: #0e1514;
+  --canvas-art: url("./assets/workspace-backdrop-dark.svg");
+  --canvas-light: radial-gradient(
+    70% 100% at 0 0,
+    rgb(255 255 255 / 0.04),
+    transparent
+  );
   --surface-soft: #1e2a29;
   --green: #7fd3cc;
   --green-dark: #a6e3dd;
@@ -162,6 +186,8 @@
   --surface-hover: #1c3432;
   --surface-hover-border: #4f7470;
   --surface-hover-shadow: 0 0 0 3px #7fd3cc14;
+  --shadow: 0 1px 2px #00000040;
+  --card-border: var(--line);
   --shadow-raised: 0 1px 2px #00000059, 0 4px 12px #00000040;
   --overlay-shadow: 0 16px 48px #00000080;
   --skeleton: #1e2a29;
@@ -422,5 +448,8 @@ button[data-pending]::after {
     --control-focus: Highlight;
     --control-border: ButtonText;
     --line: CanvasText;
+    --card-border: CanvasText;
+    --canvas-art: none;
+    --canvas-light: none;
   }
 }

@@ -189,7 +189,15 @@
   }
 }
 .app:not(.onboarding) #main-content {
-  background: var(--canvas);
+  /* The tile repeats for the whole page, so it never runs out; the light
+     fades out within its own box at the top, so it leaves no edge. */
+  background:
+    var(--canvas-light) top left / 100% 900px no-repeat,
+    var(--canvas-art) top left / 1200px 1200px repeat,
+    var(--canvas);
+  /* On phones the shell doesn't stretch it, so a short page still fills the
+     screen rather than ending in plain canvas. */
+  min-height: 100vh;
 }
 .btn.danger {
   border-color: var(--danger-border);

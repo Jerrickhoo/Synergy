@@ -10,6 +10,7 @@ import { milestoneDate, roomNextAction } from "../data/selectors.js";
 import { personVerified } from "../data/collaboration.js";
 import { typeLabel } from "../data/collaboration-types.js";
 import { roomFinished, roomStep } from "../data/room-progress.js";
+import StepDots from "../components/StepDots.jsx";
 
 const shortDate = (value) =>
   new Date(value).toLocaleDateString(undefined, {
@@ -186,7 +187,6 @@ export default function RoomsPage() {
           const summary = isMentorRoom(room)
             ? mentorshipCardSummary(room)
             : null;
-          const progress = summary ? summary.progress : room.progress;
           return (
             <Fragment key={room.id}>
               <article className="card room-list-card">
@@ -260,26 +260,12 @@ export default function RoomsPage() {
                     Step {step.number} of {step.total}
                   </p>
                 )}
-                <div
-                  className="progress-track"
-                  role="progressbar"
-                  aria-label={`Collaboration progress with ${partner?.name || room.partnerId}`}
-                  aria-valuetext={
-                    step
-                      ? `Step ${step.number} of ${step.total}: ${step.label}`
-                      : undefined
-                  }
-                  aria-valuenow={progress}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                >
-                  <div
-                    className="progress-fill"
-                    style={{
-                      width: progress + "%",
-                    }}
+                {step && (
+                  <StepDots
+                    {...step}
+                    name={`Collaboration progress with ${partner?.name || room.partnerId}`}
                   />
-                </div>
+                )}
                 {!next.done && (
                   <p className={`room-next${next.mine ? " mine" : ""}`}>
                     <strong>

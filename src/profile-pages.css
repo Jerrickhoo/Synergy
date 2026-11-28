@@ -1062,11 +1062,6 @@ button.profile-checklist-item > svg {
   font-size: var(--text-sm);
   color: var(--muted);
 }
-.digest-match-copy .digest-match-reason {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .digest-ring {
   width: 48px;
   height: 48px;
@@ -1074,13 +1069,6 @@ button.profile-checklist-item > svg {
 .digest-ring strong {
   font-size: var(--text-md);
   letter-spacing: 0;
-}
-.digest-note {
-  margin: 0;
-  padding: var(--space-2) var(--space-3) var(--space-1);
-  font-size: var(--text-xs);
-  color: var(--muted);
-  text-wrap: pretty;
 }
 @media (max-width: 560px) {
   .digest-head {
@@ -1090,9 +1078,6 @@ button.profile-checklist-item > svg {
   .digest-match {
     gap: var(--space-3);
     padding: var(--space-3);
-  }
-  .digest-match-copy .digest-match-reason {
-    white-space: normal;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1128,7 +1113,10 @@ button.profile-checklist-item > svg {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-1);
-  background: var(--surface-soft);
+  /* A white track like the cards, so it holds up on the page backdrop. */
+  background: var(--paper);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow);
   border-radius: var(--radius-md);
   padding: var(--space-1);
 }
@@ -1141,8 +1129,8 @@ button.profile-checklist-item > svg {
   left: var(--space-1);
   width: calc((100% - 3 * var(--space-1)) / 2);
   border-radius: calc(var(--radius-md) - var(--space-1));
-  background: var(--paper);
-  box-shadow: var(--shadow-raised);
+  background: var(--surface-hover);
+  box-shadow: inset 0 0 0 1px var(--surface-hover-border);
   transition: transform var(--duration-base) var(--ease-out);
 }
 .update-filters:has(.btn:last-child[aria-pressed="true"])::before {
@@ -1201,10 +1189,13 @@ button.profile-checklist-item > svg {
   background: var(--paper);
   padding: 0;
 }
+/* Two lines per update: the title, then what kind it is and where. When it
+   happened and the button sit at the row's end. */
 .notification-entry.update-row {
   position: relative;
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
   gap: var(--space-4);
   border: 0;
   border-bottom: 1px solid var(--line);
@@ -1247,31 +1238,30 @@ button.profile-checklist-item > svg {
 .update-content {
   min-width: 0;
 }
-.update-meta {
+.update-side {
   display: flex;
   align-items: center;
-  flex-wrap: nowrap;
+  gap: var(--space-4);
+}
+.update-meta {
+  display: inline-flex;
+  align-items: center;
   gap: var(--space-2);
-  min-height: 18px;
   color: var(--muted);
   font-size: var(--text-xs);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-.update-kind {
-  font-weight: 600;
+/* Buttons differ in width; a common minimum keeps the times in one column
+   where they sit beside the text. */
+@media (min-width: 561px) {
+  .update-row:not(.update-compact) .update-actions {
+    min-width: 8rem;
+    justify-content: flex-end;
+  }
 }
-.update-meta time::before {
-  content: "·";
-  margin-right: var(--space-2);
-}
-.update-read-state {
-  display: inline-flex;
-  align-items: center;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-.update-read-state i {
+.update-dot {
   width: 8px;
   height: 8px;
   border-radius: var(--radius-full);
@@ -1283,7 +1273,7 @@ button.profile-checklist-item > svg {
   line-height: 1.45;
   font-weight: 500;
   padding: 0;
-  margin: var(--space-1) 0 0;
+  margin: 0;
   border: 0;
   text-wrap: pretty;
 }
@@ -1303,7 +1293,7 @@ button.profile-checklist-item > svg {
   display: flex;
   gap: var(--space-2);
   flex-wrap: wrap;
-  margin: var(--space-3) 0 0;
+  margin: 0;
 }
 .update-actions .btn.small {
   min-height: 36px;
@@ -1314,10 +1304,6 @@ button.profile-checklist-item > svg {
   background: transparent;
   border-color: transparent;
   color: var(--muted);
-}
-/* A lone ghost button keeps its text on the title's left edge. */
-.update-actions .update-read-action:first-child {
-  margin-left: calc(-1 * var(--space-3));
 }
 .update-actions .update-read-action:hover:not(:disabled) {
   border-color: var(--control-border);
@@ -1438,7 +1424,16 @@ button.profile-checklist-item > svg {
 }
 .update-compact .update-actions {
   gap: var(--space-1);
-  margin-top: var(--space-2);
+}
+/* Narrow places (the header preview, phones): the time and button go under
+   the text instead of beside it. */
+.notification-entry.update-row.update-compact {
+  grid-template-columns: 28px minmax(0, 1fr);
+}
+.update-compact .update-side {
+  grid-column: 2;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
 }
 .notification-preview-empty {
   padding: 20px 18px;
@@ -1486,13 +1481,169 @@ button.profile-checklist-item > svg {
     scrollbar-width: auto;
   }
 }
+/* Settings: a menu of the page's sections beside them, sticky as the page
+   scrolls; on narrower screens it becomes a row of links above them. */
+.settings-layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+.settings-content {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+.settings-content > [id] {
+  scroll-margin-top: 100px;
+}
+/* The grid gap spaces the sections; their own margins would add to it. */
+.settings-content > section,
+.settings-content > details {
+  margin: 0;
+}
+.settings-fields .select-field {
+  max-width: 360px;
+}
+/* One label style for every field in Settings, so a row of fields lines up
+   whether each is a text box or a menu. */
+.settings-content .field {
+  gap: var(--space-2);
+}
+.settings-content .select-field > label {
+  margin-bottom: var(--space-2);
+  font-size: var(--font-caption);
+  font-weight: 650;
+  color: var(--info-text);
+}
+.settings-content legend {
+  padding: 0;
+}
+.settings-content > [id]:focus {
+  outline: none;
+}
+/* A white card like the sections, so the menu holds up on the backdrop.
+   Items are rounded radius-lg minus the card's padding, so corners nest. */
+.settings-nav {
+  position: sticky;
+  top: 100px;
+  padding: var(--space-2);
+  background: var(--paper);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+.settings-nav ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.settings-nav button {
+  width: 100%;
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: calc(var(--radius-lg) - var(--space-2));
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--duration-base) var(--ease-out),
+    color var(--duration-base) var(--ease-out);
+}
+.settings-nav button:hover {
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+.settings-nav button[aria-current="true"] {
+  background: var(--surface-hover);
+  box-shadow: inset 0 0 0 1px var(--surface-hover-border);
+  color: var(--green-dark);
+}
+@media (max-width: 1100px) {
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+  .settings-nav {
+    position: static;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .settings-nav ul {
+    display: flex;
+    gap: var(--space-2);
+    overflow-x: auto;
+    padding-bottom: var(--space-1);
+  }
+  .settings-nav button {
+    width: auto;
+    white-space: nowrap;
+    background: var(--paper);
+    border: 1px solid var(--card-border);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-nav button {
+    transition: none;
+  }
+}
 .settings-section > h2 {
-  margin-bottom: 10px;
+  margin: 0 0 var(--space-3);
+}
+.settings-section > .settings-intro {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-4);
+  color: var(--muted);
+}
+/* Account: one row, so no rule above it as between the danger rows. */
+#settings-account > .account-action-row {
+  border-top: 0;
+  padding: 0;
+}
+.settings-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: var(--space-4);
+  max-width: 760px;
+}
+/* Emails: mentorship and payment notices side by side. */
+.settings-email-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--space-2) var(--space-6);
+}
+.settings-email-columns > div {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+}
+.settings-email-group {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.settings-save {
+  justify-self: start;
+}
+.settings-sessions {
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 .settings-section > p {
   font-size: 14px;
   line-height: 1.6;
-  margin: 10px 0 16px;
+  margin: var(--space-2) 0 var(--space-4);
 }
 .settings-section > .select-field {
   max-width: 360px;
@@ -1819,6 +1970,11 @@ button.profile-checklist-item > svg {
     grid-template-columns: 32px minmax(0, 1fr);
     gap: var(--space-3);
     padding: var(--space-4);
+  }
+  .update-row .update-side {
+    grid-column: 2;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
   }
   .update-icon {
     width: 32px;

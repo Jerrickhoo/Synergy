@@ -4,6 +4,14 @@ import AuthCard from "../components/AuthCard.jsx";
 import Icon from "../components/Icon.jsx";
 import { useApp } from "../state/AppContext.jsx";
 import { useSecondsUntil } from "../state/useSecondsUntil.js";
+import {
+  continuedMessage,
+  openAccountChannel,
+  verifiedMessage,
+} from "../state/verification.js";
+
+// How long a tab still on "Check your inbox" has to say it opened Synergy.
+const handoffWait = 4000;
 
 // One request per link, so React's second effect run in development (and a
 // remount) reuses the first answer.
@@ -18,6 +26,11 @@ export default function VerifyEmailPage() {
   );
   const [resent, setResent] = useState(false);
   const [resending, setResending] = useState(false);
+  // Signed out here: "asking" whether a tab of this browser was waiting on
+  // this link, "returned" once that tab opened Synergy, "none" otherwise.
+  const [handoff, setHandoff] = useState("asking");
+  // The browser can refuse to close a tab it didn't open by script.
+  const [closeRefused, setCloseRefused] = useState(false);
   // As on the banner: until another link may be sent, the button counts down.
   const wait = useSecondsUntil(state.emailVerificationRetryAt);
   useEffect(() => {
@@ -39,6 +52,31 @@ export default function VerifyEmailPage() {
       active = false;
     };
   }, [token, status]);
+  useEffect(() => {
+    if (status !== "verified" || state.authenticated) return;
+    const channel = openAccountChannel();
+    if (!channel) {
+      setHandoff("none");
+      return;
+    }
+    const id = crypto.randomUUID();
+    channel.onmessage = ({ data }) => {
+      if (data?.type !== continuedMessage || data.id !== id) return;
+      clearTimeout(timer);
+      setHandoff("returned");
+    };
+    const timer = setTimeout(() => setHandoff("none"), handoffWait);
+    channel.postMessage({ type: verifiedMessage, id });
+    return () => {
+      clearTimeout(timer);
+      channel.close();
+    };
+  }, [status, state.authenticated]);
+  function closeTab() {
+    window.close();
+    // Still here a moment later: the browser kept the tab open.
+    setTimeout(() => setCloseRefused(true), 300);
+  }
   async function resend() {
     setResending(true);
     try {
@@ -67,6 +105,47 @@ export default function VerifyEmailPage() {
         }
       />
     );
+  if (status === "verified" && !state.authenticated && handoff === "asking")
+    return (
+      <AuthCard
+        title="Your email is verified"
+        intro={
+          <span className="account-email-progress" role="status">
+            <span className="spinner" aria-hidden="true" />
+            Opening Synergy…
+          </span>
+        }
+      />
+    );
+  if (status === "verified" && !state.authenticated && handoff === "returned")
+    return (
+      <AuthCard
+        title="Your email is verified"
+        intro={
+          closeRefused
+            ? "Your browser kept this tab open. Switch to your other Synergy tab to continue, or close this one."
+            : "Synergy is open in your other tab, right where you left off. Close this tab to continue there."
+        }
+        footer={
+          <>
+            {"Want to stay here? "}
+            <button type="button" onClick={signIn}>
+              Sign in here
+            </button>
+          </>
+        }
+      >
+        {!closeRefused && (
+          <button
+            className="btn primary login-submit"
+            type="button"
+            onClick={closeTab}
+          >
+            Close this tab
+          </button>
+        )}
+      </AuthCard>
+    );
   if (status === "verified")
     return (
       <AuthCard
@@ -74,7 +153,7 @@ export default function VerifyEmailPage() {
         intro={
           state.authenticated
             ? "Your account is ready."
-            : "Your account is ready. Sign in to start using Synergy."
+            : "Your account is ready. Sign in to start using Synergy. If you signed up on another device, Synergy has already opened there."
         }
       >
         <button

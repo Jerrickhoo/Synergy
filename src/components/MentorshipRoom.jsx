@@ -34,6 +34,7 @@ import { roomStep } from "../data/room-progress.js";
 import { formatDate, timeZoneLabel } from "../data/dates.js";
 import SelectField from "./SelectField.jsx";
 import FilePicker from "./FilePicker.jsx";
+import StepDots from "./StepDots.jsx";
 
 const reports = {
   held: "Session held",
@@ -1127,17 +1128,23 @@ export default function MentorshipRoom({ room }) {
       {/* Same progress line as a Deal Room (readiness plan F5). */}
       {/* The step count shows at every width; the step's name only on
           small screens, where it stands in for the stage line. */}
-      <p className="stage-compact" aria-hidden="true">
-        {(() => {
-          const step = roomStep(room);
-          return (
-            <>
+      {(() => {
+        const step = roomStep(room);
+        return (
+          <>
+            <p className="stage-compact" aria-hidden="true">
               Step {step.number} of {step.total}
               <span className="stage-compact-label">: {step.label}</span>
-            </>
-          );
-        })()}
-      </p>
+            </p>
+            {/* Phones only, where the labelled line below is hidden. */}
+            <StepDots
+              {...step}
+              name="Mentorship progress"
+              className="stage-compact-dots"
+            />
+          </>
+        );
+      })()}
       <ol
         className="stage-line mentor-stage-line"
         aria-label="Mentorship progress"
