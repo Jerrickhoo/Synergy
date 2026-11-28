@@ -2849,6 +2849,21 @@ ol.stage-line {
     max-height: 440px;
   }
 }
+/* A room's planner stacks by the width it actually gets, not the window's:
+   with page zoom or wide system fonts (Linux falls back to DejaVu Sans) the
+   two columns stop fitting well before the 1100px breakpoint. */
+.room-milestones-tab {
+  container-type: inline-size;
+}
+@container (max-width: 760px) {
+  .room-planner {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .room-planner .home-tasks {
+    height: auto;
+    min-height: 0;
+  }
+}
 
 /* Filter matches: one filter per row, checkboxes aligned with their
    labels. */

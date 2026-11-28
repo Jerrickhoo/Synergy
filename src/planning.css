@@ -94,6 +94,16 @@
   gap: 16px;
   align-items: start;
 }
+/* The board stacks its columns by the room's width too, so zoom and wide
+   fonts never squeeze three columns into a narrow panel. */
+.task-workspace {
+  container-type: inline-size;
+}
+@container (max-width: 600px) {
+  .task-board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .task-column {
   background: var(--surface-soft);
   border: 1px solid var(--line);

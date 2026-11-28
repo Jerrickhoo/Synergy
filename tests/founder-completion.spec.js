@@ -10,6 +10,7 @@ import {
   finish,
   user,
   sharedTerms,
+  founderProfile,
 } from "./founder-browser-helpers.js";
 import { selectValue } from "./ui-helpers.js";
 test.setTimeout(60000);
@@ -125,6 +126,14 @@ test("audit surfaces support axe and keyboard task cards, milestone menus, dialo
   request,
 }) => {
   const { a, b, id } = await pair(request);
+  // A founder who offers what this one needs, so the weekly digest has a
+  // strong match to list. The paired founder shares the same profile, and the
+  // test server seeds no other accounts.
+  await user(request, "DigestMatch", {
+    ...founderProfile,
+    offer: founderProfile.need,
+    need: founderProfile.offer,
+  });
   await command(request, a, {
     form: "task-create",
     activeRoomId: id,

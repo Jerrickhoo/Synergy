@@ -369,7 +369,14 @@ for (const role of ["founder", "mentor"])
       await page
         .getByRole("button", { name: "Send mentorship request" })
         .click();
+      // Sending opens Requests; the sent request's dialog has the shortcut.
       await page
+        .getByRole("button", {
+          name: new RegExp(`^View request.*${person.name}`),
+        })
+        .click();
+      await page
+        .getByRole("dialog")
         .getByRole("button", { name: "Simulate acceptance", exact: true })
         .click();
     } else {

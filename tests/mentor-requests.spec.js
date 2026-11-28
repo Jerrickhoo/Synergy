@@ -1,6 +1,12 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { command, getState, open, user } from "./founder-browser-helpers.js";
+import {
+  command,
+  founderProfile,
+  getState,
+  open,
+  user,
+} from "./founder-browser-helpers.js";
 import { mentorRequestValues } from "./mentor-request-fixtures.js";
 import { horizontalOverflow, openRequest } from "./ui-helpers.js";
 
@@ -45,13 +51,20 @@ test("a founder shares a structured request and a mentor refers them without for
   browser,
 }, testInfo) => {
   test.setTimeout(60000);
-  const founder = await user(request, "RequestFounder");
+  // The referral list shows only the top five similar mentors, and earlier
+  // tests leave many mentors with the same profile. A need no other account
+  // has, offered only by the alternative, keeps it first on fit.
+  const need = "Referral audit coaching";
+  const founder = await user(request, "RequestFounder", {
+    ...founderProfile,
+    need,
+  });
   const mentor = await user(request, "RequestMentor", mentorProfile, "mentor");
   const referralName = `ReferralMentor${testInfo.repeatEachIndex}`;
   const alternative = await user(
     request,
     referralName,
-    mentorProfile,
+    { ...mentorProfile, offer: need, expertise: need },
     "mentor",
   );
   const context = await browser.newContext({
