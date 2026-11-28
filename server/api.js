@@ -13,16 +13,22 @@ import {
 import { encode } from "../src/state/serialization.js";
 import { configuration } from "./config.js";
 import { readBody, inspectFile, inspectAvatar } from "./files.js";
+import {
+  attemptEmail,
+  clientAddress,
+  createAttemptLimiter,
+} from "./rate-limit.js";
 
 export function createApi({
   config = configuration(),
   file = config.file,
   authAttemptsPerMinute = 30,
+  authAttemptsPerEmailPerMinute = 10,
 } = {}) {
   const workspace = createWorkspace(file, config);
   const operations = createOperations(config, () => workspace.health());
   const uploads = resolve(dirname(file), "uploads");
-  const attempts = new Map();
+  const allowAttempt = createAttemptLimiter();
   const api = async function api(req, res, next) {
     const url = new URL(req.url, "http://localhost");
     if (!url.pathname.startsWith("/api/")) return next?.();
@@ -230,20 +236,22 @@ export function createApi({
         url.pathname.startsWith("/api/account/") ||
         url.pathname.startsWith("/api/auth/")
       ) {
-        const key = `${req.socket.remoteAddress}:${url.pathname}`;
-        const now = Date.now();
-        const recent = (attempts.get(key) || []).filter(
-          (time) => time > now - 60000,
-        );
-        if (recent.length >= authAttemptsPerMinute)
+        const email = attemptEmail(input);
+        const limits = [
+          [
+            `${clientAddress(req, config.clientIpHeader)}:${url.pathname}`,
+            authAttemptsPerMinute,
+          ],
+        ];
+        if (email)
+          limits.push([
+            `email:${email}:${url.pathname}`,
+            authAttemptsPerEmailPerMinute,
+          ]);
+        if (!allowAttempt(limits))
           return send(429, {
             error: "Too many sign-in attempts. Try again in a minute.",
           });
-        if (attempts.size > 10000)
-          for (const [storedKey, times] of attempts)
-            if (!times.some((time) => time > now - 60000))
-              attempts.delete(storedKey);
-        attempts.set(key, [...recent, now]);
         if (url.pathname === "/api/demo")
           return send(
             200,

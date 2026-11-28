@@ -58,6 +58,10 @@ export function configuration(env = process.env) {
       .filter(Boolean),
     maxFileBytes: 5 * 1024 * 1024,
     accountFileBytes: 50 * 1024 * 1024,
+    // Behind a proxy: the request header that holds the visitor's address,
+    // for sign-in rate limits (server/rate-limit.js). cf-connecting-ip on
+    // Render, x-nf-client-connection-ip behind a Netlify proxy.
+    clientIpHeader: (env.SYNERGY_CLIENT_IP_HEADER || "").trim().toLowerCase(),
   };
   if (
     !Number.isFinite(config.backupIntervalHours) ||

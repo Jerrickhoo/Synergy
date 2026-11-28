@@ -12,6 +12,7 @@ const dir = mkdtempSync(join(tmpdir(), "synergy-benchmark-"));
 const api = createApi({
   config: configuration({ SYNERGY_DATA_FILE: join(dir, "workspace.sqlite") }),
   authAttemptsPerMinute: 10000,
+  authAttemptsPerEmailPerMinute: 10000,
 });
 const server = createServer((req, res) => api(req, res));
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));

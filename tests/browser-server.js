@@ -25,8 +25,10 @@ const api = createApi({
     }),
   },
   // This isolated suite creates many accounts on one loopback IP. Production
-  // keeps createApi's default of 30 authentication requests per minute.
+  // keeps createApi's defaults of 30 authentication requests per minute per
+  // address and 10 per email address.
   authAttemptsPerMinute: 300,
+  authAttemptsPerEmailPerMinute: 300,
 });
 const server = await createServer({
   configFile: false,

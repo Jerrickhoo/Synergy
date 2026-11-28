@@ -39,6 +39,10 @@ services:
       # receive email. Remove before real users sign up.
       - key: SYNERGY_DEV_ACCOUNTS
         value: "true"
+      # The visitor's address for sign-in rate limits. Every visit arrives
+      # through the Netlify proxy, which overwrites this header with it.
+      - key: SYNERGY_CLIENT_IP_HEADER
+        value: x-nf-client-connection-ip
       - key: SYNERGY_ALLOWED_ORIGINS
         value: https://synergy-prototype.netlify.app
       - key: SYNERGY_ADMIN_EMAILS
